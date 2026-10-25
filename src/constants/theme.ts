@@ -1,65 +1,70 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://unistyl.es/), etc.
+ * Tokens visuais da Popularia, extraídos da direção visual (Etapa 1 do design).
+ * Paleta editorial: papel, tinta e vermelho. O app usa apenas o tema claro por enquanto.
  */
 
-import '@/global.css';
-
-import { Platform } from 'react-native';
-
 export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
+  /** Vermelho principal: ações, comunas, destaques. */
+  red: '#D62718',
+  redPressed: '#A51C10',
+  redSoft: '#F3C9C3',
+  /** Tinta: texto principal e superfícies escuras (barra de navegação). */
+  ink: '#16120F',
+  inkSoft: '#3D3530',
+  /** Fundo das telas. */
+  cream: '#F4ECDD',
+  /** Cartões e superfícies elevadas. */
+  paper: '#FBF7EF',
+  /** Palha: avatares claros, placeholders de imagem. */
+  straw: '#E4D6BD',
+  strawLight: '#EBE1CF',
+  /** Destaque de comentário em cartões. */
+  highlight: '#EADFCB',
+  /** Linhas divisórias. */
+  rule: '#D9CBB2',
+  muted: '#6B6259',
+  /** Ícones inativos da navegação inferior. */
+  navInactive: '#948A7E',
+  error: '#B00020',
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ColorName = keyof typeof Colors;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+/**
+ * Famílias carregadas em `src/app/_layout.tsx` via `useFonts`.
+ * O design usa Archivo com `font-stretch` (62–80%) nos títulos; o React Native
+ * não suporta essa propriedade, então Archivo Narrow cumpre o papel de "condensada".
+ */
+export const Fonts = {
+  regular: 'Archivo_400Regular',
+  bold: 'Archivo_700Bold',
+  extrabold: 'Archivo_800ExtraBold',
+  condensed: 'ArchivoNarrow_700Bold',
+  mono: 'IBMPlexMono_500Medium',
+  monoSemibold: 'IBMPlexMono_600SemiBold',
+} as const;
 
 export const Spacing = {
   half: 2,
   one: 4,
   two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
+  three: 12,
+  four: 16,
+  five: 18,
+  six: 24,
+  seven: 32,
+  eight: 48,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const Radius = {
+  sm: 4,
+  md: 6,
+  lg: 10,
+  xl: 12,
+  pill: 999,
+} as const;
+
+/** Área mínima de toque recomendada (Android 48dp, iOS 44pt). */
+export const MinTouchTarget = 44;
+
+export const MaxContentWidth = 640;

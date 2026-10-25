@@ -1,56 +1,60 @@
-# Welcome to your Expo app 👋
+# Popularia (mobile)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Protótipo do app da Popularia em React Native + Expo (SDK 58) + TypeScript + Expo Router.
+Usa **apenas dados fictícios**. Não há backend, autenticação ou armazenamento de dados pessoais.
+**Não está pronto para produção.**
 
-## Get started
+## Rodar no celular com Expo Go
 
-1. Install dependencies
+1. Instale o **Expo Go** (Play Store ou App Store). Ele precisa ser compatível com o SDK 58.
+2. No computador:
 
    ```bash
    npm install
-   ```
-
-2. Start the app
-
-   ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Com o celular na **mesma rede Wi-Fi** do computador:
+   - **Android:** abra o Expo Go e escaneie o QR code do terminal.
+   - **iOS:** escaneie o QR code com a câmera do iPhone.
+4. Se a rede bloquear a conexão (Wi-Fi corporativo, WSL2, VPN), use `npx expo start --tunnel`.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Atalhos no terminal: `r` recarrega e `m` abre o menu de desenvolvimento.
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Scripts
 
-## Get a fresh project
+| Comando             | O que faz                       |
+| ------------------- | ------------------------------- |
+| `npm start`         | Servidor de desenvolvimento     |
+| `npm run lint`      | ESLint (`eslint-config-expo`)   |
+| `npm run typecheck` | Verificação de tipos (`tsc`)    |
+| `npx expo-doctor`   | Diagnóstico de dependências     |
 
-When you're ready, run:
+Para adicionar pacotes, use sempre `npx expo install <pacote>`: ele escolhe versões compatíveis com o SDK.
 
-```bash
-npm run reset-project
+## Estrutura
+
+```
+src/
+  app/                  Rotas (Expo Router): cada arquivo é uma tela
+    _layout.tsx         Raiz: fontes, splash, pilha e ErrorBoundary
+    (tabs)/             Abas: Início, Explorar, Avisos, Perfil
+    criar.tsx           Modal "Criar publicação"
+  components/           Componentes compartilhados (texto, ícones, tela, estados)
+  features/<domínio>/   Acesso a dados (api.ts) e componentes do domínio
+  hooks/                Hooks genéricos
+  lib/                  Funções utilitárias puras (formatação etc.)
+  mocks/                Dados fictícios
+  types/                Modelos de domínio
+  constants/            Tema (cores, fontes, espaçamentos) e configuração
+assets/                 Ícone, splash e imagens
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+As telas nunca importam `src/mocks` diretamente: elas chamam `features/<domínio>/api.ts`.
+Quando a API Symfony/API Platform existir, só esses arquivos mudam (fetch + mapeamento JSON-LD → modelo).
 
-### Other setup steps
+## Configuração
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+`EXPO_PUBLIC_API_URL` (opcional) define a URL da futura API. Sem ela, o app usa os mocks.
+Variáveis `EXPO_PUBLIC_*` vão para dentro do app e ficam visíveis a qualquer pessoa:
+**nunca coloque segredos nelas.**
