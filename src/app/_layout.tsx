@@ -11,9 +11,15 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { MockDataNotice } from '@/components/mock-data-notice';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
+import { ToastProvider } from '@/components/toast';
 import { Colors } from '@/constants/theme';
+import { AccountProvider, useAccount } from '@/features/account/account-context';
+import { InteractionsProvider } from '@/features/interactions/interactions-context';
+import { ActionsSheetProvider } from '@/features/moderation/actions-sheet';
+import { ModerationProvider } from '@/features/moderation/moderation-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -46,19 +52,58 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontError && __DEV__) console.warn('Falha ao carregar fontes; usando fontes do sistema.', fontError);
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+  }, [fontError]);
 
   // Sem fontes, o app segue com as fontes do sistema em vez de travar na splash.
   if (!fontsLoaded && !fontError) return null;
 
   return (
+    <InteractionsProvider>
+      <AccountProvider>
+        <ModerationProvider>
+          <ToastProvider>
+            <ActionsSheetProvider>
+              <StatusBar style="dark" />
+              <RootStack />
+            </ActionsSheetProvider>
+          </ToastProvider>
+        </ModerationProvider>
+      </AccountProvider>
+    </InteractionsProvider>
+  );
+}
+
+/**
+ * Sem sessão (ou com o cadastro em andamento), só o fluxo de boas-vindas fica acessível.
+ * Ao entrar ou concluir o cadastro, o guarda muda e o roteador leva ao feed sozinho.
+ * A splash fica na tela enquanto a sessão guardada no aparelho é retomada.
+ */
+function RootStack() {
+  const { onboarded, status } = useAccount();
+  const restoring = status === 'restoring';
+
+  useEffect(() => {
+    if (!restoring) SplashScreen.hideAsync();
+  }, [restoring]);
+
+  if (restoring) return null;
+
+  return (
     <>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
+      <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="criar" options={{ presentation: 'modal' }} />
-      </Stack>
+        <Stack.Screen name="interesses" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="moderacao/[id]" />
+        <Stack.Screen name="conta" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="verificar-email" options={{ presentation: 'modal' }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!onboarded}>
+        <Stack.Screen name="boas-vindas" />
+      </Stack.Protected>
+    </Stack>
+    {onboarded ? <MockDataNotice /> : null}
     </>
   );
 }

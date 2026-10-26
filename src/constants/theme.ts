@@ -25,6 +25,15 @@ export const Colors = {
   muted: '#6B6259',
   /** Ícones inativos da navegação inferior. */
   navInactive: '#948A7E',
+  /** Texto de apoio sobre superfícies escuras (tinta). */
+  onInkMuted: '#C9BCAA',
+  onInkSoft: '#D9CEBF',
+  /** Linhas divisórias sobre superfícies escuras. */
+  inkRule: '#4A403A',
+  /** Bordas tracejadas e pegador da folha inferior. */
+  strawDark: '#CDBFA6',
+  /** Texto de exemplo dentro dos campos. */
+  placeholder: '#8A7F73',
   error: '#B00020',
 } as const;
 

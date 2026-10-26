@@ -12,9 +12,12 @@ export default function TabsLayout() {
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.cream } }}>
-      <Tabs.Screen name="index" options={{ title: 'Início' }} />
+      <Tabs.Screen name="(inicio)" options={{ title: 'Início' }} />
       <Tabs.Screen name="explorar" options={{ title: 'Explorar' }} />
-      <Tabs.Screen name="avisos" options={{ title: 'Avisos' }} />
+      <Tabs.Screen
+        name="avisos"
+        options={{ title: 'Avisos', tabBarAccessibilityLabel: 'Avisos, notificações' }}
+      />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
     </Tabs>
   );

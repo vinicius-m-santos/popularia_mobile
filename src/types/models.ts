@@ -1,9 +1,10 @@
 /**
  * Modelos de domínio usados pelas telas.
  *
- * São independentes do formato da API: quando a API Symfony/API Platform existir,
- * cada feature terá um mapeador (JSON-LD/Hydra → modelo) em `features/<domínio>/api.ts`.
- * Datas chegam como string ISO 8601, como o API Platform serializa por padrão.
+ * São independentes do formato da API: cada feature converte o JSON da API (`lib/api/dto.ts`)
+ * para estes modelos no próprio `features/<domínio>/api.ts`. Campos opcionais marcados como
+ * "só na API" ou "só nos mocks" existem em apenas um dos modos.
+ * Datas são strings ISO 8601, como o API Platform serializa por padrão.
  */
 
 /** Variação visual de avatares e cartões no design. */
@@ -29,12 +30,6 @@ export type TopicId =
   | 'esp'
   | 'humor';
 
-export type Topic = {
-  id: TopicId;
-  label: string;
-  shortLabel: string;
-};
-
 export type User = {
   id: string;
   name: string;
@@ -45,16 +40,41 @@ export type User = {
   badge?: string;
 };
 
+export type ComunaStat = { value: string; label: string };
+export type ComunaRule = { title: string; description: string };
+
 export type Comuna = {
+  /** Endereço da comuna nas rotas: o slug na API (`/comunas/{slug}`), igual ao ID dos mocks. */
   id: string;
+  /** Só na API: UUID usado para publicar na comuna (POST /posts). */
+  serverId?: string;
+  visibility?: 'public' | 'private';
+  /** Se a pessoa participa, segundo o servidor, quando a comuna foi carregada. */
+  viewerIsMember?: boolean;
   name: string;
   handle: string;
   initials: string;
   tone: Tone;
   place: string;
+  foundedYear: string;
   description: string;
   memberCount: number;
+  /** Só nos mocks: a API não informa quem está online. */
+  onlineCount?: number;
+  /** Descrição da foto de capa (texto alternativo). */
+  coverAlt: string;
   topics: TopicId[];
+  stats: ComunaStat[];
+  rules: ComunaRule[];
+  /** Nota sobre como a moderação é escolhida. */
+  moderationNote: string;
+  /** Publicação fixada; a API ainda não tem. */
+  pinned: { title: string; text: string } | null;
+  moderatorIds: string[];
+  /** Papel da primeira pessoa moderadora, por exemplo "Fundadora · Moderação". */
+  founderRole: string;
+  /** Algumas pessoas membras exibidas em destaque. */
+  featuredMemberIds: string[];
 };
 
 export type EventKind = 'Ato' | 'Mutirão' | 'Assembleia';
@@ -67,6 +87,7 @@ export type CommunityEvent = {
   startsAt: string;
   place: string;
   attendeeCount: number;
+  tone: Tone;
 };
 
 export type PostMedia = {
@@ -75,7 +96,7 @@ export type PostMedia = {
 };
 
 export type PostImage = {
-  /** Descrição usada como texto alternativo (acessibilidade). */
+  /** Descrição usada como texto alternativo e legenda do placeholder. */
   alt: string;
 };
 
@@ -91,13 +112,156 @@ export type Post = {
   supportCount: number;
   commentCount: number;
   echoCount: number;
+  /** Rótulo do selo de autoria nos comentários ("Autora", "Autor", "Autoria"). */
+  authorLabel?: string;
   topComment?: { authorId: string; text: string };
+  /** Só na API: o que a pessoa logada pode fazer, calculado no servidor. */
+  viewer?: PostViewer;
 };
+
+export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean };
+
+/** Comuna citada numa publicação (a API manda só o essencial). */
+export type ComunaRef = Pick<Comuna, 'id' | 'name'>;
 
 /** Post com as entidades relacionadas já resolvidas, pronto para exibição. */
 export type FeedItem = Post & {
   author: User;
-  comuna: Comuna | null;
+  comuna: ComunaRef | null;
   event: CommunityEvent | null;
   topCommentAuthor: User | null;
+};
+
+/** Comentário em lista plana; respostas apontam para o comentário pai. */
+export type Comment = {
+  id: string;
+  postId: string;
+  parentId: string | null;
+  authorId: string;
+  createdAt: string;
+  text: string;
+  supportCount: number;
+  /**
+   * Só na API. Comentários apagados, removidos pela moderação ou ocultos por bloqueio continuam
+   * na lista como marcadores sem texto nem autoria, para as respostas não ficarem soltas.
+   */
+  status?: CommentStatus;
+  /** Só na API: a pessoa logada escreveu este comentário (segundo o servidor). */
+  isOwn?: boolean;
+};
+
+export type CommentStatus = 'published' | 'deleted' | 'removed' | 'hidden';
+
+export type CommentWithAuthor = Comment & { author: User };
+
+export type ComunaMember = User & { role: string };
+
+/** Comuna com pessoas resolvidas, para a página da comuna. */
+export type ComunaDetails = Comuna & {
+  /** Se a pessoa já participava ao carregar (o total de membros a inclui). */
+  viewerIsMember: boolean;
+  /** Só na API: papel da pessoa na comuna. */
+  viewerRole?: 'member' | 'moderator' | 'founder' | null;
+  moderators: User[];
+  featuredMembers: User[];
+  members: ComunaMember[];
+};
+
+export type FeedTab = 'para-voce' | 'minhas' | 'perto';
+
+export type Topic = { id: TopicId; label: string; shortLabel: string };
+
+/** Grupo de assuntos na escolha de interesses ("Política e direitos"…). */
+export type TopicGroup = { title: string; topics: Topic[] };
+
+/** Assunto em destaque no Explorar; tocar nele preenche a busca. */
+export type Trend = { label: string; postCountLabel: string; query: string; tone: Tone };
+
+export type ProfileStat = { value: string; label: string };
+
+export type PodcastEpisode = { number: string; title: string; meta: string };
+
+/** Dados de vitrine de uma pessoa criadora (podcast, apoio coletivo). */
+export type CreatorInfo = {
+  mastheadKicker: string;
+  mastheadTitle: string;
+  mastheadLeft: string;
+  mastheadRight: string;
+  episodes: PodcastEpisode[];
+};
+
+export type Profile = {
+  user: User;
+  bio: string;
+  /** Linha de contexto: cidade e tempo na Popularia. */
+  meta: string;
+  /** Resumo curto usado em listas, como "Criadora · podcast Leitura Crítica". */
+  summary: string;
+  stats: ProfileStat[];
+  comunaIds: string[];
+  creator: CreatorInfo | null;
+};
+
+export type NotificationKind = 'reply' | 'mention' | 'support' | 'follow' | 'comuna' | 'moderation';
+
+/** Destino ao tocar no aviso. */
+export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'moderation'; id: string };
+
+export type AppNotification = {
+  id: string;
+  kind: NotificationKind;
+  createdAt: string;
+  /** Quem fez a ação: uma pessoa ou, em avisos de comuna, a própria comuna. */
+  actor: { kind: 'user'; user: User } | { kind: 'comuna'; comuna: Comuna };
+  text: string;
+  /** Trecho em negrito depois do texto, como o nome da comuna. */
+  subject?: string;
+  quote?: string;
+  /** Vinha marcado como não lido do servidor (o estado local pode marcar como lido). */
+  unread: boolean;
+  target: NotificationTarget | null;
+};
+
+export type ExploreFilter = 'tudo' | 'comunas' | 'pessoas' | 'assuntos' | 'posts';
+
+/** O que pode ser denunciado pelo menu "⋯". */
+export type ReportTarget = {
+  kind: 'post' | 'comment' | 'profile';
+  id: string;
+  /** Quem publicou o conteúdo (ou o dono do perfil). */
+  author: User;
+  /** Comuna cuja moderação recebe a denúncia; sem comuna, vai para a moderação geral. */
+  comunaId: string | null;
+  /** Trecho exibido para a moderação. */
+  excerpt: string;
+  /** Onde está o conteúdo, como "Comentário em “Simulado do sábado”". */
+  where: string;
+  /** Conteúdo da própria pessoa, segundo o servidor (ausente nos mocks: compara o ID "me"). */
+  isOwn?: boolean;
+};
+
+/** Denúncia na fila de uma comuna. */
+export type ModerationReport = {
+  id: string;
+  comunaId: string;
+  reason: string;
+  /** Quantas pessoas denunciaram o mesmo conteúdo. */
+  reportCount: number;
+  author: User;
+  where: string;
+  text: string;
+  /** Comentário de quem denunciou. */
+  note?: string;
+  createdAt: string;
+};
+
+export type ModerationLogEntry = { id: string; createdAt: string; text: string };
+
+export type ModerationOverview = {
+  comuna: Comuna;
+  reports: ModerationReport[];
+  log: ModerationLogEntry[];
+  /** Decisões dos últimos 30 dias, antes das tomadas neste aparelho. */
+  resolvedLast30Days: number;
+  averageResponse: string;
 };

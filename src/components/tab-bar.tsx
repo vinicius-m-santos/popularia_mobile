@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Fragment } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -6,10 +6,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { useUnreadCount } from '@/features/notifications/use-unread-count';
 
 /** Ícone de cada rota de aba; o nome da rota é o nome do arquivo em `src/app/(tabs)`. */
 const TAB_ICONS: Record<string, IconName> = {
-  index: 'home',
+  '(inicio)': 'home',
   explorar: 'search',
   avisos: 'bell',
   perfil: 'user',
@@ -18,17 +19,25 @@ const TAB_ICONS: Record<string, IconName> = {
 /** Posição do botão "Criar" entre as abas, como no design. */
 const CREATE_BUTTON_INDEX = 2;
 
+/** Na discussão a barra some para dar lugar ao campo de comentário (design 1c). */
+const HIDDEN_ON_SEGMENTS = ['post'];
+
 /**
  * Barra inferior escura do design: quatro abas e o botão vermelho de criar
  * publicação no centro, que abre a rota modal `/criar`.
  */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
+  const segments = useSegments() as string[];
+  const unread = useUnreadCount();
+  if (segments.some((s) => HIDDEN_ON_SEGMENTS.includes(s))) return null;
+
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]} role="tablist">
       {state.routes.map((route, index) => {
         const focused = index === state.index;
         const { options } = descriptors[route.key];
         const label = options.title ?? route.name;
+        const badge = route.name === 'avisos' && unread > 0 ? unread : 0;
         const color = focused ? Colors.cream : Colors.navInactive;
 
         const onPress = () => {
@@ -43,10 +52,19 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
               onPress={onPress}
               role="tab"
               accessibilityState={{ selected: focused }}
-              accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+              accessibilityLabel={`${options.tabBarAccessibilityLabel ?? label}${badge ? `, ${badge} não lidos` : ''}`}
               testID={options.tabBarButtonTestID}
               style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
-              <Icon name={TAB_ICONS[route.name] ?? 'home'} color={color} />
+              <View>
+                <Icon name={TAB_ICONS[route.name] ?? 'home'} color={color} />
+                {badge ? (
+                  <View style={styles.badge}>
+                    <AppText style={styles.badgeText} color={Colors.paper} maxFontSizeMultiplier={1}>
+                      {badge > 9 ? '9+' : badge}
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
               <AppText style={styles.label} color={color} maxFontSizeMultiplier={1.2} numberOfLines={1}>
                 {label}
               </AppText>
@@ -105,5 +123,25 @@ const styles = StyleSheet.create({
   },
   createPressed: {
     backgroundColor: Colors.redPressed,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    left: 14,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    backgroundColor: Colors.red,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'content-box',
+  },
+  badgeText: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 10,
+    lineHeight: 12,
   },
 });
