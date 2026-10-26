@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
@@ -24,11 +24,7 @@ export function FeedHeader({ tab, onTabChange }: FeedHeaderProps) {
     <View style={styles.header}>
       <View style={styles.top}>
         <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel="Popularia">
-          <View style={styles.logo}>
-            <AppText style={styles.logoLetter} color={Colors.paper} maxFontSizeMultiplier={1}>
-              P
-            </AppText>
-          </View>
+            <Image source={require('@/assets/branding/popularia-symbol.png')} style={styles.logo} accessible={false} />
           <AppText style={styles.wordmark} maxFontSizeMultiplier={1.2}>
             POPULARIA
           </AppText>
@@ -62,15 +58,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.red,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoLetter: {
-    fontFamily: Fonts.condensed,
-    fontSize: 21,
-    lineHeight: 24,
+    resizeMode: 'contain',
   },
   wordmark: {
     fontFamily: Fonts.condensed,

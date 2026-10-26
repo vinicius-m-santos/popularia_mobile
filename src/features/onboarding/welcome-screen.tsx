@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -46,9 +46,7 @@ export default function WelcomeScreen() {
         bounces={false}>
         <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel="Popularia">
           <View style={styles.logo}>
-            <AppText style={styles.logoLetter} color={Colors.red} maxFontSizeMultiplier={1}>
-              P
-            </AppText>
+            <Image source={require('@/assets/branding/popularia-symbol.png')} style={styles.symbol} accessible={false} />
           </View>
           <AppText style={styles.wordmark} color={Colors.paper} maxFontSizeMultiplier={1.2}>
             POPULARIA
@@ -132,10 +130,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoLetter: {
-    fontFamily: Fonts.condensed,
-    fontSize: 21,
-    lineHeight: 24,
+  symbol: {
+    width: 32,
+    height: 32,
+    resizeMode: 'contain',
   },
   wordmark: {
     fontFamily: Fonts.condensed,
