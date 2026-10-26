@@ -235,17 +235,19 @@ export type Profile = {
   creator: CreatorInfo | null;
 };
 
-export type NotificationKind = 'reply' | 'mention' | 'support' | 'follow' | 'comuna' | 'moderation';
+export type NotificationKind =
+  | 'follow' | 'comment' | 'reply'
+  | 'join_requested' | 'join_approved' | 'join_rejected'
+  | 'ownership_proposed' | 'ownership_accepted' | 'ownership_declined' | 'ownership_cancelled';
 
 /** Destino ao tocar no aviso. */
-export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'moderation'; id: string };
+export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests'; id: string };
 
 export type AppNotification = {
   id: string;
   kind: NotificationKind;
   createdAt: string;
-  /** Quem fez a ação: uma pessoa ou, em avisos de comuna, a própria comuna. */
-  actor: { kind: 'user'; user: User } | { kind: 'comuna'; comuna: Comuna };
+  actor: User | null;
   text: string;
   /** Trecho em negrito depois do texto, como o nome da comuna. */
   subject?: string;

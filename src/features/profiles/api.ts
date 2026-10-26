@@ -1,7 +1,11 @@
 /** Acesso a perfis de pessoas e às publicações de cada uma. */
-import { USE_MOCKS } from '@/constants/config';
+import { DEMO_MODE, USE_MOCKS } from '@/constants/config';
+import { getMe } from '@/features/account/api';
+import { toFeedItem, toUser } from '@/features/posts/api';
+import { apiRequest } from '@/lib/api/client';
+import type { PageDto, PostDto } from '@/lib/api/dto';
 import { findUser, toFeedItems } from '@/features/lookup';
-import { NotFoundError } from '@/lib/errors';
+import { ApiError, NotFoundError } from '@/lib/errors';
 import { mockDelay } from '@/lib/mock-delay';
 import { posts } from '@/mocks/posts';
 import { featuredPeopleIds, profiles } from '@/mocks/profiles';
@@ -33,6 +37,22 @@ function buildProfile(id: string): Profile | null {
 }
 
 export async function getProfile(id: string): Promise<Profile> {
+  if (!DEMO_MODE) {
+    try {
+      const dto = id === 'me' ? await getMe() : await apiRequest<{
+        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string;
+      }>(`/users/${encodeURIComponent(id)}`, { auth: true });
+      const since = 'memberSince' in dto ? dto.memberSince : dto.createdAt;
+      return {
+        user: toUser(dto), bio: dto.bio,
+        meta: [dto.city, `Na Popularia desde ${new Date(since).getFullYear()}`].filter(Boolean).join(' · '),
+        summary: dto.bio, stats: [], comunaIds: [], creator: null,
+      };
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) throw new NotFoundError('Pessoa');
+      throw error;
+    }
+  }
   assertMocks();
   const profile = buildProfile(id);
   if (!profile) throw new NotFoundError('Pessoa');
@@ -41,11 +61,24 @@ export async function getProfile(id: string): Promise<Profile> {
 
 /** Publicações de uma pessoa, das mais recentes para as mais antigas. */
 export async function getUserPosts(id: string): Promise<FeedItem[]> {
+  if (!DEMO_MODE) {
+    const handle = id === 'me' ? (await getMe()).handle : id;
+    const page = await apiRequest<PageDto<PostDto>>(`/users/${encodeURIComponent(handle)}/posts`, { auth: true });
+    return page.items.map(toFeedItem);
+  }
   assertMocks();
   const list = posts
     .filter((p) => p.authorId === id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return mockDelay(toFeedItems(list));
+}
+
+export async function getFollowing(id: string): Promise<boolean> {
+  return (await apiRequest<{ following: boolean }>(`/users/${encodeURIComponent(id)}/follow`, { auth: true })).following;
+}
+
+export async function setFollowing(id: string, following: boolean): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}/follow`, { method: following ? 'PUT' : 'DELETE', auth: true });
 }
 
 /** Pessoas e criadores em destaque no Explorar. */

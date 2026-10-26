@@ -6,7 +6,8 @@ import type { ComponentProps } from 'react';
 import { TabBar } from '../tab-bar';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useSegments: () => ['(tabs)', '(inicio)'] }));
-jest.mock('@/features/notifications/use-unread-count', () => ({ useUnreadCount: () => 0 }));
+let mockUnread = 0;
+jest.mock('@/features/notifications/use-unread-count', () => ({ useUnreadCount: () => mockUnread }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 const routes = ['(inicio)', 'explorar', 'avisos', 'perfil'].map((name) => ({ key: name, name }));
@@ -18,7 +19,18 @@ const props = {
   insets: { top: 0, bottom: 0, left: 0, right: 0 },
 } as unknown as ComponentProps<typeof TabBar>;
 
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => { jest.clearAllMocks(); mockUnread = 0; });
+
+describe('badge de avisos', () => {
+  it.each([0, 1, 99, 100, 250])('exibe corretamente %i não lidos', async (count) => {
+    mockUnread = count;
+    await render(<TabBar {...props} />);
+    const avisos = screen.getByLabelText(count ? `avisos, ${count} não lidos` : 'avisos');
+    expect(avisos).toBeTruthy();
+    if (count > 0) expect(screen.getByText(count > 99 ? '99+' : String(count))).toBeTruthy();
+    else expect(screen.queryByText('0')).toBeNull();
+  });
+});
 
 describe('menu central de criação', () => {
   it('abre somente Publicação e Comuna; fechar e voltar não navegam', async () => {

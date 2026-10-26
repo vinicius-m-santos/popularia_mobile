@@ -52,10 +52,10 @@ type ManageTab = 'membros' | 'pedidos' | 'comuna';
  * novo na API, e uma recusa aparece como mensagem, sem mudar nada na tela.
  */
 export default function ManageComunaScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, aba } = useLocalSearchParams<{ id: string; aba?: string }>();
   const loadComuna = useCallback(() => getComuna(id), [id]);
   const comuna = useAsyncData(loadComuna);
-  const [tab, setTab] = useState<ManageTab>('membros');
+  const [tab, setTab] = useState<ManageTab>(aba === 'pedidos' ? 'pedidos' : 'membros');
 
   const header = (subtitle?: string) => (
     <View style={styles.bar}>

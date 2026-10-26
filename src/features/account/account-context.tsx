@@ -7,7 +7,7 @@
  *
  * Comunas, feed, publicações e comentários usam a API com a identidade do token: a autoria
  * é decidida pelo servidor (`viewer.isAuthor`), nunca por um ID mandado pelo app.
- * As funcionalidades que ainda usam dados fictícios (perfis, explorar, avisos, moderação)
+ * As funcionalidades que ainda usam dados fictícios (explorar, moderação)
  * continuam identificando a pessoa pelo ID local "me" dos mocks; nome e @ vêm da conta real.
  */
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';

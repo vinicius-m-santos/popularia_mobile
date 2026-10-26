@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from 'react';
+
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount, useMe } from '@/features/account/account-context';
+import { getFollowing, setFollowing } from '@/features/profiles/api';
 import type { CommunityEvent, Post } from '@/types/models';
 
 import { useInteractions, withLocal } from './interactions-context';
@@ -53,10 +56,54 @@ export function useEventAttendance(event: CommunityEvent) {
 }
 
 export function useFollow(userId: string) {
-  const { isOn, toggle } = useInteractions();
+  const { isOn, toggle, setOn } = useInteractions();
   const me = useMe();
   const { account } = useAccount();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const known = useRef(false);
+  const generation = useRef(0);
   const canFollow = userId !== me.id && userId !== account?.id;
   const following = canFollow && isOn('followedUsers', userId);
-  return { canFollow, following, toggleFollow: () => canFollow && toggle('followedUsers', userId) };
+  const followingNow = useRef(following);
+  useEffect(() => { followingNow.current = following; }, [following]);
+
+  useEffect(() => {
+    const current = ++generation.current;
+    known.current = false;
+    if (DEMO_MODE || !canFollow) return;
+    let cancelled = false;
+    const before = followingNow.current;
+    getFollowing(userId).then((value) => {
+      if (cancelled || pending.current || current !== generation.current || followingNow.current !== before) return;
+      known.current = true;
+      setOn('followedUsers', [userId], value);
+    }).catch(() => { /* A tap retries the lookup before changing the relation. */ });
+    return () => { cancelled = true; generation.current = current + 1; };
+  }, [userId, account?.id, canFollow, setOn]);
+
+  const toggleFollow = async () => {
+    if (!canFollow || pending.current) return false;
+    if (DEMO_MODE) { toggle('followedUsers', userId); return true; }
+    pending.current = true;
+    setBusy(true);
+    const currentGeneration = generation.current;
+    try {
+      const current = known.current ? following : await getFollowing(userId);
+      if (currentGeneration !== generation.current) return false;
+      await setFollowing(userId, !current);
+      if (currentGeneration !== generation.current) return false;
+      known.current = true;
+      setOn('followedUsers', [userId], !current);
+      return true;
+    } catch {
+      if (currentGeneration === generation.current) toast.show('Não conseguimos atualizar quem você segue. Tente novamente.');
+      return false;
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  };
+  return { canFollow, following, busy, toggleFollow };
 }

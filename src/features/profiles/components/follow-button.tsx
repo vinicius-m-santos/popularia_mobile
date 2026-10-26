@@ -10,17 +10,20 @@ type FollowButtonProps = {
   idleLabel?: string;
   size?: 'sm' | 'md' | 'lg';
   display?: boolean;
+  disabled?: boolean;
+  onChanged?: () => void;
   style?: ComponentProps<typeof PillButton>['style'];
 };
 
-/** Seguir uma pessoa. Fica só neste aparelho, como as demais interações. */
-export function FollowButton({ user, idleLabel = 'Seguir', size = 'sm', display, style }: FollowButtonProps) {
-  const { canFollow, following, toggleFollow } = useFollow(user.id);
+/** Seguir uma pessoa; na API, só atualiza a UI depois da confirmação do servidor. */
+export function FollowButton({ user, idleLabel = 'Seguir', size = 'sm', display, disabled, onChanged, style }: FollowButtonProps) {
+  const { canFollow, following, busy, toggleFollow } = useFollow(user.id);
   if (!canFollow) return null;
   return (
     <PillButton
       label={following ? 'Seguindo' : idleLabel}
-      onPress={toggleFollow}
+      onPress={async () => { if (await toggleFollow()) onChanged?.(); }}
+      disabled={busy || disabled}
       variant={following ? 'dark' : 'outline'}
       size={size}
       display={display}

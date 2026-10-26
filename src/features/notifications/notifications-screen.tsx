@@ -1,93 +1,142 @@
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { ChipRow } from '@/components/chip';
 import { Icon, type IconName } from '@/components/icon';
+import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
-import { ComunaMark } from '@/features/comunas/components/comuna-mark';
-import { useInteractions } from '@/features/interactions/interactions-context';
 import { FollowButton } from '@/features/profiles/components/follow-button';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { ApiError } from '@/lib/errors';
 import { formatRelative } from '@/lib/format';
-import { openModeration, useNav } from '@/lib/routes';
 import type { AppNotification, NotificationKind } from '@/types/models';
 
 import { getNotifications } from './api';
+import { openNotificationTarget } from './navigation';
+import { useNotifications } from './notifications-context';
+import { showsActorInMessage } from './presentation';
 
-type NotificationFilter = 'tudo' | 'mencoes' | 'comunas';
+type NotificationFilter = 'tudo' | 'conversas' | 'comunas';
 
 const FILTERS: { key: NotificationFilter; label: string }[] = [
   { key: 'tudo', label: 'Tudo' },
-  { key: 'mencoes', label: 'Menções e respostas' },
+  { key: 'conversas', label: 'Comentários e respostas' },
   { key: 'comunas', label: 'Comunas' },
 ];
 
 const MATCHES: Record<NotificationFilter, (kind: NotificationKind) => boolean> = {
   tudo: () => true,
-  mencoes: (k) => k === 'reply' || k === 'mention',
-  comunas: (k) => k === 'comuna' || k === 'moderation',
+  conversas: (k) => k === 'reply' || k === 'comment',
+  comunas: (k) => k.startsWith('join_') || k.startsWith('ownership_'),
 };
 
-/** Avisos (design 2g). A leitura fica só neste aparelho. */
+/** Existing Avisos design, backed by a paginated server history. */
 export default function NotificationsScreen() {
-  const load = useCallback(() => getNotifications(), []);
-  const list = useAsyncData(load);
+  const load = useCallback((cursor: string | null) => getNotifications(cursor), []);
+  const list = usePaginatedData(load);
   const [filter, setFilter] = useState<NotificationFilter>('tudo');
-  const { isOn, setOn } = useInteractions();
+  const [busy, setBusy] = useState(false);
+  const [allReadIds, setAllReadIds] = useState<ReadonlySet<string>>(new Set());
+  const pending = useRef(false);
+  const { unreadCount, readIds, refreshUnread, read, readAll } = useNotifications();
   const toast = useToast();
+  const refreshList = list.refresh;
+  const focused = useRef(false);
+  const active = useRef(false);
 
-  const isUnread = (n: AppNotification) => n.unread && !isOn('readNotifications', n.id);
+  const refresh = useCallback(() => {
+    refreshList();
+    void refreshUnread();
+  }, [refreshList, refreshUnread]);
 
-  const markAllRead = () => {
-    if (!list.data) return;
-    setOn(
-      'readNotifications',
-      list.data.map((n) => n.id),
-      true,
-    );
-    toast.show('Avisos marcados como lidos neste aparelho.');
+  useFocusEffect(useCallback(() => {
+    active.current = true;
+    if (focused.current) refreshList();
+    focused.current = true;
+    void refreshUnread();
+    return () => { active.current = false; };
+  }, [refreshList, refreshUnread]));
+
+  const isUnread = (n: AppNotification) => n.unread && !readIds.has(n.id) && !allReadIds.has(n.id);
+
+  const markAllRead = async () => {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    const ids = list.items.map((n) => n.id);
+    try {
+      await readAll();
+      if (!active.current) return;
+      setAllReadIds((previous) => new Set([...previous, ...ids]));
+      refreshList();
+      toast.show('Todas as notificações foram marcadas como lidas.');
+    } catch {
+      if (!active.current) return;
+      toast.show('Não conseguimos marcar os avisos como lidos. Tente novamente.');
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  };
+
+  const open = async (notification: AppNotification, navigate = true) => {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try {
+      const current = await read(notification.id, isUnread(notification));
+      if (!active.current) return;
+      if (navigate) {
+        if (current.target) openNotificationTarget(current.target);
+        else toast.show('Este conteúdo não está mais disponível.');
+      }
+    } catch (error) {
+      if (!active.current) return;
+      if (error instanceof ApiError && [403, 404, 410].includes(error.status)) {
+        toast.show('Este conteúdo não está mais disponível ou você não tem mais acesso.');
+        refresh();
+      } else {
+        toast.show('Não conseguimos abrir este aviso. Tente novamente.');
+      }
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   };
 
   let body;
-  if (list.status === 'error') {
-    body = <StateView kind="error" message="Não conseguimos carregar seus avisos." onRetry={list.reload} />;
-  } else if (!list.data) {
+  if (list.status === 'error' && list.items.length === 0) {
+    body = <StateView kind="error" message="Não conseguimos carregar seus avisos." onRetry={refresh} />;
+  } else if (list.status === 'loading') {
     body = <StateView kind="loading" message="Carregando avisos" />;
   } else {
-    const visible = list.data.filter((n) => MATCHES[filter](n.kind));
-    // Os grupos seguem o estado do servidor; ler um aviso não o tira de "Novos" na hora.
-    const groups = [
-      { title: 'Novos', items: visible.filter((n) => n.unread) },
-      { title: 'Anteriores', items: visible.filter((n) => !n.unread) },
-    ].filter((g) => g.items.length > 0);
-
-    body =
-      groups.length === 0 ? (
-        <StateView kind="empty" title="Nada por aqui" message="Nenhum aviso nesta categoria." />
-      ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {groups.map((g) => (
-            <View key={g.title}>
-              <AppText variant="label" accessibilityRole="header" style={styles.groupTitle}>
-                {g.title}
-              </AppText>
-              {g.items.map((n) => (
-                <NotificationRow
-                  key={n.id}
-                  notification={n}
-                  unread={isUnread(n)}
-                  onRead={() => setOn('readNotifications', [n.id], true)}
-                />
-              ))}
-            </View>
-          ))}
-        </ScrollView>
-      );
+    body = (
+      <FlatList
+        data={list.items.filter((n) => MATCHES[filter](n.kind))}
+        keyExtractor={(n) => n.id}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={list.isRefreshing} onRefresh={refresh} tintColor={Colors.red} />}
+        renderItem={({ item }) => (
+          <NotificationRow notification={item} unread={isUnread(item)} disabled={busy}
+            onOpen={() => void open(item)} onInteract={() => void open(item, false)} />
+        )}
+        ListHeaderComponent={list.refreshError ? <StateView kind="error" message="Não conseguimos atualizar seus avisos." onRetry={refresh} /> : undefined}
+        ListEmptyComponent={<StateView kind="empty" title="Nada por aqui" message={filter === 'tudo' ? 'Nenhuma notificação por enquanto.' : 'Nenhum aviso nesta categoria.'} />}
+        ListFooterComponent={list.loadMoreError ? (
+          <StateView kind="error" message="Não conseguimos carregar mais avisos." onRetry={list.loadMore} />
+        ) : list.hasMore ? (
+          <PillButton label={list.loadingMore ? 'Carregando…' : 'Carregar mais'} onPress={list.loadMore} disabled={list.loadingMore} variant="outline" style={styles.more} />
+        ) : undefined}
+        onEndReached={list.loadMoreError ? undefined : list.loadMore}
+        onEndReachedThreshold={0.3}
+      />
+    );
   }
 
   return (
@@ -99,11 +148,13 @@ export default function NotificationsScreen() {
           </AppText>
           <Pressable
             onPress={markAllRead}
+            disabled={busy || unreadCount === 0}
+            accessibilityState={{ disabled: busy || unreadCount === 0, busy }}
             accessibilityRole="button"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.readAll}>
             <AppText style={styles.readAllLabel} color={Colors.red}>
-              Marcar como lidas
+              {busy ? 'Aguarde…' : 'Marcar todas como lidas'}
             </AppText>
           </Pressable>
         </View>
@@ -119,42 +170,35 @@ export default function NotificationsScreen() {
 type RowProps = {
   notification: AppNotification;
   unread: boolean;
-  onRead: () => void;
+  disabled: boolean;
+  onOpen: () => void;
+  onInteract: () => void;
 };
 
-function NotificationRow({ notification: n, unread, onRead }: RowProps) {
-  const nav = useNav();
-  const actorName = n.actor.kind === 'user' ? n.actor.user.name : `c/ ${n.actor.comuna.name}`;
+function NotificationRow({ notification: n, unread, disabled, onOpen, onInteract }: RowProps) {
+  const actorName = n.actor && showsActorInMessage(n.kind) ? `@${n.actor.handle}` : '';
   const time = formatRelative(n.createdAt);
-
-  const open = () => {
-    onRead();
-    if (!n.target) return;
-    if (n.target.kind === 'post') nav.openPost(n.target.id);
-    else if (n.target.kind === 'comuna') nav.openComuna(n.target.id);
-    else if (n.target.kind === 'moderation') openModeration(n.target.id);
-    else nav.openProfile(n.target.id);
-  };
 
   return (
     <View style={[styles.row, unread && styles.rowUnread]}>
       {unread ? <View style={styles.dot} /> : null}
       <Pressable
-        onPress={open}
+        onPress={onOpen}
+        disabled={disabled}
         accessibilityRole={n.target ? 'link' : undefined}
         accessibilityLabel={`${unread ? 'Não lido. ' : ''}${actorName} ${n.text}${n.subject ? ` ${n.subject}` : ''}${n.quote ? `: ${n.quote}` : ''}. ${time}`}
         style={({ pressed }) => [styles.rowTap, pressed && styles.pressed]}>
         <View style={styles.avatarWrap}>
-          {n.actor.kind === 'user' ? (
-            <Avatar initials={n.actor.user.initials} tone={n.actor.user.tone} size={44} />
+          {n.actor ? (
+            <Avatar initials={n.actor.initials} tone={n.actor.tone} size={44} />
           ) : (
-            <ComunaMark initials={n.actor.comuna.initials} tone={n.actor.comuna.tone} size={44} />
+            <Avatar initials="C" tone="cream" size={44} />
           )}
           <KindBadge kind={n.kind} />
         </View>
         <View style={styles.text}>
           <AppText style={styles.sentence} color={unread ? Colors.ink : Colors.inkSoft}>
-            <AppText style={[styles.sentence, styles.strong]}>{actorName}</AppText> {n.text}
+            {actorName ? <><AppText style={[styles.sentence, styles.strong]}>{actorName}</AppText>{' '}</> : null}{n.text}
             {n.subject ? (
               <>
                 {' '}
@@ -172,40 +216,29 @@ function NotificationRow({ notification: n, unread, onRead }: RowProps) {
           </AppText>
         </View>
       </Pressable>
-      {n.kind === 'follow' && n.actor.kind === 'user' ? (
+      {n.kind === 'follow' && n.actor ? (
         <View style={styles.followAction}>
-          <FollowButton user={n.actor.user} idleLabel="Seguir de volta" />
+          <FollowButton user={n.actor} idleLabel="Seguir de volta" disabled={disabled} onChanged={onInteract} />
         </View>
       ) : null}
     </View>
   );
 }
 
-const BADGE_ICONS: Record<Exclude<NotificationKind, 'mention'>, IconName> = {
+const BADGE_ICONS: Record<NotificationKind, IconName> = {
+  comment: 'comment',
   reply: 'comment',
-  support: 'support',
   follow: 'plus',
-  comuna: 'echo',
-  moderation: 'shield',
+  join_requested: 'support', join_approved: 'check', join_rejected: 'close',
+  ownership_proposed: 'shield', ownership_accepted: 'shield', ownership_declined: 'shield', ownership_cancelled: 'shield',
 };
 
 /** Selo no canto do avatar com o tipo do aviso. */
 function KindBadge({ kind }: { kind: NotificationKind }) {
-  const red = kind === 'reply' || kind === 'mention' || kind === 'support';
+  const red = kind === 'reply' || kind === 'comment';
   return (
     <View style={[styles.badge, { backgroundColor: red ? Colors.red : Colors.ink }]}>
-      {kind === 'mention' ? (
-        <AppText style={styles.badgeAt} color={Colors.paper} maxFontSizeMultiplier={1}>
-          @
-        </AppText>
-      ) : (
-        <Icon
-          name={BADGE_ICONS[kind]}
-          size={kind === 'comuna' ? 12 : 11}
-          color={Colors.paper}
-          filled={kind === 'support'}
-        />
-      )}
+      <Icon name={BADGE_ICONS[kind]} size={11} color={Colors.paper} />
     </View>
   );
 }
@@ -240,7 +273,9 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingBottom: Spacing.six,
+    flexGrow: 1,
   },
+  more: { alignSelf: 'center', marginVertical: Spacing.four },
   groupTitle: {
     paddingTop: Spacing.four,
     paddingBottom: Spacing.two,

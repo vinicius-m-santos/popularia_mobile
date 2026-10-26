@@ -6,10 +6,11 @@ App da Popularia em React Native + Expo (SDK 58) + TypeScript + Expo Router.
 recuperação de senha, `/me`, interesses e "sair deste/de todos os aparelhos"; **comunas** (lista, página,
 publicações, entrar/sair/pedir entrada em privadas, criar, arquivar e excluir, gestão de membros e moderadores,
 transferência de propriedade, pedidos de entrada), **feed** ("Para você" e "Minhas comunas", paginado),
-**publicações** (ler e criar) e **comentários** (ler, comentar e responder).
-**Ainda com dados fictícios**: perfis (de outras pessoas e o próprio), explorar (pessoas, assuntos e
-publicações em destaque), "Perto de mim", chamados da semana, avisos, denúncias e moderação da plataforma,
-e as interações apoiar/ecoar/salvar/seguir/silenciar (só neste aparelho). Em desenvolvimento, o selo
+**publicações** (ler e criar), **comentários** (ler, comentar e responder), **perfis/follow** e
+**avisos internos** (histórico paginado, contador e leitura persistida, sem push).
+**Ainda com dados fictícios**: explorar (pessoas, assuntos e publicações em destaque), "Perto de mim",
+chamados da semana, denúncias e moderação da plataforma,
+e as interações apoiar/ecoar/salvar/silenciar (só neste aparelho). Em desenvolvimento, o selo
 "DADOS FICTÍCIOS" aparece nas telas que ainda usam mocks. **Não está pronto para produção.**
 
 ## Rodar no celular com Expo Go

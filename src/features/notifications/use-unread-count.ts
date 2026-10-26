@@ -1,14 +1,12 @@
-import { useCallback } from 'react';
+import { useSegments } from 'expo-router';
+import { useEffect } from 'react';
 
-import { useInteractions } from '@/features/interactions/interactions-context';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { useNotifications } from './notifications-context';
 
-import { getNotifications } from './api';
-
-/** Quantos avisos ainda não foram lidos, para o selo da aba Avisos. */
 export function useUnreadCount(): number {
-  const load = useCallback(() => getNotifications(), []);
-  const list = useAsyncData(load);
-  const { isOn } = useInteractions();
-  return (list.data ?? []).filter((n) => n.unread && !isOn('readNotifications', n.id)).length;
+  const { unreadCount, refreshUnread } = useNotifications();
+  const segments = useSegments() as string[];
+  const tab = segments[1];
+  useEffect(() => { void refreshUnread(); }, [tab, refreshUnread]);
+  return unreadCount;
 }

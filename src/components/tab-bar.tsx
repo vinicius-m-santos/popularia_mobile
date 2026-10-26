@@ -61,7 +61,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
                 {badge ? (
                   <View style={styles.badge}>
                     <AppText style={styles.badgeText} color={Colors.paper} maxFontSizeMultiplier={1}>
-                      {badge > 9 ? '9+' : badge}
+                      {badge > 99 ? '99+' : badge}
                     </AppText>
                   </View>
                 ) : null}

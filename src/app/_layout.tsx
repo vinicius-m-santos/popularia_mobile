@@ -20,6 +20,7 @@ import { AccountProvider, useAccount } from '@/features/account/account-context'
 import { InteractionsProvider } from '@/features/interactions/interactions-context';
 import { ActionsSheetProvider } from '@/features/moderation/actions-sheet';
 import { ModerationProvider } from '@/features/moderation/moderation-context';
+import { NotificationsProvider } from '@/features/notifications/notifications-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -60,14 +61,16 @@ export default function RootLayout() {
   return (
     <InteractionsProvider>
       <AccountProvider>
-        <ModerationProvider>
-          <ToastProvider>
-            <ActionsSheetProvider>
-              <StatusBar style="dark" />
-              <RootStack />
-            </ActionsSheetProvider>
-          </ToastProvider>
-        </ModerationProvider>
+        <NotificationsProvider>
+          <ModerationProvider>
+            <ToastProvider>
+              <ActionsSheetProvider>
+                <StatusBar style="dark" />
+                <RootStack />
+              </ActionsSheetProvider>
+            </ToastProvider>
+          </ModerationProvider>
+        </NotificationsProvider>
       </AccountProvider>
     </InteractionsProvider>
   );
