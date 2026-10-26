@@ -13,36 +13,104 @@ export const MAX_PAGE_LIMIT = 50;
 /** Autoria de publicações e comentários: só dados públicos. */
 export type AuthorDto = { id: string; handle: string; displayName: string };
 
+export type ComunaRoleDto = 'member' | 'moderator' | 'founder';
+
+/**
+ * Dicas para a interface, calculadas no servidor pelo papel e pelo estado da comuna.
+ * A decisão que vale é a de cada operação, que confere tudo de novo.
+ */
+export type ComunaPermissionsDto = {
+  canPost: boolean;
+  canLeave: boolean;
+  canEditDetails: boolean;
+  canManageModerators: boolean;
+  canRemoveMembers: boolean;
+  canReviewJoinRequests: boolean;
+  canModerateContent: boolean;
+  canArchive: boolean;
+  canDelete: boolean;
+  canTransferOwnership: boolean;
+};
+
+/** Pessoa numa comuna (lista de membros e moderação). `founder` é quem é proprietário. */
+export type ComunaMemberDto = { id: string; handle: string; displayName: string; role: ComunaRoleDto; joinedAt: string };
+
 export type ComunaDto = {
   /** UUID: usado em POST /posts (comunaId). */
   id: string;
-  /** Endereço da comuna nas rotas (/comunas/{slug}). */
+  /** Endereço da comuna nas rotas (/comunas/{slug}). Não muda: o nome também não. */
   slug: string;
   name: string;
   description: string;
   place: string;
   visibility: 'public' | 'private';
+  status: 'active' | 'archived';
+  archivedAt: string | null;
   tone: string;
   topics: string[];
   foundedYear: number;
   memberCount: number;
   moderationNote: string;
   rules: { title: string; body: string }[];
-  viewer: { isMember: boolean; role: 'member' | 'moderator' | 'founder' | null };
+  /** Null em comunas da equipe da plataforma. */
+  owner: AuthorDto | null;
+  /** Proprietário e moderação; só no detalhe (null nas listas). */
+  moderation: ComunaMemberDto[] | null;
+  viewer: {
+    isMember: boolean;
+    role: ComunaRoleDto | null;
+    permissions: ComunaPermissionsDto;
+    /** Só no detalhe: pedido de entrada em aberto. */
+    joinRequest: 'pending' | null;
+    /** Só no detalhe: proposta de transferência que envolve quem vê. */
+    ownershipTransfer: { direction: 'outgoing' | 'incoming'; from: AuthorDto; to: AuthorDto; createdAt: string } | null;
+  };
 };
 
 /** PUT /comunas/{slug}/membership. */
 export type MembershipDto = { slug: string; isMember: boolean; role: string | null; memberCount: number };
+
+/** Pedido de entrada numa comuna privada. */
+export type JoinRequestDto = {
+  id: string;
+  comunaSlug: string;
+  user: AuthorDto;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  createdAt: string;
+  decidedAt: string | null;
+};
+
+export type OwnershipTransferDto = {
+  id: string;
+  comunaSlug: string;
+  from: AuthorDto;
+  to: AuthorDto;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  createdAt: string;
+};
+
+/** GET /me/comuna-quota: só para explicar antes do formulário; POST /comunas confere de novo. */
+export type ComunaQuotaDto = {
+  activeOwned: number;
+  limit: number;
+  intervalDays: number;
+  nextCreationAt: string | null;
+  canCreate: boolean;
+  blockedBy: string | null;
+};
+
+/** GET /comuna-names/availability?name=. */
+export type ComunaNameAvailabilityDto = { name: string; slug: string; available: boolean; message: string | null };
 
 export type PostDto = {
   id: string;
   body: string;
   createdAt: string;
   author: AuthorDto;
-  comuna: { id: string; slug: string; name: string } | null;
+  comuna: { id: string; slug: string; name: string; status: 'active' | 'archived' } | null;
   commentCount: number;
   /** Dicas para a interface, calculadas no servidor; a decisão que vale é a da API. */
-  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean };
+  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean };
 };
 
 export type CommentDto = {
@@ -54,5 +122,5 @@ export type CommentDto = {
   body: string | null;
   author: AuthorDto | null;
   createdAt: string;
-  viewer: { isAuthor: boolean };
+  viewer: { isAuthor: boolean; canRemove: boolean };
 };

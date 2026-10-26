@@ -96,6 +96,8 @@ function RootStack() {
         <Stack.Screen name="criar" options={{ presentation: 'modal' }} />
         <Stack.Screen name="interesses" options={{ presentation: 'modal' }} />
         <Stack.Screen name="moderacao/[id]" />
+        <Stack.Screen name="criar-comuna" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="gerir-comuna/[id]" />
         <Stack.Screen name="conta" options={{ presentation: 'modal' }} />
         <Stack.Screen name="verificar-email" options={{ presentation: 'modal' }} />
       </Stack.Protected>

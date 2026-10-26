@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { ApiError, NotFoundError } from '@/lib/errors';
+
 type Settled<T> = {
   load: () => Promise<T>;
   attempt: number;
@@ -35,7 +37,13 @@ export function useAsyncData<T>(load: () => Promise<T>): AsyncData<T> {
       (err: unknown) => {
         if (cancelled) return;
         const error = err instanceof Error ? err : new Error(String(err));
-        setSettled({ load, attempt, data: null, error });
+        // Recusas de acesso não podem conservar conteúdo privado em cache na tela.
+        const keepData = !(error instanceof NotFoundError) &&
+          !(error instanceof ApiError && [401, 403, 404].includes(error.status));
+        setSettled((previous) => ({
+          load, attempt, error,
+          data: keepData && previous?.load === load ? previous.data : null,
+        }));
       },
     );
     return () => {
@@ -59,6 +67,6 @@ export function useAsyncData<T>(load: () => Promise<T>): AsyncData<T> {
   }
 
   return settled.error
-    ? { status: 'error', data: null, error: settled.error, isRefreshing: false, reload }
+    ? { status: 'error', data: settled.data, error: settled.error, isRefreshing: false, reload }
     : { status: 'success', data: settled.data, error: null, isRefreshing: false, reload };
 }

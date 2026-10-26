@@ -15,7 +15,8 @@ type FollowButtonProps = {
 
 /** Seguir uma pessoa. Fica só neste aparelho, como as demais interações. */
 export function FollowButton({ user, idleLabel = 'Seguir', size = 'sm', display, style }: FollowButtonProps) {
-  const { following, toggleFollow } = useFollow(user.id);
+  const { canFollow, following, toggleFollow } = useFollow(user.id);
+  if (!canFollow) return null;
   return (
     <PillButton
       label={following ? 'Seguindo' : idleLabel}

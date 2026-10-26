@@ -38,12 +38,14 @@ export function RulesList({ rules, moderationNote, moderators }: RulesListProps)
         <View style={styles.modHeader}>
           <Icon name="shield" size={22} color={Colors.red} />
           <AppText variant="heading" style={styles.modTitle} accessibilityRole="header">
-            Moderação eleita
+            {moderationNote ? 'Moderação eleita' : 'Moderação'}
           </AppText>
         </View>
-        <AppText style={styles.modNote} color={Colors.inkSoft}>
-          {moderationNote}
-        </AppText>
+        {moderationNote ? (
+          <AppText style={styles.modNote} color={Colors.inkSoft}>
+            {moderationNote}
+          </AppText>
+        ) : null}
         <View style={styles.mods}>
           {moderators.map((m) => (
             <View key={m.id} style={styles.mod}>
@@ -74,7 +76,7 @@ const styles = StyleSheet.create({
     width: 34,
     fontFamily: Fonts.condensed,
     fontSize: 38,
-    lineHeight: 36,
+    lineHeight: 46,
   },
   ruleText: {
     flex: 1,

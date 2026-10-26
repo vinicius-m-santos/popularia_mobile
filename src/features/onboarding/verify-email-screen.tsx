@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { KeyboardView } from '@/components/keyboard-view';
 import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
@@ -27,6 +28,8 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
+  const busyRef = useRef(false);
 
   const address = account?.email ?? email ?? 'seu e-mail';
 
@@ -37,11 +40,12 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
   };
 
   const confirm = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
     if (!/^\d{6}$/.test(code)) {
       setError('O código tem 6 números.');
       return;
     }
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -52,29 +56,36 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
     } catch (e) {
       setError(describeError(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
 
   const resend = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setResending(true);
     try {
       await resendVerificationCode();
       toast.show('Enviamos um novo código. O anterior deixou de valer.');
     } catch (e) {
       toast.show(describeError(e));
+    } finally {
+      busyRef.current = false;
+      setResending(false);
     }
   };
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      {inOnboarding ? (
-        <OnboardingProgress step={2} />
-      ) : (
-        <View style={styles.backRow}>
-          <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={leave} />
-        </View>
-      )}
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardView style={styles.flex}>
+        {inOnboarding ? (
+          <OnboardingProgress step={2} />
+        ) : (
+          <View style={styles.backRow}>
+            <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={leave} />
+          </View>
+        )}
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
@@ -102,9 +113,9 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
           />
 
           <View style={styles.links}>
-            <Pressable onPress={resend} accessibilityRole="button" style={styles.link}>
+            <Pressable onPress={resend} disabled={busy || resending} accessibilityState={{ busy: resending, disabled: busy || resending }} accessibilityRole="button" style={styles.link}>
               <AppText style={styles.linkLabel} color={Colors.red}>
-                Reenviar código
+                {resending ? 'Reenviando…' : 'Reenviar código'}
               </AppText>
             </Pressable>
             {inOnboarding ? (
@@ -117,11 +128,12 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
           </View>
         </ScrollView>
         <OnboardingFooter
+          disabled={busy || resending}
           label={busy ? 'Confirmando…' : 'Confirmar e-mail'}
           onPress={confirm}
           hint="Sem confirmar, você pode ler, mas ainda não pode publicar nem comentar."
         />
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </Screen>
   );
 }

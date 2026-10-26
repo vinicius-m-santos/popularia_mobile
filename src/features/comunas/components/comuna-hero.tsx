@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { TONE_COLORS, AvatarStack } from '@/components/avatar';
@@ -7,26 +8,73 @@ import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
 import { StripedPlaceholder } from '@/components/striped-placeholder';
 import { useToast } from '@/components/toast';
+import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { formatPeople } from '@/lib/format';
-import { goBack, openModeration } from '@/lib/routes';
+import { goBack, openManageComuna, openModeration } from '@/lib/routes';
 import type { ComunaDetails } from '@/types/models';
 
+import { cancelJoinRequest, requestToJoin, respondToTransfer, roleLabel } from '../api';
+import { comunaErrorMessage } from '../errors';
 import { useComunaMembership } from '../use-membership';
 
 const COVER_HEIGHT = 170;
 
-/** Capa, identidade, números e ações da comuna (design 1b). */
-export function ComunaHero({ comuna }: { comuna: ComunaDetails }) {
+/** Capa, identidade, números e ações da comuna (design 1b). `onChanged` recarrega a comuna. */
+export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onChanged?: () => void }) {
   const toast = useToast();
   const { isOn, toggle } = useInteractions();
   const me = useMe();
-  // Na API, a moderação ainda não é listada (moderatorIds vem vazio): as ferramentas, fictícias, não aparecem.
-  const moderates = comuna.moderatorIds.includes(me.id);
+  const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
+  // Modo demonstração: ferramentas fictícias pelo ID local dos mocks. Na API: papel e permissões do servidor.
+  const moderates = DEMO_MODE && comuna.moderatorIds.includes(me.id);
+  const perms = comuna.viewerPermissions;
+  const manages = !DEMO_MODE && (comuna.viewerRole === 'founder' || comuna.viewerRole === 'moderator');
+  const isOwner = !DEMO_MODE && comuna.viewerRole === 'founder';
+  const archived = comuna.status === 'archived';
   const membership = useComunaMembership(comuna);
   const { joined } = membership;
+  // Comuna privada, na API, sem participação: a entrada é por pedido aprovado pela moderação.
+  const requestsEntry = !DEMO_MODE && comuna.visibility === 'private' && !joined;
+  const requested = comuna.viewerJoinRequest === 'pending';
+  const incoming = comuna.ownershipTransfer?.direction === 'incoming' ? comuna.ownershipTransfer : null;
+
+  const act = async (work: () => Promise<void>, success: string) => {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPending(true);
+    try {
+      await work();
+      toast.show(success);
+      onChanged?.();
+    } catch (error) {
+      toast.show(comunaErrorMessage(error));
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
+  };
+
+  const onRequest = () =>
+    requested
+      ? act(() => cancelJoinRequest(comuna.id), 'Pedido retirado.')
+      : act(() => requestToJoin(comuna.id), 'Pedido enviado. A moderação da comuna vai analisar.');
+
+  const onTransfer = (accept: boolean) => {
+    if (!incoming) return;
+    if (!accept) return act(() => respondToTransfer(comuna.id, false), 'Você recusou a comuna.');
+    Alert.alert(
+      'Aceitar a comuna?',
+      `Você passa a ser proprietário de c/${comuna.handle} e a responder pela gestão dela. ${incoming.from.name} vira membro comum. A comuna conta no seu limite de 3 comunas ativas.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Aceitar', onPress: () => act(() => respondToTransfer(comuna.id, true), `Agora você é proprietário de c/${comuna.handle}.`) },
+      ],
+    );
+  };
   const notify = isOn('notifyComunas', comuna.id);
   const tone = TONE_COLORS[comuna.tone];
 
@@ -77,13 +125,30 @@ export function ComunaHero({ comuna }: { comuna: ComunaDetails }) {
         </View>
 
         <View>
-          <AppText variant="display" accessibilityRole="header" style={styles.name}>
+          <AppText variant="display" accessibilityRole="header">
             {comuna.name}
           </AppText>
           <AppText style={styles.meta} color={Colors.muted}>
             c/{comuna.handle} · {comuna.place} · desde {comuna.foundedYear}
           </AppText>
         </View>
+
+        {archived ? (
+          <View style={styles.archived} accessibilityRole="summary">
+            <AppText style={styles.archivedTitle} color={Colors.cream}>
+              Comuna arquivada
+            </AppText>
+            <AppText style={styles.archivedText} color={Colors.onInkSoft}>
+              O histórico continua para leitura de quem participa. Não há novas publicações, comentários nem membros.
+            </AppText>
+          </View>
+        ) : null}
+
+        {!DEMO_MODE && comuna.viewerRole ? (
+          <AppText style={styles.role} color={Colors.inkSoft}>
+            Seu papel: {roleLabel(comuna.viewerRole)}
+          </AppText>
+        ) : null}
 
         <AppText style={styles.description}>{comuna.description}</AppText>
 
@@ -113,19 +178,60 @@ export function ComunaHero({ comuna }: { comuna: ComunaDetails }) {
           </View>
         ) : null}
 
+        {incoming ? (
+          <View style={styles.offer}>
+            <AppText style={styles.offerText}>
+              {incoming.from.name} quer passar a comuna para você. Até você aceitar, nada muda.
+            </AppText>
+            <View style={styles.offerActions}>
+              <PillButton label="Recusar" onPress={() => onTransfer(false)} disabled={pending} variant="outline" size="sm" />
+              <PillButton label="Aceitar a comuna" onPress={() => onTransfer(true)} disabled={pending} size="sm" />
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.actions}>
-          <PillButton
-            label={membership.pending ? (joined ? 'Saindo…' : 'Entrando…') : joined ? 'Participando' : 'Participar da comuna'}
-            icon={joined && !membership.pending ? 'check' : undefined}
-            onPress={membership.toggleJoin}
-            disabled={membership.pending}
-            variant={joined ? 'outline' : 'primary'}
-            size="lg"
-            display
-            selected={joined}
-            accessibilityHint={joined ? 'Toque para sair da comuna' : undefined}
-            style={styles.join}
-          />
+          {isOwner ? (
+            // Quem é proprietário não sai por aqui: as opções ficam na gestão.
+            <PillButton label="Proprietário · Gerir" icon="settings" onPress={() => openManageComuna(comuna.id)} variant="dark" size="lg" display style={styles.join} />
+          ) : archived && !joined ? (
+            <PillButton label="Comuna arquivada" onPress={() => {}} disabled variant="outline" size="lg" display style={styles.join} />
+          ) : requestsEntry ? (
+            <PillButton
+              label={pending ? 'Enviando…' : requested ? 'Pedido enviado · retirar' : 'Pedir para entrar'}
+              onPress={onRequest}
+              disabled={pending}
+              variant={requested ? 'outline' : 'primary'}
+              size="lg"
+              display
+              accessibilityHint={requested ? 'Retira o pedido de entrada' : 'A moderação da comuna aprova ou recusa'}
+              style={styles.join}
+            />
+          ) : (
+            <PillButton
+              label={membership.pending ? (joined ? 'Saindo…' : 'Entrando…') : joined ? 'Participando' : 'Participar da comuna'}
+              icon={joined && !membership.pending ? 'check' : undefined}
+              onPress={() => {
+                if (!joined || !perms || DEMO_MODE) return membership.toggleJoin();
+                // Sair de uma comuna é diferente de arquivá-la ou excluí-la: só a sua participação termina.
+                Alert.alert(
+                  'Sair da comuna?',
+                  `Você deixa de participar de c/${comuna.handle}.${comuna.visibility === 'private' ? ' Como ela é privada, você perde o acesso às publicações e precisará pedir para entrar de novo.' : ''} A comuna continua existindo.`,
+                  [
+                    { text: 'Ficar', style: 'cancel' },
+                    { text: 'Sair', style: 'destructive', onPress: () => membership.toggleJoin().then(() => onChanged?.()) },
+                  ],
+                );
+              }}
+              disabled={membership.pending || (archived && !joined)}
+              variant={joined ? 'outline' : 'primary'}
+              size="lg"
+              display
+              selected={joined}
+              accessibilityHint={joined ? 'Toque para sair da comuna' : undefined}
+              style={styles.join}
+            />
+          )}
           <IconButton
             icon="bell"
             accessibilityLabel="Avisos da comuna"
@@ -137,6 +243,19 @@ export function ComunaHero({ comuna }: { comuna: ComunaDetails }) {
             style={styles.notify}
           />
         </View>
+
+        {manages && !isOwner ? (
+          <Pressable
+            onPress={() => openManageComuna(comuna.id)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.modTools, pressed && styles.pressed]}>
+            <Icon name="shield" size={20} color={Colors.red} />
+            <AppText style={styles.modLabel} color={Colors.cream}>
+              Gerir comuna (moderação)
+            </AppText>
+            <Icon name="chevronRight" size={18} color={Colors.cream} />
+          </Pressable>
+        ) : null}
 
         {moderates ? (
           <Pressable
@@ -156,6 +275,46 @@ export function ComunaHero({ comuna }: { comuna: ComunaDetails }) {
 }
 
 const styles = StyleSheet.create({
+  archived: {
+    backgroundColor: Colors.ink,
+    borderRadius: 12,
+    padding: Spacing.three,
+    gap: 2,
+  },
+  archivedTitle: {
+    fontFamily: Fonts.condensed,
+    fontSize: 19,
+    lineHeight: 22,
+    textTransform: 'uppercase',
+  },
+  archivedText: {
+    fontSize: 13.5,
+    lineHeight: 18,
+  },
+  role: {
+    fontFamily: Fonts.mono,
+    fontSize: 10.5,
+    lineHeight: 14,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  offer: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderWidth: 1.5,
+    borderColor: Colors.red,
+    borderRadius: 12,
+    backgroundColor: Colors.paper,
+  },
+  offerText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  offerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.two,
+  },
   modTools: {
     minHeight: 46,
     flexDirection: 'row',
@@ -231,9 +390,6 @@ const styles = StyleSheet.create({
   onlineText: {
     textTransform: 'none',
     letterSpacing: 0.4,
-  },
-  name: {
-    lineHeight: 38,
   },
   meta: {
     marginTop: Spacing.two,

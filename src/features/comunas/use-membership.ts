@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
@@ -11,8 +11,9 @@ import { joinComuna, leaveComuna } from './api';
 /** Mensagens para as recusas conhecidas de PUT/DELETE /comunas/{slug}/membership. */
 function membershipErrorMessage(error: unknown, joining: boolean): string {
   if (error instanceof ApiError) {
-    if (error.type === '/errors/comuna-requires-approval') return 'Esta comuna é privada: a entrada depende de convite ou aprovação.';
-    if (error.type === '/errors/founder-cannot-leave') return 'Quem fundou a comuna não pode sair por aqui.';
+    if (error.type === '/errors/comuna-requires-approval') return 'Esta comuna é privada: abra a comuna e peça para entrar.';
+    if (error.type === '/errors/founder-cannot-leave') return 'Quem é proprietário não sai da comuna: transfira-a ou arquive-a na gestão.';
+    if (error.type === '/errors/comuna-archived') return 'Esta comuna está arquivada e não aceita novos membros.';
   }
   const action = joining ? 'entrar na comuna' : 'sair da comuna';
   return `Não foi possível ${action}. ${describeError(error)}`;
@@ -30,6 +31,7 @@ export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewer
   const { membershipOf, toggle, setOn } = useInteractions();
   const toast = useToast();
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
   const joined = membershipOf(comuna.id) ?? comuna.viewerIsMember ?? false;
 
   const toggleJoin = async () => {
@@ -37,7 +39,8 @@ export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewer
       if (toggle('joinedComunas', comuna.id)) toast.show(`Você entrou em ${comuna.name} (simulação local).`);
       return;
     }
-    if (pending) return;
+    if (pendingRef.current) return;
+    pendingRef.current = true;
     const joining = !joined;
     setPending(true);
     try {
@@ -48,6 +51,7 @@ export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewer
     } catch (error) {
       toast.show(membershipErrorMessage(error, joining));
     } finally {
+      pendingRef.current = false;
       setPending(false);
     }
   };

@@ -1,8 +1,9 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { KeyboardView } from '@/components/keyboard-view';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -80,6 +81,15 @@ export default function DiscussionScreen() {
   const emailVerified = account?.emailVerified ?? true;
   const seenVerified = useRef(emailVerified);
   const { reload: reloadPost } = discussion;
+  const focusedOnce = useRef(false);
+  const refreshComments = comments.refresh;
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current && !DEMO_MODE) {
+      reloadPost();
+      refreshComments();
+    }
+    focusedOnce.current = true;
+  }, [reloadPost, refreshComments]));
   useEffect(() => {
     if (seenVerified.current === emailVerified) return;
     seenVerified.current = emailVerified;
@@ -176,6 +186,9 @@ export default function DiscussionScreen() {
 
   function composerNotice(item: FeedItem): ComposerNotice | null {
     if (DEMO_MODE) return null;
+    if (item.comuna?.status === 'archived') {
+      return { message: 'Esta comuna está arquivada. A discussão é somente para leitura.' };
+    }
     // E-mail não confirmado não encerra a sessão: a pessoa continua lendo e pode confirmar agora.
     if (account && !account.emailVerified) {
       return {
@@ -186,7 +199,7 @@ export default function DiscussionScreen() {
     }
     // Com o e-mail confirmado, canComment = false numa comuna significa que a pessoa não participa dela.
     const comuna = item.comuna;
-    if (comuna && !(membershipOf(comuna.id) ?? item.viewer?.canComment ?? true)) {
+    if (comuna && (!(membershipOf(comuna.id) ?? true) || item.viewer?.canComment === false)) {
       return {
         message: `Participe de c/ ${comuna.name} para comentar.`,
         actionLabel: 'Ver comuna',
@@ -199,7 +212,7 @@ export default function DiscussionScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardView style={styles.flex}>
         <DiscussionHeader comuna={post.comuna} onMore={() => sheet.open(postTarget(post))} />
         <FlatList
           data={rows}
@@ -211,7 +224,7 @@ export default function DiscussionScreen() {
               supported={isOn('supportedComments', item.comment.id)}
               supportCount={withLocal(item.comment.supportCount, isOn('supportedComments', item.comment.id))}
               onSupport={onSupport}
-              onReply={onReply}
+              onReply={notice ? undefined : onReply}
               onToggleCollapse={onToggleCollapse}
               onMore={onMore}
             />
@@ -250,6 +263,7 @@ export default function DiscussionScreen() {
           contentContainerStyle={styles.list}
         />
         <CommentComposer
+          key={id}
           me={me}
           replyingTo={replyTo?.name ?? null}
           onCancelReply={() => setReplyTo(null)}
@@ -257,7 +271,7 @@ export default function DiscussionScreen() {
           notice={notice}
           inputRef={inputRef}
         />
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </Screen>
   );
 }

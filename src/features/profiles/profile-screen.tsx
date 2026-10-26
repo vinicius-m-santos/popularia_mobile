@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -15,7 +15,8 @@ import { useToast } from '@/components/toast';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
-import { getComunas } from '@/features/comunas/api';
+import { DEMO_MODE } from '@/constants/config';
+import { getComunas, getMyComunas, roleLabel } from '@/features/comunas/api';
 import { ComunaRow } from '@/features/comunas/components/comuna-row';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
@@ -26,7 +27,7 @@ import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { useAsyncData, type AsyncData } from '@/hooks/use-async-data';
 import { NotFoundError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
-import { goBack, openModeration, useNav } from '@/lib/routes';
+import { goBack, openCreateComuna, openManageComuna, openModeration, useNav } from '@/lib/routes';
 import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 
 import { getProfile, getUserPosts } from './api';
@@ -40,22 +41,31 @@ type ProfileTab = 'posts' | 'episodios' | 'comunas';
  */
 export default function ProfileScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const id = params.id ?? 'me';
-  const isMe = id === 'me';
+  const me = useMe();
+  const { account } = useAccount();
+  const isMe = !params.id || params.id === me.id || params.id === account?.id;
+  const id = isMe ? 'me' : params.id!;
   const isTabRoot = params.id === undefined;
 
   const loadProfile = useCallback(() => getProfile(id), [id]);
   const loadPosts = useCallback(() => getUserPosts(id), [id]);
-  const loadComunas = useCallback(() => getComunas(), []);
+  // Na API, o próprio perfil lista as comunas de que a pessoa participa, com o papel dado pelo servidor.
+  const loadComunas = useCallback(() => (!DEMO_MODE && isMe ? getMyComunas() : getComunas()), [isMe]);
   const profile = useAsyncData(loadProfile);
   const posts = useAsyncData(loadPosts);
   const comunas = useAsyncData(loadComunas);
+  const focusedOnce = useRef(false);
+  const reloadComunas = comunas.reload;
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current && isMe && !DEMO_MODE) reloadComunas();
+    focusedOnce.current = true;
+  }, [isMe, reloadComunas]));
 
   const header = (handle?: string, onMore?: () => void) => (
     <ProfileBar isMe={isMe} canGoBack={!isTabRoot} handle={handle} onMore={onMore} />
   );
 
-  if (profile.status === 'loading') {
+  if (profile.status === 'loading' && !profile.data) {
     return (
       <Screen>
         {header()}
@@ -64,7 +74,7 @@ export default function ProfileScreen() {
     );
   }
 
-  if (profile.status === 'error' || !profile.data) {
+  if (!profile.data) {
     const notFound = profile.error instanceof NotFoundError;
     return (
       <Screen>
@@ -85,6 +95,7 @@ export default function ProfileScreen() {
       header={header}
       posts={posts}
       allComunas={comunas.data ?? []}
+      comunasState={comunas}
     />
   );
 }
@@ -95,9 +106,10 @@ type ContentProps = {
   header: (handle?: string, onMore?: () => void) => ReactNode;
   posts: AsyncData<FeedItem[]>;
   allComunas: Comuna[];
+  comunasState: AsyncData<Comuna[]>;
 };
 
-function ProfileContent({ profile, isMe, header, posts, allComunas }: ContentProps) {
+function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState }: ContentProps) {
   const toast = useToast();
   const nav = useNav();
   const sheet = useActionsSheet();
@@ -197,10 +209,15 @@ function ProfileContent({ profile, isMe, header, posts, allComunas }: ContentPro
               </View>
             )}
 
-            {isMe
+            {isMe && DEMO_MODE
               ? allComunas
                   .filter((c) => c.moderatorIds.includes(me.id))
                   .map((c) => <ModeratorShortcut key={c.id} comuna={c} />)
+              : null}
+            {isMe && !DEMO_MODE
+              ? comunas
+                  .filter((c) => c.viewerRole === 'founder' || c.viewerRole === 'moderator')
+                  .map((c) => <ManageShortcut key={c.id} comuna={c} />)
               : null}
 
             {profile.creator ? <CollectiveSupport creatorName={profile.creator.mastheadTitle} /> : null}
@@ -261,7 +278,19 @@ function ProfileContent({ profile, isMe, header, posts, allComunas }: ContentPro
 
           {tab === 'comunas' ? (
             <View style={styles.listPad}>
-              {comunas.length === 0 ? (
+              {isMe && !DEMO_MODE ? (
+                <PillButton
+                  label="Criar comuna"
+                  icon="plus"
+                  onPress={openCreateComuna}
+                  variant="outline"
+                  accessibilityHint="Abre o formulário de nova comuna"
+                  style={styles.createComuna}
+                />
+              ) : null}
+              {comunasState.status === 'loading' && !comunasState.data ? <StateView kind="loading" message="Carregando comunas" /> : null}
+              {comunasState.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar as comunas." onRetry={comunasState.reload} /> : null}
+              {comunasState.status === 'success' && comunas.length === 0 ? (
                 <AppText style={styles.emptyRow} color={Colors.muted}>
                   Ainda não participa de nenhuma comuna.
                 </AppText>
@@ -272,7 +301,17 @@ function ProfileContent({ profile, isMe, header, posts, allComunas }: ContentPro
                   comuna={c}
                   subtitle={`${formatPeople(c.memberCount)} membros · ${c.place}`}
                   onOpen={() => nav.openComuna(c.id)}
-                  trailing={<RoleTag label={c.moderatorIds.includes(user.id) ? 'Moderação' : 'Membro'} />}
+                  trailing={
+                    <RoleTag
+                      label={
+                        !DEMO_MODE && isMe
+                          ? `${roleLabel(c.viewerRole ?? 'member')}${c.status === 'archived' ? ' · arquivada' : ''}`
+                          : c.moderatorIds.includes(user.id)
+                            ? 'Moderação'
+                            : 'Membro'
+                      }
+                    />
+                  }
                 />
               ))}
             </View>
@@ -329,6 +368,29 @@ function ModeratorShortcut({ comuna }: { comuna: Comuna }) {
         </AppText>
         <AppText style={styles.modSub} color={Colors.onInkMuted}>
           {status}
+        </AppText>
+      </View>
+      <Icon name="chevronRight" size={18} color={Colors.cream} />
+    </Pressable>
+  );
+}
+
+/** Atalho para gerir uma comuna de que a pessoa é proprietária ou moderadora (papel vindo da API). */
+function ManageShortcut({ comuna }: { comuna: Comuna }) {
+  const owner = comuna.viewerRole === 'founder';
+  return (
+    <Pressable
+      onPress={() => openManageComuna(comuna.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`${owner ? 'Você é proprietário de' : 'Você modera'} c/ ${comuna.name}. Abrir gestão`}
+      style={({ pressed }) => [styles.modShortcut, pressed && styles.pressed]}>
+      <Icon name="shield" size={24} color={Colors.red} />
+      <View style={styles.modText}>
+        <AppText style={styles.modTitle} color={Colors.cream}>
+          {owner ? 'Sua comuna' : 'Você modera'} c/ {comuna.name}
+        </AppText>
+        <AppText style={styles.modSub} color={Colors.onInkMuted}>
+          {comuna.status === 'archived' ? 'Arquivada · só leitura' : 'Membros, pedidos e configurações'}
         </AppText>
       </View>
       <Icon name="chevronRight" size={18} color={Colors.cream} />
@@ -402,6 +464,10 @@ function RoleTag({ label }: { label: string }) {
 }
 
 const styles = StyleSheet.create({
+  createComuna: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing.three,
+  },
   bar: {
     height: 52,
     flexDirection: 'row',

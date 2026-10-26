@@ -1,5 +1,6 @@
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
+import { useAccount, useMe } from '@/features/account/account-context';
 import type { CommunityEvent, Post } from '@/types/models';
 
 import { useInteractions, withLocal } from './interactions-context';
@@ -53,6 +54,9 @@ export function useEventAttendance(event: CommunityEvent) {
 
 export function useFollow(userId: string) {
   const { isOn, toggle } = useInteractions();
-  const following = isOn('followedUsers', userId);
-  return { following, toggleFollow: () => toggle('followedUsers', userId) };
+  const me = useMe();
+  const { account } = useAccount();
+  const canFollow = userId !== me.id && userId !== account?.id;
+  const following = canFollow && isOn('followedUsers', userId);
+  return { canFollow, following, toggleFollow: () => canFollow && toggle('followedUsers', userId) };
 }

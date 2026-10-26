@@ -4,7 +4,8 @@ import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
-import { useFollow, usePostActions } from '@/features/interactions/use-post-actions';
+import { usePostActions } from '@/features/interactions/use-post-actions';
+import { FollowButton } from '@/features/profiles/components/follow-button';
 import { AuthorLine } from '@/features/posts/components/author-line';
 import { EventBox } from '@/features/posts/components/event-box';
 import { MediaBox } from '@/features/posts/components/media-box';
@@ -23,7 +24,6 @@ type PostDetailProps = {
 /** Publicação aberta em destaque, ações e o cabeçalho dos comentários (design 1c). */
 export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
   const actions = usePostActions(post);
-  const { following, toggleFollow } = useFollow(post.author.id);
 
   return (
     <View>
@@ -31,16 +31,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         <AuthorLine
           author={post.author}
           avatarSize={44}
-          trailing={
-            <PillButton
-              label={following ? 'Seguindo' : 'Seguir'}
-              onPress={toggleFollow}
-              variant={following ? 'dark' : 'outline'}
-              size="sm"
-              selected={following}
-              accessibilityLabel={`Seguir ${post.author.name}`}
-            />
-          }
+          trailing={post.viewer?.isAuthor ? undefined : <FollowButton user={post.author} />}
         />
         <AppText style={styles.text}>{post.text}</AppText>
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}

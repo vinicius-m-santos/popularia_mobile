@@ -1,14 +1,16 @@
-import { router } from 'expo-router';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { router, usePreventRemove } from 'expo-router';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { KeyboardView } from '@/components/keyboard-view';
 import { Avatar } from '@/components/avatar';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
+import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -64,10 +66,12 @@ export default function CreatePostScreen() {
   const [picking, setPicking] = useState(false);
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const publishingRef = useRef(false);
+  const [leaving, setLeaving] = useState(false);
   const needsVerification = !DEMO_MODE && account !== null && !account.emailVerified;
 
   const joined = useMemo(
-    () => (comunas.data ?? []).filter((c) => membershipOf(c.id) ?? c.viewerIsMember ?? false),
+    () => (comunas.data ?? []).filter((c) => c.status !== 'archived' && (membershipOf(c.id) ?? c.viewerIsMember ?? false)),
     [comunas.data, membershipOf],
   );
 
@@ -79,16 +83,20 @@ export default function CreatePostScreen() {
   }, [chosenId, joined]);
 
   const trimmed = text.trim();
-  const canPublish = trimmed.length > 0 && !publishing;
+  const destinationsReady = chosenId === 'perfil' || comunas.data !== null;
+  const canPublish = trimmed.length > 0 && !publishing && destinationsReady;
   const where = destination.kind === 'perfil' ? 'seu perfil' : `c/ ${destination.comuna.name}`;
-
-  const close = () => {
-    if (publishing) return;
-    if (!trimmed) return leave();
+  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0), ({ repeat }) => {
+    if (publishingRef.current) return;
     Alert.alert('Descartar publicação?', 'O texto que você escreveu será perdido.', [
       { text: 'Continuar escrevendo', style: 'cancel' },
-      { text: 'Descartar', style: 'destructive', onPress: leave },
+      { text: 'Descartar', style: 'destructive', onPress: () => { setLeaving(true); repeat(); } },
     ]);
+  });
+
+  const close = () => {
+    if (publishingRef.current) return;
+    leave();
   };
 
   const askToVerify = () =>
@@ -102,7 +110,11 @@ export default function CreatePostScreen() {
     );
 
   const publish = async () => {
-    if (publishing) return;
+    if (publishingRef.current) return;
+    if (!destinationsReady) {
+      toast.show('Aguarde carregar os destinos ou selecione seu perfil em Publicar em.');
+      return;
+    }
     if (!trimmed) {
       toast.show('Escreva algo antes de publicar.');
       return;
@@ -110,11 +122,13 @@ export default function CreatePostScreen() {
     const comunaId = destination.kind === 'comuna' ? destination.comuna.id : null;
 
     if (DEMO_MODE) {
+      publishingRef.current = true;
+      setLeaving(true);
+      disablePrevention();
       addPost({ comunaId, text: trimmed });
       toast.show(`Publicado em ${where} só neste aparelho. Nada foi enviado.`);
-      leave();
-      if (comunaId) router.push({ pathname: '/comuna/[id]', params: { id: comunaId } });
-      else router.navigate('/perfil');
+      if (comunaId) router.dismissTo({ pathname: '/comuna/[id]', params: { id: comunaId } });
+      else router.dismissTo('/perfil');
       return;
     }
 
@@ -125,10 +139,12 @@ export default function CreatePostScreen() {
       toast.show('Não foi possível identificar a comuna. Escolha o destino de novo.');
       return;
     }
+    publishingRef.current = true;
     setPublishing(true);
     try {
       await createPost({ comunaServerId, text: trimmed });
     } catch (error) {
+      publishingRef.current = false;
       setPublishing(false);
       if (error instanceof ApiError && error.type === '/errors/email-not-verified') {
         // A conta no aparelho estava desatualizada: recarrega para os avisos ficarem certos.
@@ -140,10 +156,11 @@ export default function CreatePostScreen() {
     }
     notifyPostCreated();
     toast.show(`Publicado em ${where}.`);
-    leave();
+    setLeaving(true);
+    disablePrevention();
     // Publicações no perfil aparecem no feed "Para você" (o perfil próprio ainda é fictício).
-    if (comunaId) router.push({ pathname: '/comuna/[id]', params: { id: comunaId } });
-    else router.navigate('/');
+    if (comunaId) router.dismissTo({ pathname: '/comuna/[id]', params: { id: comunaId } });
+    else router.dismissTo('/');
   };
 
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
@@ -165,7 +182,7 @@ export default function CreatePostScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardView style={styles.flex}>
         <View style={styles.bar}>
           <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={close} />
           <AppText style={styles.barTitle} accessibilityRole="header" numberOfLines={1}>
@@ -193,7 +210,13 @@ export default function CreatePostScreen() {
           </Pressable>
         </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
+          {comunas.status === 'loading' && !comunas.data ? (
+            <ActivityIndicator color={Colors.red} accessibilityLabel="Carregando destinos" />
+          ) : null}
+          {comunas.status === 'error' ? (
+            <StateView kind="error" message="Não conseguimos carregar suas comunas." onRetry={comunas.reload} />
+          ) : null}
           {needsVerification ? (
             <Pressable
               onPress={() => router.push('/verificar-email')}
@@ -260,6 +283,8 @@ export default function CreatePostScreen() {
               <View style={styles.writeRow}>
                 <Avatar initials={me.initials} tone={me.tone} size={36} />
                 <TextInput
+                  editable={!publishing}
+                  scrollEnabled={false}
                   value={text}
                   onChangeText={setText}
                   maxLength={MAX_LENGTH}
@@ -284,7 +309,7 @@ export default function CreatePostScreen() {
           <ToolButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
           <ToolButton icon="poll" label="Enquete" onPress={soon('Criar enquete')} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardView>
 
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Publicar em">
         <DestinationOption

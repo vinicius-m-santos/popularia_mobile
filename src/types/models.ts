@@ -49,8 +49,12 @@ export type Comuna = {
   /** Só na API: UUID usado para publicar na comuna (POST /posts). */
   serverId?: string;
   visibility?: 'public' | 'private';
+  /** Só na API: comunas arquivadas ficam só para leitura. */
+  status?: 'active' | 'archived';
   /** Se a pessoa participa, segundo o servidor, quando a comuna foi carregada. */
   viewerIsMember?: boolean;
+  /** Só na API: papel da pessoa na comuna, segundo o servidor ("founder" = proprietário). */
+  viewerRole?: ComunaRole | null;
   name: string;
   handle: string;
   initials: string;
@@ -119,10 +123,10 @@ export type Post = {
   viewer?: PostViewer;
 };
 
-export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean };
+export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean };
 
 /** Comuna citada numa publicação (a API manda só o essencial). */
-export type ComunaRef = Pick<Comuna, 'id' | 'name'>;
+export type ComunaRef = Pick<Comuna, 'id' | 'name' | 'status'>;
 
 /** Post com as entidades relacionadas já resolvidas, pronto para exibição. */
 export type FeedItem = Post & {
@@ -156,12 +160,41 @@ export type CommentWithAuthor = Comment & { author: User };
 
 export type ComunaMember = User & { role: string };
 
+/** Papel dentro de uma comuna. "founder" é quem é proprietário (pode ter recebido por transferência). */
+export type ComunaRole = 'member' | 'moderator' | 'founder';
+
+/** O que a pessoa pode fazer na comuna, segundo o servidor (dica; a API confere de novo). */
+export type ComunaPermissions = {
+  canPost: boolean;
+  canLeave: boolean;
+  canEditDetails: boolean;
+  canManageModerators: boolean;
+  canRemoveMembers: boolean;
+  canReviewJoinRequests: boolean;
+  canModerateContent: boolean;
+  canArchive: boolean;
+  canDelete: boolean;
+  canTransferOwnership: boolean;
+};
+
+/** Pessoa da comuna com papel, na gestão (só na API). */
+export type ComunaPerson = User & { role: ComunaRole; joinedAt: string };
+
+export type OwnershipTransfer = { direction: 'outgoing' | 'incoming'; from: User; to: User; createdAt: string };
+
 /** Comuna com pessoas resolvidas, para a página da comuna. */
 export type ComunaDetails = Comuna & {
   /** Se a pessoa já participava ao carregar (o total de membros a inclui). */
   viewerIsMember: boolean;
-  /** Só na API: papel da pessoa na comuna. */
-  viewerRole?: 'member' | 'moderator' | 'founder' | null;
+  /** Só na API. */
+  viewerPermissions?: ComunaPermissions;
+  /** Só na API: pedido de entrada em aberto (comunas privadas). */
+  viewerJoinRequest?: 'pending' | null;
+  /** Só na API: proposta de transferência que envolve a pessoa. */
+  ownershipTransfer?: OwnershipTransfer | null;
+  /** Só na API: quem responde pela comuna (null em comunas da equipe). */
+  owner?: User | null;
+  archivedAt?: string | null;
   moderators: User[];
   featuredMembers: User[];
   members: ComunaMember[];

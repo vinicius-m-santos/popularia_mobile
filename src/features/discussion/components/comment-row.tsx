@@ -18,7 +18,7 @@ type CommentRowProps = {
   supported: boolean;
   supportCount: number;
   onSupport: (id: string) => void;
-  onReply: (row: ThreadRow) => void;
+  onReply?: (row: ThreadRow) => void;
   onToggleCollapse: (id: string) => void;
   /** Abre o menu "⋯" (silenciar, denunciar). */
   onMore: (row: ThreadRow) => void;
@@ -88,15 +88,17 @@ export const CommentRow = memo(function CommentRow({
               {formatCount(supportCount)}
             </AppText>
           </Pressable>
-          <Pressable
-            onPress={() => onReply(row)}
-            accessibilityRole="button"
-            accessibilityLabel={`Responder a ${comment.author.name}`}
-            style={styles.action}>
-            <AppText style={styles.actionLabel} color={Colors.inkSoft}>
-              Responder
-            </AppText>
-          </Pressable>
+          {onReply ? (
+            <Pressable
+              onPress={() => onReply(row)}
+              accessibilityRole="button"
+              accessibilityLabel={`Responder a ${comment.author.name}`}
+              style={styles.action}>
+              <AppText style={styles.actionLabel} color={Colors.inkSoft}>
+                Responder
+              </AppText>
+            </Pressable>
+          ) : null}
           {replyCount > 0 ? (
             <CollapseButton id={comment.id} replyCount={replyCount} collapsed={collapsed} onPress={onToggleCollapse} />
           ) : null}

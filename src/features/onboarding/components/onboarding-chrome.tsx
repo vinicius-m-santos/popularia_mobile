@@ -32,6 +32,7 @@ export function OnboardingProgress({ step }: { step: number }) {
 }
 
 type FooterProps = {
+  disabled?: boolean;
   label: string;
   onPress: () => void;
   hint?: string;
@@ -41,7 +42,7 @@ type FooterProps = {
 };
 
 /** Rodapé fixo com o botão de avançar. */
-export function OnboardingFooter({ label, onPress, hint, count, accessibilityHint }: FooterProps) {
+export function OnboardingFooter({ label, onPress, hint, count, accessibilityHint, disabled = false }: FooterProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.four) + Spacing.two }]}>
@@ -59,6 +60,8 @@ export function OnboardingFooter({ label, onPress, hint, count, accessibilityHin
       ) : null}
       <Pressable
         onPress={onPress}
+        disabled={disabled}
+        accessibilityState={{ disabled, busy: disabled }}
         accessibilityRole="button"
         accessibilityHint={accessibilityHint}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>

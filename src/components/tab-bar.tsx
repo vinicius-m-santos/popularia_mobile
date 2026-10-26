@@ -1,9 +1,10 @@
 import { router, useSegments } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { Fragment } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { BottomSheet } from '@/components/bottom-sheet';
 import { Icon, type IconName } from '@/components/icon';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useUnreadCount } from '@/features/notifications/use-unread-count';
@@ -24,7 +25,7 @@ const HIDDEN_ON_SEGMENTS = ['post'];
 
 /**
  * Barra inferior escura do design: quatro abas e o botão vermelho de criar
- * publicação no centro, que abre a rota modal `/criar`.
+ * no centro, que abre o menu de criação.
  */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const segments = useSegments() as string[];
@@ -77,16 +78,75 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
 }
 
 function CreateButton() {
+  const [menuVisible, setMenuVisible] = useState(false);
+  const menuOpen = useRef(false);
+
+  const openMenu = () => {
+    if (menuOpen.current) return;
+    menuOpen.current = true;
+    setMenuVisible(true);
+  };
+  const closeMenu = () => {
+    menuOpen.current = false;
+    setMenuVisible(false);
+  };
+
+  const navigateTo = (route: '/criar' | '/criar-comuna') => {
+    if (!menuOpen.current) return;
+    closeMenu();
+    router.push(route);
+  };
+
   return (
     <View style={styles.tab}>
       <Pressable
-        onPress={() => router.push('/criar')}
+        onPress={openMenu}
         accessibilityRole="button"
-        accessibilityLabel="Criar publicação"
+        accessibilityLabel="Criar"
         style={({ pressed }) => [styles.createButton, pressed && styles.createPressed]}>
         <Icon name="plus" color={Colors.paper} />
       </Pressable>
+      <BottomSheet visible={menuVisible} onClose={closeMenu} title="O que você quer criar?">
+        <CreateMenuItem
+          icon="image"
+          title="Publicação"
+          description="Compartilhe uma ideia, imagem ou enquete."
+          onPress={() => navigateTo('/criar')}
+        />
+        <CreateMenuItem
+          icon="support"
+          title="Comuna"
+          description="Crie uma comunidade e reúna pessoas."
+          onPress={() => navigateTo('/criar-comuna')}
+        />
+      </BottomSheet>
     </View>
+  );
+}
+
+type MenuItemProps = {
+  icon: IconName;
+  title: string;
+  description: string;
+  onPress: () => void;
+};
+
+function CreateMenuItem({ icon, title, description, onPress }: MenuItemProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}>
+      <View style={styles.menuItemIcon}>
+        <Icon name={icon} color={Colors.ink} size={22} />
+      </View>
+      <View style={styles.menuItemContent}>
+        <AppText variant="bodyStrong">{title}</AppText>
+        <AppText variant="caption">{description}</AppText>
+      </View>
+      <Icon name="arrowRight" color={Colors.muted} size={20} />
+    </Pressable>
   );
 }
 
@@ -143,5 +203,28 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.extrabold,
     fontSize: 10,
     lineHeight: 12,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.four,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Radius.lg,
+  },
+  menuItemPressed: {
+    backgroundColor: Colors.strawLight,
+  },
+  menuItemIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.straw,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemContent: {
+    flex: 1,
+    gap: 2,
   },
 });

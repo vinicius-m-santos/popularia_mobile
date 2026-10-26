@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { KeyboardView } from '@/components/keyboard-view';
 import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
@@ -39,6 +40,7 @@ export default function SetupScreen() {
   const toast = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [check, setCheck] = useState<HandleCheck | null>(null);
 
@@ -81,7 +83,7 @@ export default function SetupScreen() {
   }
 
   const next = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
     if (nameMissing || handleShort || handleTaken) {
       setSubmitted(true);
       toast.show('Confira os campos destacados para continuar.');
@@ -91,6 +93,7 @@ export default function SetupScreen() {
       router.push('/boas-vindas/assuntos');
       return;
     }
+    busyRef.current = true;
     setBusy(true);
     setFieldErrors({});
     try {
@@ -104,14 +107,15 @@ export default function SetupScreen() {
       }
       toast.show(describeError(error));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <OnboardingProgress step={2} />
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardView style={styles.flex}>
+        <OnboardingProgress step={2} />
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
@@ -184,8 +188,8 @@ export default function SetupScreen() {
             multiline
           />
         </ScrollView>
-        <OnboardingFooter label={busy ? 'Criando conta…' : 'Continuar'} onPress={next} />
-      </KeyboardAvoidingView>
+        <OnboardingFooter label={busy ? 'Criando conta…' : 'Continuar'} onPress={next} disabled={busy} />
+      </KeyboardView>
     </Screen>
   );
 }

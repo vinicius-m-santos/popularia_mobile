@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { mergeById, type Page } from '@/lib/pagination';
+import { ApiError } from '@/lib/errors';
 
 import { usePaginatedData, type PaginatedData } from '../use-paginated-data';
 
@@ -27,6 +28,16 @@ describe('mergeById', () => {
 });
 
 describe('usePaginatedData', () => {
+  it('descarta conteúdo em cache quando a participação privada é revogada', async () => {
+    const load = jest.fn<Loader>()
+      .mockResolvedValueOnce({ items: items('privado'), nextCursor: null })
+      .mockRejectedValueOnce(new ApiError(403, '/errors/comuna-private', 'Privada'));
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await waitFor(() => expect(result.current.items).toEqual(items('privado')));
+    await act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.items).toEqual([]);
+  });
   it('carrega a primeira página e as seguintes pelo cursor, sem duplicar itens', async () => {
     const load = jest.fn(async (cursor: string | null): Promise<Page<Item>> =>
       cursor === null ? { items: items('a', 'b'), nextCursor: 'b' } : { items: items('b', 'c'), nextCursor: null },

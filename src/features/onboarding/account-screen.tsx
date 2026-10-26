@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { KeyboardView } from '@/components/keyboard-view';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
@@ -37,6 +38,7 @@ export default function AccountScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const emailError = !email.trim()
@@ -62,7 +64,7 @@ export default function AccountScreen() {
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
 
   const submit = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
     setServerError(null);
     if (!valid) {
       setSubmitted(true);
@@ -74,6 +76,7 @@ export default function AccountScreen() {
       router.push('/boas-vindas/perfil');
       return;
     }
+    busyRef.current = true;
     setBusy(true);
     try {
       // Ao entrar, o guarda de rotas leva ao feed sozinho.
@@ -82,20 +85,21 @@ export default function AccountScreen() {
     } catch (error) {
       setServerError(describeError(error));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      {signup ? (
-        <OnboardingProgress step={1} />
-      ) : (
-        <View style={styles.backRow}>
-          <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
-        </View>
-      )}
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardView style={styles.flex}>
+        {signup ? (
+          <OnboardingProgress step={1} />
+        ) : (
+          <View style={styles.backRow}>
+            <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
+          </View>
+        )}
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
@@ -187,6 +191,7 @@ export default function AccountScreen() {
           </View>
         </ScrollView>
         <OnboardingFooter
+          disabled={busy}
           label={busy ? 'Entrando…' : signup ? 'Continuar' : 'Entrar'}
           onPress={submit}
           hint={
@@ -197,7 +202,7 @@ export default function AccountScreen() {
                 : undefined
           }
         />
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </Screen>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { mergeById, type Page } from '@/lib/pagination';
+import { ApiError, NotFoundError } from '@/lib/errors';
 
 type State<T> = {
   /** Consulta a que estes dados pertencem (ver `useAsyncData`). */
@@ -78,7 +79,8 @@ export function usePaginatedData<T extends { id: string }>(
           if (current !== generation.current) return;
           const error = toError(err);
           setState((prev) =>
-            mode === 'refresh' && prev.load === load && prev.items.length > 0
+            mode === 'refresh' && prev.load === load && prev.items.length > 0 &&
+            !(error instanceof NotFoundError) && !(error instanceof ApiError && [401, 403, 404].includes(error.status))
               ? { ...prev, isRefreshing: false, refreshError: error }
               : { ...initialState(load), status: 'error', error },
           );
@@ -90,6 +92,7 @@ export function usePaginatedData<T extends { id: string }>(
 
   useEffect(() => {
     fetchFirstPage('initial');
+    return () => { generation.current += 1; };
   }, [fetchFirstPage]);
 
   const sameQuery = state.load === load;

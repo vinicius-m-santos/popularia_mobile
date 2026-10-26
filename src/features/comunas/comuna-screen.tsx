@@ -10,9 +10,10 @@ import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { DEMO_MODE } from '@/constants/config';
 import { getComuna, getComunaPosts } from '@/features/comunas/api';
 import { ComunaHero } from '@/features/comunas/components/comuna-hero';
-import { MembersList } from '@/features/comunas/components/members-list';
+import { MembersList, ServerMembersList } from '@/features/comunas/components/members-list';
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
 import { RulesList } from '@/features/comunas/components/rules-list';
 import { useInteractions } from '@/features/interactions/interactions-context';
@@ -52,7 +53,10 @@ export default function ComunaScreen() {
   const { show: showToast } = useToast();
 
   // Depois de publicar (na API), recarrega as publicações para mostrar a nova.
-  const { postsVersion } = useInteractions();
+  const { postsVersion, membershipOf, setOn } = useInteractions();
+  useEffect(() => {
+    if (!DEMO_MODE && comuna.data) setOn('joinedComunas', [id], comuna.data.viewerIsMember ?? false);
+  }, [comuna.data, id, setOn]);
   const seenVersion = useRef(postsVersion);
   const { refresh, refreshError } = posts;
   useEffect(() => {
@@ -65,11 +69,22 @@ export default function ComunaScreen() {
   }, [refreshError, showToast]);
 
   // A capa é escura: ícones claros na barra de status enquanto esta tela está em foco.
+  // Ao voltar para a tela (por exemplo, da gestão), recarrega a comuna: papel e estado podem ter mudado.
+  const focusedOnce = useRef(false);
+  const reloadComuna = comuna.reload;
+  const viewerIsMember = membershipOf(id) ?? comuna.data?.viewerIsMember;
+  const seenMembership = useRef(viewerIsMember);
+  useEffect(() => {
+    if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) refresh();
+    seenMembership.current = viewerIsMember;
+  }, [viewerIsMember, refresh]);
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('light');
+      if (focusedOnce.current && !DEMO_MODE) reloadComuna();
+      focusedOnce.current = true;
       return () => setStatusBarStyle('dark');
-    }, []),
+    }, [reloadComuna]),
   );
 
   // Ao recarregar, os dados anteriores continuam na tela.
@@ -95,13 +110,15 @@ export default function ComunaScreen() {
   }
 
   const data = comuna.data;
+  const privateOutside = !DEMO_MODE && data.visibility === 'private' && !viewerIsMember;
 
   return (
     // Faixa escura atrás da barra de status; o conteúdo rola abaixo dela.
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView stickyHeaderIndices={[1]} style={styles.scrollView} contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
-          <ComunaHero comuna={data} />
+          {comuna.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} /> : null}
+          <ComunaHero comuna={data} onChanged={comuna.reload} />
         </View>
         <View style={styles.tabs}>
           <View style={styles.column}>
@@ -109,7 +126,9 @@ export default function ComunaScreen() {
           </View>
         </View>
         <View style={styles.column}>
-          {tab === 'posts' ? (
+          {tab === 'posts' && privateOutside ? (
+            <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
+          ) : tab === 'posts' ? (
             <>
               {data.pinned ? <PinnedCard title={data.pinned.title} text={data.pinned.text} /> : null}
               {posts.status === 'loading' ? <StateView kind="loading" message="Carregando publicações" /> : null}
@@ -137,7 +156,11 @@ export default function ComunaScreen() {
             <RulesList rules={data.rules} moderationNote={data.moderationNote} moderators={data.moderators} />
           ) : null}
           {tab === 'membros' ? (
-            <MembersList members={data.members} totalLabel={formatPeople(data.memberCount)} />
+            DEMO_MODE ? (
+              <MembersList members={data.members} totalLabel={formatPeople(data.memberCount)} />
+            ) : (
+              <ServerMembersList comuna={data} />
+            )
           ) : null}
         </View>
       </ScrollView>

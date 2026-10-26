@@ -1,15 +1,30 @@
 /**
  * Acesso a dados das comunas. Mesma regra do feed: as telas não leem os mocks.
  *
- * Com a API configurada, lista, detalhe, publicações, entrar e sair são reais. No modo
- * demonstração (sem EXPO_PUBLIC_API_URL), tudo continua vindo dos mocks.
+ * Com a API configurada, lista, detalhe, publicações, entrar e sair são reais, assim como
+ * criar e gerir comunas. No modo demonstração (sem EXPO_PUBLIC_API_URL), leitura e
+ * participação continuam vindo dos mocks; criar e gerir existem só com a API (as telas avisam).
  * No app, `Comuna.id` é o slug (endereço da rota); o UUID da API fica em `serverId`.
+ *
+ * Papel, permissões e proprietário vêm sempre do servidor: o app nunca compara IDs locais
+ * (como o "me" dos mocks) para decidir o que a pessoa pode fazer.
  */
 import { DEMO_MODE } from '@/constants/config';
 import { findComuna, findUsers, toFeedItems } from '@/features/lookup';
-import { toFeedItem } from '@/features/posts/api';
+import { toFeedItem, toUser } from '@/features/posts/api';
 import { apiRequest } from '@/lib/api/client';
-import { MAX_PAGE_LIMIT, type ComunaDto, type MembershipDto, type PageDto, type PostDto } from '@/lib/api/dto';
+import {
+  MAX_PAGE_LIMIT,
+  type ComunaDto,
+  type ComunaMemberDto,
+  type ComunaNameAvailabilityDto,
+  type ComunaQuotaDto,
+  type JoinRequestDto,
+  type MembershipDto,
+  type OwnershipTransferDto,
+  type PageDto,
+  type PostDto,
+} from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { formatPeople, initialsOf } from '@/lib/format';
 import { mockDelay } from '@/lib/mock-delay';
@@ -17,12 +32,9 @@ import { singlePage, type Page } from '@/lib/pagination';
 import { comunas } from '@/mocks/comunas';
 import { posts } from '@/mocks/posts';
 import { currentUser } from '@/mocks/users';
-import type { Comuna, ComunaDetails, ComunaMember, FeedItem, Tone, TopicId } from '@/types/models';
+import type { Comuna, ComunaDetails, ComunaMember, ComunaPerson, FeedItem, Tone, TopicId, User } from '@/types/models';
 
-/**
- * Para listar as comunas de que a pessoa participa (destino de publicação), a API ainda não
- * tem um endpoint próprio: percorremos as páginas de /comunas até este limite.
- */
+/** Comunas de que a pessoa participa (GET /me/comunas): páginas lidas no máximo. */
 const MY_COMUNAS_MAX_PAGES = 5;
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
@@ -36,7 +48,9 @@ export function toComuna(dto: ComunaDto): Comuna {
     id: dto.slug,
     serverId: dto.id,
     visibility: dto.visibility,
+    status: dto.status,
     viewerIsMember: dto.viewer.isMember,
+    viewerRole: dto.viewer.role,
     name: dto.name,
     handle: dto.slug,
     initials: initialsOf(dto.name),
@@ -52,21 +66,40 @@ export function toComuna(dto: ComunaDto): Comuna {
     rules: dto.rules.map((r) => ({ title: r.title, description: r.body })),
     moderationNote: dto.moderationNote,
     pinned: null,
-    // A API ainda não lista moderação nem membros.
+    // Na API, moderação e membros vêm no detalhe (e na lista própria de membros), não aqui.
     moderatorIds: [],
     founderRole: '',
     featuredMemberIds: [],
   };
 }
 
-function toComunaDetails(dto: ComunaDto): ComunaDetails {
+export function toComunaPerson(dto: ComunaMemberDto): ComunaPerson {
+  return { ...toUser({ id: dto.id, handle: dto.handle, displayName: dto.displayName }), role: dto.role, joinedAt: dto.joinedAt };
+}
+
+/** Rótulo do papel para a interface. */
+export function roleLabel(role: ComunaPerson['role']): string {
+  return role === 'founder' ? 'Proprietário' : role === 'moderator' ? 'Moderação' : 'Membro';
+}
+
+export function toComunaDetails(dto: ComunaDto): ComunaDetails {
+  const moderation = (dto.moderation ?? []).map(toComunaPerson);
+  const transfer = dto.viewer.ownershipTransfer;
   return {
     ...toComuna(dto),
     viewerIsMember: dto.viewer.isMember,
     viewerRole: dto.viewer.role,
-    moderators: [],
+    viewerPermissions: dto.viewer.permissions,
+    viewerJoinRequest: dto.viewer.joinRequest,
+    ownershipTransfer: transfer
+      ? { direction: transfer.direction, from: toUser(transfer.from), to: toUser(transfer.to), createdAt: transfer.createdAt }
+      : null,
+    owner: dto.owner ? toUser(dto.owner) : null,
+    archivedAt: dto.archivedAt,
+    moderators: moderation,
     featuredMembers: [],
-    members: [],
+    // A lista completa é só para quem participa: vem de getComunaMembers().
+    members: moderation.map((m) => ({ ...m, role: roleLabel(m.role) })),
   };
 }
 
@@ -123,10 +156,7 @@ function getComunaPage(cursor: string | null): Promise<PageDto<ComunaDto>> {
   return apiRequest<PageDto<ComunaDto>>(`/comunas${query}`, { auth: true });
 }
 
-/**
- * Comunas para listas (Explorar, recomendações, perfil). Na API, a primeira página (até 50):
- * as comunas são criadas pela equipe no MVP, então isso cobre a lista inteira por ora.
- */
+/** Comunas para listas (Explorar, recomendações). Na API, a primeira página (até 50). */
 export async function getComunas(): Promise<Comuna[]> {
   if (!DEMO_MODE) return (await getComunaPage(null)).items.map(toComuna);
   return mockDelay([...comunas]);
@@ -139,8 +169,9 @@ export async function getMyComunas(): Promise<Comuna[]> {
   const mine: Comuna[] = [];
   let cursor: string | null = null;
   for (let i = 0; i < MY_COMUNAS_MAX_PAGES; i++) {
-    const page: PageDto<ComunaDto> = await getComunaPage(cursor);
-    mine.push(...page.items.filter((c) => c.viewer.isMember).map(toComuna));
+    const query = `?limit=${MAX_PAGE_LIMIT}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    const page: PageDto<ComunaDto> = await apiRequest<PageDto<ComunaDto>>(`/me/comunas${query}`, { auth: true });
+    mine.push(...page.items.map(toComuna));
     cursor = page.nextCursor;
     if (!cursor) break;
   }
@@ -148,7 +179,8 @@ export async function getMyComunas(): Promise<Comuna[]> {
 }
 
 /**
- * Entra na comuna (PUT, idempotente). Comuna privada: 403 /errors/comuna-requires-approval.
+ * Entra na comuna (PUT, idempotente). Comuna privada: 403 /errors/comuna-requires-approval
+ * (use requestToJoin). Arquivada: 409 /errors/comuna-archived.
  * Só na API; no modo demonstração a participação é local (ver `use-membership.ts`).
  */
 export function joinComuna(id: string): Promise<MembershipDto> {
@@ -158,4 +190,125 @@ export function joinComuna(id: string): Promise<MembershipDto> {
 /** Sai da comuna (DELETE, idempotente). Quem fundou não sai por aqui: 409 /errors/founder-cannot-leave. */
 export async function leaveComuna(id: string): Promise<void> {
   await apiRequest(`${slugPath(id)}/membership`, { method: 'DELETE', auth: true });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Criação e gestão (só na API). Cada função é uma chamada; quem pode o quê é decidido no servidor.
+// ---------------------------------------------------------------------------------------------
+
+export type ComunaRuleInput = { title: string; body: string };
+
+export type NewComuna = {
+  name: string;
+  description: string;
+  visibility: 'public' | 'private';
+  rules: ComunaRuleInput[];
+  place?: string;
+};
+
+/** POST /comunas. Manda só os dados da comuna: proprietário, endereço e estado são do servidor. */
+export async function createComuna(input: NewComuna): Promise<ComunaDetails> {
+  const body = {
+    name: input.name,
+    description: input.description,
+    visibility: input.visibility,
+    rules: input.rules,
+    ...(input.place ? { place: input.place } : {}),
+  };
+  return toComunaDetails(await apiRequest<ComunaDto>('/comunas', { method: 'POST', body, auth: true }));
+}
+
+export function getComunaQuota(): Promise<ComunaQuotaDto> {
+  return apiRequest<ComunaQuotaDto>('/me/comuna-quota', { auth: true });
+}
+
+/** Prévia de disponibilidade; a criação confere de novo no servidor. */
+export function checkComunaName(name: string): Promise<ComunaNameAvailabilityDto> {
+  return apiRequest<ComunaNameAvailabilityDto>(`/comuna-names/availability?name=${encodeURIComponent(name)}`, { auth: true });
+}
+
+/** PATCH /comunas/{slug}: só descrição e regras (o nome não muda). Só o proprietário. */
+export async function updateComuna(id: string, patch: { description?: string; rules?: ComunaRuleInput[] }): Promise<ComunaDetails> {
+  const dto = await apiRequest<ComunaDto>(slugPath(id), {
+    method: 'PATCH',
+    body: patch,
+    auth: true,
+    contentType: 'application/merge-patch+json',
+  });
+  return toComunaDetails(dto);
+}
+
+/** Arquiva (definitivo pelo app). Só o proprietário. */
+export async function archiveComuna(id: string): Promise<ComunaDetails> {
+  return toComunaDetails(await apiRequest<ComunaDto>(`${slugPath(id)}/archive`, { method: 'POST', auth: true }));
+}
+
+/**
+ * Exclusão definitiva. Com outros membros: 409 /errors/comuna-has-members; com conteúdo de
+ * outras pessoas: 409 /errors/comuna-has-content. Nos dois casos, a alternativa é arquivar.
+ */
+export async function deleteComuna(id: string): Promise<void> {
+  await apiRequest(slugPath(id), { method: 'DELETE', auth: true });
+}
+
+/** Membros (só para quem participa: 403 /errors/members-only). */
+export async function getComunaMembers(id: string, cursor: string | null): Promise<Page<ComunaPerson>> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const page = await apiRequest<PageDto<ComunaMemberDto>>(`${slugPath(id)}/members${query}`, { auth: true });
+  return { items: page.items.map(toComunaPerson), nextCursor: page.nextCursor };
+}
+
+export async function removeMember(id: string, handle: string): Promise<void> {
+  await apiRequest(`${slugPath(id)}/members/${encodeURIComponent(handle)}`, { method: 'DELETE', auth: true });
+}
+
+/** Nomeia (true) ou tira (false) da moderação. Só o proprietário. */
+export async function setModerator(id: string, handle: string, moderator: boolean): Promise<void> {
+  await apiRequest(`${slugPath(id)}/moderators/${encodeURIComponent(handle)}`, { method: moderator ? 'PUT' : 'DELETE', auth: true });
+}
+
+export type JoinRequest = { id: string; user: User; createdAt: string };
+
+function toJoinRequest(dto: JoinRequestDto): JoinRequest {
+  return { id: dto.id, user: toUser(dto.user), createdAt: dto.createdAt };
+}
+
+/** Pedidos de entrada em aberto (proprietário ou moderação). */
+export async function getJoinRequests(id: string, cursor: string | null): Promise<Page<JoinRequest>> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const page = await apiRequest<PageDto<JoinRequestDto>>(`${slugPath(id)}/join-requests${query}`, { auth: true });
+  return { items: page.items.map(toJoinRequest), nextCursor: page.nextCursor };
+}
+
+export async function decideJoinRequest(id: string, requestId: string, approve: boolean): Promise<void> {
+  await apiRequest(`${slugPath(id)}/join-requests/${encodeURIComponent(requestId)}/${approve ? 'approve' : 'reject'}`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+/** Pede para entrar numa comuna privada (idempotente). */
+export async function requestToJoin(id: string): Promise<void> {
+  await apiRequest<JoinRequestDto>(`${slugPath(id)}/join-request`, { method: 'PUT', auth: true });
+}
+
+export async function cancelJoinRequest(id: string): Promise<void> {
+  await apiRequest(`${slugPath(id)}/join-request`, { method: 'DELETE', auth: true });
+}
+
+/** Propõe passar a comuna para outro membro, pelo @. Nada muda até o aceite. */
+export async function proposeTransfer(id: string, handle: string): Promise<void> {
+  await apiRequest<OwnershipTransferDto>(`${slugPath(id)}/ownership-transfer`, { method: 'PUT', body: { handle }, auth: true });
+}
+
+export async function cancelTransfer(id: string): Promise<void> {
+  await apiRequest(`${slugPath(id)}/ownership-transfer`, { method: 'DELETE', auth: true });
+}
+
+/** Resposta de quem recebeu a proposta. */
+export async function respondToTransfer(id: string, accept: boolean): Promise<void> {
+  await apiRequest<OwnershipTransferDto>(`${slugPath(id)}/ownership-transfer/${accept ? 'accept' : 'decline'}`, {
+    method: 'POST',
+    auth: true,
+  });
 }

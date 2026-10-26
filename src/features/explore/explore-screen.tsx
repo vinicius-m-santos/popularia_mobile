@@ -43,7 +43,7 @@ export default function ExploreScreen() {
   const showHome = query.trim() === '' && filter === 'tudo';
 
   let body;
-  if (data.status === 'error') {
+  if (data.status === 'error' && !data.data) {
     body = <StateView kind="error" message="Não conseguimos carregar o Explorar." onRetry={data.reload} />;
   } else if (!data.data) {
     body = <StateView kind="loading" message="Carregando" />;

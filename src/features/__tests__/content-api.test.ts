@@ -32,9 +32,22 @@ const postDto: PostDto = {
   body: 'Mutirão no sábado',
   createdAt: '2026-10-20T12:00:00+00:00',
   author,
-  comuna: { id: '0192a7b0-0000-7000-8000-0000000000c1', slug: 'hortas', name: 'Hortas da Zona Leste' },
+  comuna: { id: '0192a7b0-0000-7000-8000-0000000000c1', slug: 'hortas', name: 'Hortas da Zona Leste', status: 'active' },
   commentCount: 3,
-  viewer: { isAuthor: false, canComment: true, canDelete: false },
+  viewer: { isAuthor: false, canComment: true, canDelete: false, canRemove: false },
+};
+
+const noPermissions = {
+  canPost: false,
+  canLeave: false,
+  canEditDetails: false,
+  canManageModerators: false,
+  canRemoveMembers: false,
+  canReviewJoinRequests: false,
+  canModerateContent: false,
+  canArchive: false,
+  canDelete: false,
+  canTransferOwnership: false,
 };
 
 const comunaDto: ComunaDto = {
@@ -44,13 +57,17 @@ const comunaDto: ComunaDto = {
   description: 'Rede de hortas.',
   place: 'São Paulo · SP',
   visibility: 'public',
+  status: 'active',
+  archivedAt: null,
   tone: 'red',
   topics: ['clima', 'comun'],
   foundedYear: 2023,
   memberCount: 12,
   moderationNote: 'Votação a cada seis meses.',
   rules: [{ title: 'Respeito sempre', body: 'Sem ataques.' }],
-  viewer: { isMember: true, role: 'member' },
+  owner: null,
+  moderation: null,
+  viewer: { isMember: true, role: 'member', permissions: { ...noPermissions, canPost: true, canLeave: true }, joinRequest: null, ownershipTransfer: null },
 };
 
 function comment(overrides: Partial<CommentDto>): CommentDto {
@@ -62,7 +79,7 @@ function comment(overrides: Partial<CommentDto>): CommentDto {
     body: 'Vou levar mudas',
     author,
     createdAt: '2026-10-20T13:00:00+00:00',
-    viewer: { isAuthor: false },
+    viewer: { isAuthor: false, canRemove: false },
     ...overrides,
   };
 }
@@ -72,6 +89,11 @@ beforeEach(() => {
 });
 
 describe('publicações', () => {
+  it('preserva o estado arquivado da comuna para bloquear o campo de comentários', () => {
+    const item = toFeedItem({ ...postDto, comuna: { ...postDto.comuna!, status: 'archived' }, viewer: { ...postDto.viewer, canComment: false } });
+    expect(item.comuna?.status).toBe('archived');
+    expect(item.viewer?.canComment).toBe(false);
+  });
   it('converte a publicação usando o slug como ID da comuna e as permissões do servidor', () => {
     const item = toFeedItem(postDto);
     expect(item).toMatchObject({
@@ -149,17 +171,21 @@ describe('comunas', () => {
     await expect(getComunaPosts('entregadores', null)).rejects.toMatchObject({ type: '/errors/comuna-private' });
   });
 
-  it('comunas de que a pessoa participa: percorre as páginas e filtra pelo servidor', async () => {
-    const other = { ...comunaDto, id: 'u2', slug: 'tarifa', viewer: { isMember: false, role: null } };
+  it('comunas de que a pessoa participa: GET /me/comunas, com o papel dado pelo servidor', async () => {
+    const owned = { ...comunaDto, id: 'u2', slug: 'tarifa', viewer: { ...comunaDto.viewer, role: 'founder' as const } };
     api
-      .mockResolvedValueOnce({ items: [comunaDto, other], nextCursor: 'tarifa' })
+      .mockResolvedValueOnce({ items: [comunaDto, owned], nextCursor: 'm2' })
       .mockResolvedValueOnce({ items: [{ ...comunaDto, id: 'u3', slug: 'cursinho' }], nextCursor: null });
 
     const mine = await getMyComunas();
 
-    expect(mine.map((c) => c.id)).toEqual(['hortas', 'cursinho']);
-    expect(api).toHaveBeenNthCalledWith(1, '/comunas?limit=50', { auth: true });
-    expect(api).toHaveBeenNthCalledWith(2, '/comunas?limit=50&cursor=tarifa', { auth: true });
+    expect(mine.map((c) => [c.id, c.viewerRole])).toEqual([
+      ['hortas', 'member'],
+      ['tarifa', 'founder'],
+      ['cursinho', 'member'],
+    ]);
+    expect(api).toHaveBeenNthCalledWith(1, '/me/comunas?limit=50', { auth: true });
+    expect(api).toHaveBeenNthCalledWith(2, '/me/comunas?limit=50&cursor=m2', { auth: true });
   });
 
   it('entrar e sair usam PUT e DELETE em /membership, sem corpo', async () => {
@@ -173,7 +199,7 @@ describe('comunas', () => {
 
 describe('comentários', () => {
   it('lista com cursor e converte a autoria do servidor', async () => {
-    api.mockResolvedValue({ items: [comment({ viewer: { isAuthor: true } })], nextCursor: 'c1' });
+    api.mockResolvedValue({ items: [comment({ viewer: { isAuthor: true, canRemove: false } })], nextCursor: 'c1' });
     const page = await getComments(postDto.id, 'c0');
     expect(api).toHaveBeenCalledWith(`/posts/${postDto.id}/comments?cursor=c0`, { auth: true });
     expect(page.items[0]).toMatchObject({ text: 'Vou levar mudas', isOwn: true, author: { name: 'Ana Souza' } });

@@ -53,6 +53,16 @@ export function openModeration(comunaId: string) {
   router.push({ pathname: '/moderacao/[id]', params: { id: comunaId } });
 }
 
+/** Gestão de uma comuna (proprietário e moderação). Fora das abas, como a moderação. */
+export function openManageComuna(comunaId: string) {
+  router.push({ pathname: '/gerir-comuna/[id]', params: { id: comunaId } });
+}
+
+/** Formulário de nova comuna (modal). */
+export function openCreateComuna() {
+  router.push('/criar-comuna');
+}
+
 /** Volta, ou vai ao feed se a tela foi aberta direto por link. */
 export function goBack() {
   if (router.canGoBack()) router.back();

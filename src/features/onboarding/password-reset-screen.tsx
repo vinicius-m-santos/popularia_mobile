@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { KeyboardView } from '@/components/keyboard-view';
 import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
@@ -29,9 +30,11 @@ export default function PasswordResetScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   const run = async (action: () => Promise<void>) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -39,6 +42,7 @@ export default function PasswordResetScreen() {
     } catch (e) {
       setError(describeError(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -72,10 +76,10 @@ export default function PasswordResetScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <View style={styles.backRow}>
-        <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
-      </View>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardView style={styles.flex}>
+        <View style={styles.backRow}>
+          <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
+        </View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
@@ -131,11 +135,12 @@ export default function PasswordResetScreen() {
           )}
         </ScrollView>
         <OnboardingFooter
+          disabled={busy}
           label={busy ? 'Enviando…' : step === 'email' ? 'Enviar código' : 'Salvar senha nova'}
           onPress={step === 'email' ? sendCode : savePassword}
           hint={step === 'code' ? 'Ao salvar, todas as sessões abertas da conta são encerradas.' : undefined}
         />
-      </KeyboardAvoidingView>
+      </KeyboardView>
     </Screen>
   );
 }

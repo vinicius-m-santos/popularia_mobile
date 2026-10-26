@@ -10,12 +10,19 @@ import { Colors, Fonts } from '@/constants/theme';
 function showsOnlyRealData(segments: string[]): boolean {
   const last = segments.at(-1) ?? '';
   const isFeed = segments.length === 2 && segments[0] === '(tabs)' && segments[1] === '(inicio)';
-  return isFeed || last === 'criar' || segments.includes('comuna') || segments.includes('post');
+  return (
+    isFeed ||
+    last === 'criar' ||
+    last === 'criar-comuna' ||
+    segments.includes('gerir-comuna') ||
+    segments.includes('comuna') ||
+    segments.includes('post')
+  );
 }
 
 /**
  * Selo discreto, só em desenvolvimento, lembrando quais telas ainda mostram dados fictícios.
- * Com a API configurada, some nas telas já migradas (feed, comuna, discussão, criar).
+ * Com a API configurada, some nas telas já migradas (feed, comuna, discussão, criar, gestão de comunas).
  */
 export function MockDataNotice() {
   const insets = useSafeAreaInsets();

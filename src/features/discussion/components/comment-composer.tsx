@@ -1,4 +1,4 @@
-import { useState, type ComponentRef, type Ref } from 'react';
+import { useRef, useState, type ComponentRef, type Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,7 +12,7 @@ import type { User } from '@/types/models';
 export const MAX_COMMENT_LENGTH = 2000;
 
 /** Aviso no lugar do campo quando a pessoa ainda não pode comentar (e o que fazer). */
-export type ComposerNotice = { message: string; actionLabel: string; onAction: () => void };
+export type ComposerNotice = { message: string; actionLabel?: string; onAction?: () => void };
 
 type CommentComposerProps = {
   me: User;
@@ -29,17 +29,20 @@ type CommentComposerProps = {
 export function CommentComposer({ me, replyingTo, onCancelReply, onSend, notice, inputRef }: CommentComposerProps) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const insets = useSafeAreaInsets();
   const canSend = draft.trim().length > 0 && !sending;
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       // Se falhar (sem rede, por exemplo), o texto continua no campo para tentar de novo.
       if (await onSend(text)) setDraft('');
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -52,7 +55,9 @@ export function CommentComposer({ me, replyingTo, onCancelReply, onSend, notice,
         <AppText style={styles.noticeText} color={Colors.inkSoft}>
           {notice.message}
         </AppText>
-        <PillButton label={notice.actionLabel} onPress={notice.onAction} variant="outline" size="sm" />
+        {notice.actionLabel && notice.onAction ? (
+          <PillButton label={notice.actionLabel} onPress={notice.onAction} variant="outline" size="sm" />
+        ) : null}
       </View>
     );
   }

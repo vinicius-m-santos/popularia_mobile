@@ -43,7 +43,7 @@ export function toFeedItem(post: PostDto): FeedItem {
     echoCount: 0,
     viewer: post.viewer,
     author: toUser(post.author),
-    comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name } : null,
+    comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name, status: post.comuna.status } : null,
     event: null,
     topCommentAuthor: null,
   };

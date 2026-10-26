@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -24,7 +24,7 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onClose}
@@ -40,7 +40,7 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
               {title}
             </AppText>
           ) : null}
-          <ScrollView bounces={false} keyboardShouldPersistTaps="handled">
+          <ScrollView bounces={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {children}
           </ScrollView>
         </View>
@@ -56,6 +56,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(22,18,15,0.55)',
   },
   sheet: {
+    flexShrink: 1,
     width: '100%',
     maxWidth: MaxContentWidth,
     maxHeight: '86%',
