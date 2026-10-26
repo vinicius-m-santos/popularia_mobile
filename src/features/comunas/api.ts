@@ -62,6 +62,7 @@ export function toComuna(dto: ComunaDto): Comuna {
     coverAlt: `capa de ${dto.name}`,
     // Os assuntos são os mesmos IDs de GET /topics.
     topics: dto.topics as TopicId[],
+    primaryTopic: dto.primaryTopic ? { ...dto.primaryTopic, id: dto.primaryTopic.id as TopicId } : null,
     stats: [{ value: formatPeople(dto.memberCount), label: 'Membros' }],
     rules: dto.rules.map((r) => ({ title: r.title, description: r.body })),
     moderationNote: dto.moderationNote,
@@ -204,6 +205,7 @@ export type NewComuna = {
   visibility: 'public' | 'private';
   rules: ComunaRuleInput[];
   place?: string;
+  topic?: TopicId;
 };
 
 /** POST /comunas. Manda só os dados da comuna: proprietário, endereço e estado são do servidor. */
@@ -213,6 +215,7 @@ export async function createComuna(input: NewComuna): Promise<ComunaDetails> {
     description: input.description,
     visibility: input.visibility,
     rules: input.rules,
+    ...(input.topic ? { topics: [input.topic] } : {}),
     ...(input.place ? { place: input.place } : {}),
   };
   return toComunaDetails(await apiRequest<ComunaDto>('/comunas', { method: 'POST', body, auth: true }));
@@ -227,8 +230,8 @@ export function checkComunaName(name: string): Promise<ComunaNameAvailabilityDto
   return apiRequest<ComunaNameAvailabilityDto>(`/comuna-names/availability?name=${encodeURIComponent(name)}`, { auth: true });
 }
 
-/** PATCH /comunas/{slug}: só descrição e regras (o nome não muda). Só o proprietário. */
-export async function updateComuna(id: string, patch: { description?: string; rules?: ComunaRuleInput[] }): Promise<ComunaDetails> {
+/** PATCH /comunas/{slug}: descrição, assunto principal e regras (o nome não muda). Só o proprietário. */
+export async function updateComuna(id: string, patch: { description?: string; rules?: ComunaRuleInput[]; topic?: TopicId }): Promise<ComunaDetails> {
   const dto = await apiRequest<ComunaDto>(slugPath(id), {
     method: 'PATCH',
     body: patch,

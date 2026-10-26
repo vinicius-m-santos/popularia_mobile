@@ -89,6 +89,14 @@ beforeEach(() => {
 });
 
 describe('criação', () => {
+  it('cria uma única relação com assunto e edita o principal pelo contrato autorizado', async () => {
+    api.mockResolvedValue({ ...comunaDto, topics: ['tec'] });
+    await createComuna({ name: 'Linux', description: 'Software livre', visibility: 'public', rules: [], topic: 'tec' });
+    expect(api).toHaveBeenLastCalledWith('/comunas', expect.objectContaining({ body: expect.objectContaining({ topics: ['tec'] }) }));
+    await updateComuna('linux', { topic: 'trab' });
+    expect(api).toHaveBeenLastCalledWith('/comunas/linux', { method: 'PATCH', body: { topic: 'trab' }, auth: true, contentType: 'application/merge-patch+json' });
+  });
+
   it('manda só os dados da comuna (nunca proprietário, endereço ou estado)', async () => {
     api.mockResolvedValue(comunaDto);
     const created = await createComuna({ name: 'Hortas do Bairro', description: 'Mutirões.', visibility: 'private', rules: [{ title: 'Respeito', body: '' }] });

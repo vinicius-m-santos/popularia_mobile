@@ -28,8 +28,11 @@ jest.mock('../api', () => {
     getComunaMembers: jest.fn(),
     deleteComuna: jest.fn(),
     archiveComuna: jest.fn(),
+    updateComuna: jest.fn(),
   };
 });
+
+jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Cultura e ideias', topics: [{ id: 'tec', label: 'Tecnologia e ciência', shortLabel: 'Tecnologia' }, { id: 'trab', label: 'Trabalho e direitos trabalhistas', shortLabel: 'Trabalho' }] }]) }));
 
 const mockShow = jest.fn();
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockShow }) }));
@@ -130,6 +133,8 @@ describe('criar comuna', () => {
     await render(<CreateComunaScreen />);
     await fireEvent.changeText(await screen.findByLabelText('Nome'), 'Hortas');
     await fireEvent.changeText(screen.getByLabelText('Descrição'), 'Mutirões.');
+    await fireEvent.press(screen.getByLabelText('Assunto: Escolher assunto'));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Tecnologia e ciência' }));
     const submit = screen.getByLabelText('Criar comuna');
     await fireEvent.press(submit);
     await fireEvent.press(submit);
@@ -155,12 +160,15 @@ describe('criar comuna', () => {
     await fireEvent.changeText(screen.getByLabelText('Descrição'), 'Mutirões.');
     await fireEvent.press(screen.getByRole('radio', { name: /Privada/ }));
     await fireEvent.changeText(screen.getByLabelText('Título da regra 1'), 'Respeito');
+    await fireEvent.press(screen.getByLabelText('Assunto: Escolher assunto'));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Tecnologia e ciência' }));
     await fireEvent.press(screen.getByLabelText('Criar comuna'));
 
     expect(mocked.createComuna).toHaveBeenCalledWith({
       name: 'Hortas do Bairro',
       description: 'Mutirões.',
       visibility: 'private',
+      topic: 'tec',
       rules: [{ title: 'Respeito', body: '' }],
       place: '',
     });
@@ -178,6 +186,8 @@ describe('criar comuna', () => {
     await fireEvent.changeText(await screen.findByLabelText('Nome'), 'Tarifa Zero');
     await fireEvent.changeText(screen.getByLabelText('Descrição'), 'Transporte.');
 
+    await fireEvent.press(screen.getByLabelText('Assunto: Escolher assunto'));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Tecnologia e ciência' }));
     await fireEvent.press(screen.getByLabelText('Criar comuna'));
     expect(screen.getByText('Já existe uma comuna com esse nome.')).toBeTruthy();
 
@@ -193,7 +203,29 @@ describe('criar comuna', () => {
   });
 });
 
-describe('gerir comuna: exclusão', () => {
+describe('gerir comuna: dados e exclusão', () => {
+  it('proprietário altera o assunto oficial e recarrega a comuna depois de salvar', async () => {
+    const before = comuna({ topics: ['tec'] });
+    const after = comuna({ topics: ['trab'] });
+    mocked.getComuna.mockResolvedValueOnce(before).mockResolvedValue(after);
+    mocked.updateComuna.mockResolvedValue(after);
+    await render(<ManageComunaScreen />);
+    await fireEvent.press(await screen.findByText('Comuna'));
+    await fireEvent.press(await screen.findByLabelText('Assunto: Tecnologia'));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Trabalho e direitos trabalhistas' }));
+    await fireEvent.press(screen.getByText('Salvar'));
+    expect(mocked.updateComuna).toHaveBeenCalledWith('hortas', { description: 'Mutirões.', rules: [], topic: 'trab' });
+    await waitFor(() => expect(mocked.getComuna).toHaveBeenCalledTimes(2));
+    expect(await screen.findByLabelText('Assunto: Trabalho')).toBeTruthy();
+  });
+
+  it('sem permissão de editar dados estruturais não mostra o seletor', async () => {
+    mocked.getComuna.mockResolvedValue(comuna({ viewerRole: 'member', viewerPermissions: { ...permissions, canEditDetails: false } }));
+    await render(<ManageComunaScreen />);
+    expect(await screen.findByText('Você não gere esta comuna')).toBeTruthy();
+    expect(screen.queryByLabelText(/Assunto:/)).toBeNull();
+  });
+
   async function openSettings(details: ComunaDetails) {
     mocked.getComuna.mockResolvedValue(details);
     await render(<ManageComunaScreen />);

@@ -150,6 +150,8 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
           </AppText>
         ) : null}
 
+        {comuna.primaryTopic ? <AppText variant="label" color={Colors.red}>Assunto · {comuna.primaryTopic.shortLabel}</AppText> : null}
+
         <AppText style={styles.description}>{comuna.description}</AppText>
 
         <View style={styles.stats}>

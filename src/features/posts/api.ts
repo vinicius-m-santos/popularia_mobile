@@ -8,7 +8,7 @@ import { apiRequest } from '@/lib/api/client';
 import type { AuthorDto, PostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
-import type { FeedItem, Tone, User } from '@/types/models';
+import type { FeedItem, Tone, TopicId, User } from '@/types/models';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
 
@@ -63,10 +63,10 @@ export async function getPost(id: string): Promise<FeedItem> {
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null }): Promise<FeedItem> {
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { comunaId: input.comunaServerId, body: input.text },
+    body: { comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
     auth: true,
   });
   return toFeedItem(post);

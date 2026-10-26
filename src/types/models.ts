@@ -38,12 +38,15 @@ export type User = {
   tone: Tone;
   /** Selo exibido ao lado do nome, como "Criadora" ou "Moderação". */
   badge?: string;
+  /** Relação enviada em lote pela descoberta. */
+  viewerFollowing?: boolean;
 };
 
 export type ComunaStat = { value: string; label: string };
 export type ComunaRule = { title: string; description: string };
 
 export type Comuna = {
+  primaryTopic?: Topic | null;
   /** Endereço da comuna nas rotas: o slug na API (`/comunas/{slug}`), igual ao ID dos mocks. */
   id: string;
   /** Só na API: UUID usado para publicar na comuna (POST /posts). */

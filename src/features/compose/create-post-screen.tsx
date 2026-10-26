@@ -18,12 +18,13 @@ import { useAccount, useMe } from '@/features/account/account-context';
 import { getComunas, getMyComunas } from '@/features/comunas/api';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { createPost } from '@/features/posts/api';
 import { PostCard } from '@/features/posts/components/post-card';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { ApiError, describeError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
-import type { Comuna, FeedItem } from '@/types/models';
+import type { Comuna, FeedItem, TopicId } from '@/types/models';
 
 const MAX_LENGTH = 1000;
 /** Seguidores do perfil de demonstração, para "Visível para…". */
@@ -62,6 +63,7 @@ export default function CreatePostScreen() {
   const comunas = useAsyncData(loadComunas);
 
   const [text, setText] = useState('');
+  const [topic, setTopic] = useState<TopicId | null>(null);
   const [preview, setPreview] = useState(false);
   const [picking, setPicking] = useState(false);
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -142,7 +144,7 @@ export default function CreatePostScreen() {
     publishingRef.current = true;
     setPublishing(true);
     try {
-      await createPost({ comunaServerId, text: trimmed });
+      await createPost({ comunaServerId, text: trimmed, ...(destination.kind === 'perfil' && topic ? { topic } : {}) });
     } catch (error) {
       publishingRef.current = false;
       setPublishing(false);
@@ -258,6 +260,8 @@ export default function CreatePostScreen() {
               </AppText>
             </Pressable>
           </View>
+
+          {destination.kind === 'perfil' && !DEMO_MODE ? <SingleTopicField value={topic} onChange={setTopic} optional disabled={publishing} /> : null}
 
           <View style={styles.segment} role="tablist">
             <Segment label="Escrever" active={!preview} onPress={() => setPreview(false)} />

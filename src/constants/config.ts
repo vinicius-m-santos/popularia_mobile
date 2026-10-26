@@ -17,8 +17,7 @@ export const DEMO_MODE = API_BASE_URL === '';
 
 /**
  * Comunas, feed, publicações e comentários usam a API quando ela está configurada
- * (e os mocks só no modo demonstração). Perfis de outras pessoas, avisos, explorar
- * (pessoas, assuntos e publicações em destaque), chamados e moderação ainda não foram
+ * (e os mocks só no modo demonstração). Chamados e parte das interações ainda não foram
  * migrados: continuam com dados fictícios, com ou sem API. Quando um domínio migrar,
  * a chamada real entra no `features/<domínio>/api.ts` dele.
  */

@@ -16,6 +16,8 @@ import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/the
 import { useAccount } from '@/features/account/account-context';
 import { useAsyncData } from '@/hooks/use-async-data';
 import type { ComunaQuotaDto, ComunaNameAvailabilityDto } from '@/lib/api/dto';
+import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
+import type { TopicId } from '@/types/models';
 import { ApiError } from '@/lib/errors';
 
 import { checkComunaName, createComuna, getComunaQuota, type ComunaRuleInput } from './api';
@@ -71,6 +73,7 @@ export default function CreateComunaScreen() {
   const loadQuota = useCallback(() => getComunaQuota(), []);
   const quota = useAsyncData(loadQuota);
 
+  const [topic, setTopic] = useState<TopicId | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -85,7 +88,7 @@ export default function CreateComunaScreen() {
   const trimmedName = name.trim().replace(/\s+/g, ' ');
   // A prévia só vale para o nome que está no campo agora.
   const availability = checked?.name === trimmedName ? checked.result : null;
-  const dirty = !!(trimmedName || description.trim() || place.trim() || visibility !== 'public' || rules.some((r) => r.title.trim() || r.body.trim()));
+  const dirty = !!(topic || trimmedName || description.trim() || place.trim() || visibility !== 'public' || rules.some((r) => r.title.trim() || r.body.trim()));
   const disablePrevention = usePreventRemove(!leaving && (submitting || dirty), ({ repeat }) => {
     if (submittingRef.current) return;
     Alert.alert('Descartar comuna?', 'O que você preencheu será perdido.', [
@@ -123,6 +126,7 @@ export default function CreateComunaScreen() {
     if (submittingRef.current) return;
     const local: Record<string, string> = {};
     if (trimmedName.length < NAME_MIN) local.name = `Use pelo menos ${NAME_MIN} caracteres.`;
+    if (!topic) local.topic = 'Escolha o assunto principal da comuna.';
     if (!description.trim()) local.description = 'Conte em poucas palavras para que serve a comuna.';
     setViolations(local);
     if (Object.keys(local).length > 0) return;
@@ -135,6 +139,7 @@ export default function CreateComunaScreen() {
         name: trimmedName,
         description: description.trim(),
         visibility,
+        topic: topic!,
         rules: cleanRules(rules),
         place: place.trim(),
       });
@@ -238,7 +243,7 @@ export default function CreateComunaScreen() {
         {bar}
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <AppText variant="caption">
-            Você será a pessoa proprietária: edita descrição e regras, escolhe a moderação e decide sobre a comuna.
+            Você será a pessoa proprietária: edita descrição, assunto e regras, escolhe a moderação e decide sobre a comuna.
             Cada pessoa pode ter até {quota.data.limit} comunas ativas ({quota.data.activeOwned} em uso).
           </AppText>
 
@@ -265,6 +270,8 @@ export default function CreateComunaScreen() {
             hint={violations.description}
             hintColor={Colors.red}
           />
+
+          <SingleTopicField value={topic} onChange={setTopic} error={violations.topic ?? violations.topics} disabled={submitting} />
 
           <View style={styles.section} role="radiogroup" accessibilityLabel="Visibilidade">
             <AppText style={styles.sectionLabel}>Visibilidade</AppText>

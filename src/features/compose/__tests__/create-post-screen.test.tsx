@@ -7,6 +7,7 @@ import { NetworkError } from '@/lib/errors';
 
 import CreatePostScreen from '../create-post-screen';
 
+jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Cultura e ideias', topics: [{ id: 'tec', label: 'Tecnologia e ciência', shortLabel: 'Tecnologia' }] }]) }));
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, USE_MOCKS: true }));
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), canGoBack: () => true, replace: jest.fn(), dismissTo: jest.fn(), push: jest.fn() },
@@ -31,6 +32,16 @@ jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }
 beforeEach(() => { jest.clearAllMocks(); });
 
 describe('criação de publicação', () => {
+  it('envia um assunto opcional na publicação de perfil', async () => {
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.press(await screen.findByLabelText('Assunto: Escolher assunto'));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Tecnologia e ciência' }));
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Linux nas escolas');
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: 'Linux nas escolas', topic: 'tec' });
+  });
+
   it('cancelar volta sem publicar; reabrir começa com rascunho vazio', async () => {
     const view = await render(<CreatePostScreen />);
     await fireEvent.press(screen.getByLabelText('Fechar'));

@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.condensed,
     fontSize: 32,
-    lineHeight: 32,
+    lineHeight: 40,
     textTransform: 'uppercase',
     color: Colors.ink,
   },

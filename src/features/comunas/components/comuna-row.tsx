@@ -11,13 +11,14 @@ type ComunaRowProps = {
   comuna: Comuna;
   /** Linha de apoio, como "11,6 mil membros · Política, Economia". */
   subtitle: string;
+  description?: string;
   onOpen: () => void;
   /** Ação ou selo à direita (Participar, papel na comuna). */
   trailing?: ReactNode;
 };
 
 /** Comuna em lista: marca, nome e uma linha de contexto. */
-export function ComunaRow({ comuna, subtitle, onOpen, trailing }: ComunaRowProps) {
+export function ComunaRow({ comuna, subtitle, description, onOpen, trailing }: ComunaRowProps) {
   return (
     <View style={styles.row}>
       <Pressable
@@ -34,6 +35,7 @@ export function ComunaRow({ comuna, subtitle, onOpen, trailing }: ComunaRowProps
           <AppText style={styles.subtitle} color={Colors.muted} numberOfLines={1}>
             {subtitle}
           </AppText>
+          {description ? <AppText variant="caption" numberOfLines={2} style={styles.description}>{description}</AppText> : null}
         </View>
       </Pressable>
       {trailing}
@@ -69,6 +71,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
+  description: { marginTop: Spacing.one },
   subtitle: {
     fontSize: 12.5,
     lineHeight: 17,

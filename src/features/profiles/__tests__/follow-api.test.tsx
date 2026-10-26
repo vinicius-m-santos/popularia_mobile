@@ -23,6 +23,27 @@ beforeEach(() => {
 });
 
 describe('follow persistido', () => {
+  it('usa a relação entregue em lote sem request adicional por card', async () => {
+    const { result } = await renderHook(() => useFollow('outra', true), { wrapper });
+    expect(result.current.following).toBe(true);
+    expect(getFollowing).not.toHaveBeenCalled();
+    await act(async () => { await result.current.toggleFollow(); });
+    expect(setFollowing).toHaveBeenCalledWith('outra', false);
+    expect(result.current.following).toBe(false);
+  });
+
+  it('descarta a confirmação tardia depois de sair de um card com relação em lote', async () => {
+    let finish: () => void = () => {};
+    jest.mocked(setFollowing).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const view = await renderHook(() => useFollow('outra', false), { wrapper });
+    let action = Promise.resolve(false);
+    await act(async () => { action = view.result.current.toggleFollow(); });
+    await view.unmount();
+    await act(async () => { finish(); });
+    expect(await action).toBe(false);
+    expect(getFollowing).not.toHaveBeenCalled();
+  });
+
   it('carrega a relação do servidor e confirma seguir/deixar de seguir', async () => {
     jest.mocked(getFollowing).mockResolvedValue(true);
     const { result } = await renderHook(() => useFollow('outra'), { wrapper });

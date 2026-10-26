@@ -15,7 +15,7 @@ type SectionHeadingProps = {
 export function SectionHeading({ label, actionLabel, onAction }: SectionHeadingProps) {
   return (
     <View style={styles.row}>
-      <View accessibilityRole="header">
+      <View accessibilityRole="header" style={{ flex: 1, minWidth: 0 }}>
         <Kicker label={label} />
       </View>
       {actionLabel && onAction ? (

@@ -1,12 +1,17 @@
 /** Dados da tela Explorar: destaques e o índice usado pela busca. */
-import { USE_MOCKS } from '@/constants/config';
-import { getComunas } from '@/features/comunas/api';
+import { DEMO_MODE, USE_MOCKS } from '@/constants/config';
+import { getComunas, toComuna } from '@/features/comunas/api';
 import { toFeedItems } from '@/features/lookup';
 import { getFeaturedPeople, getSearchablePeople } from '@/features/profiles/api';
 import { mockDelay } from '@/lib/mock-delay';
 import { posts } from '@/mocks/posts';
 import { topicGroups, trends } from '@/mocks/topics';
-import type { Comuna, FeedItem, Profile, Topic, Trend } from '@/types/models';
+import { apiRequest } from '@/lib/api/client';
+import type { AuthorDto, ComunaDto, PostDto } from '@/lib/api/dto';
+import { toFeedItem, toUser } from '@/features/posts/api';
+import type { Page } from '@/lib/pagination';
+import { searchExplore } from './search';
+import type { Comuna, FeedItem, Profile, Topic, Trend, User } from '@/types/models';
 
 export type ExploreData = {
   trends: Trend[];
@@ -34,4 +39,78 @@ export async function getExploreData(ownUserId: string): Promise<ExploreData> {
     posts: items,
     topics: topicGroups.flatMap((g) => g.topics),
   };
+}
+
+
+/** Contrato agregado: previews pequenos e cursores separados para os filtros de busca. */
+export type DiscoveryFilter = 'all' | 'comunas' | 'people' | 'posts';
+export type DiscoveryData = {
+  topics: Topic[];
+  comunas: Comuna[];
+  people: User[];
+  posts: FeedItem[];
+  recentPosts: FeedItem[];
+  next: { comunas: string | null; people: string | null; posts: string | null };
+};
+export type DiscoveryEntry =
+  | { id: string; kind: 'comunas'; value: Comuna }
+  | { id: string; kind: 'people'; value: User }
+  | { id: string; kind: 'posts'; value: FeedItem };
+
+type DiscoveryDto = {
+  topics: Topic[];
+  comunas: ComunaDto[];
+  people: (AuthorDto & { following: boolean })[];
+  posts: PostDto[];
+  recentPosts: PostDto[];
+  next: DiscoveryData['next'];
+};
+
+function convertDiscovery(dto: DiscoveryDto): DiscoveryData {
+  return {
+    ...dto,
+    comunas: dto.comunas.map(toComuna),
+    people: dto.people.map((p) => ({ ...toUser(p), viewerFollowing: p.following })),
+    posts: dto.posts.map(toFeedItem),
+    recentPosts: dto.recentPosts.map(toFeedItem),
+  };
+}
+
+export async function getDiscoveryData(ownUserId: string, topic?: string): Promise<DiscoveryData> {
+  if (!DEMO_MODE) {
+    return convertDiscovery(await apiRequest<DiscoveryDto>(`/explore${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`, { auth: true }));
+  }
+  const data = await getExploreData(ownUserId);
+  const related = data.comunas.filter((c) => !topic || c.topics[0] === topic);
+  const relatedPosts = data.posts.filter((p) => !topic || related.some((c) => c.id === p.comunaId));
+  return {
+    topics: data.topics,
+    comunas: related.slice(0, 5),
+    people: topic ? [] : data.featuredPeople.map((p) => p.user).filter((u) => u.id !== ownUserId).slice(0, 5),
+    posts: relatedPosts.slice(0, 3),
+    recentPosts: topic ? relatedPosts.slice(3, 8) : [],
+    next: { comunas: null, people: null, posts: null },
+  };
+}
+
+export async function searchDiscovery(ownUserId: string, query: string, filter: DiscoveryFilter, topic?: string, cursor: string | null = null): Promise<Page<DiscoveryEntry>> {
+  let data: DiscoveryData;
+  if (!DEMO_MODE) {
+    const params = new URLSearchParams({ q: query, type: filter, limit: '20' });
+    if (topic) params.set('topic', topic);
+    if (cursor) params.set('cursor', cursor);
+    data = convertDiscovery(await apiRequest<DiscoveryDto>(`/search?${params}`, { auth: true }));
+  } else {
+    const source = await getExploreData(ownUserId);
+    const related = source.comunas.filter((c) => !topic || c.topics[0] === topic);
+    const result = searchExplore({ ...source, comunas: related, posts: source.posts.filter((p) => !topic || related.some((c) => c.id === p.comunaId)) }, query.replace(/^@/, ''));
+    const limit = filter === 'all' ? 3 : 20;
+    data = { topics: source.topics, comunas: result.comunas.slice(0, limit), people: topic ? [] : result.people.map((p) => p.user).slice(0, limit), posts: result.posts.slice(0, limit), recentPosts: [], next: { comunas: null, people: null, posts: null } };
+  }
+  const items: DiscoveryEntry[] = [
+    ...(filter === 'all' || filter === 'comunas' ? data.comunas.map((value) => ({ id: value.id, kind: 'comunas' as const, value })) : []),
+    ...(filter === 'all' || filter === 'people' ? data.people.map((value) => ({ id: value.id, kind: 'people' as const, value })) : []),
+    ...(filter === 'all' || filter === 'posts' ? data.posts.map((value) => ({ id: value.id, kind: 'posts' as const, value })) : []),
+  ];
+  return { items, nextCursor: filter === 'all' ? null : data.next[filter] };
 }

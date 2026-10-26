@@ -21,9 +21,10 @@ import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/the
 import { useAccount } from '@/features/account/account-context';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { ApiError } from '@/lib/errors';
 import { goBack } from '@/lib/routes';
-import type { ComunaDetails, ComunaPerson } from '@/types/models';
+import type { ComunaDetails, ComunaPerson, TopicId } from '@/types/models';
 
 import {
   archiveComuna,
@@ -134,7 +135,7 @@ export default function ManageComunaScreen() {
         {current === 'pedidos' ? <RequestsTab comuna={data} onChanged={comuna.reload} /> : null}
         {current === 'comuna' ? (
           // A chave muda quando descrição ou regras mudam no servidor: o formulário recomeça com elas.
-          <SettingsTab key={JSON.stringify([data.description, data.rules])} comuna={data} onChanged={comuna.reload} />
+          <SettingsTab key={JSON.stringify([data.description, data.rules, data.topics])} comuna={data} onChanged={comuna.reload} />
         ) : null}
       </KeyboardView>
     </Screen>
@@ -351,6 +352,7 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
   const toast = useToast();
   const perms = comuna.viewerPermissions;
   const [description, setDescription] = useState(comuna.description);
+  const [topic, setTopic] = useState<TopicId | null>(comuna.topics[0] ?? null);
   const [rules, setRules] = useState<ComunaRuleInput[]>(comuna.rules.map((r) => ({ title: r.title, body: r.description })));
   const [violations, setViolations] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -372,8 +374,8 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
     run(async () => {
       setViolations({});
       try {
-        await updateComuna(comuna.id, { description: description.trim(), rules: cleanRules(rules) });
-        toast.show('Descrição e regras salvas.');
+        await updateComuna(comuna.id, { description: description.trim(), rules: cleanRules(rules), ...(topic ? { topic } : {}) });
+        toast.show('Dados da comuna salvos.');
         onChanged();
       } catch (error) {
         if (error instanceof ApiError && error.status === 422) setViolations(error.violations);
@@ -472,7 +474,8 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
 
       {perms?.canEditDetails ? (
         <View style={styles.section}>
-          <Kicker label="Descrição e regras" />
+          <Kicker label="Dados da comuna" />
+          <SingleTopicField value={topic} onChange={setTopic} error={violations.topic} disabled={busy} />
           <AppText variant="caption">O nome ({comuna.name}) e o endereço c/{comuna.handle} não mudam.</AppText>
           <TextField
             label="Descrição"

@@ -55,7 +55,7 @@ export function useEventAttendance(event: CommunityEvent) {
   };
 }
 
-export function useFollow(userId: string) {
+export function useFollow(userId: string, initialFollowing?: boolean) {
   const { isOn, toggle, setOn } = useInteractions();
   const me = useMe();
   const { account } = useAccount();
@@ -73,6 +73,11 @@ export function useFollow(userId: string) {
     const current = ++generation.current;
     known.current = false;
     if (DEMO_MODE || !canFollow) return;
+    if (initialFollowing !== undefined) {
+      known.current = true;
+      setOn('followedUsers', [userId], initialFollowing);
+      return () => { generation.current = current + 1; };
+    }
     let cancelled = false;
     const before = followingNow.current;
     getFollowing(userId).then((value) => {
@@ -81,7 +86,7 @@ export function useFollow(userId: string) {
       setOn('followedUsers', [userId], value);
     }).catch(() => { /* A tap retries the lookup before changing the relation. */ });
     return () => { cancelled = true; generation.current = current + 1; };
-  }, [userId, account?.id, canFollow, setOn]);
+  }, [userId, account?.id, canFollow, setOn, initialFollowing]);
 
   const toggleFollow = async () => {
     if (!canFollow || pending.current) return false;

@@ -48,6 +48,7 @@ export type ComunaDto = {
   archivedAt: string | null;
   tone: string;
   topics: string[];
+  primaryTopic?: { id: string; label: string; shortLabel: string; group: string } | null;
   foundedYear: number;
   memberCount: number;
   moderationNote: string;
@@ -103,6 +104,7 @@ export type ComunaQuotaDto = {
 export type ComunaNameAvailabilityDto = { name: string; slug: string; available: boolean; message: string | null };
 
 export type PostDto = {
+  topic?: string | null;
   id: string;
   body: string;
   createdAt: string;

@@ -5,7 +5,7 @@ import { useFollow } from '@/features/interactions/use-post-actions';
 import type { User } from '@/types/models';
 
 type FollowButtonProps = {
-  user: Pick<User, 'id' | 'name'>;
+  user: Pick<User, 'id' | 'name' | 'viewerFollowing'>;
   /** Rótulo quando ainda não segue, como "Seguir de volta". */
   idleLabel?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -17,7 +17,7 @@ type FollowButtonProps = {
 
 /** Seguir uma pessoa; na API, só atualiza a UI depois da confirmação do servidor. */
 export function FollowButton({ user, idleLabel = 'Seguir', size = 'sm', display, disabled, onChanged, style }: FollowButtonProps) {
-  const { canFollow, following, busy, toggleFollow } = useFollow(user.id);
+  const { canFollow, following, busy, toggleFollow } = useFollow(user.id, user.viewerFollowing);
   if (!canFollow) return null;
   return (
     <PillButton

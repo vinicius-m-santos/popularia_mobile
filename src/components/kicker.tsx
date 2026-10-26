@@ -13,7 +13,7 @@ export function Kicker({ label, color = Colors.ink }: KickerProps) {
   return (
     <View style={styles.row}>
       <View style={styles.square} />
-      <AppText variant="label" color={color}>
+      <AppText variant="label" color={color} style={{ flexShrink: 1 }}>
         {label}
       </AppText>
     </View>
