@@ -9,7 +9,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/branding/icon.png",
-      "bundleIdentifier": "com.popularia.mobile"
+      "bundleIdentifier": "com.popularia.mobile",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
