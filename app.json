@@ -8,14 +8,16 @@
     "scheme": "populariamobile",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/branding/icon.png"
+      "icon": "./assets/branding/icon.png",
+      "bundleIdentifier": "com.popularia.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F4ECDD",
         "foregroundImage": "./assets/branding/android-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.popularia.mobile"
     },
     "web": {
       "output": "single",
@@ -32,6 +34,13 @@
         }
       ],
       "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID_REVERSED"
+        }
+      ],
       [
         "@sentry/react-native",
         {

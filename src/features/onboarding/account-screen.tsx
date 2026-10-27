@@ -1,10 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
-import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
@@ -30,7 +29,7 @@ export default function AccountScreen() {
   const { modo } = useLocalSearchParams<{ modo?: string }>();
   const mode: Mode = modo === 'entrar' ? 'entrar' : 'cadastro';
   const signup = mode === 'cadastro';
-  const { startSignup, setSignupCredentials, signIn } = useAccount();
+  const { startSignup, setSignupCredentials, signIn, signInWithGoogle, signInWithApple } = useAccount();
   const toast = useToast();
 
   const [email, setEmail] = useState('');
@@ -39,6 +38,7 @@ export default function AccountScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [socialBusy, setSocialBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const emailError = !email.trim()
@@ -61,7 +61,29 @@ export default function AccountScreen() {
     }
   };
 
-  const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
+  const handleGoogle = async () => {
+    if (socialBusy || busy) return;
+    setSocialBusy(true);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      toast.show(describeError(error));
+    } finally {
+      setSocialBusy(false);
+    }
+  };
+
+  const handleApple = async () => {
+    if (socialBusy || busy) return;
+    setSocialBusy(true);
+    try {
+      await signInWithApple();
+    } catch (error) {
+      toast.show(describeError(error));
+    } finally {
+      setSocialBusy(false);
+    }
+  };
 
   const submit = async () => {
     if (busyRef.current) return;
@@ -111,12 +133,20 @@ export default function AccountScreen() {
           </View>
 
           <View style={styles.social}>
-            <SocialButton label="Continuar com Google" mark="G" onPress={soon('Entrar com Google')} />
             <SocialButton
-              label="Continuar com número de celular"
-              icon="phone"
-              onPress={soon('Entrar com celular')}
+              label={socialBusy ? 'Aguarde…' : 'Continuar com Google'}
+              mark="G"
+              onPress={DEMO_MODE ? () => toast.show('Google indisponível no modo demonstração.') : handleGoogle}
+              disabled={socialBusy || busy}
             />
+            {Platform.OS === 'ios' ? (
+              <SocialButton
+                label={socialBusy ? 'Aguarde…' : 'Continuar com Apple'}
+                mark=""
+                onPress={DEMO_MODE ? () => toast.show('Apple indisponível no modo demonstração.') : handleApple}
+                disabled={socialBusy || busy}
+              />
+            ) : null}
           </View>
 
           <View style={styles.divider} accessible={false}>
@@ -170,7 +200,7 @@ export default function AccountScreen() {
 
           {!signup ? (
             <Pressable
-              onPress={() => (DEMO_MODE ? soon('Recuperar senha')() : router.push('/boas-vindas/recuperar'))}
+              onPress={() => (DEMO_MODE ? toast.show('Recuperar senha chega numa próxima etapa.') : router.push('/boas-vindas/recuperar'))}
               accessibilityRole="button"
               style={styles.forgot}>
               <AppText style={styles.linkLabel} color={Colors.red}>
@@ -211,16 +241,16 @@ type SocialProps = {
   label: string;
   onPress: () => void;
   mark?: string;
-  icon?: 'phone';
+  disabled?: boolean;
 };
 
-function SocialButton({ label, onPress, mark, icon }: SocialProps) {
+function SocialButton({ label, onPress, mark, disabled }: SocialProps) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
-      accessibilityHint="Ainda não disponível"
-      style={({ pressed }) => [styles.socialButton, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.socialButton, (pressed || disabled) && styles.pressed]}>
       {mark ? (
         <View style={styles.socialMark} accessible={false}>
           <AppText style={styles.socialMarkText} maxFontSizeMultiplier={1}>
@@ -228,7 +258,6 @@ function SocialButton({ label, onPress, mark, icon }: SocialProps) {
           </AppText>
         </View>
       ) : null}
-      {icon ? <Icon name={icon} size={20} /> : null}
       <AppText style={styles.socialLabel}>{label}</AppText>
     </Pressable>
   );

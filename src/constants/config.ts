@@ -46,3 +46,11 @@ export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
  * Em desenvolvimento local, fica como "development" (Sentry desabilitado).
  */
 export const SENTRY_ENVIRONMENT = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT ?? 'development';
+
+/**
+ * Google Sign-In: Web Client ID (para validação do backend) e iOS Client ID.
+ * Configurar nos perfis do EAS: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID e EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID.
+ * Obtidos no Google Cloud Console → Credenciais. Ver docs/authentication.md.
+ */
+export const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+export const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';

@@ -13,7 +13,7 @@
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
-import { DEMO_MODE } from '@/constants/config';
+import { DEMO_MODE, GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from '@/constants/config';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { findUser } from '@/features/lookup';
 import { hasStoredSession, onSessionEnded, refreshSession } from '@/lib/api/client';
@@ -25,7 +25,7 @@ import { currentUser } from '@/mocks/users';
 import type { TopicId, User } from '@/types/models';
 
 import * as accountApi from './api';
-import type { MeDto } from './api';
+import type { MeDto, SocialTokensDto } from './api';
 
 export type AccountProfile = {
   name: string;
@@ -65,9 +65,15 @@ type AccountValue = {
   setSignupCredentials: (email: string, password: string) => void;
   /** Etapa 2: cria a conta e entra nela. Repetir depois de criada só atualiza o perfil. */
   completeSignupProfile: () => Promise<void>;
+  /** Completa o onboarding de conta criada via social (escolhe handle e nome). */
+  completeSocialOnboarding: () => Promise<void>;
   /** Encerra o cadastro e mostra o aviso "Seu feed está pronto" no feed. */
   finishSignup: () => void;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Autentica via Google (nativo). Após validação no backend, inicia sessão Popularia. */
+  signInWithGoogle: () => Promise<void>;
+  /** Autentica via Apple (nativo, apenas iOS). Após validação no backend, inicia sessão Popularia. */
+  signInWithApple: () => Promise<void>;
   /** Sai deste aparelho (ou de todos) e volta para as boas-vindas. */
   signOut: (everywhere?: boolean) => Promise<void>;
   reloadAccount: () => Promise<void>;
@@ -116,6 +122,18 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setShowWelcome(false);
     setStatus('signedOut');
   }, [resetAll]);
+
+  // Configura Google Sign-In uma vez na inicialização.
+  useEffect(() => {
+    if (DEMO_MODE || !GOOGLE_WEB_CLIENT_ID) return;
+    import('@react-native-google-signin/google-signin').then(({ GoogleSignin }) => {
+      GoogleSignin.configure({
+        webClientId: GOOGLE_WEB_CLIENT_ID,
+        iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+        offlineAccess: false,
+      });
+    });
+  }, []);
 
   // Ao abrir o app: retoma a sessão guardada no aparelho, se houver.
   useEffect(() => {
@@ -226,6 +244,100 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [applyAccount, replaceAll, resetAll],
   );
 
+  // Após social login: inicia sessão Popularia e, se necessário, abre o onboarding de handle.
+  const applySocialSession = useCallback(
+    async (tokens: SocialTokensDto) => {
+      const { startSession } = await import('@/lib/api/client');
+      await startSession(tokens);
+      resetAll();
+      const me = await accountApi.getMe();
+      if (tokens.onboardingRequired) {
+        setSigningUp(true);
+        applyAccount(me);
+        const { router } = await import('expo-router');
+        router.push('/boas-vindas/perfil');
+      } else {
+        setSigningUp(false);
+        setShowWelcome(false);
+        applyAccount(me);
+      }
+    },
+    [applyAccount, resetAll],
+  );
+
+  const signInWithGoogle = useCallback(async () => {
+    const { GoogleSignin, statusCodes } = await import('@react-native-google-signin/google-signin');
+    try {
+      await GoogleSignin.hasPlayServices();
+      const { data } = await GoogleSignin.signIn();
+      if (!data?.idToken) throw new Error('Token Google ausente.');
+      const tokens = await accountApi.socialLogin({
+        provider: 'google',
+        idToken: data.idToken,
+        deviceLabel: deviceLabel(),
+      });
+      await applySocialSession(tokens);
+    } catch (error: unknown) {
+      // Cancelamento pelo usuário não é um erro crítico.
+      const isCancel =
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code: string }).code === statusCodes.SIGN_IN_CANCELLED;
+      if (!isCancel) throw error;
+    }
+  }, [applySocialSession]);
+
+  const signInWithApple = useCallback(async () => {
+    const AppleAuthentication = await import('expo-apple-authentication');
+    const Crypto = await import('expo-crypto');
+    // Gera nonce: app envia rawNonce ao backend; hashed vai no pedido à Apple.
+    const rawNonce = Crypto.randomUUID();
+    const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+      if (!credential.identityToken) throw new Error('Token Apple ausente.');
+      const parts = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean);
+      const displayName = parts.length > 0 ? parts.join(' ') : undefined;
+      const tokens = await accountApi.socialLogin({
+        provider: 'apple',
+        idToken: credential.identityToken,
+        nonce: rawNonce,
+        displayName,
+        deviceLabel: deviceLabel(),
+      });
+      await applySocialSession(tokens);
+    } catch (error: unknown) {
+      // ERR_REQUEST_CANCELED é cancelamento pela pessoa: não é erro crítico.
+      const isCancel =
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code: string }).code === 'ERR_REQUEST_CANCELED';
+      if (!isCancel) throw error;
+    }
+  }, [applySocialSession]);
+
+  const completeSocialOnboarding = useCallback(async () => {
+    if (DEMO_MODE) return;
+    const me = await accountApi.completeOnboarding({
+      handle: draft.handle.trim(),
+      displayName: draft.name.trim(),
+      bio: draft.bio.trim() || undefined,
+      city: draft.city.trim() || undefined,
+      interests: interests.length > 0 ? interests : undefined,
+    });
+    applyAccount(me);
+    setSigningUp(false);
+    setShowWelcome(true);
+  }, [applyAccount, draft, interests]);
+
   const signOut = useCallback(
     async (everywhere = false) => {
       if (!DEMO_MODE) await accountApi.logout(everywhere);
@@ -255,8 +367,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       startSignup,
       setSignupCredentials,
       completeSignupProfile,
+      completeSocialOnboarding,
       finishSignup,
       signIn,
+      signInWithGoogle,
+      signInWithApple,
       signOut,
       reloadAccount,
       showWelcome,
@@ -274,8 +389,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       startSignup,
       setSignupCredentials,
       completeSignupProfile,
+      completeSocialOnboarding,
       finishSignup,
       signIn,
+      signInWithGoogle,
+      signInWithApple,
       signOut,
       reloadAccount,
       showWelcome,

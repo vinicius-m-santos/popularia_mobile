@@ -21,6 +21,47 @@ export type MeDto = {
   platformRole: 'user' | 'platform_moderator' | 'admin';
   createdAt: string;
   updatedAt: string;
+  /** true quando conta foi criada via social e handle/nome ainda não foram escolhidos. */
+  pendingOnboarding: boolean;
+  /** false para contas criadas via Google/Apple sem senha definida. */
+  hasPassword: boolean;
+};
+
+export type SocialProvider = 'google' | 'apple';
+
+export type SocialLoginInput = {
+  provider: SocialProvider;
+  idToken: string;
+  nonce?: string;
+  displayName?: string;
+  deviceLabel?: string;
+};
+
+export type SocialTokensDto = {
+  tokenType: 'Bearer';
+  accessToken: string;
+  accessTokenExpiresIn: number;
+  refreshToken: string;
+  refreshTokenExpiresIn: number;
+  sessionId: string;
+  onboardingRequired: boolean;
+};
+
+export type CompleteOnboardingInput = {
+  handle: string;
+  displayName: string;
+  bio?: string;
+  city?: string;
+  interests?: TopicId[];
+};
+
+export type AuthIdentityItemDto = {
+  provider: SocialProvider;
+  linkedAt: string;
+};
+
+export type AuthIdentitiesDto = {
+  identities: AuthIdentityItemDto[];
 };
 
 export type RegistrationInput = {
@@ -91,4 +132,24 @@ export async function confirmPasswordReset(email: string, code: string, newPassw
 export async function isHandleAvailable(handle: string): Promise<boolean> {
   const result = await apiRequest<{ handle: string; available: boolean }>(`/handles/${encodeURIComponent(handle)}/availability`);
   return result.available;
+}
+
+export async function socialLogin(input: SocialLoginInput): Promise<SocialTokensDto> {
+  return apiRequest<SocialTokensDto>('/auth/social', { method: 'POST', body: input });
+}
+
+export function completeOnboarding(input: CompleteOnboardingInput): Promise<MeDto> {
+  return apiRequest<MeDto>('/me/complete-onboarding', { method: 'POST', body: input, auth: true });
+}
+
+export function getAuthIdentities(): Promise<AuthIdentitiesDto> {
+  return apiRequest<AuthIdentitiesDto>('/me/auth-identities', { auth: true });
+}
+
+export async function linkAuthIdentity(provider: SocialProvider, idToken: string, nonce?: string): Promise<AuthIdentitiesDto> {
+  return apiRequest<AuthIdentitiesDto>('/me/auth-identities', {
+    method: 'POST',
+    body: { provider, idToken, nonce },
+    auth: true,
+  });
 }

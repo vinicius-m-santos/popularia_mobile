@@ -36,7 +36,8 @@ type HandleCheck = { handle: string; available: boolean | null };
  * conta (com o e-mail e a senha da etapa 1) e entra nela; o @ é conferido no servidor.
  */
 export default function SetupScreen() {
-  const { profile, updateProfile, account, completeSignupProfile } = useAccount();
+  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding } = useAccount();
+  const isSocialOnboarding = account?.pendingOnboarding === true;
   const toast = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -97,9 +98,15 @@ export default function SetupScreen() {
     setBusy(true);
     setFieldErrors({});
     try {
-      const alreadyVerified = account?.emailVerified ?? false;
-      await completeSignupProfile();
-      router.push(alreadyVerified ? '/boas-vindas/assuntos' : '/boas-vindas/verificar');
+      if (isSocialOnboarding) {
+        // Conta já existe (criada via social): só define handle/nome definitivos.
+        await completeSocialOnboarding();
+        router.push('/boas-vindas/assuntos');
+      } else {
+        const alreadyVerified = account?.emailVerified ?? false;
+        await completeSignupProfile();
+        router.push(alreadyVerified ? '/boas-vindas/assuntos' : '/boas-vindas/verificar');
+      }
     } catch (error) {
       if (error instanceof ApiError && Object.keys(error.violations).length > 0) {
         setFieldErrors(error.violations);
