@@ -9,11 +9,7 @@ module.exports = ({ config }) => {
     const expected = environment === 'production'
       ? 'https://api.popularia.com.br/api/v1'
       : environment === 'staging' ? 'https://api-stg.popularia.com.br/api/v1' : null;
-    if (!expected || api !== expected) {
-  throw new Error(
-    `Ambiente/API inválidos para build distribuível. profile=${profile}; environment=${environment}; api=${api || '<empty>'}; expected=${expected || '<null>'}`
-  );
-}
+    if (!expected || api !== expected) throw new Error('Ambiente/API inválidos para build distribuível.');
     if (process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT !== environment) throw new Error('Ambiente Sentry divergente.');
   }
   const iosClient = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
