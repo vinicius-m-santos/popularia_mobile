@@ -30,10 +30,12 @@ import { formatPeople } from '@/lib/format';
 import { goBack, openCreateComuna, openManageComuna, openModeration, useNav } from '@/lib/routes';
 import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 
+import { LibraryPane } from '@/features/library/library-screen';
+
 import { getProfile, getUserPosts } from './api';
 import { FollowButton } from './components/follow-button';
 
-type ProfileTab = 'posts' | 'episodios' | 'comunas';
+type ProfileTab = 'posts' | 'episodios' | 'comunas' | 'biblioteca';
 
 /**
  * Perfil pessoal (2i) na aba Perfil e perfil de outras pessoas (2j), inclusive
@@ -138,9 +140,15 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     { key: 'posts', label: 'Publicações' },
     ...(profile.creator ? [{ key: 'episodios' as const, label: 'Episódios' }] : []),
     { key: 'comunas', label: 'Comunas' },
+    { key: 'biblioteca', label: 'Biblioteca' },
   ];
 
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
+
+  if (tab === 'biblioteca') return <Screen>{header(user.handle)}
+    <LibraryPane scope="personal" owner={user.id} canAdd={isMe}
+      header={<UnderlineTabs options={tabs} value={tab} onChange={setTab} />} />
+  </Screen>;
 
   return (
     <Screen>
@@ -167,6 +175,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                 </AppText>
               </View>
             </View>
+            {profile.isPrivate ? <AppText variant="caption">Perfil privado · Novos seguidores precisam de aprovação. Cada PDF mantém o acesso escolhido.</AppText> : null}
             <AppText style={styles.bio}>{bio}</AppText>
             {meta ? (
               <AppText style={styles.meta} color={Colors.muted}>

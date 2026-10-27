@@ -22,7 +22,10 @@ export type TokensDto = {
   sessionId: string;
 };
 
-type RequestOptions = {
+export type RequestOptions = {
+  transfer?: (url: string, headers: Record<string, string>, signal: AbortSignal) => Promise<Response>;
+  signal?: AbortSignal;
+  timeoutMs?: number;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Envia o access token (e renova a sessão se ele tiver vencido). */
@@ -102,8 +105,17 @@ export function refreshSession(): Promise<string | null> {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return parse<T>(await apiResponse(path, options));
+}
+
+/** Transporte binário/multipart com a mesma sessão e refresh das chamadas JSON. */
+export async function apiResponse(path: string, options: RequestOptions = {}): Promise<Response> {
   if (!API_BASE_URL) throw new Error('EXPO_PUBLIC_API_URL não está configurada.');
-  if (!options.auth) return parse<T>(await send(path, options, null));
+  if (!options.auth) {
+    const response = await send(path, options, null);
+    if (!response.ok) throw await toError(response);
+    return response;
+  }
 
   let token = accessToken && Date.now() < accessTokenExpiresAt ? accessToken : await refreshSession();
   if (!token) throw new ApiError(401, '/errors/unauthorized', 'Sua sessão terminou. Entre novamente.');
@@ -123,7 +135,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
     throw error;
   }
-  return parse<T>(response);
+  if (!response.ok) throw await toError(response);
+  return response;
 }
 
 async function send(path: string, options: RequestOptions, token: string | null): Promise<Response> {
@@ -132,8 +145,12 @@ async function send(path: string, options: RequestOptions, token: string | null)
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? API_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort);
+  if (options.signal?.aborted) controller.abort();
   try {
+    if (options.transfer) return await options.transfer(`${API_BASE_URL}${path}`, headers, controller.signal);
     return await fetch(`${API_BASE_URL}${path}`, {
       method: options.method ?? 'GET',
       headers,
@@ -144,6 +161,7 @@ async function send(path: string, options: RequestOptions, token: string | null)
     throw new NetworkError();
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener('abort', abort);
   }
 }
 

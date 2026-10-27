@@ -11,10 +11,12 @@ type BottomSheetProps = {
   /** Título grande; omitido quando o conteúdo traz o próprio cabeçalho. */
   title?: string;
   children: ReactNode;
+  /** Listas virtualizadas já controlam a própria rolagem. */
+  scrollable?: boolean;
 };
 
 /** Folha que sobe de baixo, com fundo escurecido. Tocar fora ou voltar fecha. */
-export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, children, scrollable = true }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   return (
     <Modal
@@ -40,9 +42,9 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
               {title}
             </AppText>
           ) : null}
-          <ScrollView bounces={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          {scrollable ? <ScrollView bounces={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {children}
-          </ScrollView>
+          </ScrollView> : children}
         </View>
       </KeyboardAvoidingView>
     </Modal>

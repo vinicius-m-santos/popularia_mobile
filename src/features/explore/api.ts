@@ -50,12 +50,14 @@ export type DiscoveryData = {
   people: User[];
   posts: FeedItem[];
   recentPosts: FeedItem[];
+  documents?: import('@/features/library/types').LibraryDocument[];
   next: { comunas: string | null; people: string | null; posts: string | null };
 };
 export type DiscoveryEntry =
   | { id: string; kind: 'comunas'; value: Comuna }
   | { id: string; kind: 'people'; value: User }
-  | { id: string; kind: 'posts'; value: FeedItem };
+  | { id: string; kind: 'posts'; value: FeedItem }
+  | { id: string; kind: 'documents'; value: import('@/features/library/types').LibraryDocument };
 
 type DiscoveryDto = {
   topics: Topic[];
@@ -63,6 +65,7 @@ type DiscoveryDto = {
   people: (AuthorDto & { following: boolean })[];
   posts: PostDto[];
   recentPosts: PostDto[];
+  documents?: import('@/features/library/types').LibraryDocument[];
   next: DiscoveryData['next'];
 };
 
@@ -73,6 +76,7 @@ function convertDiscovery(dto: DiscoveryDto): DiscoveryData {
     people: dto.people.map((p) => ({ ...toUser(p), viewerFollowing: p.following })),
     posts: dto.posts.map(toFeedItem),
     recentPosts: dto.recentPosts.map(toFeedItem),
+    documents: dto.documents ?? [],
   };
 }
 
@@ -110,6 +114,7 @@ export async function searchDiscovery(ownUserId: string, query: string, filter: 
   const items: DiscoveryEntry[] = [
     ...(filter === 'all' || filter === 'comunas' ? data.comunas.map((value) => ({ id: value.id, kind: 'comunas' as const, value })) : []),
     ...(filter === 'all' || filter === 'people' ? data.people.map((value) => ({ id: value.id, kind: 'people' as const, value })) : []),
+    ...(filter === 'all' ? (data.documents ?? []).map((value) => ({ id: value.id, kind: 'documents' as const, value })) : []),
     ...(filter === 'all' || filter === 'posts' ? data.posts.map((value) => ({ id: value.id, kind: 'posts' as const, value })) : []),
   ];
   return { items, nextCursor: filter === 'all' ? null : data.next[filter] };

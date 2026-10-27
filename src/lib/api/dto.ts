@@ -104,6 +104,7 @@ export type ComunaQuotaDto = {
 export type ComunaNameAvailabilityDto = { name: string; slug: string; available: boolean; message: string | null };
 
 export type PostDto = {
+  document?: import('@/features/library/types').LibraryDocument | null;
   topic?: string | null;
   id: string;
   body: string;

@@ -81,7 +81,7 @@ function CreateButton() {
     setMenuVisible(false);
   };
 
-  const navigateTo = (route: '/criar' | '/criar-comuna') => {
+  const navigateTo = (route: '/criar' | '/criar-comuna' | '/biblioteca/enviar') => {
     if (!menuOpen.current) return;
     closeMenu();
     router.push(route);
@@ -103,6 +103,7 @@ function CreateButton() {
           description="Compartilhe uma ideia, imagem ou enquete."
           onPress={() => navigateTo('/criar')}
         />
+        <CreateMenuItem icon="bookmark" title="Adicionar PDF" description="Guarde um PDF na sua biblioteca e escolha quem pode abrir." onPress={() => navigateTo('/biblioteca/enviar')} />
         <CreateMenuItem
           icon="support"
           title="Comuna"

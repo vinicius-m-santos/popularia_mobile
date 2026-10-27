@@ -2,6 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
 import { ChipRow } from '@/components/chip';
 import { Icon } from '@/components/icon';
@@ -111,6 +112,11 @@ function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
   return (
     <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.red} />}>
+      {!topic ? <Pressable accessibilityRole="link" accessibilityLabel="Biblioteca Pública" onPress={() => router.push('/biblioteca')} style={{ marginTop: Spacing.five, padding: Spacing.five, gap: Spacing.two, backgroundColor: Colors.ink, borderRadius: Radius.xl }}>
+        <AppText variant="label" color={Colors.onInkMuted}>Biblioteca Pública · PDF</AppText>
+        <AppText variant="heading" color={Colors.cream}>Conhecimento para ficar</AppText>
+        <AppText color={Colors.cream}>Cartilhas, atas e estudos que pessoas e comunas escolheram compartilhar.</AppText>
+      </Pressable> : null}
       {!topic ? (
         <View style={styles.section}>
           <SectionHeading label="Assuntos" />
@@ -176,9 +182,13 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
           <SectionHeading label={section.label} actionLabel={filter === 'all' ? 'Ver todas' : undefined} onAction={() => onSee(section.key)} />
           {items.map((entry) => entry.kind === 'comunas' ? <DiscoveryComuna key={entry.id} comuna={entry.value} topics={topics} /> :
             entry.kind === 'people' ? <PersonRow key={entry.id} user={entry.value} subtitle={`@${entry.value.handle}`} onOpen={() => nav.openProfile(entry.id)} /> :
-            <DiscoveryPostRow key={entry.id} post={entry.value} />)}
+            entry.kind === 'posts' ? <DiscoveryPostRow key={entry.id} post={entry.value} /> : <DocumentCard key={entry.id} document={entry.value} />)}
         </View> : null;
       })}
+      {result.items.some((item) => item.kind === 'documents') ? <View style={styles.section}>
+        <SectionHeading label="Documentos" actionLabel="Ver todos" onAction={() => router.push({ pathname: '/biblioteca', params: { q: query, ...(topicId ? { topic: topicId } : {}) } })} />
+        {result.items.filter((item) => item.kind === 'documents').map((item) => item.kind === 'documents' ? <DocumentCard key={item.id} document={item.value} /> : null)}
+      </View> : null}
       {result.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais resultados." onRetry={result.loadMore} /> :
         result.hasMore ? <PillButton label={result.loadingMore ? 'Carregando…' : 'Carregar mais'} variant="outline" disabled={result.loadingMore} onPress={result.loadMore} /> : null}
     </ScrollView>

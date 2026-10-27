@@ -165,3 +165,7 @@ fundadora (acima do limite de 3 — legacy de antes da migração). Por isso o l
 nessa conta; use uma conta nova para testar o fluxo de criação.
 
 A implementação e as regras da Praça V1 estão em [docs/praca.md](../popularia_backend/docs/praca.md).
+
+Biblioteca V1: PDFs pessoais, de comunas e públicos, coleções, salvos e publicação por referência. A arquitetura, o contrato e as decisões de autorização estão em [../popularia_backend/docs/biblioteca.md](../popularia_backend/docs/biblioteca.md).
+
+A seleção e o compartilhamento no aparelho exigem `npx expo install expo-document-picker expo-file-system expo-sharing --npm` e um runtime compatível com Expo SDK 58. A instalação precisa concluir para atualizar `package-lock.json` e permitir build/export; nesta implementação o ambiente estava sem DNS para o npm. Os testes de transporte usam doubles de módulos nativos, além dos testes de API e telas.

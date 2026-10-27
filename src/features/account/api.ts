@@ -9,6 +9,7 @@ import type { TopicId } from '@/types/models';
 
 /** GET /me: a própria conta. Única resposta da API com e-mail e interesses. */
 export type MeDto = {
+  isPrivate?: boolean;
   id: string;
   handle: string;
   displayName: string;
@@ -32,7 +33,7 @@ export type RegistrationInput = {
   interests?: TopicId[];
 };
 
-export type ProfilePatch = Partial<Pick<MeDto, 'displayName' | 'bio' | 'interests'>> & { city?: string };
+export type ProfilePatch = Partial<Pick<MeDto, 'displayName' | 'bio' | 'interests' | 'isPrivate'>> & { city?: string };
 
 /** Sempre 202, exista ou não conta com o e-mail (o servidor não revela). */
 export async function register(input: RegistrationInput): Promise<void> {

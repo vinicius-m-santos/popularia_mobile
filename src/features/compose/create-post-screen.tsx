@@ -1,8 +1,9 @@
-import { router, usePreventRemove } from 'expo-router';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PillButton } from '@/components/pill-button';
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { Avatar } from '@/components/avatar';
@@ -19,6 +20,11 @@ import { getComunas, getMyComunas } from '@/features/comunas/api';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
+import { DocumentCard } from '@/features/library/document-card';
+import { LibraryPane } from '@/features/library/library-screen';
+import { getDocument } from '@/features/library/api';
+import { subscribeAttachment } from '@/features/library/composer-attachment';
+import type { LibraryDocument } from '@/features/library/types';
 import { createPost } from '@/features/posts/api';
 import { PostCard } from '@/features/posts/components/post-card';
 import { useAsyncData } from '@/hooks/use-async-data';
@@ -54,6 +60,19 @@ function leave() {
  */
 export default function CreatePostScreen() {
   const me = useMe();
+  const params = useLocalSearchParams<{ documentId?: string }>();
+  const [pdfMode, setPdfMode] = useState(false);
+  const [document, setDocument] = useState<LibraryDocument | null>(null);
+  const [pickingDocument, setPickingDocument] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const composerKey = useId();
+  useEffect(() => subscribeAttachment(composerKey, (attachment) => { setDocument(attachment); setPdfMode(true); }), [composerKey]);
+  useEffect(() => {
+    if (!params?.documentId) return;
+    let active = true;
+    getDocument(params.documentId).then((value) => { if (active && value.state === 'available') { setDocument(value); setPdfMode(true); } }, () => { if (active) { setAttachmentError('Este documento não está mais disponível para você.'); setPdfMode(true); } });
+    return () => { active = false; };
+  }, [params?.documentId]);
   const { account, reloadAccount } = useAccount();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -86,9 +105,9 @@ export default function CreatePostScreen() {
 
   const trimmed = text.trim();
   const destinationsReady = chosenId === 'perfil' || comunas.data !== null;
-  const canPublish = trimmed.length > 0 && !publishing && destinationsReady;
+  const canPublish = (pdfMode ? !!document : trimmed.length > 0) && !publishing && destinationsReady;
   const where = destination.kind === 'perfil' ? 'seu perfil' : `c/ ${destination.comuna.name}`;
-  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0), ({ repeat }) => {
+  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || !!document), ({ repeat }) => {
     if (publishingRef.current) return;
     Alert.alert('Descartar publicação?', 'O texto que você escreveu será perdido.', [
       { text: 'Continuar escrevendo', style: 'cancel' },
@@ -117,7 +136,8 @@ export default function CreatePostScreen() {
       toast.show('Aguarde carregar os destinos ou selecione seu perfil em Publicar em.');
       return;
     }
-    if (!trimmed) {
+    if (pdfMode && !document) { toast.show('Escolha um PDF da biblioteca ou envie um novo.'); return; }
+    if (!trimmed && !(pdfMode && document)) {
       toast.show('Escreva algo antes de publicar.');
       return;
     }
@@ -144,7 +164,7 @@ export default function CreatePostScreen() {
     publishingRef.current = true;
     setPublishing(true);
     try {
-      await createPost({ comunaServerId, text: trimmed, ...(destination.kind === 'perfil' && topic ? { topic } : {}) });
+      await createPost({ comunaServerId, text: trimmed, ...(pdfMode && document ? { documentId: document.id } : {}), ...(destination.kind === 'perfil' && topic ? { topic } : {}) });
     } catch (error) {
       publishingRef.current = false;
       setPublishing(false);
@@ -169,10 +189,11 @@ export default function CreatePostScreen() {
 
   const previewItem: FeedItem = {
     id: 'preview',
+    document: pdfMode ? document : null,
     authorId: me.id,
     comunaId: destination.kind === 'comuna' ? destination.comuna.id : null,
     createdAt: new Date().toISOString(),
-    text: trimmed || 'Seu texto aparece aqui.',
+    text: trimmed || (pdfMode ? '' : 'Seu texto aparece aqui.'),
     supportCount: 0,
     commentCount: 0,
     echoCount: 0,
@@ -295,7 +316,7 @@ export default function CreatePostScreen() {
                   multiline
                   autoFocus
                   textAlignVertical="top"
-                  placeholder="Conte para a comuna o que está acontecendo…"
+                  placeholder={pdfMode ? 'Conte por que este documento importa…' : 'Conte para a comuna o que está acontecendo…'}
                   placeholderTextColor={Colors.placeholder}
                   accessibilityLabel="Texto da publicação"
                   style={styles.input}
@@ -306,15 +327,31 @@ export default function CreatePostScreen() {
               </AppText>
             </View>
           )}
+          {pdfMode ? <View style={{ gap: Spacing.three }}>
+            <AppText variant="heading">PDF</AppText>{attachmentError ? <AppText color={Colors.error}>{attachmentError}</AppText> : null}<AppText variant="caption">Use um documento da sua biblioteca ou envie um novo. O PDF não é duplicado e mantém o acesso que já tem.</AppText>
+            {document ? <DocumentCard document={document} /> : null}
+            {document && !document.isPublic ? <View style={styles.verify}>
+              <AppText>{document.access === 'private' && !document.distributions?.length ? 'Só você pode abrir este PDF.' : 'Este PDF tem acesso restrito.'}</AppText>
+              <AppText variant="caption">Publicar não concede acesso ao PDF.</AppText>
+              {document.viewer.canEdit ? <PillButton label="Ajustar acesso do PDF" variant="outline" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { edit: document.id, composerKey } })} /> : null}
+            </View> : null}
+            <PillButton label="Escolher da biblioteca" variant="outline" onPress={() => setPickingDocument(true)} />
+            <PillButton label="Enviar novo PDF" variant="outline" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { composerKey } })} />
+            <PillButton label="Remover PDF da publicação" variant="outline" onPress={() => { setDocument(null); setPdfMode(false); }} />
+          </View> : null}
         </ScrollView>
 
-        <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]}>
+          <ToolButton icon="bookmark" label="PDF" onPress={() => setPdfMode(true)} />
           <ToolButton icon="image" label="Imagem" onPress={soon('Anexar imagens')} />
           <ToolButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
           <ToolButton icon="poll" label="Enquete" onPress={soon('Criar enquete')} />
-        </View>
+        </ScrollView>
       </KeyboardView>
 
+      <BottomSheet scrollable={false} visible={pickingDocument} onClose={() => setPickingDocument(false)} title="Sua biblioteca">
+        <View style={{ height: 480, flexShrink: 1 }}><LibraryPane scope="personal" owner={me.id} onSelect={(attachment) => { setDocument(attachment); setPdfMode(true); setPickingDocument(false); }} /></View>
+      </BottomSheet>
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Publicar em">
         <DestinationOption
           selected={destination.kind === 'perfil'}
@@ -400,7 +437,6 @@ function ToolButton({ icon, label, onPress }: { icon: IconName; label: string; o
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityHint="Ainda não disponível"
       style={({ pressed }) => [styles.tool, pressed && styles.pressed]}>
       <Icon name={icon} size={21} />
       <AppText style={styles.toolLabel}>{label}</AppText>

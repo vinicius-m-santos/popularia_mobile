@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { describeError } from '@/lib/errors';
 
+import { PrivacyPanel } from '@/features/profiles/privacy-panel';
 import { useAccount } from './account-context';
 
 /**
@@ -64,6 +65,7 @@ export default function AccountSettingsScreen() {
           </View>
         )}
 
+        {account ? <PrivacyPanel /> : null}
         <View style={styles.section}>
           <PillButton label="Sair deste aparelho" onPress={() => leave(false)} variant="outline" size="lg" display />
           {account ? (

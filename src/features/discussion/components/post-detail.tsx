@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
@@ -35,6 +36,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         />
         <AppText style={styles.text}>{post.text}</AppText>
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
+        {post.document ? <DocumentCard document={post.document} /> : null}
         {post.event ? <EventBox event={post.event} /> : null}
         {post.media ? <MediaBox media={post.media} /> : null}
 

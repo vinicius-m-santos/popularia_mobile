@@ -56,6 +56,7 @@ export function useEventAttendance(event: CommunityEvent) {
 }
 
 export function useFollow(userId: string, initialFollowing?: boolean) {
+  const [requested, setRequested] = useState(false);
   const { isOn, toggle, setOn } = useInteractions();
   const me = useMe();
   const { account } = useAccount();
@@ -80,7 +81,7 @@ export function useFollow(userId: string, initialFollowing?: boolean) {
     }
     let cancelled = false;
     const before = followingNow.current;
-    getFollowing(userId).then((value) => {
+    getFollowing(userId, (state) => { if (!cancelled && !pending.current && current === generation.current) setRequested(state.requested ?? false); }).then((value) => {
       if (cancelled || pending.current || current !== generation.current || followingNow.current !== before) return;
       known.current = true;
       setOn('followedUsers', [userId], value);
@@ -95,12 +96,13 @@ export function useFollow(userId: string, initialFollowing?: boolean) {
     setBusy(true);
     const currentGeneration = generation.current;
     try {
-      const current = known.current ? following : await getFollowing(userId);
+      const current = known.current ? following || requested : await getFollowing(userId, (state) => setRequested(state.requested ?? false));
       if (currentGeneration !== generation.current) return false;
-      await setFollowing(userId, !current);
+      const state = await setFollowing(userId, !(current || requested));
       if (currentGeneration !== generation.current) return false;
       known.current = true;
-      setOn('followedUsers', [userId], !current);
+      setOn('followedUsers', [userId], state?.following ?? !current);
+      setRequested(state?.requested ?? false);
       return true;
     } catch {
       if (currentGeneration === generation.current) toast.show('Não conseguimos atualizar quem você segue. Tente novamente.');
@@ -110,5 +112,5 @@ export function useFollow(userId: string, initialFollowing?: boolean) {
       setBusy(false);
     }
   };
-  return { canFollow, following, busy, toggleFollow };
+  return { canFollow, following, requested, busy, toggleFollow };
 }

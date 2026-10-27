@@ -26,6 +26,8 @@ import { formatRelative } from '@/lib/format';
 import { goBack } from '@/lib/routes';
 import type { ModerationReport } from '@/types/models';
 
+import { LibraryReportQueue } from '@/features/library/report-queue';
+
 import { DarkButton } from './actions-sheet';
 import { NotModeratorError } from './api';
 import { RESTRICTIONS, type RestrictionId } from './constants';
@@ -54,7 +56,7 @@ function ConnectedModerationScreen() {
     finally { lock.current = false; setBusy(false); }
   };
   return <Screen edges={['top', 'left', 'right', 'bottom']}>
-    <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="heading">Moderação · Praça</AppText></View>
+    <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="heading">Moderação</AppText></View>
     {reports.status === 'loading' ? <StateView kind="loading" message="Carregando denúncias" /> : reports.status === 'error' ? <StateView kind="error" message={describeError(reports.error)} onRetry={reports.refresh} /> : <ScrollView contentContainerStyle={styles.queue}>
       {reports.items.map((r) => {
         const m = r.message;
@@ -64,6 +66,7 @@ function ConnectedModerationScreen() {
       })}
       {reports.items.length === 0 ? <StateView kind="empty" title="Fila em dia" message="Nenhuma denúncia aguardando análise." /> : null}
       {reports.hasMore || reports.loadMoreError ? <PillButton label="Carregar mais denúncias" onPress={reports.loadMore} disabled={reports.loadingMore} /> : null}
+      <LibraryReportQueue comuna={id} />
       <PillButton label="Atualizar fila" onPress={reports.refresh} variant="outline" />
     </ScrollView>}
   </Screen>;

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LibraryPane } from '@/features/library/library-screen';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -29,10 +30,11 @@ import { mergeById } from '@/lib/pagination';
 /** Cor de fundo da capa listrada escura. */
 const COVER_DARK = '#221C18';
 
-type ComunaTab = 'posts' | 'regras' | 'membros';
+type ComunaTab = 'posts' | 'biblioteca' | 'regras' | 'membros';
 
 const TABS: TabOption<ComunaTab>[] = [
   { key: 'posts', label: 'Publicações' },
+  { key: 'biblioteca', label: 'Biblioteca' },
   { key: 'regras', label: 'Regras' },
   { key: 'membros', label: 'Membros' },
 ];
@@ -112,6 +114,11 @@ export default function ComunaScreen() {
 
   const data = comuna.data;
   const privateOutside = !DEMO_MODE && data.visibility === 'private' && !viewerIsMember;
+
+  if (tab === 'biblioteca') return <View style={[styles.root, { paddingTop: insets.top }]}>
+    <LibraryPane scope="comuna" comuna={id} canAdd={viewerIsMember && data.status !== 'archived'}
+      header={<View style={{ backgroundColor: Colors.cream }}><ComunaHero comuna={data} onChanged={comuna.reload} /><UnderlineTabs options={TABS} value={tab} onChange={setTab} height={46} /></View>} />
+  </View>;
 
   return (
     // Faixa escura atrás da barra de status; o conteúdo rola abaixo dela.

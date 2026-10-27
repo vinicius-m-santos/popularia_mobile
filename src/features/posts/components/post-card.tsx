@@ -13,6 +13,8 @@ import { formatCount, formatRelative } from '@/lib/format';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
+import { DocumentCard } from '@/features/library/document-card';
+
 import { AuthorLine } from './author-line';
 import { EventBox } from './event-box';
 import { MediaBox } from './media-box';
@@ -76,6 +78,7 @@ export function PostCard({ item, showRule = false, showComuna = true, showMuted 
         {images && images.length > 0 ? <PostImages images={images} /> : null}
       </Pressable>
 
+      {item.document ? <DocumentCard document={item.document} /> : null}
       {event ? <EventBox event={event} /> : null}
       {media ? (
         <Pressable onPress={open} accessibilityHint="Abre a discussão">

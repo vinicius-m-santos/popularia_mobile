@@ -40,11 +40,11 @@ export async function getProfile(id: string): Promise<Profile> {
   if (!DEMO_MODE) {
     try {
       const dto = id === 'me' ? await getMe() : await apiRequest<{
-        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string;
+        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string; isPrivate?: boolean;
       }>(`/users/${encodeURIComponent(id)}`, { auth: true });
       const since = 'memberSince' in dto ? dto.memberSince : dto.createdAt;
       return {
-        user: toUser(dto), bio: dto.bio,
+        user: toUser(dto), bio: dto.bio, isPrivate: dto.isPrivate,
         meta: [dto.city, `Na Popularia desde ${new Date(since).getFullYear()}`].filter(Boolean).join(' · '),
         summary: dto.bio, stats: [], comunaIds: [], creator: null,
       };
@@ -73,12 +73,15 @@ export async function getUserPosts(id: string): Promise<FeedItem[]> {
   return mockDelay(toFeedItems(list));
 }
 
-export async function getFollowing(id: string): Promise<boolean> {
-  return (await apiRequest<{ following: boolean }>(`/users/${encodeURIComponent(id)}/follow`, { auth: true })).following;
+export type FollowState = { following: boolean; requested?: boolean };
+export async function getFollowing(id: string, receive?: (state: FollowState) => void): Promise<boolean> {
+  const state = await apiRequest<FollowState>(`/users/${encodeURIComponent(id)}/follow`, { auth: true });
+  receive?.(state);
+  return state.following;
 }
 
-export async function setFollowing(id: string, following: boolean): Promise<void> {
-  await apiRequest(`/users/${encodeURIComponent(id)}/follow`, { method: following ? 'PUT' : 'DELETE', auth: true });
+export async function setFollowing(id: string, following: boolean): Promise<FollowState | void> {
+  return apiRequest<FollowState | void>(`/users/${encodeURIComponent(id)}/follow`, { method: following ? 'PUT' : 'DELETE', auth: true });
 }
 
 /** Pessoas e criadores em destaque no Explorar. */

@@ -1,17 +1,23 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
+import { getDocument } from '@/features/library/api';
+import { returnAttachment } from '@/features/library/composer-attachment';
+import { document } from '@/features/library/testing/fixtures';
 import { createPost } from '@/features/posts/api';
 import { NetworkError } from '@/lib/errors';
 
 import CreatePostScreen from '../create-post-screen';
 
+const mockParams: { documentId?: string } = {};
+jest.mock('@/features/library/api', () => ({ getDocument: jest.fn(), listDocuments: jest.fn(), listCollections: jest.fn() }));
 jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Cultura e ideias', topics: [{ id: 'tec', label: 'Tecnologia e ciência', shortLabel: 'Tecnologia' }] }]) }));
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, USE_MOCKS: true }));
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), canGoBack: () => true, replace: jest.fn(), dismissTo: jest.fn(), push: jest.fn() },
   usePreventRemove: () => jest.fn(),
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -29,7 +35,7 @@ jest.mock('@/features/posts/api', () => ({ createPost: jest.fn() }));
 jest.mock('@/features/posts/components/post-card', () => ({ PostCard: () => null }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => { jest.clearAllMocks(); delete mockParams.documentId; });
 
 describe('criação de publicação', () => {
   it('envia um assunto opcional na publicação de perfil', async () => {
@@ -69,5 +75,33 @@ describe('criação de publicação', () => {
     expect(router.back).not.toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
     await view.unmount();
+  });
+});
+
+
+describe('PDF no composer', () => {
+  it('referencia documento existente e alerta sem mudar permissão', async () => {
+    mockParams.documentId = document.id;
+    jest.mocked(getDocument).mockResolvedValue(document);
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await screen.findByText('Só você pode abrir este PDF.');
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Por que este documento importa');
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: 'Por que este documento importa', documentId: document.id });
+    expect(getDocument).toHaveBeenCalledTimes(1);
+  });
+  it('enviar PDF novo retorna ao mesmo rascunho sem upload no publish', async () => {
+    await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Rascunho preservado');
+    await fireEvent.press(screen.getByText('PDF'));
+    await fireEvent.press(screen.getByText('Enviar novo PDF'));
+    const call = jest.mocked(router.push).mock.calls.at(-1)?.[0] as unknown as { params: { composerKey: string } };
+    await act(async () => returnAttachment(call.params.composerKey, document));
+    expect(screen.getByLabelText('Texto da publicação').props.value).toBe('Rascunho preservado');
+    expect(screen.getByText('Só você pode abrir este PDF.')).toBeTruthy();
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: 'Rascunho preservado', documentId: document.id });
   });
 });

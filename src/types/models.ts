@@ -108,6 +108,7 @@ export type PostImage = {
 };
 
 export type Post = {
+  document?: import('@/features/library/types').LibraryDocument | null;
   id: string;
   authorId: string;
   comunaId: string | null;
@@ -227,6 +228,7 @@ export type CreatorInfo = {
 };
 
 export type Profile = {
+  isPrivate?: boolean;
   user: User;
   bio: string;
   /** Linha de contexto: cidade e tempo na Popularia. */

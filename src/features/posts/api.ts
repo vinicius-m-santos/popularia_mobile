@@ -33,6 +33,7 @@ export function toUser(author: AuthorDto): User {
 export function toFeedItem(post: PostDto): FeedItem {
   return {
     id: post.id,
+    document: post.document ?? null,
     authorId: post.author.id,
     // No app, a comuna é identificada pelo slug, que também é o endereço da rota.
     comunaId: post.comuna?.slug ?? null,
@@ -63,10 +64,10 @@ export async function getPost(id: string): Promise<FeedItem> {
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string }): Promise<FeedItem> {
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    body: { ...(input.documentId ? { documentId: input.documentId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
     auth: true,
   });
   return toFeedItem(post);
