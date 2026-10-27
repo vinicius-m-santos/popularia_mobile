@@ -9,6 +9,7 @@
  */
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/constants/config';
 import { ApiError, NetworkError } from '@/lib/errors';
+import { captureApiError } from '@/lib/monitoring';
 
 import { deleteRefreshToken, readRefreshToken, saveRefreshToken } from './token-store';
 
@@ -178,6 +179,7 @@ type ProblemBody = {
 };
 
 async function toError(response: Response): Promise<ApiError> {
+  const requestId = response.headers.get('X-Request-Id') ?? undefined;
   let body: ProblemBody = {};
   try {
     body = (await response.json()) as ProblemBody;
@@ -189,5 +191,22 @@ async function toError(response: Response): Promise<ApiError> {
   const retryAfter = Number(response.headers.get('Retry-After')) || null;
   // Em erros de validação o título do API Platform é genérico: usamos a primeira mensagem de campo.
   const title = body.violations?.[0]?.message ?? body.title ?? 'Algo deu errado. Tente de novo.';
-  return new ApiError(response.status, body.type ?? `/errors/${response.status}`, title, violations, retryAfter);
+  const error = new ApiError(response.status, body.type ?? `/errors/${response.status}`, title, violations, retryAfter);
+
+  // Erros 5xx são suspeitos: captura no Sentry com contexto de correlação.
+  // 4xx são fluxo esperado e não geram eventos.
+  if (response.status >= 500) {
+    let urlPath = '/unknown';
+    try {
+      urlPath = new URL(response.url).pathname;
+    } catch { /* url inválida */ }
+    captureApiError(error, {
+      path: urlPath,
+      method: 'HTTP',
+      status: response.status,
+      requestId,
+    });
+  }
+
+  return error;
 }

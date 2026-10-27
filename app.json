@@ -31,7 +31,16 @@
           "imageWidth": 96
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@sentry/react-native",
+        {
+          "project": "popularia-mobile",
+          "organization": "popularia",
+          "deployGate": "always",
+          "url": "https://sentry.io/"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

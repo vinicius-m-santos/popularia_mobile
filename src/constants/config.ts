@@ -31,3 +31,18 @@ export const MOCK_LATENCY_MS = 400;
  * em modo dev, rodando de uma pasta do Windows montada no Docker, leva de 8 a 20 s por requisição.
  */
 export const API_TIMEOUT_MS = __DEV__ ? 60000 : 15000;
+
+/**
+ * DSN público do Sentry Mobile. Vazio = Sentry desabilitado (desenvolvimento local).
+ * Configurar nos secrets do EAS: EXPO_PUBLIC_SENTRY_DSN.
+ * O DSN do cliente é considerado público pela Sentry; o auth token de upload NÃO deve
+ * ficar aqui nem no app (apenas no CI/EAS). Ver docs/observability.md.
+ */
+export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
+
+/**
+ * Environment enviado ao Sentry para distinguir staging de production.
+ * Configurar nos perfis do EAS: EXPO_PUBLIC_SENTRY_ENVIRONMENT=staging|production.
+ * Em desenvolvimento local, fica como "development" (Sentry desabilitado).
+ */
+export const SENTRY_ENVIRONMENT = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT ?? 'development';

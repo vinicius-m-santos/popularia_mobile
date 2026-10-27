@@ -18,6 +18,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { findUser } from '@/features/lookup';
 import { hasStoredSession, onSessionEnded, refreshSession } from '@/lib/api/client';
 import { ApiError } from '@/lib/errors';
+import { clearSentryUser, setSentryUser } from '@/lib/monitoring';
 import { initialsOf } from '@/lib/format';
 import { demoInterests } from '@/mocks/topics';
 import { currentUser } from '@/mocks/users';
@@ -96,6 +97,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const credentials = useRef<{ email: string; password: string } | null>(null);
 
   const applyAccount = useCallback((me: MeDto) => {
+    setSentryUser(me.id);
     setAccount(me);
     setDraft(profileOf(me));
     setInterests(me.interests);
@@ -104,6 +106,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const resetToSignedOut = useCallback(() => {
     credentials.current = null;
+    clearSentryUser();
     // Participações, contagens e interações locais são desta pessoa: não passam para a próxima.
     resetAll();
     setAccount(null);
