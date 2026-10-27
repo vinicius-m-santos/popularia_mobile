@@ -10,6 +10,10 @@ import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { describeError } from '@/lib/errors';
 
+import { BlockedPeoplePanel } from '@/features/profiles/blocked-people-panel';
+import { DeletionPanel } from './deletion-panel';
+import LegalAcceptanceScreen from '@/features/legal/legal-acceptance-screen';
+import { LegalLinks } from '@/features/legal/legal-links';
 import { PrivacyPanel } from '@/features/profiles/privacy-panel';
 import { useAccount } from './account-context';
 
@@ -21,6 +25,7 @@ export default function AccountSettingsScreen() {
   const { account, signOut } = useAccount();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
 
   const leave = async (everywhere: boolean) => {
     if (busy) return;
@@ -34,6 +39,7 @@ export default function AccountSettingsScreen() {
     }
   };
 
+  if (showLegal) return <LegalAcceptanceScreen onDefer={() => setShowLegal(false)} />;
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.bar}>
@@ -66,6 +72,10 @@ export default function AccountSettingsScreen() {
         )}
 
         {account ? <PrivacyPanel /> : null}
+        {account ? <BlockedPeoplePanel /> : null}
+        <LegalLinks />
+        {account && !account.legalAccepted ? <PillButton label="Revisar documentos e aceite" onPress={() => setShowLegal(true)} /> : null}
+        <DeletionPanel />
         <View style={styles.section}>
           <PillButton label="Sair deste aparelho" onPress={() => leave(false)} variant="outline" size="lg" display />
           {account ? (

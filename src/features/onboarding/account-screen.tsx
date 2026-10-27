@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -14,6 +15,7 @@ import { useAccount } from '@/features/account/account-context';
 import { describeError } from '@/lib/errors';
 import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
+import { LegalLinks } from '@/features/legal/legal-links';
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
 
 type Mode = 'cadastro' | 'entrar';
@@ -38,6 +40,8 @@ export default function AccountScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  useEffect(() => { if (Platform.OS === 'ios') AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false)); }, []);
   const [socialBusy, setSocialBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -139,12 +143,13 @@ export default function AccountScreen() {
               onPress={DEMO_MODE ? () => toast.show('Google indisponível no modo demonstração.') : handleGoogle}
               disabled={socialBusy || busy}
             />
-            {Platform.OS === 'ios' ? (
-              <SocialButton
-                label={socialBusy ? 'Aguarde…' : 'Continuar com Apple'}
-                mark=""
+            {Platform.OS === 'ios' && appleAvailable ? (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={6}
+                style={{ height: 48, width: '100%', opacity: socialBusy || busy ? 0.5 : 1 }}
                 onPress={DEMO_MODE ? () => toast.show('Apple indisponível no modo demonstração.') : handleApple}
-                disabled={socialBusy || busy}
               />
             ) : null}
           </View>
@@ -209,6 +214,7 @@ export default function AccountScreen() {
             </Pressable>
           ) : null}
 
+          <LegalLinks />
           <View style={styles.switchRow}>
             <AppText style={styles.switchText} color={Colors.inkSoft}>
               {signup ? 'Já tem conta?' : 'Ainda não tem conta?'}

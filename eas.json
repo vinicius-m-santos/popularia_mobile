@@ -1,15 +1,18 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "promptToConfigurePushNotifications": false
+    "promptToConfigurePushNotifications": false,
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "development"
-      }
+        "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "development",
+        "EXPO_PUBLIC_APP_ENV": "development"
+      },
+      "environment": "development"
     },
     "staging": {
       "distribution": "internal",
@@ -17,8 +20,11 @@
         "EXPO_PUBLIC_API_URL": "https://api-stg.popularia.com.br/api/v1",
         "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "staging",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1009324469949-t3kdg7iie98v9aalj9ln4bh9b71fjub7.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-g0jt9vfoalp1pl4q1c3ro2c020m4694o.apps.googleusercontent.com"
-      }
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-g0jt9vfoalp1pl4q1c3ro2c020m4694o.apps.googleusercontent.com",
+        "EXPO_PUBLIC_APP_ENV": "staging"
+      },
+      "environment": "preview",
+      "autoIncrement": true
     },
     "production": {
       "distribution": "store",
@@ -26,11 +32,21 @@
         "EXPO_PUBLIC_API_URL": "https://api.popularia.com.br/api/v1",
         "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "production",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1009324469949-l9m7r4dcbni1596nercrpko8upqm7v4m.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-a7n9k5v7ddbnf6vgk57nejesv67ij0h3.apps.googleusercontent.com"
-      }
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-a7n9k5v7ddbnf6vgk57nejesv67ij0h3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_APP_ENV": "production"
+      },
+      "environment": "production",
+      "autoIncrement": true
+    },
+    "testflight-staging": {
+      "extends": "staging",
+      "distribution": "store",
+      "environment": "preview",
+      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {}
+    "production": {},
+    "testflight-staging": {}
   }
 }

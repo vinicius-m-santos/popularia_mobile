@@ -77,6 +77,7 @@ type AccountValue = {
   /** Sai deste aparelho (ou de todos) e volta para as boas-vindas. */
   signOut: (everywhere?: boolean) => Promise<void>;
   reloadAccount: () => Promise<void>;
+  deleteAccount: (proof: accountApi.DeletionProof) => Promise<void>;
   showWelcome: boolean;
   dismissWelcome: () => void;
 };
@@ -346,6 +347,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [resetToSignedOut],
   );
 
+  const deleteAccount = useCallback(async (proof: accountApi.DeletionProof) => {
+    await accountApi.deleteAccount(proof);
+    resetToSignedOut();
+  }, [resetToSignedOut]);
+
   const reloadAccount = useCallback(async () => {
     if (!DEMO_MODE) applyAccount(await accountApi.getMe());
   }, [applyAccount]);
@@ -374,6 +380,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signOut,
       reloadAccount,
+      deleteAccount,
       showWelcome,
       dismissWelcome,
     }),
@@ -396,6 +403,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signOut,
       reloadAccount,
+      deleteAccount,
       showWelcome,
       dismissWelcome,
     ],

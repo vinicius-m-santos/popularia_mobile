@@ -2,7 +2,7 @@
  * Menu "⋯" de publicações, comentários e perfis, com o fluxo de denúncia (design 2h):
  * menu → motivo → detalhes → confirmação. Um único provedor serve o app inteiro.
  */
-import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -11,6 +11,9 @@ import { CheckboxMark, RadioMark } from '@/components/choice-marks';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { useToast } from '@/components/toast';
+import { DEMO_MODE } from '@/constants/config';
+import { apiRequest } from '@/lib/api/client';
+import { describeError } from '@/lib/errors';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
@@ -110,6 +113,8 @@ function SheetBody(props: BodyProps) {
   const nav = useNav();
   const { isOn, toggle, setOn } = useInteractions();
   const { submitReport } = useModeration();
+  const sending = useRef(false);
+  const [busy, setBusy] = useState(false);
 
   const handle = target.author.handle;
   // Conteúdo da API traz a autoria decidida pelo servidor; nos mocks, compara com o ID local "me".
@@ -157,6 +162,10 @@ function SheetBody(props: BodyProps) {
             toast.show('Copiar link chega numa próxima etapa.');
           }}
         />
+        {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={`Bloquear @${handle}`} danger onPress={async () => {
+          try { await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' }); setOn('mutedUsers', [target.author.id], true); close(); toast.show('Pessoa bloqueada no serviço.'); }
+          catch (e) { toast.show(describeError(e)); }
+        }} /> : null}
         {!isMine ? (
           <MenuItem icon="flag" label={title} danger last onPress={() => setStep('reason')} />
         ) : null}
@@ -196,11 +205,18 @@ function SheetBody(props: BodyProps) {
   }
 
   if (step === 'details') {
-    const submit = () => {
-      const res = submitReport({ target, reason, details });
-      if (block) setOn('mutedUsers', [target.author.id], true);
-      setResult(res);
-      setStep('done');
+    const submit = async () => {
+      if (sending.current) return;
+      sending.current = true; setBusy(true);
+      try {
+        const res = await submitReport({ target, reason, details });
+        if (block) {
+          if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' });
+          setOn('mutedUsers', [target.author.id], true);
+        }
+        setResult(res); setStep('done');
+      } catch (e) { toast.show(describeError(e)); }
+      finally { sending.current = false; setBusy(false); }
     };
     return (
       <View style={styles.stack}>
@@ -256,7 +272,7 @@ function SheetBody(props: BodyProps) {
         <AppText style={styles.note} color={Colors.muted}>
           A denúncia vai para a moderação de {comunaName}. Quem publicou não sabe quem denunciou.
         </AppText>
-        <DarkButton label="Enviar denúncia" onPress={submit} />
+        <DarkButton label={busy ? "Enviando…" : "Enviar denúncia"} onPress={submit} />
       </View>
     );
   }
@@ -270,10 +286,10 @@ function SheetBody(props: BodyProps) {
         Denúncia registrada
       </AppText>
       <AppText style={styles.doneText} color={Colors.inkSoft}>
-        {result?.inMyQueue
+        {!DEMO_MODE ? 'Denúncia enviada à equipe do Popularia. Para acompanhamento, informe o identificador abaixo ao suporte.' : result?.inMyQueue
           ? `Você modera ${comunaName}, então ela já está na sua fila de moderação.`
           : `Nesta versão a denúncia fica só neste aparelho. Com o servidor, a moderação de ${comunaName} analisa em até 24 horas e você recebe um aviso com a decisão.`}
-        {block ? ` @${handle} foi bloqueado neste aparelho.` : ''}
+        {block ? ` @${handle} foi bloqueado${DEMO_MODE ? ' neste aparelho' : ' no serviço'}.` : ''}
       </AppText>
       <AppText style={styles.protocol} color={Colors.muted}>
         Protocolo {result?.protocol} · {reason}

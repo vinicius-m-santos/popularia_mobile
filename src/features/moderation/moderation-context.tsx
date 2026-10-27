@@ -7,6 +7,8 @@
  */
 import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
 
+import { DEMO_MODE } from '@/constants/config';
+import { apiRequest } from '@/lib/api/client';
 import { findComuna } from '@/features/lookup';
 import { currentUser } from '@/mocks/users';
 import type { ModerationLogEntry, ModerationReport, ReportTarget } from '@/types/models';
@@ -21,7 +23,7 @@ type ModerationValue = {
   decisions: Record<string, Decision>;
   /** Registro local, do mais novo para o mais antigo. */
   localLog: ModerationLogEntry[];
-  submitReport: (input: SubmitInput) => { protocol: string; inMyQueue: boolean };
+  submitReport: (input: SubmitInput) => Promise<{ protocol: string; inMyQueue: boolean }>;
   decide: (report: ModerationReport, label: string) => void;
   undo: (reportId: string) => void;
 };
@@ -40,7 +42,11 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [localLog, setLocalLog] = useState<ModerationLogEntry[]>([]);
 
-  const submitReport = useCallback(({ target, reason, details }: SubmitInput) => {
+  const submitReport = useCallback(async ({ target, reason, details }: SubmitInput) => {
+    if (!DEMO_MODE) {
+      await apiRequest('/reports', { auth: true, method: 'POST', body: { targetType: target.kind, targetId: target.id, reason: [reason, details.trim()].filter(Boolean).join(' · ').slice(0, 500) } });
+      return { protocol: target.id, inMyQueue: false };
+    }
     counter += 1;
     const protocol = `PA-${20930 + counter}`;
     const comuna = findComuna(target.comunaId);

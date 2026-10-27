@@ -38,6 +38,8 @@ export function initSentry(): void {
 
     // Filtrar breadcrumbs: remover conteúdo de requisições, manter só metadados.
     beforeBreadcrumb(breadcrumb) {
+      if (breadcrumb.type === 'console' || breadcrumb.type === 'http') return null;
+      if (breadcrumb.category === 'navigation' && typeof breadcrumb.message === 'string') breadcrumb.message = sanitizePath(breadcrumb.message);
       if (breadcrumb.type === 'http') {
         // Remover query strings que possam conter tokens ou dados sensíveis.
         if (typeof breadcrumb.data?.url === 'string') {
@@ -59,6 +61,12 @@ export function initSentry(): void {
       // Não enviar erros de rede esperados (dispositivo offline, timeout).
       const error = hint?.originalException;
       if (isExpectedNetworkError(error)) return null;
+      // Sem requests, breadcrumbs, extras ou estado de componentes (podem conter formulários).
+      event.user = { ...(event.user?.id ? { id: event.user.id } : {}), ip_address: '0.0.0.0' };
+      delete event.request;
+      delete event.extra;
+      delete event.breadcrumbs;
+      delete event.contexts?.react;
       return event;
     },
   });
@@ -67,7 +75,7 @@ export function initSentry(): void {
 /** Define o usuário autenticado no escopo (apenas UUID interno). */
 export function setSentryUser(userId: string): void {
   if (!SENTRY_DSN) return;
-  Sentry.setUser({ id: userId });
+  Sentry.setUser({ id: userId, ip_address: '0.0.0.0' });
 }
 
 /** Limpa o usuário do escopo ao fazer logout. */

@@ -25,6 +25,7 @@ export type MeDto = {
   pendingOnboarding: boolean;
   /** false para contas criadas via Google/Apple sem senha definida. */
   hasPassword: boolean;
+  legalAccepted: boolean;
 };
 
 export type SocialProvider = 'google' | 'apple';
@@ -152,4 +153,14 @@ export async function linkAuthIdentity(provider: SocialProvider, idToken: string
     body: { provider, idToken, nonce },
     auth: true,
   });
+}
+
+export const LEGAL_VERSION = '2026-10-27';
+export async function acceptLegal(): Promise<MeDto> {
+  return apiRequest<MeDto>('/me/legal-acceptance', { auth: true, method: 'POST', body: { version: LEGAL_VERSION, accepted: true } });
+}
+export type DeletionProof = { confirmation: 'EXCLUIR'; password?: string; provider?: SocialProvider; idToken?: string; nonce?: string; authorizationCode?: string };
+export async function deleteAccount(proof: DeletionProof): Promise<void> {
+  await apiRequest('/me/account-deletion', { auth: true, method: 'POST', body: proof, timeoutMs: 60000 });
+  await clearSession();
 }

@@ -1,3 +1,4 @@
+import LegalAcceptanceScreen from '@/features/legal/legal-acceptance-screen';
 // Importa cada peso pelo subcaminho: o índice do pacote embutiria todos os pesos no app.
 import { Archivo_400Regular } from '@expo-google-fonts/archivo/400Regular';
 import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
@@ -10,7 +11,8 @@ import { useFonts } from 'expo-font';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Modal } from 'react-native';
 
 import { MockDataNotice } from '@/components/mock-data-notice';
 import { Screen } from '@/components/screen';
@@ -90,7 +92,8 @@ export default function RootLayout() {
  * A splash fica na tela enquanto a sessão guardada no aparelho é retomada.
  */
 function RootStack() {
-  const { onboarded, status } = useAccount();
+  const { onboarded, status, account } = useAccount();
+  const [deferredLegalUser, setDeferredLegalUser] = useState<string | null>(null);
   const restoring = status === 'restoring';
 
   useEffect(() => {
@@ -98,6 +101,7 @@ function RootStack() {
   }, [restoring]);
 
   if (restoring) return null;
+  const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted && deferredLegalUser !== account.id;
 
   return (
     <>
@@ -120,6 +124,10 @@ function RootStack() {
         <Stack.Screen name="boas-vindas" />
       </Stack.Protected>
     </Stack>
+    {/* Mantém o navegador montado enquanto o login social abre o onboarding por baixo do aceite. */}
+    <Modal visible={needsLegal} presentationStyle="fullScreen" animationType="slide">
+      <LegalAcceptanceScreen onDefer={() => { if (account) setDeferredLegalUser(account.id); }} />
+    </Modal>
     {onboarded ? <MockDataNotice /> : null}
     </>
   );

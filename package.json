@@ -9,7 +9,7 @@
     "@react-native-google-signin/google-signin": "^14.0.2",
     "@sentry/react-native": "~8.28.0",
     "expo": "~58.0.19",
-    "expo-apple-authentication": "~8.0.3",
+    "expo-apple-authentication": "~58.0.2",
     "expo-constants": "~58.0.13",
     "expo-crypto": "~58.0.7",
     "expo-document-picker": "~58.0.4",
@@ -58,6 +58,9 @@
     "moduleNameMapper": {
       "^@/assets/(.*)$": "<rootDir>/assets/$1",
       "^@/(.*)$": "<rootDir>/src/$1"
-    }
+    },
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
   }
 }
