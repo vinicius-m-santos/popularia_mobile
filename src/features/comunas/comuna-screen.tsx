@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SquareEntry } from '@/features/squares/square-entry';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
@@ -126,6 +127,7 @@ export default function ComunaScreen() {
           </View>
         </View>
         <View style={styles.column}>
+          {tab === 'posts' ? <SquareEntry key={`${id}-${data.viewerRole}-${data.status}`} slug={id} /> : null}
           {tab === 'posts' && privateOutside ? (
             <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
           ) : tab === 'posts' ? (

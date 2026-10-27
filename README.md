@@ -163,3 +163,5 @@ endpoints, vale gerar com `npx openapi-typescript ../popularia_backend/docs/open
 A conta fictícia do seed (`equipe.demo@popularia.local` / `demo-somente-local`) tem 4 comunas ativas como
 fundadora (acima do limite de 3 — legacy de antes da migração). Por isso o limite já bloqueia a criação
 nessa conta; use uma conta nova para testar o fluxo de criação.
+
+A implementação e as regras da Praça V1 estão em [docs/praca.md](../popularia_backend/docs/praca.md).

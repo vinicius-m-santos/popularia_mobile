@@ -96,6 +96,9 @@ function RootStack() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
       <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="avisos" />
+        <Stack.Screen name="praca/[id]" />
+        <Stack.Screen name="praca/figurinhas/[id]" />
         <Stack.Screen name="criar" options={{ presentation: 'modal' }} />
         <Stack.Screen name="interesses" options={{ presentation: 'modal' }} />
         <Stack.Screen name="moderacao/[id]" />

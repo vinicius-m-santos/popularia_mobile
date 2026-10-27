@@ -14,10 +14,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.cream } }}>
       <Tabs.Screen name="(inicio)" options={{ title: 'Início' }} />
       <Tabs.Screen name="explorar" options={{ title: 'Explorar' }} />
-      <Tabs.Screen
-        name="avisos"
-        options={{ title: 'Avisos', tabBarAccessibilityLabel: 'Avisos, notificações' }}
-      />
+      <Tabs.Screen name="pracas" options={{ title: 'Praças' }} />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
     </Tabs>
   );

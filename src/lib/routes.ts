@@ -12,7 +12,7 @@ const TAB_SEGMENTS = ['explorar', 'avisos', 'perfil'] as const;
 
 function tabBaseOf(segments: string[]): TabBase {
   // Rotas das abas: ['(tabs)', 'explorar', 'comuna', '[id]']. Fora das abas, usa a pilha do Início.
-  const tab = segments[0] === '(tabs)' ? segments[1] : undefined;
+  const tab = segments[0] === '(tabs)' ? segments[1] : segments[0] === 'avisos' ? 'avisos' : undefined;
   return TAB_SEGMENTS.find((t) => t === tab) ? (`/${tab}` as TabBase) : '';
 }
 

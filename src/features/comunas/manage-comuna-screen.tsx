@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { SquareEntry } from '@/features/squares/square-entry';
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { Avatar } from '@/components/avatar';
@@ -447,6 +448,7 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
 
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.settings}>
+      <SquareEntry slug={comuna.id} />
       {transfer?.direction === 'outgoing' ? (
         <View style={styles.card}>
           <Kicker label="Transferência pendente" />

@@ -239,12 +239,13 @@ export type Profile = {
 };
 
 export type NotificationKind =
+  | 'square_reply'
   | 'follow' | 'comment' | 'reply'
   | 'join_requested' | 'join_approved' | 'join_rejected'
   | 'ownership_proposed' | 'ownership_accepted' | 'ownership_declined' | 'ownership_cancelled';
 
 /** Destino ao tocar no aviso. */
-export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests'; id: string };
+export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests' | 'square'; id: string };
 
 export type AppNotification = {
   id: string;

@@ -2,6 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
+import { IconButton } from '@/components/icon-button';
+import { goBack } from '@/lib/routes';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { ChipRow } from '@/components/chip';
@@ -32,7 +34,7 @@ const FILTERS: { key: NotificationFilter; label: string }[] = [
 
 const MATCHES: Record<NotificationFilter, (kind: NotificationKind) => boolean> = {
   tudo: () => true,
-  conversas: (k) => k === 'reply' || k === 'comment',
+  conversas: (k) => k === 'reply' || k === 'comment' || k === 'square_reply',
   comunas: (k) => k.startsWith('join_') || k.startsWith('ownership_'),
 };
 
@@ -143,9 +145,10 @@ export default function NotificationsScreen() {
     <Screen>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <AppText variant="display" accessibilityRole="header">
-            Avisos
-          </AppText>
+          <View style={styles.heading}>
+            <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
+            <AppText variant="display" accessibilityRole="header" style={styles.title}>Avisos</AppText>
+          </View>
           <Pressable
             onPress={markAllRead}
             disabled={busy || unreadCount === 0}
@@ -226,6 +229,7 @@ function NotificationRow({ notification: n, unread, disabled, onOpen, onInteract
 }
 
 const BADGE_ICONS: Record<NotificationKind, IconName> = {
+  square_reply: 'comment',
   comment: 'comment',
   reply: 'comment',
   follow: 'plus',
@@ -235,7 +239,7 @@ const BADGE_ICONS: Record<NotificationKind, IconName> = {
 
 /** Selo no canto do avatar com o tipo do aviso. */
 function KindBadge({ kind }: { kind: NotificationKind }) {
-  const red = kind === 'reply' || kind === 'comment';
+  const red = kind === 'reply' || kind === 'comment' || kind === 'square_reply';
   return (
     <View style={[styles.badge, { backgroundColor: red ? Colors.red : Colors.ink }]}>
       <Icon name={BADGE_ICONS[kind]} size={11} color={Colors.paper} />
@@ -251,6 +255,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
+  heading: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+  title: { flexShrink: 1 },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -258,10 +264,13 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   readAll: {
-    minHeight: 40,
+    flexShrink: 1,
+    maxWidth: '45%',
+    minHeight: 44,
     justifyContent: 'center',
   },
   readAllLabel: {
+    textAlign: 'right',
     fontFamily: Fonts.extrabold,
     fontSize: 13.5,
     lineHeight: 18,

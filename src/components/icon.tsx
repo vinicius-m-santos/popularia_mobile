@@ -37,6 +37,8 @@ const ICONS = {
     strokeWidth: 2,
     body: <Polygon points="12,2.8 14.7,9 21.2,9.3 16.1,13.4 17.9,20 12,16.3 6.1,20 7.9,13.4 2.8,9.3 9.3,9" />,
   },
+  reply: { strokeWidth: 2.2, body: <Path d="M9 5 3 11l6 6M3 11h10c5 0 7 3 7 8" /> },
+  sticker: { strokeWidth: 1.8, body: <><Rect x={3} y={3} width={18} height={18} rx={4} /><Path d="M8 10h.01M16 10h.01M8 15c2 2 6 2 8 0" /></> },
   comment: { strokeWidth: 2.2, body: <Path d="M3.5 4.5h17v11.5h-9l-5 4v-4h-3z" /> },
   echo: {
     strokeWidth: 2.2,

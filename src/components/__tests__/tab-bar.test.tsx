@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import type { ComponentProps } from 'react';
 
+import { FeedHeader } from '@/features/feed/components/feed-header';
 import { TabBar } from '../tab-bar';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useSegments: () => ['(tabs)', '(inicio)'] }));
@@ -10,7 +11,7 @@ let mockUnread = 0;
 jest.mock('@/features/notifications/use-unread-count', () => ({ useUnreadCount: () => mockUnread }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-const routes = ['(inicio)', 'explorar', 'avisos', 'perfil'].map((name) => ({ key: name, name }));
+const routes = ['(inicio)', 'explorar', 'pracas', 'perfil'].map((name) => ({ key: name, name }));
 const props = {
   state: { routes, index: 0 },
   descriptors: Object.fromEntries(routes.map((r) => [r.key, { options: { title: r.name } }])),
@@ -24,9 +25,11 @@ beforeEach(() => { jest.clearAllMocks(); mockUnread = 0; });
 describe('badge de avisos', () => {
   it.each([0, 1, 99, 100, 250])('exibe corretamente %i não lidos', async (count) => {
     mockUnread = count;
-    await render(<TabBar {...props} />);
-    const avisos = screen.getByLabelText(count ? `avisos, ${count} não lidos` : 'avisos');
+    await render(<FeedHeader tab="para-voce" onTabChange={jest.fn()} />);
+    const avisos = screen.getByLabelText(count ? `Avisos, ${count} não lidos` : 'Avisos');
     expect(avisos).toBeTruthy();
+    await fireEvent.press(avisos);
+    expect(router.push).toHaveBeenCalledWith('/avisos');
     if (count > 0) expect(screen.getByText(count > 99 ? '99+' : String(count))).toBeTruthy();
     else expect(screen.queryByText('0')).toBeNull();
   });

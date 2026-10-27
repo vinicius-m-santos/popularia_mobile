@@ -2,5 +2,5 @@ import { TabStack } from '@/components/tab-stack';
 
 export const unstable_settings = { anchor: 'index' };
 
-/** Pilha da aba Avisos, com as próprias telas de comuna, discussão e perfil. */
+/** Pilha de Avisos, acessada pelo sino do Início, com seus detalhes. */
 export default TabStack;

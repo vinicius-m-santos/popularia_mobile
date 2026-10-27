@@ -1,7 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { DEMO_MODE } from '@/constants/config';
+import { getComuna } from '@/features/comunas/api';
+import { toUser } from '@/features/posts/api';
+import { getSquareReports, resolveSquareReport } from '@/features/squares/api';
+import { useAsyncData } from '@/hooks/use-async-data';
+import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { PillButton } from '@/components/pill-button';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { BottomSheet } from '@/components/bottom-sheet';
@@ -14,7 +21,7 @@ import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { NotFoundError } from '@/lib/errors';
+import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { formatRelative } from '@/lib/format';
 import { goBack } from '@/lib/routes';
 import type { ModerationReport } from '@/types/models';
@@ -27,8 +34,42 @@ import { useModerationQueue } from './use-moderation-queue';
 
 type ModTab = 'fila' | 'registro';
 
-/** Ferramentas de moderação de uma comuna (design 2k). Decisões ficam só neste aparelho. */
+/** Ferramentas de moderação de uma comuna; fila persistida na API e demonstração local. */
 export default function ModerationScreen() {
+  return DEMO_MODE ? <DemoModerationScreen /> : <ConnectedModerationScreen />;
+}
+
+function ConnectedModerationScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const comuna = useAsyncData(useCallback(() => getComuna(id), [id]));
+  const reports = usePaginatedData(useCallback((cursor: string | null) => getSquareReports(id, cursor), [id]));
+  const toast = useToast();
+  const lock = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const resolve = async (reportId: string, status: 'dismissed' | 'removed') => {
+    if (lock.current) return;
+    lock.current = true; setBusy(true);
+    try { await resolveSquareReport(id, reportId, status); reports.refresh(); toast.show('Decisão registrada.'); }
+    catch (e) { toast.show(describeError(e)); if (e instanceof ApiError && [403, 404].includes(e.status)) reports.refresh(); }
+    finally { lock.current = false; setBusy(false); }
+  };
+  return <Screen edges={['top', 'left', 'right', 'bottom']}>
+    <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="heading">Moderação · Praça</AppText></View>
+    {reports.status === 'loading' ? <StateView kind="loading" message="Carregando denúncias" /> : reports.status === 'error' ? <StateView kind="error" message={describeError(reports.error)} onRetry={reports.refresh} /> : <ScrollView contentContainerStyle={styles.queue}>
+      {reports.items.map((r) => {
+        const m = r.message;
+        if (!m?.author || m.status !== 'published') return <View key={r.id}><AppText variant="caption">Conteúdo indisponível.</AppText><PillButton label="Encerrar denúncia" disabled={busy} variant="outline" onPress={() => { void resolve(r.id, 'dismissed'); }} /></View>;
+        const report: ModerationReport = { id: r.id, comunaId: id, reason: r.reason, reportCount: 1, author: toUser(m.author), where: `Praça · ${comuna.data?.name ?? ''}`, text: m.body ?? `Figurinha: ${m.sticker?.label ?? ''}`, createdAt: r.createdAt };
+        return <View key={r.id} pointerEvents={busy ? 'none' : 'auto'}><ReportCard report={report} onKeep={() => { void resolve(r.id, 'dismissed'); }} onRemove={m.viewer.canRemove ? () => { void resolve(r.id, 'removed'); } : undefined} /></View>;
+      })}
+      {reports.items.length === 0 ? <StateView kind="empty" title="Fila em dia" message="Nenhuma denúncia aguardando análise." /> : null}
+      {reports.hasMore || reports.loadMoreError ? <PillButton label="Carregar mais denúncias" onPress={reports.loadMore} disabled={reports.loadingMore} /> : null}
+      <PillButton label="Atualizar fila" onPress={reports.refresh} variant="outline" />
+    </ScrollView>}
+  </Screen>;
+}
+
+function DemoModerationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queue = useModerationQueue(id);
   const { decide, undo } = useModeration();
@@ -173,8 +214,8 @@ export default function ModerationScreen() {
 type CardProps = {
   report: ModerationReport;
   onKeep: () => void;
-  onRestrict: () => void;
-  onRemove: () => void;
+  onRestrict?: () => void;
+  onRemove?: () => void;
 };
 
 function ReportCard({ report, onKeep, onRestrict, onRemove }: CardProps) {
@@ -220,8 +261,8 @@ function ReportCard({ report, onKeep, onRestrict, onRemove }: CardProps) {
       ) : null}
       <View style={styles.decisions}>
         <DecisionButton label="Manter" onPress={onKeep} hint={`Mantém o conteúdo de ${author.name}`} />
-        <DecisionButton label="Restringir" onPress={onRestrict} hint={`Escolhe uma restrição para ${author.name}`} />
-        <DecisionButton label="Remover" onPress={onRemove} dark hint={`Remove o conteúdo de ${author.name}`} />
+        {onRestrict ? <DecisionButton label="Restringir" onPress={onRestrict} hint={`Escolhe uma restrição para ${author.name}`} /> : null}
+        {onRemove ? <DecisionButton label="Remover" onPress={onRemove} dark hint={`Remove o conteúdo de ${author.name}`} /> : null}
       </View>
     </View>
   );
