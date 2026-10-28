@@ -14,7 +14,7 @@ export function DocumentCard({ document, onPress, shared = false }: { document: 
     onPress={onPress ?? (() => router.push({ pathname: '/biblioteca/documento/[id]', params: { id: document.id } }))} style={[styles.card, locked && styles.locked]}>
     <View style={styles.top}><AppText variant="label" color={locked ? Colors.ink : Colors.red}>{locked ? 'PDF · acesso restrito' : 'PDF'}</AppText>
       <Badge label={locked ? 'Sem acesso' : accessLabel(document)} tone={locked ? 'ink' : 'red'} /></View>
-    <AppText variant="heading">{document.title ?? 'Este documento não está mais disponível para você.'}</AppText>
+    <AppText variant="heading">{document.title ?? 'Poxa, não achamos este documento'}</AppText>
     {!locked ? <>
       {document.collection ? <AppText variant="caption">{document.collection.name}</AppText> : null}
       <AppText variant="caption">{shared ? `Compartilhado por ${document.responsible?.name ?? 'uma pessoa'}` : document.origin?.name}</AppText>

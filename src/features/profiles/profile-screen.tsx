@@ -1,6 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
@@ -56,6 +56,9 @@ export default function ProfileScreen() {
   const profile = useAsyncData(loadProfile);
   const posts = useAsyncData(loadPosts);
   const comunas = useAsyncData(loadComunas);
+  const reloadProfile = profile.reload;
+  const reloadPosts = posts.reload;
+  const reloadAllComunas = comunas.reload;
   const focusedOnce = useRef(false);
   const reloadComunas = comunas.reload;
   useFocusEffect(useCallback(() => {
@@ -63,8 +66,14 @@ export default function ProfileScreen() {
     focusedOnce.current = true;
   }, [isMe, reloadComunas]));
 
-  const header = (handle?: string, onMore?: () => void) => (
-    <ProfileBar isMe={isMe} canGoBack={!isTabRoot} handle={handle} onMore={onMore} />
+  const refresh = useCallback(() => {
+    reloadProfile();
+    reloadPosts();
+    reloadAllComunas();
+  }, [reloadProfile, reloadPosts, reloadAllComunas]);
+
+  const header = (handle?: string, onMore?: () => void, onBack?: () => void) => (
+    <ProfileBar isMe={isMe} canGoBack={!isTabRoot || onBack !== undefined} handle={handle} onMore={onMore} onBack={onBack} />
   );
 
   if (profile.status === 'loading' && !profile.data) {
@@ -98,6 +107,8 @@ export default function ProfileScreen() {
       posts={posts}
       allComunas={comunas.data ?? []}
       comunasState={comunas}
+      refreshing={[profile, posts, comunas].some((item) => item.status === 'loading')}
+      onRefresh={refresh}
     />
   );
 }
@@ -105,13 +116,15 @@ export default function ProfileScreen() {
 type ContentProps = {
   profile: Profile;
   isMe: boolean;
-  header: (handle?: string, onMore?: () => void) => ReactNode;
+  header: (handle?: string, onMore?: () => void, onBack?: () => void) => ReactNode;
   posts: AsyncData<FeedItem[]>;
   allComunas: Comuna[];
   comunasState: AsyncData<Comuna[]>;
+  refreshing: boolean;
+  onRefresh: () => void;
 };
 
-function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState }: ContentProps) {
+function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState, refreshing, onRefresh }: ContentProps) {
   const toast = useToast();
   const nav = useNav();
   const sheet = useActionsSheet();
@@ -124,9 +137,11 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   // No próprio perfil, nome, @, bio, cidade e comunas vêm do cadastro e do estado local.
   const user = isMe ? me : profile.user;
   const bio = isMe ? account.bio.trim() || profile.bio : profile.bio;
-  const meta = isMe ? [account.city.trim(), profile.meta].filter(Boolean).join(' · ') : profile.meta;
+  const metaLines = isMe
+    ? [account.city.trim(), ...profile.meta.split(' · ').filter((part) => part.trim() && part.trim().toLowerCase() !== account.city.trim().toLowerCase())].filter(Boolean)
+    : profile.meta.split(' · ').filter(Boolean);
   const postItems = [...localPosts, ...(posts.data ?? [])];
-  const stats = isMe ? [{ value: String(postItems.length), label: 'Publicações' }, ...profile.stats] : profile.stats;
+  const stats = [{ value: String(postItems.length), label: 'Publicações' }, ...profile.stats.filter((stat) => stat.label.toLowerCase() !== 'publicações')];
   // Própria conta: participação local ou, na API, a informada pelo servidor com cada comuna.
   const comunas = useMemo(
     () =>
@@ -140,20 +155,20 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     { key: 'posts', label: 'Publicações' },
     ...(profile.creator ? [{ key: 'episodios' as const, label: 'Episódios' }] : []),
     { key: 'comunas', label: 'Comunas' },
-    { key: 'biblioteca', label: 'Biblioteca' },
+    { key: 'biblioteca', label: 'Biblioteca pessoal' },
   ];
 
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
 
-  if (tab === 'biblioteca') return <Screen>{header(user.handle)}
-    <LibraryPane scope="personal" owner={user.id} canAdd={isMe}
+  if (tab === 'biblioteca') return <Screen>{header(user.handle, undefined, () => setTab('posts'))}
+    <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
       header={<UnderlineTabs options={tabs} value={tab} onChange={setTab} />} />
   </Screen>;
 
   return (
     <Screen>
       {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)))}
-      <ScrollView stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
+      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
           <View style={styles.identityBlock}>
@@ -177,18 +192,14 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
             </View>
             {profile.isPrivate ? <AppText variant="caption">Perfil privado · Novos seguidores precisam de aprovação. Cada PDF mantém o acesso escolhido.</AppText> : null}
             <AppText style={styles.bio}>{bio}</AppText>
-            {meta ? (
-              <AppText style={styles.meta} color={Colors.muted}>
-                {meta}
-              </AppText>
-            ) : null}
+            {metaLines.map((line) => <AppText key={line} style={styles.meta} color={Colors.muted}>{line}</AppText>)}
             <StatRow stats={stats} />
 
             {isMe ? (
               <View style={styles.actions}>
                 <PillButton
                   label="Editar perfil"
-                  onPress={soon('Editar perfil')}
+                  onPress={() => router.push('/conta/meus-dados' as never)}
                   variant="outline"
                   size="lg"
                   display
@@ -242,6 +253,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         <View style={styles.column}>
           {tab === 'posts' ? (
             <>
+              {isMe ? <PillButton label="+ Criar publicação" onPress={() => router.push('/criar')} variant="outline" style={styles.wideAction} /> : null}
               {posts.status === 'loading' && localPosts.length === 0 ? (
                 <StateView kind="loading" message="Carregando publicações" />
               ) : null}
@@ -294,7 +306,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                   onPress={openCreateComuna}
                   variant="outline"
                   accessibilityHint="Abre o formulário de nova comuna"
-                  style={styles.createComuna}
+                  style={styles.wideAction}
                 />
               ) : null}
               {comunasState.status === 'loading' && !comunasState.data ? <StateView kind="loading" message="Carregando comunas" /> : null}
@@ -331,12 +343,12 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   );
 }
 
-type ProfileBarProps = { isMe: boolean; canGoBack: boolean; handle?: string; onMore?: () => void };
+type ProfileBarProps = { isMe: boolean; canGoBack: boolean; handle?: string; onMore?: () => void; onBack?: () => void };
 
-function ProfileBar({ isMe, canGoBack, handle, onMore }: ProfileBarProps) {
+function ProfileBar({ isMe, canGoBack, handle, onMore, onBack }: ProfileBarProps) {
   return (
     <View style={styles.bar}>
-      {canGoBack ? <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /> : <View style={styles.barSpacer} />}
+      {canGoBack ? <IconButton icon="back" accessibilityLabel="Voltar" onPress={onBack ?? goBack} /> : <View style={styles.barSpacer} />}
       <AppText style={styles.barHandle} numberOfLines={1} accessibilityRole="header">
         {handle ? `@${handle}` : ''}
       </AppText>
@@ -473,9 +485,10 @@ function RoleTag({ label }: { label: string }) {
 }
 
 const styles = StyleSheet.create({
-  createComuna: {
-    alignSelf: 'flex-start',
-    marginTop: Spacing.three,
+  wideAction: {
+    alignSelf: 'center',
+    width: '100%',
+    marginBottom: Spacing.two,
   },
   bar: {
     height: 52,
@@ -688,6 +701,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.five,
     paddingVertical: Spacing.six,
     fontSize: 14.5,
+    textAlign: 'center',
   },
   listPad: {
     paddingHorizontal: Spacing.five,
@@ -696,6 +710,7 @@ const styles = StyleSheet.create({
   emptyRow: {
     paddingVertical: Spacing.five,
     fontSize: 14.5,
+    textAlign: 'center',
   },
   episode: {
     flexDirection: 'row',

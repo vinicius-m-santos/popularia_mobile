@@ -30,7 +30,7 @@ export default function TopicsScreen() {
   return (
     <Screen edges={['top', 'left', 'right']}>
       <OnboardingProgress step={3} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         <TopicsTitle />
         {groups.status === 'error' ? (
           <StateView kind="error" message="Não conseguimos carregar os assuntos." onRetry={groups.reload} />

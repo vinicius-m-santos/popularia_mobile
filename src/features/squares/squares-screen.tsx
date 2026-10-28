@@ -35,6 +35,8 @@ function ConnectedSquares() {
   return (
     <Screen title="Praças">
       <FlatList
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         data={items}
         keyExtractor={(s) => s.id}
         refreshing={mine.isRefreshing || discover.isRefreshing}

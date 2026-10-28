@@ -126,8 +126,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     fontFamily: Fonts.regular,
     fontSize: 16,
+    lineHeight: 21,
     color: Colors.ink,
     paddingVertical: 0,
+    includeFontPadding: false,
     // O foco é indicado pela borda vermelha da caixa; sem o contorno padrão do navegador.
     outlineWidth: 0,
   },

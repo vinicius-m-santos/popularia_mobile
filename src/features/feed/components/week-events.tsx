@@ -29,6 +29,8 @@ export function WeekEvents() {
       </View>
       {events.data ? (
         <ScrollView
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
           horizontal
           showsHorizontalScrollIndicator={false}
           snapToInterval={EVENT_CARD_WIDTH + Spacing.two + 2}

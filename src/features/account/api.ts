@@ -17,6 +17,11 @@ export type MeDto = {
   emailVerified: boolean;
   bio: string;
   city: string | null;
+  state: string | null;
+  country: string | null;
+  countryCode: string;
+  stateIbgeCode: string | null;
+  municipalityIbgeCode: string | null;
   interests: TopicId[];
   platformRole: 'user' | 'platform_moderator' | 'admin';
   createdAt: string;
@@ -53,6 +58,11 @@ export type CompleteOnboardingInput = {
   displayName: string;
   bio?: string;
   city?: string;
+  state?: string;
+  country?: string;
+  countryCode?: string;
+  stateIbgeCode?: string;
+  municipalityIbgeCode?: string;
   interests?: TopicId[];
 };
 
@@ -72,10 +82,23 @@ export type RegistrationInput = {
   displayName: string;
   bio?: string;
   city?: string;
+  state?: string;
+  country?: string;
+  countryCode?: string;
+  stateIbgeCode?: string;
+  municipalityIbgeCode?: string;
   interests?: TopicId[];
 };
 
-export type ProfilePatch = Partial<Pick<MeDto, 'displayName' | 'bio' | 'interests' | 'isPrivate'>> & { city?: string };
+export type ProfilePatch = Partial<Pick<MeDto, 'displayName' | 'bio' | 'interests' | 'isPrivate' | 'handle'>> & { city?: string; state?: string; country?: string; countryCode?: string; stateIbgeCode?: string; municipalityIbgeCode?: string };
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await apiRequest('/me/password', { method: 'POST', body: { currentPassword, newPassword }, auth: true });
+}
+
+export async function sendSupportMessage(message: string): Promise<void> {
+  await apiRequest('/support/contact', { method: 'POST', body: { message }, auth: true });
+}
 
 /** Sempre 202, exista ou não conta com o e-mail (o servidor não revela). */
 export async function register(input: RegistrationInput): Promise<void> {

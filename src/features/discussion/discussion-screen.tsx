@@ -215,6 +215,8 @@ export default function DiscussionScreen() {
       <KeyboardView style={styles.flex}>
         <DiscussionHeader comuna={post.comuna} onMore={() => sheet.open(postTarget(post))} />
         <FlatList
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
           data={rows}
           keyExtractor={(row) => row.comment.id}
           renderItem={({ item }) => (

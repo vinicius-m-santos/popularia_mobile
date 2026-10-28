@@ -12,7 +12,7 @@ type RulesListProps = {
   moderators: User[];
 };
 
-/** Regras numeradas e o quadro "Moderação eleita". */
+/** Regras numeradas e o quadro da moderação. */
 export function RulesList({ rules, moderationNote, moderators }: RulesListProps) {
   return (
     <View style={styles.wrap}>
@@ -38,7 +38,7 @@ export function RulesList({ rules, moderationNote, moderators }: RulesListProps)
         <View style={styles.modHeader}>
           <Icon name="shield" size={22} color={Colors.red} />
           <AppText variant="heading" style={styles.modTitle} accessibilityRole="header">
-            {moderationNote ? 'Moderação eleita' : 'Moderação'}
+            Moderação
           </AppText>
         </View>
         {moderationNote ? (

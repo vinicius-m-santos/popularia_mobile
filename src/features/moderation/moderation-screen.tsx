@@ -57,7 +57,7 @@ function ConnectedModerationScreen() {
   };
   return <Screen edges={['top', 'left', 'right', 'bottom']}>
     <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="heading">Moderação</AppText></View>
-    {reports.status === 'loading' ? <StateView kind="loading" message="Carregando denúncias" /> : reports.status === 'error' ? <StateView kind="error" message={describeError(reports.error)} onRetry={reports.refresh} /> : <ScrollView contentContainerStyle={styles.queue}>
+    {reports.status === 'loading' ? <StateView kind="loading" message="Carregando denúncias" /> : reports.status === 'error' ? <StateView kind="error" message={describeError(reports.error)} onRetry={reports.refresh} /> : <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.queue}>
       {reports.items.map((r) => {
         const m = r.message;
         if (!m?.author || m.status !== 'published') return <View key={r.id}><AppText variant="caption">Conteúdo indisponível.</AppText><PillButton label="Encerrar denúncia" disabled={busy} variant="outline" onPress={() => { void resolve(r.id, 'dismissed'); }} /></View>;
@@ -119,7 +119,7 @@ function DemoModerationScreen() {
           <StateView
             kind="empty"
             title={missing ? 'Comuna não encontrada' : 'Acesso restrito'}
-            message={missing ? 'O link pode estar errado.' : 'Só a moderação eleita desta comuna vê a fila de denúncias.'}
+            message={missing ? 'O link pode estar errado.' : 'Só quem modera esta comuna pode ver a fila de denúncias.'}
           />
         ) : (
           <StateView kind="error" message="Não conseguimos carregar a fila." onRetry={overview.reload} />
@@ -142,7 +142,7 @@ function DemoModerationScreen() {
   return (
     <Screen>
       {header}
-      <ScrollView stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
+      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
         <View style={[styles.column, styles.intro]}>
           <StatRow
             stats={[

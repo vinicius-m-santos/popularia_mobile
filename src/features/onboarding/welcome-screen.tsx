@@ -5,14 +5,13 @@ import { Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
 
 const POINTS = [
   'Entre em comunas do seu bairro, do seu trabalho e do que você gosta',
   'Convoque e confirme chamados, do mutirão à assembleia',
-  'Converse e decida junto, com moderação eleita',
+  'Converse, se organize e construa junto',
 ];
 
 /** Boas-vindas (design 2a). Os dois botões levam à tela de conta, em modo cadastro ou entrar. */
@@ -42,6 +41,8 @@ export default function WelcomeScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, Spacing.four) + 14 }]}
         bounces={false}>
         <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel="Popularia">
@@ -92,11 +93,6 @@ export default function WelcomeScreen() {
               Já tenho conta
             </AppText>
           </Pressable>
-          <AppText style={styles.terms} color={Colors.paper}>
-            {DEMO_MODE
-              ? 'Modo demonstração: nenhum dado sai deste aparelho e tudo some ao fechar o app.'
-              : 'Versão de testes: as comunas e publicações ainda são fictícias.'}
-          </AppText>
         </View>
       </ScrollView>
     </View>
@@ -125,10 +121,11 @@ const styles = StyleSheet.create({
   logo: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: Colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
+    transform: [{ translateY: 1 }],
   },
   symbol: {
     width: 32,
@@ -197,11 +194,5 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 24,
     textTransform: 'uppercase',
-  },
-  terms: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    textAlign: 'center',
-    marginTop: Spacing.one,
   },
 });

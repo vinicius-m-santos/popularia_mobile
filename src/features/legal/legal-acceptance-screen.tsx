@@ -8,7 +8,7 @@ import { CheckboxMark } from '@/components/choice-marks';
 import { useAccount } from '@/features/account/account-context';
 import { acceptLegal } from '@/features/account/api';
 import { describeError } from '@/lib/errors';
-import { LegalLinks } from './legal-links';
+import { LegalAppLink } from './legal-links';
 
 export default function LegalAcceptanceScreen({ onDefer }: { onDefer?: () => void }) {
   const { account, reloadAccount, signOut } = useAccount();
@@ -23,10 +23,10 @@ export default function LegalAcceptanceScreen({ onDefer }: { onDefer?: () => voi
     catch (e) { setError(describeError(e)); }
     finally { pending.current = false; setBusy(false); }
   };
-  return <Screen><ScrollView contentContainerStyle={{ padding: 24, gap: 24, maxWidth: 680, alignSelf: 'center', width: '100%' }}>
+  return <Screen><ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={{ padding: 24, gap: 24, maxWidth: 680, alignSelf: 'center', width: '100%' }}>
     <AppText variant="heading" accessibilityRole="header">Antes de participar</AppText>
     <AppText>Leia os documentos antes de publicar. O beta do Popularia é para maiores de 18 anos. A Política explica como seus dados são tratados.</AppText>
-    <LegalLinks />
+    <LegalAppLink />
     <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: accepted }} disabled={busy} onPress={() => setAccepted(!accepted)} style={{ flexDirection: 'row', gap: 12 }}>
       <CheckboxMark checked={accepted} /><AppText style={{ flex: 1 }}>Declaro ter 18 anos ou mais, li e aceito os Termos de Uso e as Regras da Comunidade e tomei conhecimento da Política de Privacidade.</AppText>
     </Pressable>

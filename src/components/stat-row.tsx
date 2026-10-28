@@ -20,7 +20,7 @@ export function StatRow({ stats }: StatRowProps) {
           <AppText style={styles.value} maxFontSizeMultiplier={1.3}>
             {s.value}
           </AppText>
-          <AppText style={styles.label} color={Colors.muted} numberOfLines={2}>
+          <AppText style={styles.label} color={Colors.muted} numberOfLines={1}>
             {s.label}
           </AppText>
         </View>

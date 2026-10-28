@@ -29,7 +29,7 @@ export default function LibraryScreen() {
   const collection = useAsyncData(loader);
   const [editingCollection, setEditingCollection] = useState(false);
   if (params.collection && !collection.data) return <Screen><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><StateView kind={collection.status === 'error' ? 'error' : 'loading'} message="Não foi possível carregar esta coleção." {...(collection.status === 'error' ? { onRetry: collection.reload } : {})} /></Screen>;
-  const canAdd = params.collection ? collection.data?.canAdd : scope === 'personal' ? !params.owner || params.owner === me.id : params.add === '1';
+  const canAdd = params.collection ? collection.data?.canAdd : scope === 'public' ? true : scope === 'personal' ? !params.owner || params.owner === me.id : params.add === '1';
   return <Screen>
     <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="label">{collection.data ? 'Coleção' : 'Biblioteca'}</AppText></View>
     <LibraryPane initialQuery={params.q} initialTopic={params.topic} scope={scope} owner={params.owner} comuna={params.comuna} collection={params.collection} canAdd={canAdd}
@@ -38,16 +38,15 @@ export default function LibraryScreen() {
   </Screen>;
 }
 
-export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, title, header, onSelect, initialQuery, initialTopic }: {
-  scope: LibraryScope; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; onSelect?: (document: LibraryDocument) => void;
+export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, title, header, onSelect, initialQuery, initialTopic, profileContext = false }: {
+  scope: LibraryScope; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; onSelect?: (document: LibraryDocument) => void; profileContext?: boolean;
 }) {
   const me = useMe();
   const [query, setQuery] = useState(initialQuery ?? '');
   const [term, setTerm] = useState(initialQuery ?? '');
   const [topic, setTopic] = useState<TopicId | null>(initialTopic ?? null);
   const [origin, setOrigin] = useState<'all' | 'people' | 'comunas'>('all');
-  const [order, setOrder] = useState<'recent' | 'relevance' | null>(null);
-  const sort = order ?? (term ? 'relevance' : 'recent');
+  const sort = term ? 'relevance' : 'recent';
   const [newCollection, setNewCollection] = useState(false);
   const [removedSaves, setRemovedSaves] = useState<string[]>([]);
   const [saveError, setSaveError] = useState('');
@@ -68,24 +67,31 @@ export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, 
   }, []);
   const own = scope === 'personal' && (!owner || owner === me.id);
   const filtered = !!term || topic !== null || origin !== 'all';
-  const emptyTitle = filtered ? 'Nenhum resultado' : own ? 'Sua biblioteca está vazia' : 'Nada disponível para você';
-  const emptyMessage = filtered ? `Nenhum documento ${scope === 'public' ? 'público ' : ''}neste filtro. Tente outra palavra ou assunto.` : own ? 'Guarde cartilhas, atas e estudos em PDF. Cada um fica numa coleção e você decide quem pode abrir.' : scope === 'comuna' && canAdd ? 'Ninguém adicionou documentos aqui ainda. Que tal o primeiro?' : 'Nenhum documento disponível para você.';
+  const emptyTitle = filtered ? 'Nenhum resultado' : own ? 'Sua biblioteca está vazia' : 'Poxa, não achamos nada por aqui';
+  const emptyMessage = filtered ? `Nenhum documento ${scope === 'public' ? 'público ' : ''}neste filtro. Tente outra palavra ou assunto.` : own ? 'Guarde cartilhas, atas e estudos em PDF. Cada um fica numa coleção e você decide quem pode abrir.' : scope === 'comuna' && canAdd ? 'Ninguém adicionou documentos aqui ainda. Que tal o primeiro?' : 'Nenhum documento disponível por aqui ainda.';
+  const isEmptyLibrary = documents.status === 'success' && documents.items.length === 0 && !documents.hasMore && !filtered;
   const add = () => router.push({ pathname: '/biblioteca/enviar', params: { ...(comuna ? { comuna } : {}), ...(collection ? { collection } : {}) } });
   return <>
-    <FlatList style={styles.flex} contentContainerStyle={styles.content} data={documents.items.filter((item) => !removedSaves.includes(item.id))} keyExtractor={(item) => item.id}
+    <FlatList style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content} data={documents.items.filter((item) => !removedSaves.includes(item.id))} keyExtractor={(item) => item.id}
       keyboardShouldPersistTaps="handled" refreshing={documents.isRefreshing} onRefresh={refresh} onEndReached={() => documents.loadMore()} onEndReachedThreshold={0.4}
       ListHeaderComponent={<>
+        {isEmptyLibrary ? <View style={styles.emptyLibrary}>
+          <StateView kind="empty" title="Poxa, não achamos nada por aqui" message={canAdd ? 'Esta biblioteca ainda está esperando o primeiro documento.' : 'Nenhum documento disponível por aqui ainda.'} />
+          {canAdd ? <PillButton label="Adicionar um documento" onPress={add} /> : null}
+        </View> : <>
         {header}
         <View style={styles.header}>
-          <AppText variant="display" accessibilityRole="header">{title ?? (scope === 'public' ? 'Biblioteca pública' : own ? 'Minha biblioteca' : scope === 'saved' ? 'Documentos salvos' : 'Biblioteca')}</AppText>
-          <AppText variant="caption">{scope === 'public' ? 'Só aparecem aqui PDFs que pessoas e comunas escolheram abrir para qualquer pessoa.' : scope === 'saved' ? 'Salvar é guardar uma referência. O acesso pode mudar.' : 'O original fica na biblioteca de origem. Cada lugar tem alcance próprio.'}</AppText>
-          {canAdd ? <View style={styles.actions}><PillButton label="Adicionar PDF" onPress={add} /><PillButton label="Criar coleção" variant="outline" onPress={() => setNewCollection(true)} /></View> : null}
-          {own && !onSelect ? <PillButton label="Documentos salvos" variant="outline" onPress={() => router.push({ pathname: '/biblioteca', params: { scope: 'saved' } })} /> : null}
+          {!profileContext ? <>
+            <AppText variant="display" accessibilityRole="header">{title ?? (scope === 'public' ? 'Biblioteca pública' : own ? 'Minha biblioteca' : scope === 'saved' ? 'Documentos salvos' : 'Biblioteca')}</AppText>
+            <AppText variant="caption">{scope === 'public' ? 'Só aparecem aqui PDFs que pessoas e comunas escolheram abrir para qualquer pessoa.' : scope === 'saved' ? 'Salvar é guardar uma referência. O acesso pode mudar.' : 'O original fica na biblioteca de origem. Cada lugar tem alcance próprio.'}</AppText>
+            {canAdd ? <View style={styles.actions}><PillButton label="Adicionar PDF" onPress={add} /><PillButton label="Criar coleção" variant="outline" onPress={() => setNewCollection(true)} /></View> : null}
+            {own && !onSelect ? <PillButton label="Documentos salvos" variant="outline" onPress={() => router.push({ pathname: '/biblioteca', params: { scope: 'saved' } })} /> : null}
+          </> : null}
           {scope !== 'saved' ? <><TextField label="Buscar na biblioteca" placeholder="Título, coleção, responsável ou assunto" value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} />
             <SingleTopicField value={topic} onChange={setTopic} optional /></> : null}
         </View>
         {scope === 'public' ? <ChipRow options={[{ key: 'all', label: 'Tudo' }, { key: 'people', label: 'De pessoas' }, { key: 'comunas', label: 'De comunas' }]} value={origin} onChange={setOrigin} accessibilityLabel="Origem dos documentos" /> : null}
-        {!collection && scope !== 'saved' ? <View style={styles.header}>
+        {!profileContext && !collection && scope !== 'saved' ? <View style={styles.header}>
           <SectionHeading label={scope === 'public' ? 'Coleções com documentos públicos' : 'Coleções'} />
           {collections.status === 'loading' ? <StateView kind="loading" message="Carregando coleções" /> : null}
           {collections.status === 'error' || collections.refreshError ? <StateView kind="error" message="Não conseguimos carregar as coleções." onRetry={collections.refresh} /> : null}
@@ -94,18 +100,19 @@ export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, 
             <AppText variant="caption">{item.documentCount} PDFs · {item.origin.name}</AppText>
             <PillButton label={`Abrir coleção ${item.name}`} variant="outline" onPress={() => router.push({ pathname: '/biblioteca', params: { scope, owner, comuna, collection: item.id } })} />
           </View>)}
+          {scope === 'public' && collections.status === 'success' && collections.items.length === 0 && !collections.hasMore ? <StateView kind="empty" title="Nenhuma coleção pública ainda" message="Bora criar a primeira coleção?" /> : null}
           {collections.hasMore ? <PillButton label={collections.loadingMore ? 'Carregando…' : 'Mais coleções'} disabled={collections.loadingMore} onPress={collections.loadMore} variant="outline" /> : null}
           {collections.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais coleções." onRetry={collections.loadMore} /> : null}
         </View> : null}
-        <View style={styles.header}><SectionHeading label={scope === 'public' ? 'Documentos públicos' : 'Documentos'} /><AppText variant="caption">{sort === 'relevance' ? 'Relevância' : 'Mais recentes'}</AppText></View>
-        {term ? <ChipRow options={[{ key: 'relevance', label: 'Relevância' }, { key: 'recent', label: 'Mais recentes' }]} value={sort} onChange={setOrder} accessibilityLabel="Ordenar documentos" /> : null}
+        {!profileContext ? <View style={styles.header}><SectionHeading label={scope === 'public' ? 'Documentos públicos' : 'Documentos'} />{term && sort === 'relevance' ? <AppText variant="caption">Relevância</AppText> : null}</View> : null}
         {saveError ? <AppText>{saveError}</AppText> : null}
         {documents.refreshError ? <StateView kind="error" message="Não conseguimos atualizar os documentos." onRetry={documents.refresh} /> : null}
+        </>}
       </>}
       renderItem={({ item }) => <View style={styles.row}><DocumentCard document={item} shared={scope === 'comuna' && item.origin?.kind === 'personal'} onPress={onSelect && item.state === 'available' ? () => onSelect(item) : scope === 'comuna' ? () => router.push({ pathname: '/biblioteca/documento/[id]', params: { id: item.id, comuna } }) : undefined} />{scope === 'saved' ? <PillButton label="Remover dos salvos" variant="outline" onPress={async () => { try { await saveDocument(item.id, false); setRemovedSaves((ids) => [...ids, item.id]); } catch { setSaveError('Não conseguimos remover dos salvos. Tente novamente.'); } }} /> : null}</View>}
-      ListEmptyComponent={documents.status === 'loading' ? <StateView kind="loading" message="Carregando documentos" /> : documents.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a biblioteca." onRetry={documents.refresh} /> : <StateView kind="empty" title={emptyTitle} message={emptyMessage} />}
+      ListEmptyComponent={isEmptyLibrary ? undefined : documents.status === 'loading' ? <StateView kind="loading" message="Carregando documentos" /> : documents.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a biblioteca." onRetry={documents.refresh} /> : <StateView kind="empty" title={emptyTitle} message={emptyMessage} />}
       ListFooterComponent={documents.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais documentos." onRetry={documents.loadMore} /> : documents.hasMore ? <PillButton label={documents.loadingMore ? 'Carregando…' : 'Mais documentos'} disabled={documents.loadingMore} onPress={documents.loadMore} variant="outline" /> : undefined} />
     <CollectionEditor key={String(newCollection)} visible={newCollection} onClose={() => setNewCollection(false)} comuna={comuna} onDone={() => collections.refresh()} />
   </>;
 }
-const styles = StyleSheet.create({ flex: { flex: 1 }, bar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two }, content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Spacing.seven }, header: { padding: Spacing.five, gap: Spacing.three }, actions: { gap: Spacing.two }, row: { paddingHorizontal: Spacing.five }, collection: { backgroundColor: Colors.paper, borderWidth: 1.5, borderColor: Colors.ink, padding: Spacing.four, borderRadius: 12, gap: Spacing.two } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, bar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two }, content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Spacing.seven }, header: { padding: Spacing.five, gap: Spacing.three }, emptyLibrary: { minHeight: 300, paddingHorizontal: Spacing.five, paddingBottom: Spacing.six, alignItems: 'stretch' }, actions: { gap: Spacing.two }, row: { paddingHorizontal: Spacing.five }, collection: { backgroundColor: Colors.paper, borderWidth: 1.5, borderColor: Colors.ink, padding: Spacing.four, borderRadius: 12, gap: Spacing.two } });

@@ -14,7 +14,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Modal } from 'react-native';
 
-import { MockDataNotice } from '@/components/mock-data-notice';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { ToastProvider } from '@/components/toast';
@@ -106,6 +105,7 @@ function RootStack() {
   return (
     <>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
+      <Stack.Screen name="sobre-e-legal" options={{ presentation: 'modal' }} />
       <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="avisos" />
@@ -128,7 +128,6 @@ function RootStack() {
     <Modal visible={needsLegal} presentationStyle="fullScreen" animationType="slide">
       <LegalAcceptanceScreen onDefer={() => { if (account) setDeferredLegalUser(account.id); }} />
     </Modal>
-    {onboarded ? <MockDataNotice /> : null}
     </>
   );
 }

@@ -42,7 +42,7 @@ export default function StickerManagementScreen() {
   return <Screen edges={['top', 'left', 'right', 'bottom']}>
     <KeyboardView style={styles.flex}>
       <View style={styles.header}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="heading" style={styles.title}>Figurinhas da comuna</AppText></View>
-      {!data.data ? <StateView kind={data.status === 'error' ? 'error' : 'loading'} message={data.status === 'error' ? describeError(data.error) : 'Carregando figurinhas'} onRetry={data.reload} /> : <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      {!data.data ? <StateView kind={data.status === 'error' ? 'error' : 'loading'} message={data.status === 'error' ? describeError(data.error) : 'Carregando figurinhas'} onRetry={data.reload} /> : <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <AppText variant="label">{pack?.stickers.length ?? 0} / 40 figurinhas</AppText>
         <View style={styles.grid}>{pack?.stickers.map((sticker) => <View key={sticker.id} style={styles.item}><StickerTile sticker={sticker} small /><PillButton label="Remover" accessibilityLabel={`Remover ${sticker.label}`} size="sm" variant="outline" disabled={busy || data.data?.square.status === 'closed'} onPress={() => { void run(() => deleteSticker(id, sticker.id)); }} /></View>)}</View>
         {data.data.square.status === 'closed' ? <AppText>Praça encerrada. O pacote está disponível somente para consulta.</AppText> : <>

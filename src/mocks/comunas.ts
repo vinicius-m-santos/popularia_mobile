@@ -4,7 +4,7 @@ import type { Comuna } from '@/types/models';
 const DEFAULTS = {
   foundedYear: '2022',
   moderationNote:
-    'A moderação é escolhida em votação aberta a cada seis meses. Viu algo fora das regras? Toque em ⋯ na publicação e escolha Denunciar.',
+    'A moderação acompanha as regras da comuna. Viu algo fora delas? Toque em ⋯ na publicação e escolha Denunciar.',
   pinned: { title: 'Boas-vindas à comuna', text: 'Leia as regras e se apresente nos comentários deste post.' },
   rules: [
     {
@@ -46,7 +46,7 @@ export const comunas: Comuna[] = [
       text: 'Um sábado no Jardim Helena, o seguinte no Itaim Paulista e o outro em São Miguel. Sempre às 8h, com café coletivo.',
     },
     moderationNote:
-      'A moderação é escolhida em votação aberta a cada seis meses. Viu algo fora das regras? Toque em ⋯ na publicação e escolha Denunciar.',
+      'A moderação acompanha as regras da comuna. Viu algo fora delas? Toque em ⋯ na publicação e escolha Denunciar.',
     rules: [
       {
         title: 'Território e alimento',
@@ -137,7 +137,7 @@ export const comunas: Comuna[] = [
       text: 'Planilha com horários e substituições. Avise com 48h se precisar trocar.',
     },
     moderationNote:
-      'A coordenação é eleita pelas pessoas voluntárias e estudantes a cada ano. Use ⋯ para denunciar.',
+      'A coordenação cuida das regras e do ambiente da comuna. Use ⋯ para denunciar.',
     rules: [
       { title: 'Estudantes primeiro', description: 'Dúvidas de estudantes têm prioridade de resposta.' },
       { title: 'Sem venda de material', description: 'Material é compartilhado de graça, sempre.' },

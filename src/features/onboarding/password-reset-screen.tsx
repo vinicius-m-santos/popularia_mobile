@@ -80,7 +80,7 @@ export default function PasswordResetScreen() {
         <View style={styles.backRow}>
           <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
               Nova senha

@@ -55,6 +55,7 @@ const styles = StyleSheet.create({
   },
   center: {
     textAlign: 'center',
+    lineHeight: 30,
   },
   button: {
     minHeight: MinTouchTarget,

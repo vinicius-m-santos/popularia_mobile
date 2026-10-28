@@ -30,8 +30,9 @@ beforeEach(() => {
 });
 describe('bibliotecas reais', () => {
   it('separa vazio, busca, filtros oficiais e paginação no servidor', async () => {
+    jest.mocked(listDocuments).mockResolvedValue({ items: [document], nextCursor: null });
     await render(<LibraryPane scope="public" />);
-    await screen.findByText('Nada disponível para você');
+    await screen.findByText(document.title!);
     await fireEvent.press(screen.getByRole('radio', { name: 'De pessoas' }));
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'people', scope: 'public' }), null));
     await fireEvent.changeText(screen.getByLabelText('Buscar na biblioteca'), 'organização');
@@ -42,10 +43,11 @@ describe('bibliotecas reais', () => {
   });
   it('minha biblioteca vazia oferece adicionar e criar coleção', async () => {
     await render(<LibraryPane scope="personal" owner="me" canAdd />);
-    await screen.findByText('Sua biblioteca está vazia');
-    await fireEvent.press(screen.getByText('Adicionar PDF'));
+    await screen.findByText('Poxa, não achamos nada por aqui');
+    await fireEvent.press(screen.getByText('Adicionar um documento'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/enviar', params: {} });
-    expect(screen.getByText('Criar coleção')).toBeTruthy();
+    expect(screen.queryByText('Criar coleção')).toBeNull();
+    expect(screen.queryByLabelText('Buscar na biblioteca')).toBeNull();
   });
   it('carrega página seguinte sem repetir a primeira', async () => {
     jest.mocked(listDocuments).mockImplementation(async (_filters, cursor) => cursor ? { items: [{ ...document, id: 'doc-2', title: 'Ata' }], nextCursor: null } : { items: [document], nextCursor: 'next' });

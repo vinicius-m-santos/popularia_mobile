@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, PanResponder, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
@@ -9,7 +9,6 @@ import { getFeed, isFeedTabAvailable } from '@/features/feed/api';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { FeedHeader } from '@/features/feed/components/feed-header';
 import { WelcomeBanner } from '@/features/feed/components/welcome-banner';
-import { WeekEvents } from '@/features/feed/components/week-events';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { PostCard } from '@/features/posts/components/post-card';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
@@ -17,7 +16,7 @@ import { describeError } from '@/lib/errors';
 import type { FeedTab } from '@/types/models';
 
 const EMPTY_MESSAGES: Record<FeedTab, { title: string; message: string }> = {
-  'para-voce': { title: 'Nada por aqui', message: 'Volte mais tarde para ver novas publicações.' },
+  'para-voce': { title: 'Nenhuma publicação ainda', message: 'Bora interagir? Compartilhe uma ideia e puxe a conversa.' },
   minhas: { title: 'Nenhuma comuna ainda', message: 'Participe de uma comuna para ver as publicações dela aqui.' },
   perto: { title: 'Nada perto de você', message: 'Ainda não há comunas na cidade do seu perfil.' },
 };
@@ -37,6 +36,20 @@ export default function FeedScreen() {
   );
   const feed = usePaginatedData(load);
   const { refresh, refreshError } = feed;
+  const tabs = useMemo<FeedTab[]>(() => ['para-voce', 'minhas', 'perto'], []);
+  const tabIndex = tabs.indexOf(tab);
+  const changeBySwipe = useCallback((direction: 1 | -1) => {
+    const next = tabs[tabIndex + direction];
+    if (next) setTab(next);
+  }, [tabIndex, tabs]);
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, gesture) =>
+      Math.abs(gesture.dx) > 20 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25,
+    onPanResponderRelease: (_, gesture) => {
+      if (Math.abs(gesture.dx) < 48 || Math.abs(gesture.dx) < Math.abs(gesture.dy) * 1.25) return;
+      changeBySwipe(gesture.dx < 0 ? 1 : -1);
+    },
+  }), [changeBySwipe]);
 
   // Depois de publicar, recarrega o feed para mostrar a publicação nova no topo.
   const seenVersion = useRef(postsVersion);
@@ -63,13 +76,14 @@ export default function FeedScreen() {
   } else {
     body = (
       <FlatList
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         data={feed.items}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => <PostCard item={item} showRule={index > 0} />}
         ListHeaderComponent={
           <>
             <WelcomeBanner />
-            <WeekEvents />
             <ComposerPrompt />
           </>
         }
@@ -108,7 +122,7 @@ export default function FeedScreen() {
   return (
     <Screen>
       <FeedHeader tab={tab} onTabChange={setTab} />
-      {body}
+      <View style={styles.swipeArea} {...panResponder.panHandlers}>{body}</View>
     </Screen>
   );
 }
@@ -119,5 +133,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingVertical: Spacing.five,
+  },
+  swipeArea: {
+    flex: 1,
   },
 });

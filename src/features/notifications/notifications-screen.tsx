@@ -120,6 +120,8 @@ export default function NotificationsScreen() {
   } else {
     body = (
       <FlatList
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         data={list.items.filter((n) => MATCHES[filter](n.kind))}
         keyExtractor={(n) => n.id}
         contentContainerStyle={styles.list}

@@ -210,7 +210,7 @@ function MembersTab({ comuna, onChanged }: TabProps) {
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.list}>
         {members.status === 'loading' ? <StateView kind="loading" message="Carregando membros" /> : null}
         {members.status === 'error' ? (
           <StateView kind="error" message={`Não conseguimos carregar os membros. ${comunaErrorMessage(members.error)}`} onRetry={members.refresh} />
@@ -301,7 +301,7 @@ function RequestsTab({ comuna, onChanged }: TabProps) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.list}>
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.list}>
       {requests.status === 'loading' ? <StateView kind="loading" message="Carregando pedidos" /> : null}
       {requests.status === 'error' ? (
         <StateView kind="error" message={`Não conseguimos carregar os pedidos. ${comunaErrorMessage(requests.error)}`} onRetry={requests.refresh} />
@@ -447,7 +447,7 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
   const transfer = comuna.ownershipTransfer;
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.settings}>
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.settings}>
       <SquareEntry slug={comuna.id} />
       {transfer?.direction === 'outgoing' ? (
         <View style={styles.card}>

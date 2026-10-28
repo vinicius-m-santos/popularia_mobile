@@ -3,7 +3,7 @@
  *
  * As telas dependem só destas funções, nunca dos mocks diretamente. Com a API configurada,
  * as abas "Para você" e "Minhas comunas" vêm de GET /feed (paginado por cursor). "Perto de mim"
- * e os chamados da semana ainda não existem na API e continuam fictícios.
+ * e os chamados da semana ainda não existem na API.
  */
 import { DEMO_MODE } from '@/constants/config';
 import { findComuna, toFeedItems } from '@/features/lookup';
@@ -54,3 +54,4 @@ export async function getFeed({ tab, joinedComunaIds, cursor }: FeedQuery): Prom
 export async function getWeekEvents(): Promise<CommunityEvent[]> {
   return mockDelay([...events].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
 }
+

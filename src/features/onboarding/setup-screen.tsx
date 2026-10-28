@@ -6,6 +6,7 @@ import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
+import { PillButton } from '@/components/pill-button';
 import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -15,6 +16,7 @@ import { ApiError, describeError } from '@/lib/errors';
 
 import { checkHandleAvailable } from './api';
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
+import { BrazilLocationFields } from '@/features/locations/brazil-location-fields';
 
 const HANDLE_MAX_LENGTH = 20;
 
@@ -123,7 +125,7 @@ export default function SetupScreen() {
     <Screen edges={['top', 'left', 'right']}>
       <KeyboardView style={styles.flex}>
         <OnboardingProgress step={2} />
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
               Como você quer aparecer?
@@ -178,13 +180,13 @@ export default function SetupScreen() {
             hintColor={handleColor}
           />
           <TextField
-            label="Cidade"
-            value={profile.city}
-            onChangeText={(city) => updateProfile({ city })}
-            placeholder="Cidade, UF"
-            autoComplete="postal-address-locality"
-            textContentType="addressCity"
+            label="País"
+            value={profile.country}
+            onChangeText={(country) => updateProfile({ country })}
+            placeholder="Brasil"
           />
+          <View style={styles.countryChoices}><PillButton label="Brasil" variant={profile.country.trim().toLowerCase() === 'brasil' ? 'dark' : 'outline'} onPress={() => updateProfile({ country: 'Brasil' })} /><PillButton label="Outro país" variant={profile.country.trim().toLowerCase() !== 'brasil' && profile.country.trim() ? 'dark' : 'outline'} onPress={() => updateProfile({ country: '' })} /></View>
+          {profile.country.trim().toLowerCase() === 'brasil' ? <BrazilLocationFields stateId={profile.stateIbgeCode} municipalityId={profile.municipalityIbgeCode} city={profile.city} state={profile.state} onChange={updateProfile} /> : <AppText color={Colors.muted}>Para outros países, cidade e estado ficam ocultos por enquanto.</AppText>}
           <TextField
             label="Bio"
             labelAside={`opcional · ${profile.bio.length}/${BIO_MAX_LENGTH}`}
@@ -246,6 +248,11 @@ const styles = StyleSheet.create({
   },
   photoText: {
     flex: 1,
+  },
+  countryChoices: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
   },
   photoTitle: {
     fontFamily: Fonts.extrabold,

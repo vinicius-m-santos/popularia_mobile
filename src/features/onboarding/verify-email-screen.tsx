@@ -86,7 +86,7 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
             <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={leave} />
           </View>
         )}
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
               Confira seu e-mail

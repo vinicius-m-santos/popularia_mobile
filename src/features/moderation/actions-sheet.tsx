@@ -4,6 +4,7 @@
  */
 import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
@@ -46,6 +47,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [details, setDetails] = useState('');
   const [block, setBlock] = useState(false);
   const [result, setResult] = useState<{ protocol: string; inMyQueue: boolean } | null>(null);
+  const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
 
   const open = useCallback((next: ReportTarget) => {
     setTarget(next);
@@ -76,6 +78,8 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
             setBlock={setBlock}
             result={result}
             setResult={setResult}
+            blocked={blockedHandles.includes(target.author.handle)}
+            setBlocked={(handle, blocked) => setBlockedHandles((items) => blocked ? [...new Set([...items, handle])] : items.filter((item) => item !== handle))}
             close={close}
           />
         ) : null}
@@ -102,11 +106,13 @@ type BodyProps = {
   setBlock: (b: boolean) => void;
   result: { protocol: string; inMyQueue: boolean } | null;
   setResult: (r: { protocol: string; inMyQueue: boolean }) => void;
+  blocked: boolean;
+  setBlocked: (handle: string, blocked: boolean) => void;
   close: () => void;
 };
 
 function SheetBody(props: BodyProps) {
-  const { target, step, setStep, reason, setReason, details, setDetails, block, setBlock, result, setResult, close } =
+  const { target, step, setStep, reason, setReason, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close } =
     props;
   const toast = useToast();
   const me = useMe();
@@ -157,13 +163,20 @@ function SheetBody(props: BodyProps) {
         <MenuItem
           icon="link"
           label="Copiar link"
-          onPress={() => {
+          onPress={async () => {
+            await Clipboard.setStringAsync(`https://popularia.app/pessoa/${encodeURIComponent(handle)}`);
             close();
-            toast.show('Copiar link chega numa próxima etapa.');
+            toast.show('Link copiado.');
           }}
         />
-        {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={`Bloquear @${handle}`} danger onPress={async () => {
-          try { await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' }); setOn('mutedUsers', [target.author.id], true); close(); toast.show('Pessoa bloqueada no serviço.'); }
+        {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={blocked ? `Desbloquear @${handle}` : `Bloquear @${handle}`} danger onPress={async () => {
+          try {
+            await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: blocked ? 'DELETE' : 'PUT' });
+            setBlocked(handle, !blocked);
+            setOn('mutedUsers', [target.author.id], !blocked);
+            close();
+            toast.show(blocked ? `@${handle} desbloqueado.` : 'Pessoa bloqueada no serviço.');
+          }
           catch (e) { toast.show(describeError(e)); }
         }} /> : null}
         {!isMine ? (
@@ -212,6 +225,7 @@ function SheetBody(props: BodyProps) {
         const res = await submitReport({ target, reason, details });
         if (block) {
           if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' });
+          setBlocked(handle, true);
           setOn('mutedUsers', [target.author.id], true);
         }
         setResult(res); setStep('done');

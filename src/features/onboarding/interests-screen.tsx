@@ -54,7 +54,7 @@ export default function InterestsScreen() {
           Interesses
         </AppText>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         <TopicsTitle />
         {groups.status === 'error' ? (
           <StateView kind="error" message="Não conseguimos carregar os assuntos." onRetry={groups.reload} />

@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
   heading: {
     fontFamily: Fonts.condensed,
     fontSize: 21,
-    lineHeight: 23,
+    lineHeight: 26,
     textTransform: 'uppercase',
     color: Colors.ink,
   },

@@ -64,8 +64,9 @@ const styles = StyleSheet.create({
     maxHeight: '86%',
     alignSelf: 'center',
     backgroundColor: Colors.paper,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    // A folha mantém a leitura de painel, mas acompanha a linguagem mais reta do app.
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     paddingTop: 10,
     paddingHorizontal: Spacing.five,
     gap: Spacing.three,

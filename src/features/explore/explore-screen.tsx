@@ -110,10 +110,10 @@ function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
   const recent = data.recentPosts.filter((p) => !data.posts.some((featured) => featured.id === p.id));
   const empty = !data.comunas.length && !data.posts.length && !data.people.length && !recent.length;
   return (
-    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.red} />}>
       {!topic ? <Pressable accessibilityRole="link" accessibilityLabel="Biblioteca Pública" onPress={() => router.push('/biblioteca')} style={{ marginTop: Spacing.five, padding: Spacing.five, gap: Spacing.two, backgroundColor: Colors.ink, borderRadius: Radius.xl }}>
-        <AppText variant="label" color={Colors.onInkMuted}>Biblioteca Pública · PDF</AppText>
+        <AppText variant="label" color={Colors.onInkMuted}>Biblioteca Pública</AppText>
         <AppText variant="heading" color={Colors.cream}>Conhecimento para ficar</AppText>
         <AppText color={Colors.cream}>Cartilhas, atas e estudos que pessoas e comunas escolheram compartilhar.</AppText>
       </Pressable> : null}
@@ -171,7 +171,7 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
     focusedOnce.current = true;
   }, []));
   return (
-    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={result.isRefreshing} onRefresh={refresh} tintColor={Colors.red} />}>
       {result.status === 'loading' ? <StateView kind="loading" message="Buscando" /> : null}
       {result.status === 'error' || result.refreshError ? <StateView kind="error" message="Não conseguimos buscar agora." onRetry={refresh} /> : null}

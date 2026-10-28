@@ -116,14 +116,14 @@ export default function ComunaScreen() {
   const privateOutside = !DEMO_MODE && data.visibility === 'private' && !viewerIsMember;
 
   if (tab === 'biblioteca') return <View style={[styles.root, { paddingTop: insets.top }]}>
-    <LibraryPane scope="comuna" comuna={id} canAdd={viewerIsMember && data.status !== 'archived'}
+    <LibraryPane scope="comuna" comuna={id} canAdd={data.status !== 'archived' && (data.viewerRole === 'founder' || data.viewerRole === 'moderator')}
       header={<View style={{ backgroundColor: Colors.cream }}><ComunaHero comuna={data} onChanged={comuna.reload} /><UnderlineTabs options={TABS} value={tab} onChange={setTab} height={46} /></View>} />
   </View>;
 
   return (
     // Faixa escura atrás da barra de status; o conteúdo rola abaixo dela.
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <ScrollView stickyHeaderIndices={[1]} style={styles.scrollView} contentContainerStyle={styles.scroll}>
+      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} style={styles.scrollView} contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
           {comuna.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} /> : null}
           <ComunaHero comuna={data} onChanged={comuna.reload} />

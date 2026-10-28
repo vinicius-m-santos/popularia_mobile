@@ -131,7 +131,7 @@ export default function UploadScreen() {
     <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={() => { if (step > 1 && step < 5 && !busy) setStep(step - 1); else goBack(); }} />
       <View style={styles.flex}><AppText variant="heading">{params.edit ? 'Editar documento' : 'Adicionar PDF'}</AppText><AppText variant="caption">{comunaSlug ? `Biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText></View>
       <AppText variant="caption">{step < 5 ? `${step} de 4` : 'Concluído'}</AppText></View>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       {step === 1 ? <>
         <AppText variant="display">Arquivo e informações</AppText><AppText>Só PDF, até 25 MB. Nas próximas etapas você escolhe a coleção e quem pode abrir.</AppText>
         {params.edit ? <AppText variant="caption">O arquivo é imutável. Para outro PDF, faça um novo envio.</AppText> : <PillButton label={selecting ? 'Abrindo arquivos…' : file ? 'Trocar PDF' : 'Escolher PDF do aparelho'} disabled={selecting} onPress={select} />}

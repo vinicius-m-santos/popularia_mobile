@@ -233,7 +233,7 @@ export default function CreatePostScreen() {
           </Pressable>
         </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
           {comunas.status === 'loading' && !comunas.data ? (
             <ActivityIndicator color={Colors.red} accessibilityLabel="Carregando destinos" />
           ) : null}
@@ -341,7 +341,7 @@ export default function CreatePostScreen() {
           </View> : null}
         </ScrollView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]}>
           <ToolButton icon="bookmark" label="PDF" onPress={() => setPdfMode(true)} />
           <ToolButton icon="image" label="Imagem" onPress={soon('Anexar imagens')} />
           <ToolButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />

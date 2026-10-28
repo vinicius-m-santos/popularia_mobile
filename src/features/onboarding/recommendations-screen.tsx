@@ -45,7 +45,7 @@ export default function RecommendationsScreen() {
   return (
     <Screen edges={['top', 'left', 'right']}>
       <OnboardingProgress step={4} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         <View>
           <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
             Comunas para você

@@ -15,7 +15,7 @@ import { useAccount } from '@/features/account/account-context';
 import { describeError } from '@/lib/errors';
 import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
-import { LegalLinks } from '@/features/legal/legal-links';
+import { LegalAppLink } from '@/features/legal/legal-links';
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
 
 type Mode = 'cadastro' | 'entrar';
@@ -126,13 +126,13 @@ export default function AccountScreen() {
             <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
           </View>
         )}
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
               {signup ? 'Crie sua conta' : 'Entrar'}
             </AppText>
             <AppText style={styles.sub} color={Colors.inkSoft}>
-              {signup ? 'Leva menos de um minuto.' : 'Bom te ver de novo.'}
+              {signup ? 'Leva menos de um minuto.' : <>Bom te ver de novo <AppText style={styles.camarada} color={Colors.red}>camarada.</AppText></>}
             </AppText>
           </View>
 
@@ -214,7 +214,7 @@ export default function AccountScreen() {
             </Pressable>
           ) : null}
 
-          <LegalLinks />
+          <View style={styles.legalLink}><LegalAppLink /></View>
           <View style={styles.switchRow}>
             <AppText style={styles.switchText} color={Colors.inkSoft}>
               {signup ? 'Já tem conta?' : 'Ainda não tem conta?'}
@@ -287,6 +287,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.six,
     gap: Spacing.five,
   },
+  legalLink: {
+    alignItems: 'center',
+    marginTop: -Spacing.two,
+  },
   title: {
     fontFamily: Fonts.condensed,
     fontSize: 50,
@@ -298,6 +302,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
     fontSize: 15.5,
     lineHeight: 21,
+  },
+  camarada: {
+    fontFamily: Fonts.bold,
   },
   social: {
     gap: Spacing.two,

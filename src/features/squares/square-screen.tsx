@@ -148,6 +148,8 @@ function Conversation({ id }: { id: string }) {
       </View> : <>
         {chat.syncError ? <Pressable onPress={() => { void chat.reload(); }} accessibilityRole="button" style={styles.sync}><AppText variant="caption" color={Colors.red}>{chat.syncError} Toque para tentar novamente.</AppText></Pressable> : null}
         <FlatList
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
           ref={list} data={chat.messages} inverted keyExtractor={(m) => m.id}
           renderItem={({ item }) => <MessageRow message={item} selected={selected === item.id} separator={chat.separatorId === item.id} onSelect={setSelected} onReply={onReply} onReact={chat.react} onActions={onActions} onOriginal={original} />}
           initialNumToRender={20} maxToRenderPerBatch={12} windowSize={9}

@@ -241,7 +241,7 @@ export default function CreateComunaScreen() {
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardView style={styles.flex}>
         {bar}
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <AppText variant="caption">
             Você será a pessoa proprietária: edita descrição, assunto e regras, escolhe a moderação e decide sobre a comuna.
             Cada pessoa pode ter até {quota.data.limit} comunas ativas ({quota.data.activeOwned} em uso).

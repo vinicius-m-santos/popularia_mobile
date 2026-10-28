@@ -31,6 +31,11 @@ export type AccountProfile = {
   name: string;
   handle: string;
   city: string;
+  state: string;
+  country: string;
+  countryCode: string;
+  stateIbgeCode: string;
+  municipalityIbgeCode: string;
   bio: string;
 };
 
@@ -39,10 +44,13 @@ const DEMO_PROFILE: AccountProfile = {
   name: 'Camila Rocha',
   handle: 'camilarocha',
   city: currentUser.city,
+  state: 'SP',
+  country: 'Brasil',
+  countryCode: 'BR', stateIbgeCode: '35', municipalityIbgeCode: '',
   bio: '',
 };
 
-const EMPTY_PROFILE: AccountProfile = { name: '', handle: '', city: '', bio: '' };
+const EMPTY_PROFILE: AccountProfile = { name: '', handle: '', city: '', state: '', country: 'Brasil', countryCode: 'BR', stateIbgeCode: '', municipalityIbgeCode: '', bio: '' };
 
 export const BIO_MAX_LENGTH = 160;
 
@@ -85,7 +93,7 @@ type AccountValue = {
 const AccountContext = createContext<AccountValue | null>(null);
 
 function profileOf(me: MeDto): AccountProfile {
-  return { name: me.displayName, handle: me.handle, city: me.city ?? '', bio: me.bio };
+  return { name: me.displayName, handle: me.handle, city: me.city ?? '', state: me.state ?? '', country: me.country ?? '', countryCode: me.countryCode, stateIbgeCode: me.stateIbgeCode ?? '', municipalityIbgeCode: me.municipalityIbgeCode ?? '', bio: me.bio };
 }
 
 function deviceLabel(): string {
@@ -196,7 +204,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const completeSignupProfile = useCallback(async () => {
     if (DEMO_MODE) return;
-    const fields = { displayName: draft.name.trim(), bio: draft.bio.trim(), city: draft.city.trim() };
+    const fields = { displayName: draft.name.trim(), bio: draft.bio.trim(), city: draft.city.trim(), state: draft.state.trim(), country: draft.country.trim(), countryCode: draft.countryCode, stateIbgeCode: draft.stateIbgeCode, municipalityIbgeCode: draft.municipalityIbgeCode };
     if (account) {
       // Já criada (a pessoa voltou para esta etapa): só atualiza o perfil.
       applyAccount(await accountApi.updateMe(fields));
@@ -332,6 +340,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       displayName: draft.name.trim(),
       bio: draft.bio.trim() || undefined,
       city: draft.city.trim() || undefined,
+      state: draft.state.trim() || undefined,
+      country: draft.country.trim() || undefined,
+      countryCode: draft.countryCode || undefined,
+      stateIbgeCode: draft.stateIbgeCode || undefined,
+      municipalityIbgeCode: draft.municipalityIbgeCode || undefined,
       interests: interests.length > 0 ? interests : undefined,
     });
     applyAccount(me);
