@@ -72,7 +72,7 @@ export default function DocumentScreen() {
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
       {document.status === 'loading' && !d ? <StateView kind="loading" message="Carregando documento" /> : null}
       {!available && document.status !== 'loading' ? <>
-        <StateView kind="empty" title="Poxa, não achamos este documento" message="Nenhum documento disponível. Ver uma publicação com este PDF não dá acesso ao arquivo." />
+        <StateView kind="empty" title="Acesso restrito" message="Poxa, não achamos este documento. Ver uma publicação com este PDF não dá acesso ao arquivo." />
         {d?.title ? <AppText variant="heading">{d.title}</AppText> : null}
         {d?.origin?.slug ? <PillButton label="Ver comuna para participar" variant="outline" onPress={() => nav.openComuna(d.origin!.slug!)} /> : null}
         <PillButton label="Remover dos salvos" variant="outline" disabled={busy} onPress={() => action(async () => { await saveDocument(id, false); toast.show('Referência removida dos salvos.'); })} />
