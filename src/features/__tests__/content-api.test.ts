@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { getComuna, getComunaPosts, getMyComunas, joinComuna, leaveComuna, toComuna } from '@/features/comunas/api';
-import { createComment, getComments, toComment } from '@/features/discussion/api';
+import { createComment, getComments, setCommentSupport, toComment } from '@/features/discussion/api';
 import { buildThread } from '@/features/discussion/thread';
 import { getFeed } from '@/features/feed/api';
 import { createPost, getPost, toFeedItem } from '@/features/posts/api';
@@ -79,7 +79,8 @@ function comment(overrides: Partial<CommentDto>): CommentDto {
     body: 'Vou levar mudas',
     author,
     createdAt: '2026-10-20T13:00:00+00:00',
-    viewer: { isAuthor: false, canRemove: false },
+    supportCount: 0,
+    viewer: { isAuthor: false, canRemove: false, supported: false },
     ...overrides,
   };
 }
@@ -199,7 +200,7 @@ describe('comunas', () => {
 
 describe('comentários', () => {
   it('lista com cursor e converte a autoria do servidor', async () => {
-    api.mockResolvedValue({ items: [comment({ viewer: { isAuthor: true, canRemove: false } })], nextCursor: 'c1' });
+    api.mockResolvedValue({ items: [comment({ viewer: { isAuthor: true, canRemove: false, supported: true } })], nextCursor: 'c1' });
     const page = await getComments(postDto.id, 'c0');
     expect(api).toHaveBeenCalledWith(`/posts/${postDto.id}/comments?cursor=c0`, { auth: true });
     expect(page.items[0]).toMatchObject({ text: 'Vou levar mudas', isOwn: true, author: { name: 'Ana Souza' } });
@@ -214,6 +215,15 @@ describe('comentários', () => {
       body: { body: 'Combinado', parentId: 'c1' },
       auth: true,
     });
+  });
+
+  it('apoia e remove apoio persistente sem corpo fictício', async () => {
+    api.mockResolvedValueOnce(comment({ supportCount: 1, viewer: { isAuthor: true, canRemove: false, supported: true } }));
+    await setCommentSupport('c1', true);
+    api.mockResolvedValueOnce(comment({ supportCount: 0, viewer: { isAuthor: true, canRemove: false, supported: false } }));
+    await setCommentSupport('c1', false);
+    expect(api).toHaveBeenNthCalledWith(1, '/comments/c1/support', { method: 'PUT', auth: true });
+    expect(api).toHaveBeenNthCalledWith(2, '/comments/c1/support', { method: 'DELETE', auth: true });
   });
 
   it('comentários apagados, removidos ou ocultos viram marcadores sem texto nem autoria', () => {

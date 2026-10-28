@@ -1,2 +1,2 @@
-/** Rota modal aberta pelo botão "Criar" da barra inferior. */
+/** Rota de criação aberta pelo botão "Criar" da barra inferior. */
 export { default } from '@/features/compose/create-post-screen';

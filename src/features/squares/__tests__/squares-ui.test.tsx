@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createRef, type ComponentRef } from 'react';
-import { PanResponder, TextInput } from 'react-native';
+import { TextInput } from 'react-native';
 import { router } from 'expo-router';
 
 import { SquareComposer } from '../components/square-composer';
@@ -175,19 +175,27 @@ describe('Praças no aplicativo', () => {
     await fireEvent.press(screen.getByText('↓ 7 novas mensagens'));
     expect(state.jumpRecent).toHaveBeenCalled();
   });
-  it('swipe exige intenção horizontal e threshold; scroll vertical não responde', async () => {
-    const spy = jest.spyOn(PanResponder, 'create');
+  it('mensagem excluída preserva autor e horário, sem conteúdo nem ações', async () => {
+    const deleted = message('m-deleted', {
+      status: 'deleted', body: null, sticker: null, reactions: [],
+      viewer: { isAuthor: false, canDelete: false, canRemove: false, canReport: false, canReact: false, canReply: false },
+    });
+    jest.mocked(useSquare).mockReturnValue(chat({ messages: [deleted] }));
+    await render(<SquareScreen />);
+    expect(screen.getByLabelText('Marina, Mensagem excluída')).toBeTruthy();
+    expect(screen.getByText('Marina')).toBeTruthy();
+    expect(screen.getByText('@marina')).toBeTruthy();
+    expect(screen.getByText('Mensagem excluída')).toBeTruthy();
+    expect(screen.queryByLabelText('Mais ações da mensagem')).toBeNull();
+  });
+  it('mantém resposta e opções acessíveis sem PanResponder artesanal', async () => {
     const reply = jest.fn();
-    await render(<MessageRow message={message()} selected={false} separator={false} onSelect={jest.fn()} onReply={reply} onReact={jest.fn()} onActions={jest.fn()} onOriginal={jest.fn()} />);
-    const handlers = spy.mock.calls.at(-1)![0];
-    type Gesture = Parameters<NonNullable<typeof handlers.onMoveShouldSetPanResponder>>[1];
-    const evt = {} as Parameters<NonNullable<typeof handlers.onMoveShouldSetPanResponder>>[0];
-    expect(handlers.onMoveShouldSetPanResponder?.(evt, { dx: 20, dy: 50 } as Gesture)).toBe(false);
-    expect(handlers.onMoveShouldSetPanResponder?.(evt, { dx: 20, dy: 2 } as Gesture)).toBe(true);
-    await act(() => handlers.onPanResponderRelease?.(evt, { dx: 30, dy: 1 } as Gesture));
-    expect(reply).not.toHaveBeenCalled();
-    await act(() => handlers.onPanResponderRelease?.(evt, { dx: 70, dy: 1 } as Gesture));
-    expect(reply).toHaveBeenCalledTimes(1);
-    spy.mockRestore();
+    const openPicker = jest.fn();
+    await render(<MessageRow message={message()} separator={false} onOpenPicker={openPicker} onReply={reply} onReact={jest.fn()} onOriginal={jest.fn()} />);
+    const row = screen.getByLabelText('Marina, Vamos conversar');
+    await fireEvent(row, 'accessibilityAction', { nativeEvent: { actionName: 'reply' } });
+    expect(reply).toHaveBeenCalledWith(message());
+    await fireEvent(row, 'accessibilityAction', { nativeEvent: { actionName: 'options' } });
+    expect(openPicker).toHaveBeenCalledWith(message(), expect.objectContaining({ width: 1, height: 1 }));
   });
 });

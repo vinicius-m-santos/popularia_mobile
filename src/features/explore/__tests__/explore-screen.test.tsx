@@ -85,7 +85,9 @@ describe('Explorar', () => {
 
   it('abre descoberta, assunto e os destinos existentes de pessoa/comuna/publicação', async () => {
     await render(<ExploreScreen />);
+    await fireEvent.press(await screen.findByLabelText('Abrir Biblioteca Pública'));
     await fireEvent.press(await screen.findByLabelText('Explorar Tecnologia'));
+    expect(router.push).toHaveBeenCalledWith('/biblioteca');
     expect(router.push).toHaveBeenCalledWith({ pathname: '/explorar/assunto/[id]', params: { id: 'tec' } });
     await fireEvent.press(screen.getByLabelText('Abrir pessoa Ana Linux'));
     await fireEvent.press(screen.getByLabelText(/Linux Brasil, Pública/));
@@ -137,6 +139,17 @@ describe('Explorar', () => {
     await act(async () => fail(new Error('offline')));
     await fireEvent.press(await screen.findByText('Tentar de novo'));
     expect(await screen.findByText('Comunas para conhecer')).toBeTruthy();
+  });
+
+  it('revalidação automática ao voltar não ativa o inset nativo de pull-to-refresh', async () => {
+    await render(<ExploreScreen />);
+    await screen.findByText('Comunas para conhecer');
+    let finish: (value: DiscoveryData) => void = () => {};
+    getData.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await act(async () => { mockFocusCallbacks.forEach((focus) => focus()); });
+    const refreshControl = screen.container.queryAll((element) => element.type === 'RCTRefreshControl')[0];
+    expect(refreshControl.props.refreshing).toBeFalsy();
+    await act(async () => finish(data));
   });
 
   it('busca vazia, erro/retry e paginação de uma categoria', async () => {

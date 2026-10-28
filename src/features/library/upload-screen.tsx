@@ -1,27 +1,57 @@
-import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
+import { CheckboxMark, RadioMark } from '@/components/choice-marks';
+import { EditorialAction } from '@/components/editorial-action';
+import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { TextField } from '@/components/text-field';
+import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { getComuna, getMyComunas } from '@/features/comunas/api';
+import { ComunaMark } from '@/features/comunas/components/comuna-mark';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
+import { getTopicGroups } from '@/features/onboarding/api';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { describeError } from '@/lib/errors';
+import { initialsOf } from '@/lib/format';
 import { goBack } from '@/lib/routes';
 import type { TopicId } from '@/types/models';
+import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { editDocument, getDocument, listCollections, shareDocument, uploadDocument } from './api';
 import { CollectionEditor } from './collection-editor';
 import { returnAttachment } from './composer-attachment';
 import { sizeLabel } from './document-card';
 import { pickPdf } from './transfers';
 import type { DocumentAccess, LibraryDocument, PickedPdf } from './types';
+
+const ACCESS_COPY: Record<DocumentAccess, { title: string; description: string }> = {
+  private: { title: 'Só você', description: 'Visível apenas para você' },
+  followers: { title: 'Seus seguidores', description: 'Visível para seus seguidores' },
+  visitors: { title: 'Quem visitar a comuna', description: 'Visível para quem acessar a comuna' },
+  members: { title: 'Só membros', description: 'Visível para membros da comuna' },
+  moderators: { title: 'Só coordenação', description: 'Visível para a coordenação da comuna' },
+};
+
+function SectionLabel({ children, aside }: { children: ReactNode; aside?: string }) {
+  return <View style={styles.sectionLabelRow}><AppText variant="label">{children}</AppText>{aside ? <AppText variant="caption" style={styles.sectionAside}>{aside}</AppText> : null}</View>;
+}
+
+function ReviewHeader({ label, onEdit }: { label: string; onEdit: () => void }) {
+  return <View style={styles.reviewHeader}><AppText variant="label">{label}</AppText><Pressable accessibilityRole="button" accessibilityLabel={`Editar ${label.toLocaleLowerCase('pt-BR')}`} onPress={onEdit} hitSlop={8}><AppText style={styles.editLink}>Editar</AppText></Pressable></View>;
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return <View style={styles.reviewRow}><AppText variant="bodyStrong" style={styles.reviewKey}>{label}</AppText><AppText style={styles.reviewValue}>{value}</AppText></View>;
+}
+
+export function titleFromFilename(filename: string) {
+  return filename.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/(^|\s)(\p{L})/gu, (_, space: string, letter: string) => `${space}${letter.toLocaleUpperCase('pt-BR')}`);
+}
 
 export function uploadClientId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (key) => { const n = Math.floor(Math.random() * 16); return (key === 'x' ? n : (n & 3) | 8).toString(16); });
@@ -31,7 +61,9 @@ export default function UploadScreen() {
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<PickedPdf | null>(null);
   const [title, setTitle] = useState('');
+  const titleEdited = useRef(false);
   const [description, setDescription] = useState('');
+  const [author, setAuthor] = useState('');
   const [topic, setTopic] = useState<TopicId | null>(null);
   const [collectionId, setCollectionId] = useState(params.collection ?? '');
   const [access, setAccess] = useState<DocumentAccess>(params.comuna ? 'members' : 'private');
@@ -54,6 +86,7 @@ export default function UploadScreen() {
   const origin = useAsyncData(loadOrigin);
   const loadMemberships = useCallback(() => getMyComunas(), []);
   const memberships = useAsyncData(loadMemberships);
+  const topicGroups = useAsyncData(useCallback(() => getTopicGroups(), []));
   const loadCollections = useCallback((cursor: string | null) => listCollections({ scope: comunaSlug ? 'comuna' : 'personal', ...(comunaSlug ? { comuna: comunaSlug } : {}) }, cursor), [comunaSlug]);
   const collections = usePaginatedData(loadCollections);
   const canPublicize = original ? !!original.viewer.canPublicize : !comunaSlug || ['founder', 'moderator'].includes(origin.data?.viewerRole ?? '');
@@ -68,7 +101,7 @@ export default function UploadScreen() {
     getDocument(params.edit).then((document) => {
       if (!active) return;
       if (!document.viewer.canEdit) { setError('Você não pode editar este documento.'); return; }
-      setOriginal(document); setTitle(document.title ?? ''); setDescription(document.description ?? ''); setTopic(document.topic);
+      setOriginal(document); setTitle(document.title ?? ''); setDescription(document.description ?? ''); setAuthor(document.author ?? ''); setTopic(document.topic);
       setCollectionId(document.collection?.id ?? ''); setAccess(document.access ?? 'private'); setPublic(document.isPublic ?? false);
       setShares(document.distributions?.map((d) => d.slug) ?? []);
     }, (e: unknown) => { if (active) setError(describeError(e)); });
@@ -84,19 +117,24 @@ export default function UploadScreen() {
     setSelecting(true); setError('');
     try {
       const selected = await pickPdf();
-      if (selected && alive.current) { setFile(selected); setClientId(uploadClientId()); if (!title) setTitle(selected.name.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ')); }
+      if (selected && alive.current) {
+        setFile(selected);
+        setClientId(uploadClientId());
+        if (!titleEdited.current && !title) setTitle(titleFromFilename(selected.name));
+      }
     } catch (e) { if (alive.current) setError(describeError(e)); }
     finally { if (alive.current) setSelecting(false); }
   };
   const confirm = async () => {
     if (pending.current) return;
-    if (!collectionId || !title.trim() || (!params.edit && !file)) { setError('Escolha o PDF, dê um nome e selecione uma coleção.'); return; }
+    if (!collectionId || !topic || !title.trim() || (!params.edit && !file)) { setError('Confira o arquivo e preencha os campos obrigatórios.'); return; }
     pending.current = true; setBusy(true); setError(''); setProgress(0);
     const abort = new AbortController(); controller.current = abort;
     try {
       let result: LibraryDocument;
       if (params.edit) {
-        result = await editDocument(params.edit, { title: title.trim(), description: description.trim(), collectionId, access, topic, clearTopic: topic === null, ...(canPublicize ? { isPublic } : {}) });
+        const authorValue = author.trim();
+        result = await editDocument(params.edit, { title: title.trim(), description: description.trim(), ...(authorValue ? { author: authorValue } : { clearAuthor: true }), collectionId, access, topic, clearTopic: topic === null, ...(canPublicize ? { isPublic } : {}) });
         if (original?.viewer.canShare) {
           const previous = original.distributions?.map((d) => d.slug) ?? [];
           for (const slug of shares.filter((s) => !previous.includes(s))) await shareDocument(params.edit, slug, true);
@@ -104,7 +142,7 @@ export default function UploadScreen() {
           result = await getDocument(params.edit);
         }
       } else {
-        result = await uploadDocument(file!, { title: title.trim(), description: description.trim(), collectionId, access, topic, isPublic, sharedWith: shares, clientId }, (percent) => { if (alive.current) setProgress(percent); }, abort.signal);
+        result = await uploadDocument(file!, { title: title.trim(), description: description.trim(), ...(author.trim() ? { author: author.trim() } : {}), collectionId, access, topic, isPublic, sharedWith: shares, clientId }, (percent) => { if (alive.current) setProgress(percent); }, abort.signal);
       }
       if (alive.current) { setDone(result); setStep(5); }
     } catch (e) { if (alive.current) setError(`${params.edit ? 'Não foi possível concluir todas as alterações. Confira o documento antes de tentar novamente. ' : ''}${describeError(e)}`); }
@@ -113,6 +151,7 @@ export default function UploadScreen() {
   const next = () => {
     setError('');
     if (step === 1 && ((!file && !params.edit) || !title.trim() || (params.edit && !original))) { setError('Selecione um PDF e dê um nome ao documento.'); return; }
+    if (step === 2 && !topic) { setError('Escolha um assunto para o documento.'); return; }
     if (step === 2 && !collectionId) { setError('A coleção é obrigatória. Escolha uma ou crie agora.'); return; }
     if (step === 3 && comunaSlug && !origin.data) { setError('Aguarde carregar as permissões da comuna.'); return; }
     if (step === 4) void confirm(); else setStep((value) => value + 1);
@@ -123,57 +162,109 @@ export default function UploadScreen() {
     if (destination === 'composer' && params.composerKey) { returnAttachment(params.composerKey, done); goBack(); }
     else if (destination === 'post') router.replace({ pathname: '/criar', params: { documentId: done.id } });
     else if (destination === 'document') router.replace({ pathname: '/biblioteca/documento/[id]', params: { id: done.id } });
-    else router.replace({ pathname: '/biblioteca', params: { scope: comunaSlug ? 'comuna' : 'personal', ...(comunaSlug ? { comuna: comunaSlug, add: '1' } : {}) } });
+    else goBack();
   };
   const availableMemberships = memberships.data ?? [];
   const chosenCollection = collections.items.find((item) => item.id === collectionId);
+  const topicLabel = topicGroups.data?.flatMap((group) => group.topics).find((item) => item.id === topic)?.label ?? (topic ? 'Assunto selecionado' : '—');
   return <Screen><KeyboardView style={styles.flex}>
     <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={() => { if (step > 1 && step < 5 && !busy) setStep(step - 1); else goBack(); }} />
-      <View style={styles.flex}><AppText variant="heading">{params.edit ? 'Editar documento' : 'Adicionar PDF'}</AppText><AppText variant="caption">{comunaSlug ? `Biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText></View>
-      <AppText variant="caption">{step < 5 ? `${step} de 4` : 'Concluído'}</AppText></View>
+      <View style={styles.barDivider} />
+      <View style={styles.flex}><AppText variant="label" style={styles.barTitle}>{params.edit ? 'Editar documento' : 'Adicionar arquivo'}</AppText><AppText variant="caption" style={styles.barSubtitle}>{comunaSlug ? `Biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText></View>
+      <AppText variant="caption" style={styles.stepCounter}>{step < 5 ? `${step} de 4` : 'Concluído'}</AppText></View>
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       {step === 1 ? <>
-        <AppText variant="display">Arquivo e informações</AppText><AppText>Só PDF, até 25 MB. Nas próximas etapas você escolhe a coleção e quem pode abrir.</AppText>
-        {params.edit ? <AppText variant="caption">O arquivo é imutável. Para outro PDF, faça um novo envio.</AppText> : <PillButton label={selecting ? 'Abrindo arquivos…' : file ? 'Trocar PDF' : 'Escolher PDF do aparelho'} disabled={selecting} onPress={select} />}
-        {file ? <AppText>{file.name} · {sizeLabel(file.size ?? null)}</AppText> : null}
-        <TextField label="Nome do documento" value={title} onChangeText={setTitle} maxLength={160} />
-        <TextField label="Descrição curta" labelAside={`opcional · ${description.length}/1000`} value={description} onChangeText={setDescription} maxLength={1000} multiline />
-        <SingleTopicField value={topic} onChange={setTopic} optional />
+        <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Arquivo e informações</AppText><AppText style={styles.stepDescription}>Selecione o PDF do seu dispositivo e preencha as informações básicas.</AppText></View>
+        <View style={styles.fileSection}>
+          <AppText variant="label">Arquivo</AppText>
+          {params.edit ? <View style={styles.immutableFile}><Icon name="document" size={31} /><View style={styles.flex}><AppText variant="bodyStrong">PDF original preservado</AppText><AppText variant="caption">O arquivo é imutável. Para outro PDF, faça um novo envio.</AppText></View></View> : <Pressable accessibilityRole="button" accessibilityLabel={selecting ? 'Abrindo arquivos' : 'Selecionar arquivo'} disabled={selecting} onPress={select} style={({ pressed }) => [styles.filePicker, (pressed || selecting) && styles.pressed]}>
+            <View style={styles.filePickerIcon}><Icon name="document" size={34} /></View><View style={styles.flex}><AppText variant="bodyStrong">{selecting ? 'Abrindo arquivos…' : 'Selecionar arquivo'}</AppText><AppText variant="caption">PDF de até 25 MB.</AppText></View><Icon name="chevronRight" size={21} />
+          </Pressable>}
+          {file ? <View style={styles.selectedFile}><View style={styles.selectedFileIcon}><Icon name="document" size={27} color={Colors.paper} /></View><View style={styles.selectedFileCopy}><AppText variant="bodyStrong" numberOfLines={2} ellipsizeMode="middle">{file.name}</AppText><AppText variant="caption">{sizeLabel(file.size ?? null)} · PDF</AppText></View><IconButton icon="close" accessibilityLabel="Remover arquivo selecionado" onPress={() => setFile(null)} /></View> : null}
+        </View>
+        <TextField appearance="editorial" label="Nome do documento" value={title} onChangeText={(value) => { titleEdited.current = true; setTitle(value); }} maxLength={160} truncateWhenBlurred />
+        <TextField appearance="editorial" label="Autoria" labelAside="opcional" placeholder="Quem escreveu ou organizou?" hint="Informe manualmente; a autoria não é extraída do arquivo." value={author} onChangeText={setAuthor} maxLength={200} />
       </> : null}
       {step === 2 ? <>
-        <AppText variant="display">Escolha a coleção</AppText><AppText>Todo PDF precisa estar em uma coleção. Escolha uma existente ou crie agora mesmo, sem sair do envio.</AppText>
-        {collections.status === 'loading' ? <StateView kind="loading" message="Carregando coleções" /> : null}
-        {collections.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar as coleções." onRetry={collections.refresh} /> : null}
-        {collections.items.map((item) => <PillButton key={item.id} label={`${item.id === collectionId ? '✓ ' : ''}${item.name}`} selected={item.id === collectionId} variant={item.id === collectionId ? 'dark' : 'outline'} onPress={() => setCollectionId(item.id)} />)}
-        {chosenCollection === undefined && collectionId ? <AppText variant="caption">Uma coleção foi selecionada. Você pode escolher outra acima.</AppText> : null}
-        {collections.hasMore ? <PillButton label="Mais coleções" disabled={collections.loadingMore} onPress={collections.loadMore} variant="outline" /> : null}
-        {collections.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais coleções." onRetry={collections.loadMore} /> : null}
-        <PillButton label="Criar nova coleção" variant="outline" onPress={() => setNewCollection(true)} />
+        <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Detalhes</AppText><AppText style={styles.stepDescription}>Adicione uma descrição, escolha o assunto e organize o documento.</AppText></View>
+        <TextField appearance="editorial" label="Descrição curta" labelAside={`${description.length}/1000`} value={description} onChangeText={setDescription} maxLength={1000} multiline multilineHeight={148} />
+        <SingleTopicField value={topic} onChange={setTopic} error={!topic && error.startsWith('Escolha um assunto') ? error : undefined} appearance="editorial" />
+        <View style={styles.collectionSection}>
+          <SectionLabel aside="obrigatório">Coleção</SectionLabel>
+          <AppText variant="caption">Todo documento precisa estar em uma coleção.</AppText>
+          {collections.status === 'loading' ? <StateView kind="loading" message="Carregando coleções" /> : null}
+          {collections.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar as coleções." onRetry={collections.refresh} /> : null}
+          {collections.items.length ? <View style={styles.optionList}>
+            {collections.items.map((item) => <Pressable key={item.id} accessibilityRole="radio" accessibilityState={{ checked: item.id === collectionId }} accessibilityLabel={item.name} onPress={() => setCollectionId(item.id)} style={({ pressed }) => [styles.collectionOption, pressed && styles.pressed]}>
+              <Icon name="folder" size={24} /><AppText variant="bodyStrong" style={styles.flex}>{item.name}</AppText><RadioMark selected={item.id === collectionId} />
+            </Pressable>)}
+          </View> : null}
+          {chosenCollection === undefined && collectionId ? <AppText variant="caption">Uma coleção foi selecionada. Você pode escolher outra acima.</AppText> : null}
+          {collections.hasMore ? <EditorialAction label="Mais coleções" icon="chevronDown" disabled={collections.loadingMore} onPress={collections.loadMore} /> : null}
+          {collections.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais coleções." onRetry={collections.loadMore} /> : null}
+          <EditorialAction label="Criar nova coleção" icon="plus" onPress={() => setNewCollection(true)} />
+        </View>
       </> : null}
       {step === 3 ? <>
-        <AppText variant="display">Onde disponibilizar</AppText><AppText>O original fica em {comunaSlug ? `c/ ${origin.data?.name ?? comunaSlug}` : 'sua biblioteca'}. Cada lugar abaixo tem alcance próprio.</AppText>
-        <AppText variant="heading">{comunaSlug ? 'Biblioteca da comuna · Original' : 'Sua biblioteca · Original'}</AppText>
-        {(comunaSlug ? [...(origin.data?.visibility === 'public' ? [{ value: 'visitors' as const, label: 'Quem visitar a comuna' }] : []), { value: 'members' as const, label: 'Só membros' }, ...(canPublicize ? [{ value: 'moderators' as const, label: 'Só coordenação' }] : [])] : [{ value: 'private' as const, label: 'Só você' }, { value: 'followers' as const, label: 'Seus seguidores' }]).map((option) => <PillButton key={option.value} label={option.label} selected={access === option.value} variant={access === option.value ? 'dark' : 'outline'} onPress={() => setAccess(option.value)} />)}
+        <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Onde disponibilizar</AppText><AppText style={styles.stepDescription}>O arquivo fica na {comunaSlug ? `biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'sua biblioteca'}. Escolha também onde ele será compartilhado.</AppText></View>
+        <View style={styles.availabilitySection}>
+          <SectionLabel aside="obrigatório">{comunaSlug ? 'Biblioteca da comuna' : 'Sua biblioteca'}</SectionLabel>
+          <View style={styles.optionList}>
+            {(comunaSlug ? [...(origin.data?.visibility === 'public' ? ['visitors' as const] : []), 'members' as const, ...(canPublicize ? ['moderators' as const] : [])] : ['private' as const, 'followers' as const]).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: access === value }} accessibilityLabel={ACCESS_COPY[value].title} onPress={() => setAccess(value)} style={({ pressed }) => [styles.availabilityOption, pressed && styles.pressed]}>
+              <View style={styles.availabilityIcon}><Icon name={comunaSlug ? 'institution' : 'user'} size={30} /></View>
+              <View style={styles.flex}><AppText variant="bodyStrong">{ACCESS_COPY[value].title}</AppText><AppText variant="caption">{ACCESS_COPY[value].description}</AppText></View>
+              <RadioMark selected={access === value} />
+            </Pressable>)}
+          </View>
+        </View>
         {!comunaSlug ? <>
-          <AppText variant="caption">Continua restrito a seguidores mesmo se o perfil mudar.</AppText><AppText variant="heading">Comunas · Opcional</AppText>
-          <AppText>Compartilhar numa comuna não torna o PDF público nem o coloca na Biblioteca Pública.</AppText>
-          {memberships.status === 'loading' ? <StateView kind="loading" message="Carregando suas comunas" /> : null}
-          {memberships.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar suas comunas." onRetry={memberships.reload} /> : null}
-          {availableMemberships.map((comuna) => <View key={comuna.id} style={styles.group}><PillButton label={`${shares.includes(comuna.id) ? '✓ ' : ''}c/ ${comuna.name}`} selected={shares.includes(comuna.id)} disabled={comuna.status === 'archived' && !shares.includes(comuna.id)} variant={shares.includes(comuna.id) ? 'dark' : 'outline'} onPress={() => setShares((items) => items.includes(comuna.id) ? items.filter((s) => s !== comuna.id) : [...items, comuna.id])} />
-            <AppText variant="caption">{comuna.visibility === 'private' ? 'Só membros aprovados da comuna' : 'Quem visitar a biblioteca da comuna'}{comuna.status === 'archived' ? ' · Arquivada' : ''}</AppText></View>)}
-          {!availableMemberships.length && memberships.status === 'success' ? <AppText>Você ainda não participa de nenhuma comuna.</AppText> : null}
+          <View style={styles.availabilitySection}>
+            <SectionLabel aside="opcional">Comunas</SectionLabel>
+            <AppText variant="caption">Compartilhar numa comuna não torna o arquivo público nem o coloca na Biblioteca Pública.</AppText>
+            {memberships.status === 'loading' ? <StateView kind="loading" message="Carregando suas comunas" /> : null}
+            {memberships.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar suas comunas." onRetry={memberships.reload} /> : null}
+            {availableMemberships.length ? <View style={styles.optionList}>{availableMemberships.map((comuna) => {
+              const checked = shares.includes(comuna.id);
+              const disabled = comuna.status === 'archived' && !checked;
+              return <Pressable key={comuna.id} accessibilityRole="checkbox" accessibilityState={{ checked, disabled }} accessibilityLabel={`c/ ${comuna.name}`} disabled={disabled} onPress={() => setShares((items) => checked ? items.filter((slug) => slug !== comuna.id) : [...items, comuna.id])} style={({ pressed }) => [styles.comunaOption, disabled && styles.disabled, pressed && styles.pressed]}>
+                <CheckboxMark checked={checked} /><ComunaMark initials={comuna.initials ?? initialsOf(comuna.name)} tone={comuna.tone ?? 'red'} size={42} />
+                <View style={styles.flex}><AppText variant="bodyStrong">c/ {comuna.name}</AppText><AppText variant="caption">{comuna.visibility === 'private' ? 'Visível para membros da comuna' : 'Visível para quem visitar a comuna'}{comuna.status === 'archived' ? ' · Arquivada' : ''}</AppText></View>
+              </Pressable>;
+            })}</View> : null}
+            {!availableMemberships.length && memberships.status === 'success' ? <AppText>Você ainda não participa de nenhuma comuna.</AppText> : null}
+          </View>
         </> : null}
-        <AppText variant="heading">Biblioteca Pública · Opcional</AppText>
-        <AppText>Só entra quando você marcar. Dá para retirar depois.</AppText>
-        {canPublicize ? <PillButton label={isPublic ? '✓ Disponível para qualquer pessoa na Popularia' : 'Disponibilizar para qualquer pessoa na Popularia'} selected={isPublic} variant={isPublic ? 'dark' : 'outline'} onPress={() => setPublic(!isPublic)} /> : <AppText variant="caption">Só a propriedade ou a moderação da comuna pode tornar este PDF público.</AppText>}
+        <View style={styles.availabilitySection}>
+          <SectionLabel aside="opcional">Biblioteca pública</SectionLabel>
+          {canPublicize ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: isPublic }} accessibilityLabel="Biblioteca Pública" onPress={() => setPublic(!isPublic)} style={({ pressed }) => [styles.publicOption, pressed && styles.pressed]}>
+            <CheckboxMark checked={isPublic} /><Icon name="globe" size={32} /><View style={styles.flex}><AppText variant="bodyStrong">Biblioteca Pública</AppText><AppText variant="caption">Disponível para todas as pessoas no Popularia</AppText></View>
+          </Pressable> : <AppText variant="caption">Só a propriedade ou a moderação da comuna pode tornar este arquivo público.</AppText>}
+        </View>
       </> : null}
       {step === 4 ? <>
-        <AppText variant="display">Confira antes de enviar</AppText><AppText>Nada vai para o feed. O PDF entra na biblioteca com o acesso escolhido.</AppText>
-        <AppText variant="heading">{title}</AppText><AppText>{description}</AppText><AppText>Coleção: {chosenCollection?.name ?? original?.collection?.name ?? 'Coleção selecionada'}</AppText>
-        <AppText>Arquivo: {file?.name ?? 'PDF original preservado'}</AppText>
-        <AppText>Quem poderá abrir: {({ private: 'só você', followers: 'seus seguidores', visitors: 'quem visitar a comuna', members: 'membros da comuna', moderators: 'coordenação da comuna' })[access]}.</AppText>
-        {shares.map((slug) => <AppText key={slug}>Também em c/ {availableMemberships.find((c) => c.id === slug)?.name ?? slug}</AppText>)}
-        <AppText>{isPublic ? 'Também na Biblioteca Pública.' : 'Fica fora da Biblioteca Pública.'}</AppText>
+        <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Confira antes de enviar</AppText><AppText style={styles.stepDescription}>Verifique se as informações estão corretas.</AppText></View>
+        <View style={styles.reviewCard}>
+          <ReviewHeader label="Arquivo" onEdit={() => setStep(1)} />
+          <View style={styles.reviewFile}><View style={styles.selectedFileIcon}><Icon name="document" size={27} color={Colors.paper} /></View><View style={styles.flex}><AppText numberOfLines={2} ellipsizeMode="middle">{file?.name ?? 'PDF original preservado'}</AppText><AppText variant="caption">{file ? `${sizeLabel(file.size ?? null)} · PDF` : 'Arquivo original · PDF'}</AppText></View></View>
+        </View>
+        <View style={styles.reviewCard}>
+          <ReviewHeader label="Informações" onEdit={() => setStep(1)} />
+          <View style={styles.reviewRows}>
+            <ReviewRow label="Nome" value={title} />
+            <ReviewRow label="Autoria" value={author.trim() || '—'} />
+            <ReviewRow label="Descrição" value={description.trim() || '—'} />
+            <ReviewRow label="Assunto" value={topicLabel} />
+            <ReviewRow label="Coleção" value={chosenCollection?.name ?? original?.collection?.name ?? 'Coleção selecionada'} />
+          </View>
+        </View>
+        <View style={styles.reviewCard}>
+          <ReviewHeader label="Onde disponibilizar" onEdit={() => setStep(3)} />
+          <View style={styles.distributionList}>
+            <View style={styles.distributionRow}><Icon name={comunaSlug ? 'institution' : 'user'} size={30} /><View style={styles.flex}><AppText variant="bodyStrong">{comunaSlug ? `c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText><AppText variant="caption">{ACCESS_COPY[access].title}</AppText></View></View>
+            {shares.map((slug) => { const comuna = availableMemberships.find((item) => item.id === slug); return <View key={slug} style={styles.distributionRow}><ComunaMark initials={comuna?.initials ?? initialsOf(comuna?.name ?? slug)} tone={comuna?.tone ?? 'red'} size={38} /><View style={styles.flex}><AppText variant="bodyStrong">c/ {comuna?.name ?? slug}</AppText><AppText variant="caption">Visível para membros da comuna</AppText></View></View>; })}
+            {isPublic ? <View style={styles.distributionRow}><Icon name="globe" size={30} /><View style={styles.flex}><AppText variant="bodyStrong">Biblioteca Pública</AppText><AppText variant="caption">Disponível para todas as pessoas</AppText></View></View> : null}
+          </View>
+        </View>
         <AppText variant="caption">Ao enviar, você confirma que pode compartilhar este documento e que ele segue as regras do Popularia.</AppText>
         {busy ? <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress }} style={styles.group}><ActivityIndicator color={Colors.red} /><AppText>{progress < 100 ? `Enviando PDF · ${progress}%` : 'Validando e guardando o PDF…'}</AppText><PillButton label="Interromper envio" variant="outline" onPress={() => controller.current?.abort()} /></View> : null}
       </> : null}
@@ -183,10 +274,57 @@ export default function UploadScreen() {
         <PillButton label="Ver documento" variant="outline" onPress={() => exit('document')} />
         {!params.composerKey ? <PillButton label="Publicar no feed" variant="outline" onPress={() => exit('post')} /> : null}
       </> : null}
-      {error ? <AppText color={Colors.error} accessibilityLiveRegion="polite">{error}</AppText> : null}
-      {step < 5 ? <PillButton label={busy ? 'Enviando…' : step === 4 ? params.edit ? 'Salvar alterações' : error ? 'Tentar enviar novamente' : 'Enviar PDF' : 'Continuar'} disabled={busy || selecting} onPress={next} /> : null}
+      {error && !(step === 2 && error.startsWith('Escolha um assunto')) ? <AppText color={Colors.error} accessibilityLiveRegion="polite">{error}</AppText> : null}
+      {step < 5 ? <View style={styles.wizardActions}>
+        {step > 1 ? <EditorialAction label="Voltar" icon="back" disabled={busy} onPress={() => { setError(''); setStep(step - 1); }} style={styles.wizardBack} /> : null}
+        <EditorialAction label={busy ? 'Enviando…' : step === 4 ? params.edit ? 'Salvar alterações' : error ? 'Tentar enviar novamente' : 'Enviar arquivo' : 'Continuar'} icon={step === 4 ? params.edit ? 'check' : 'send' : 'arrowRight'} iconPosition="trailing" tone="red" disabled={busy || selecting} onPress={next} style={styles.wizardNext} />
+      </View> : null}
     </ScrollView>
     <CollectionEditor key={String(newCollection)} visible={newCollection} onClose={() => setNewCollection(false)} comuna={comunaSlug} onDone={(collection) => { if (collection) { collections.append(collection); setCollectionId(collection.id); } }} />
   </KeyboardView></Screen>;
 }
-const styles = StyleSheet.create({ flex: { flex: 1 }, bar: { flexDirection: 'row', alignItems: 'center', paddingRight: Spacing.five, gap: Spacing.two, borderBottomWidth: 1.5, borderColor: Colors.ink }, content: { padding: Spacing.five, gap: Spacing.four, maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center', paddingBottom: Spacing.seven }, group: { gap: Spacing.two } });
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  bar: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.one, gap: Spacing.two, borderBottomWidth: 1.5, borderColor: Colors.ink },
+  barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink },
+  barTitle: { fontSize: 12.5 },
+  barSubtitle: { color: Colors.muted },
+  stepCounter: { paddingHorizontal: Spacing.three },
+  content: { flexGrow: 1, padding: Spacing.five, gap: Spacing.four, maxWidth: MaxContentWidth, width: '100%', alignSelf: 'center', paddingBottom: Spacing.seven },
+  stepIntro: { gap: Spacing.three, marginBottom: Spacing.three },
+  stepTitle: { fontSize: 42, lineHeight: 45 },
+  stepDescription: { fontSize: 17, lineHeight: 24 },
+  sectionLabelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: Spacing.three },
+  sectionAside: { color: Colors.muted },
+  fileSection: { gap: Spacing.three },
+  filePicker: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
+  filePickerIcon: { width: 42, alignItems: 'center' },
+  immutableFile: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, padding: Spacing.four },
+  selectedFile: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+  selectedFileIcon: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.red },
+  selectedFileCopy: { flex: 1, minWidth: 0 },
+  collectionSection: { gap: Spacing.three, paddingTop: Spacing.two },
+  availabilitySection: { gap: Spacing.three },
+  optionList: { borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
+  collectionOption: { minHeight: 58, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+  availabilityOption: { minHeight: 76, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+  availabilityIcon: { width: 38, alignItems: 'center' },
+  comunaOption: { minHeight: 68, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+  publicOption: { minHeight: 72, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
+  disabled: { opacity: 0.45 },
+  wizardActions: { flexDirection: 'row', gap: Spacing.three, marginTop: 'auto', paddingTop: Spacing.six },
+  wizardBack: { flex: 0.72 },
+  wizardNext: { flex: 1.15 },
+  pressed: { opacity: 0.68 },
+  group: { gap: Spacing.two },
+  reviewCard: { borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, padding: Spacing.four, gap: Spacing.four },
+  reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three },
+  editLink: { textDecorationLine: 'underline' },
+  reviewFile: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
+  reviewRows: { gap: Spacing.three },
+  reviewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.four },
+  reviewKey: { width: 92 },
+  reviewValue: { flex: 1, minWidth: 0 },
+  distributionList: { gap: Spacing.four },
+  distributionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
+});

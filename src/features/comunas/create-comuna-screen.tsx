@@ -163,7 +163,7 @@ export default function CreateComunaScreen() {
 
   const bar = (
     <View style={styles.bar}>
-      <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={close} />
+      <IconButton icon="back" size={20} accessibilityLabel="Voltar" onPress={close} />
       <AppText style={styles.barTitle} accessibilityRole="header" numberOfLines={1}>
         Nova comuna
       </AppText>

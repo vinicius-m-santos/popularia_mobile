@@ -126,7 +126,7 @@ export default function AccountScreen() {
             <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
           </View>
         )}
-        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
               {signup ? 'Crie sua conta' : 'Entrar'}
@@ -187,7 +187,7 @@ export default function AccountScreen() {
             autoCorrect={false}
             autoComplete={signup ? 'new-password' : 'current-password'}
             textContentType={signup ? 'newPassword' : 'password'}
-            hint={submitted && passwordError ? passwordError : (serverError ?? undefined)}
+            hint={(password.length > 0 || submitted) && passwordError ? passwordError : (serverError ?? undefined)}
             hintColor={Colors.red}
             accessory={
               <Pressable
@@ -227,7 +227,7 @@ export default function AccountScreen() {
           </View>
         </ScrollView>
         <OnboardingFooter
-          disabled={busy}
+          disabled={busy || !valid}
           label={busy ? 'Entrando…' : signup ? 'Continuar' : 'Entrar'}
           onPress={submit}
           hint={

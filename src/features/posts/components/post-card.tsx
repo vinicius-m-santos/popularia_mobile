@@ -78,7 +78,8 @@ export function PostCard({ item, showRule = false, showComuna = true, showMuted 
         {images && images.length > 0 ? <PostImages images={images} /> : null}
       </Pressable>
 
-      {item.document ? <DocumentCard document={item.document} /> : null}
+      {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
+      {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
       {event ? <EventBox event={event} /> : null}
       {media ? (
         <Pressable onPress={open} accessibilityHint="Abre a discussão">

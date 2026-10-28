@@ -19,6 +19,7 @@ import { JoinButton } from '@/features/comunas/components/join-button';
 import { PersonRow } from '@/features/profiles/components/person-row';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { formatPeople } from '@/lib/format';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, Topic } from '@/types/models';
@@ -59,6 +60,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
     if (focusedOnce.current) reloadRef.current();
     focusedOnce.current = true;
   }, []));
+  const pullRefresh = useManualRefresh(data.status === 'loading', reload);
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [filter, setFilter] = useState<DiscoveryFilter>('all');
@@ -94,7 +96,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
         {data.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a descoberta." onRetry={reload} /> : null}
         {!data.data ? (data.status === 'loading' ? <StateView kind="loading" message="Carregando descoberta" /> : null) :
           topicId && !topic ? <StateView kind="empty" title="Assunto não encontrado" /> :
-          showHome ? <DiscoveryHome data={data.data} topic={topic} onSee={setFilter} refreshing={data.isRefreshing} onRefresh={reload} /> :
+          showHome ? <DiscoveryHome data={data.data} topic={topic} onSee={setFilter} refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} /> :
           short ? <StateView kind="empty" title="Continue escrevendo" message="Use pelo menos três letras ou números seguidos para buscar." /> :
           query.trim() !== debounced ? <StateView kind="loading" message="Buscando" /> :
           <SearchResults ownUserId={me.id} query={debounced} filter={filter} topicId={topicId} topics={data.data.topics} onSee={setFilter} />}
@@ -110,12 +112,18 @@ function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
   const recent = data.recentPosts.filter((p) => !data.posts.some((featured) => featured.id === p.id));
   const empty = !data.comunas.length && !data.posts.length && !data.people.length && !recent.length;
   return (
-    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.red} />}>
-      {!topic ? <Pressable accessibilityRole="link" accessibilityLabel="Biblioteca Pública" onPress={() => router.push('/biblioteca')} style={{ marginTop: Spacing.five, padding: Spacing.five, gap: Spacing.two, backgroundColor: Colors.ink, borderRadius: Radius.xl }}>
-        <AppText variant="label" color={Colors.onInkMuted}>Biblioteca Pública</AppText>
-        <AppText variant="heading" color={Colors.cream}>Conhecimento para ficar</AppText>
-        <AppText color={Colors.cream}>Cartilhas, atas e estudos que pessoas e comunas escolheram compartilhar.</AppText>
+      {!topic ? <Pressable accessibilityRole="link" accessibilityLabel="Abrir Biblioteca Pública" accessibilityHint="Vai para a Biblioteca Pública" onPress={() => router.push('/biblioteca')} style={({ pressed }) => [styles.libraryCard, pressed && styles.libraryCardPressed]}>
+        <View style={styles.libraryCardHead}>
+          <View style={styles.libraryIcon}><Icon name="library" size={22} color={Colors.cream} /></View>
+          <View style={styles.libraryTitle}>
+            <AppText variant="label" color={Colors.red}>Abrir acervo</AppText>
+            <AppText variant="heading" color={Colors.cream}>Biblioteca Pública</AppText>
+          </View>
+          <Icon name="chevronRight" size={20} color={Colors.cream} />
+        </View>
+        <AppText color={Colors.onInkMuted}>Cartilhas, atas e estudos compartilhados por pessoas e comunas.</AppText>
       </Pressable> : null}
       {!topic ? (
         <View style={styles.section}>
@@ -163,6 +171,7 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
   const load = useCallback((cursor: string | null) => searchDiscovery(ownUserId, query, filter, topicId, cursor), [ownUserId, query, filter, topicId]);
   const result = usePaginatedData(load);
   const { refresh } = result;
+  const pullRefresh = useManualRefresh(result.status === 'loading' || result.isRefreshing, refresh);
   const focusedOnce = useRef(false);
   const refreshRef = useRef(refresh);
   useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -171,8 +180,8 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
     focusedOnce.current = true;
   }, []));
   return (
-    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={result.isRefreshing} onRefresh={refresh} tintColor={Colors.red} />}>
+    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} tintColor={Colors.red} />}>
       {result.status === 'loading' ? <StateView kind="loading" message="Buscando" /> : null}
       {result.status === 'error' || result.refreshError ? <StateView kind="error" message="Não conseguimos buscar agora." onRetry={refresh} /> : null}
       {result.status === 'success' && !result.items.length ? <StateView kind="empty" title="Nenhum resultado" message={query ? `Nada para “${query}”. Tente outra palavra.` : 'Nada nesta categoria por enquanto.'} /> : null}
@@ -182,12 +191,12 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
           <SectionHeading label={section.label} actionLabel={filter === 'all' ? 'Ver todas' : undefined} onAction={() => onSee(section.key)} />
           {items.map((entry) => entry.kind === 'comunas' ? <DiscoveryComuna key={entry.id} comuna={entry.value} topics={topics} /> :
             entry.kind === 'people' ? <PersonRow key={entry.id} user={entry.value} subtitle={`@${entry.value.handle}`} onOpen={() => nav.openProfile(entry.id)} /> :
-            entry.kind === 'posts' ? <DiscoveryPostRow key={entry.id} post={entry.value} /> : <DocumentCard key={entry.id} document={entry.value} />)}
+            entry.kind === 'posts' ? <DiscoveryPostRow key={entry.id} post={entry.value} /> : <DocumentCard key={entry.id} document={entry.value} appearance="editorial" />)}
         </View> : null;
       })}
       {result.items.some((item) => item.kind === 'documents') ? <View style={styles.section}>
         <SectionHeading label="Documentos" actionLabel="Ver todos" onAction={() => router.push({ pathname: '/biblioteca', params: { q: query, ...(topicId ? { topic: topicId } : {}) } })} />
-        {result.items.filter((item) => item.kind === 'documents').map((item) => item.kind === 'documents' ? <DocumentCard key={item.id} document={item.value} /> : null)}
+        {result.items.filter((item) => item.kind === 'documents').map((item) => item.kind === 'documents' ? <DocumentCard key={item.id} document={item.value} appearance="editorial" /> : null)}
       </View> : null}
       {result.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais resultados." onRetry={result.loadMore} /> :
         result.hasMore ? <PillButton label={result.loadingMore ? 'Carregando…' : 'Carregar mais'} variant="outline" disabled={result.loadingMore} onPress={result.loadMore} /> : null}
@@ -212,8 +221,13 @@ const styles = StyleSheet.create({
   search: { marginTop: Spacing.two, marginHorizontal: Spacing.five, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.pill, backgroundColor: Colors.paper, paddingLeft: 14, paddingRight: 2 },
   input: { flex: 1, minWidth: 0, minHeight: 46, fontFamily: Fonts.regular, fontSize: 15.5, color: Colors.ink, paddingVertical: Spacing.two, outlineWidth: 0 },
   filters: { paddingTop: Spacing.three },
-  content: { paddingHorizontal: Spacing.five, paddingBottom: Spacing.seven, gap: Spacing.five },
-  section: { paddingTop: Spacing.five, gap: Spacing.one },
+  content: { paddingHorizontal: Spacing.five, paddingTop: Spacing.three, paddingBottom: Spacing.seven, gap: Spacing.three },
+  libraryCard: { padding: Spacing.five, gap: Spacing.three, backgroundColor: Colors.ink, borderRadius: Radius.xl, borderBottomWidth: 4, borderBottomColor: Colors.red },
+  libraryCardPressed: { opacity: 0.82 },
+  libraryCardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  libraryIcon: { width: 42, height: 42, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.inkSoft },
+  libraryTitle: { flex: 1, minWidth: 0, gap: 2 },
+  section: { gap: Spacing.one },
   topics: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, paddingTop: Spacing.two },
   topic: { minHeight: 44, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.lg, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, justifyContent: 'center', maxWidth: '100%' },
   topicLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 20 },

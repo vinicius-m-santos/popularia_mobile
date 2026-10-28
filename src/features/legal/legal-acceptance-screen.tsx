@@ -1,6 +1,5 @@
-import { DeletionPanel } from '@/features/account/deletion-panel';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView } from 'react-native';
+import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Screen } from '@/components/screen';
 import { AppText } from '@/components/app-text';
 import { PillButton } from '@/components/pill-button';
@@ -8,10 +7,11 @@ import { CheckboxMark } from '@/components/choice-marks';
 import { useAccount } from '@/features/account/account-context';
 import { acceptLegal } from '@/features/account/api';
 import { describeError } from '@/lib/errors';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { LegalAppLink } from './legal-links';
 
-export default function LegalAcceptanceScreen({ onDefer }: { onDefer?: () => void }) {
-  const { account, reloadAccount, signOut } = useAccount();
+export default function LegalAcceptanceScreen() {
+  const { reloadAccount, signOut } = useAccount();
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -19,11 +19,15 @@ export default function LegalAcceptanceScreen({ onDefer }: { onDefer?: () => voi
   const submit = async () => {
     if (!accepted || pending.current) return;
     pending.current = true; setBusy(true); setError('');
-    try { await acceptLegal(); await reloadAccount(); onDefer?.(); }
+    try { await acceptLegal(); await reloadAccount(); }
     catch (e) { setError(describeError(e)); }
     finally { pending.current = false; setBusy(false); }
   };
-  return <Screen><ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={{ padding: 24, gap: 24, maxWidth: 680, alignSelf: 'center', width: '100%' }}>
+  return <Screen><ScrollView
+    contentInsetAdjustmentBehavior="never"
+    automaticallyAdjustContentInsets={false}
+    automaticallyAdjustsScrollIndicatorInsets={false}
+    contentContainerStyle={styles.content}>
     <AppText variant="heading" accessibilityRole="header">Antes de participar</AppText>
     <AppText>Leia os documentos antes de publicar. O beta do Popularia é para maiores de 18 anos. A Política explica como seus dados são tratados.</AppText>
     <LegalAppLink />
@@ -32,9 +36,18 @@ export default function LegalAcceptanceScreen({ onDefer }: { onDefer?: () => voi
     </Pressable>
     {error ? <AppText accessibilityRole="alert">{error}</AppText> : null}
     <PillButton label={busy ? 'Salvando…' : 'Aceitar e continuar'} disabled={!accepted || busy} onPress={submit} />
-    {onDefer && !account?.pendingOnboarding ? <PillButton label="Continuar apenas para gerenciar a conta" variant="outline" disabled={busy} onPress={onDefer} /> : null}
     <PillButton label="Sair da conta" variant="outline" disabled={busy} onPress={() => signOut().catch((e) => setError(describeError(e)))} />
-    <AppText variant="caption">Você pode excluir a conta sem aceitar os documentos.</AppText>
-    <DeletionPanel />
   </ScrollView></Screen>;
 }
+
+const styles = StyleSheet.create({
+  content: {
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.seven,
+    gap: Spacing.five,
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    width: '100%',
+  },
+});

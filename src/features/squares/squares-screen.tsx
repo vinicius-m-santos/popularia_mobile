@@ -1,14 +1,17 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Icon } from '@/components/icon';
+import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
+import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { initialsOf } from '@/lib/format';
 
@@ -22,30 +25,47 @@ export default function SquaresScreen() {
 }
 
 function ConnectedSquares() {
-  const mine = usePaginatedData(useCallback((cursor: string | null) => listSquares('mine', cursor), []));
-  const discover = usePaginatedData(useCallback((cursor: string | null) => listSquares('discover', cursor), []));
+  const [query, setQuery] = useState('');
+  const [term, setTerm] = useState('');
+  useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
+  const mine = usePaginatedData(useCallback((cursor: string | null) => listSquares('mine', cursor, term), [term]));
+  const discover = usePaginatedData(useCallback((cursor: string | null) => listSquares('discover', cursor, term), [term]));
   const refreshMine = mine.refresh;
   const refreshDiscover = discover.refresh;
-  useFocusEffect(useCallback(() => { refreshMine(); refreshDiscover(); }, [refreshMine, refreshDiscover]));
+  const refresh = useCallback(() => { refreshMine(); refreshDiscover(); }, [refreshMine, refreshDiscover]);
+  const revalidateMine = mine.revalidate;
+  const revalidateDiscover = discover.revalidate;
+  const revalidate = useCallback(() => { revalidateMine(); revalidateDiscover(); }, [revalidateMine, revalidateDiscover]);
+  const revalidateRef = useRef(revalidate);
+  const focusedOnce = useRef(false);
+  useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current) revalidateRef.current();
+    focusedOnce.current = true;
+  }, []));
   const mineIds = new Set(mine.items.map((s) => s.id));
   const items = [...mine.items, ...discover.items.filter((s) => !mineIds.has(s.id))];
   const loading = mine.status === 'loading' || discover.status === 'loading';
-  const refresh = () => { mine.refresh(); discover.refresh(); };
+  const pullRefresh = useManualRefresh(loading || mine.isRefreshing || discover.isRefreshing, refresh);
   const noJoined = mine.status === 'success' && mine.items.length === 0;
   return (
     <Screen title="Praças">
       <FlatList
+        testID="squares-list"
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        contentContainerStyle={styles.list}
         data={items}
         keyExtractor={(s) => s.id}
-        refreshing={mine.isRefreshing || discover.isRefreshing}
-        onRefresh={refresh}
+        refreshing={pullRefresh.refreshing}
+        onRefresh={pullRefresh.onRefresh}
         renderItem={({ item, index }) => <>
           {index === 0 || (index > 0 && mineIds.has(items[index - 1].id) && !mineIds.has(item.id)) ? <AppText variant="label" color={Colors.muted} style={styles.section}>{mineIds.has(item.id) ? 'Suas Praças' : 'Acontecendo agora'}</AppText> : null}
           <SquareRow square={item} />
         </>}
-        ListEmptyComponent={loading ? <StateView kind="loading" message="Carregando Praças" /> : !mine.error && !discover.error ? <StateView kind="empty" title="Abra uma conversa" message="As Praças das comunas aparecerão aqui." /> : undefined}
+        ListHeaderComponent={<View style={styles.search}><Icon name="search" size={20} /><TextInput value={query} onChangeText={setQuery} placeholder="Buscar Praças" placeholderTextColor={Colors.placeholder} accessibilityLabel="Buscar Praças" autoCapitalize="none" autoCorrect={false} returnKeyType="search" style={styles.input} />{query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}</View>}
+        ListEmptyComponent={loading ? <StateView kind="loading" message="Carregando Praças" /> : !mine.error && !discover.error ? <StateView kind="empty" title={term ? 'Nenhuma Praça encontrada' : 'Abra uma conversa'} message={term ? 'Tente buscar por outro nome ou lugar.' : 'As Praças das comunas aparecerão aqui.'} /> : undefined}
         ListFooterComponent={<View style={styles.footer}>
           {mine.error || discover.error || mine.refreshError || discover.refreshError ? <StateView kind="error" message="Não foi possível atualizar as Praças." onRetry={refresh} /> : null}
           {mine.loadMoreError || discover.loadMoreError ? <StateView kind="error" message="Não foi possível carregar mais Praças." onRetry={() => { mine.loadMore(); discover.loadMore(); }} /> : null}
@@ -74,6 +94,9 @@ function SquareRow({ square: s }: { square: Square }) {
   </Pressable>;
 }
 const styles = StyleSheet.create({
+  list: { paddingTop: Spacing.three },
+  search: { marginHorizontal: Spacing.five, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.pill, backgroundColor: Colors.paper, paddingLeft: 14, paddingRight: 2 },
+  input: { flex: 1, minWidth: 0, minHeight: 46, fontFamily: Fonts.regular, fontSize: 15.5, color: Colors.ink, paddingVertical: Spacing.two },
   section: { paddingHorizontal: Spacing.five, paddingTop: Spacing.six, paddingBottom: Spacing.two },
   row: { flexDirection: 'row', gap: 14, padding: Spacing.five, borderBottomWidth: 1, borderColor: Colors.rule },
   content: { flex: 1, gap: 4 }, name: { textTransform: 'uppercase' },

@@ -156,6 +156,8 @@ export type Comment = {
   status?: CommentStatus;
   /** Só na API: a pessoa logada escreveu este comentário (segundo o servidor). */
   isOwn?: boolean;
+  /** Estado persistido do apoio da pessoa logada. */
+  viewerSupported?: boolean;
 };
 
 export type CommentStatus = 'published' | 'deleted' | 'removed' | 'hidden';

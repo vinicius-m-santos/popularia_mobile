@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ translateY: 1 }],
+    transform: [{ translateY: -2 }],
   },
   symbol: {
     width: 32,

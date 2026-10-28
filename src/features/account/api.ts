@@ -31,6 +31,7 @@ export type MeDto = {
   /** false para contas criadas via Google/Apple sem senha definida. */
   hasPassword: boolean;
   legalAccepted: boolean;
+  followerCount: number;
 };
 
 export type SocialProvider = 'google' | 'apple';

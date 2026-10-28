@@ -125,5 +125,6 @@ export type CommentDto = {
   body: string | null;
   author: AuthorDto | null;
   createdAt: string;
-  viewer: { isAuthor: boolean; canRemove: boolean };
+  supportCount: number;
+  viewer: { isAuthor: boolean; canRemove: boolean; supported: boolean };
 };

@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type ComponentRef, type RefObject } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Colors, Fonts } from '@/constants/theme';
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import type { SquareMessage } from '../api';
 
 export function SquareComposer({ inputRef, reply, sending, onCancel, onSend, onStickers }: {
@@ -14,14 +15,9 @@ export function SquareComposer({ inputRef, reply, sending, onCancel, onSend, onS
 }) {
   const [draft, setDraft] = useState('');
   const [emojis, setEmojis] = useState(false);
-  const [keyboard, setKeyboard] = useState(false);
+  const keyboard = useKeyboardVisible();
   const lock = useRef(false);
   const insets = useSafeAreaInsets();
-  useEffect(() => {
-    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboard(true));
-    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboard(false));
-    return () => { show.remove(); hide.remove(); };
-  }, []);
   const submit = async () => {
     if (lock.current || sending || !draft.trim()) return;
     lock.current = true;
@@ -29,7 +25,7 @@ export function SquareComposer({ inputRef, reply, sending, onCancel, onSend, onS
     try { if (await onSend(submitted.trim())) setDraft((current) => current === submitted ? '' : current); }
     finally { lock.current = false; }
   };
-  return <View style={[styles.root, { paddingBottom: keyboard ? 8 : Math.max(insets.bottom, 8) }]}>
+  return <View style={[styles.root, { paddingBottom: keyboard ? 0 : Math.max(insets.bottom, 8) }]}>
     {reply ? <View style={styles.reply}>
       <View style={styles.flex}><AppText variant="caption" color={Colors.red}>Respondendo a {reply.author?.displayName ?? 'mensagem'}</AppText><AppText variant="caption" numberOfLines={1}>{reply.body ?? reply.sticker?.label ?? 'Mensagem indisponível'}</AppText></View>
       <IconButton icon="close" accessibilityLabel="Cancelar resposta" onPress={onCancel} />

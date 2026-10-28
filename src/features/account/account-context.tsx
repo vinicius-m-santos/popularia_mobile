@@ -52,7 +52,7 @@ const DEMO_PROFILE: AccountProfile = {
 
 const EMPTY_PROFILE: AccountProfile = { name: '', handle: '', city: '', state: '', country: 'Brasil', countryCode: 'BR', stateIbgeCode: '', municipalityIbgeCode: '', bio: '' };
 
-export const BIO_MAX_LENGTH = 160;
+export const BIO_MAX_LENGTH = 150;
 
 export type SessionStatus = 'restoring' | 'signedOut' | 'signedIn';
 
@@ -85,6 +85,8 @@ type AccountValue = {
   /** Sai deste aparelho (ou de todos) e volta para as boas-vindas. */
   signOut: (everywhere?: boolean) => Promise<void>;
   reloadAccount: () => Promise<void>;
+  /** Confirma no servidor e publica imediatamente o novo estado para todas as telas. */
+  confirmEmail: (code: string) => Promise<void>;
   deleteAccount: (proof: accountApi.DeletionProof) => Promise<void>;
   showWelcome: boolean;
   dismissWelcome: () => void;
@@ -369,6 +371,18 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (!DEMO_MODE) applyAccount(await accountApi.getMe());
   }, [applyAccount]);
 
+  const confirmEmail = useCallback(async (code: string) => {
+    if (DEMO_MODE) return;
+    await accountApi.verifyEmail(code);
+    // O POST já confirmou a conta. Não mantenha bloqueios se o refresh seguinte falhar.
+    setAccount((current) => current ? { ...current, emailVerified: true } : current);
+    try {
+      applyAccount(await accountApi.getMe());
+    } catch (error) {
+      if (__DEV__) console.warn('E-mail confirmado; não foi possível atualizar os demais dados da conta.', error);
+    }
+  }, [applyAccount]);
+
   const dismissWelcome = useCallback(() => setShowWelcome(false), []);
 
   const onboarded = status === 'signedIn' && !signingUp;
@@ -393,6 +407,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signOut,
       reloadAccount,
+      confirmEmail,
       deleteAccount,
       showWelcome,
       dismissWelcome,
@@ -416,6 +431,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signInWithApple,
       signOut,
       reloadAccount,
+      confirmEmail,
       deleteAccount,
       showWelcome,
       dismissWelcome,
@@ -432,21 +448,21 @@ export function useAccount(): AccountValue {
 }
 
 /**
- * A pessoa logada como `User`, para exibir nome, @ e avatar. O `id` é sempre o "me" dos mocks:
- * serve só para as telas fictícias (perfil, explorar, moderação). Ele nunca vai para a API,
- * e conteúdo real não é comparado com ele: use `viewer.isAuthor`/`isOwn` vindos do servidor.
+ * A pessoa logada como `User`, para exibir nome, @ e avatar. Na API, usa somente o estado
+ * persistido da conta; rascunhos de formulário não podem vazar para o restante do aplicativo.
  */
 export function useMe(): User {
-  const { profile } = useAccount();
+  const { account, profile } = useAccount();
   return useMemo(() => {
     const base = findUser(currentUser.id);
-    const name = profile.name.trim() || base?.name || 'Você';
+    const name = account?.displayName.trim() || (DEMO_MODE ? profile.name.trim() || base?.name : '') || 'Você';
+    const handle = account?.handle ?? (DEMO_MODE ? profile.handle || base?.handle || '' : '');
     return {
-      id: currentUser.id,
-      tone: base?.tone ?? 'red',
+      id: account?.id ?? currentUser.id,
+      tone: account ? (['red', 'black', 'cream'] as const)[Math.abs([...account.id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 0)) % 3] : base?.tone ?? 'red',
       name,
-      handle: profile.handle || base?.handle || '',
+      handle,
       initials: initialsOf(name),
     };
-  }, [profile.name, profile.handle]);
+  }, [account, profile.name, profile.handle]);
 }

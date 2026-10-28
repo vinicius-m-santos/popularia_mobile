@@ -1,13 +1,13 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
-import { PillButton } from '@/components/pill-button';
 import { TextField } from '@/components/text-field';
+import { SelectField } from '@/components/select-field';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
@@ -17,6 +17,7 @@ import { ApiError, describeError } from '@/lib/errors';
 import { checkHandleAvailable } from './api';
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
 import { BrazilLocationFields } from '@/features/locations/brazil-location-fields';
+import { getCountries, type Country } from '@/features/locations/api';
 
 const HANDLE_MAX_LENGTH = 20;
 
@@ -46,6 +47,8 @@ export default function SetupScreen() {
   const busyRef = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [check, setCheck] = useState<HandleCheck | null>(null);
+  const [countries, setCountries] = useState<Country[]>(DEMO_MODE ? [{ code: 'BR', name: 'Brasil' }] : []);
+  const [countryError, setCountryError] = useState('');
 
   const nameMissing = profile.name.trim() === '';
   const handleShort = profile.handle.length < 3;
@@ -71,6 +74,13 @@ export default function SetupScreen() {
 
   const checked = check?.handle === profile.handle ? check : null;
   const handleTaken = !handleShort && !ownHandle && checked?.available === false;
+  const countryOptions = useMemo(() => countries.map((country) => ({ value: country.code, label: country.name })), [countries]);
+  const locationMissing = !profile.countryCode || (profile.countryCode === 'BR' && (!profile.stateIbgeCode || !profile.municipalityIbgeCode));
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    getCountries().then(setCountries, () => setCountryError('Não conseguimos carregar os países.'));
+  }, []);
 
   let handleHint = ownHandle || checked?.available ? '✓ Disponível' : checked ? '' : 'Conferindo…';
   let handleColor: string = Colors.ink;
@@ -87,7 +97,7 @@ export default function SetupScreen() {
 
   const next = async () => {
     if (busyRef.current) return;
-    if (nameMissing || handleShort || handleTaken) {
+    if (nameMissing || handleShort || handleTaken || locationMissing) {
       setSubmitted(true);
       toast.show('Confira os campos destacados para continuar.');
       return;
@@ -106,8 +116,9 @@ export default function SetupScreen() {
         router.push('/boas-vindas/assuntos');
       } else {
         const alreadyVerified = account?.emailVerified ?? false;
+        const registrationSendsCode = !account;
         await completeSignupProfile();
-        router.push(alreadyVerified ? '/boas-vindas/assuntos' : '/boas-vindas/verificar');
+        router.push(alreadyVerified ? '/boas-vindas/assuntos' : { pathname: '/boas-vindas/verificar', params: registrationSendsCode ? { sent: '1' } : {} });
       }
     } catch (error) {
       if (error instanceof ApiError && Object.keys(error.violations).length > 0) {
@@ -179,14 +190,12 @@ export default function SetupScreen() {
             hint={handleHint}
             hintColor={handleColor}
           />
-          <TextField
-            label="País"
-            value={profile.country}
-            onChangeText={(country) => updateProfile({ country })}
-            placeholder="Brasil"
-          />
-          <View style={styles.countryChoices}><PillButton label="Brasil" variant={profile.country.trim().toLowerCase() === 'brasil' ? 'dark' : 'outline'} onPress={() => updateProfile({ country: 'Brasil' })} /><PillButton label="Outro país" variant={profile.country.trim().toLowerCase() !== 'brasil' && profile.country.trim() ? 'dark' : 'outline'} onPress={() => updateProfile({ country: '' })} /></View>
-          {profile.country.trim().toLowerCase() === 'brasil' ? <BrazilLocationFields stateId={profile.stateIbgeCode} municipalityId={profile.municipalityIbgeCode} city={profile.city} state={profile.state} onChange={updateProfile} /> : <AppText color={Colors.muted}>Para outros países, cidade e estado ficam ocultos por enquanto.</AppText>}
+          <SelectField label="País" value={profile.countryCode} placeholder="Selecione o país" loading={!DEMO_MODE && countries.length === 0 && !countryError} error={countryError || (submitted && !profile.countryCode ? 'Escolha um país.' : undefined)} options={countryOptions} onChange={(countryCode) => {
+            const country = countries.find((item) => item.code === countryCode);
+            updateProfile({ countryCode, country: country?.name ?? '', ...(countryCode === 'BR' ? {} : { city: '', state: '', stateIbgeCode: '', municipalityIbgeCode: '' }) });
+          }} />
+          {profile.countryCode === 'BR' ? <BrazilLocationFields stateId={profile.stateIbgeCode} municipalityId={profile.municipalityIbgeCode} city={profile.city} state={profile.state} onChange={updateProfile} /> : <AppText color={Colors.muted}>Para outros países, cidade e estado ficam ocultos por enquanto.</AppText>}
+          {submitted && locationMissing && profile.countryCode === 'BR' ? <AppText color={Colors.red}>Escolha seu estado e sua cidade.</AppText> : null}
           <TextField
             label="Bio"
             labelAside={`opcional · ${profile.bio.length}/${BIO_MAX_LENGTH}`}
@@ -248,11 +257,6 @@ const styles = StyleSheet.create({
   },
   photoText: {
     flex: 1,
-  },
-  countryChoices: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    flexWrap: 'wrap',
   },
   photoTitle: {
     fontFamily: Fonts.extrabold,

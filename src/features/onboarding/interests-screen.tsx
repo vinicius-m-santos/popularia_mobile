@@ -49,7 +49,7 @@ export default function InterestsScreen() {
   return (
     <Screen edges={['top', 'left', 'right']}>
       <View style={styles.bar}>
-        <IconButton icon="close" size={20} accessibilityLabel="Fechar sem salvar" onPress={() => router.back()} />
+        <IconButton icon="back" size={20} accessibilityLabel="Voltar sem salvar" onPress={() => router.back()} />
         <AppText style={styles.barTitle} accessibilityRole="header">
           Interesses
         </AppText>

@@ -1,5 +1,5 @@
-import { useState, type ComponentProps, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { useRef, useState, type ComponentProps, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, Radius } from '@/constants/theme';
@@ -16,7 +16,18 @@ type TextFieldProps = Omit<ComponentProps<typeof TextInput>, 'style'> & {
   inputRef?: Ref<ComponentRef<typeof TextInput>>;
   /** Botão dentro do campo, à direita, como "Mostrar" senha. */
   accessory?: ReactNode;
+  /** Variante sem cantos arredondados e com rótulo mono para formulários editoriais. */
+  appearance?: 'default' | 'editorial';
+  /** Altura mínima da caixa quando `multiline` estiver ativo. */
+  multilineHeight?: number;
+  /** Exibe uma prévia truncada em uma linha quando o campo simples perde o foco. */
+  truncateWhenBlurred?: boolean;
 };
+
+function updateRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') ref(value);
+  else if (ref) ref.current = value;
+}
 
 /** Campo de formulário do design: rótulo em negrito, borda de tinta e foco vermelho. */
 export function TextField({
@@ -26,37 +37,45 @@ export function TextField({
   hint,
   hintColor = Colors.muted,
   multiline,
+  numberOfLines,
   inputRef,
   accessory,
+  appearance = 'default',
+  multilineHeight,
+  truncateWhenBlurred = false,
   onFocus,
   onBlur,
   ...inputProps
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
+  const nativeInput = useRef<ComponentRef<typeof TextInput>>(null);
+  const isMultiline = multiline === true;
+  const showSingleLinePreview = truncateWhenBlurred && !isMultiline && !focused && typeof inputProps.value === 'string' && inputProps.value.length > 0;
 
   return (
     <View style={styles.field}>
       <View style={styles.labelRow}>
-        <AppText style={styles.label}>{label}</AppText>
+        <AppText style={[styles.label, appearance === 'editorial' && styles.editorialLabel]}>{label}</AppText>
         {labelAside ? (
-          <AppText style={styles.aside} color={Colors.muted}>
+          <AppText style={[styles.aside, appearance === 'editorial' && styles.editorialAside]} color={Colors.muted}>
             {labelAside}
           </AppText>
         ) : null}
       </View>
-      <View style={[styles.box, multiline && styles.boxMultiline, focused && styles.boxFocused]}>
+      <View style={[styles.box, appearance === 'editorial' && styles.editorialBox, isMultiline && styles.boxMultiline, isMultiline && multilineHeight ? { minHeight: multilineHeight } : null, focused && styles.boxFocused]}>
         {prefix ? (
           <AppText style={styles.prefix} color={Colors.muted} accessible={false}>
             {prefix}
           </AppText>
         ) : null}
         <TextInput
-          ref={inputRef}
+          ref={(node) => { nativeInput.current = node; updateRef(inputRef, node); }}
           accessibilityLabel={label}
           accessibilityHint={hint}
           placeholderTextColor={Colors.placeholder}
-          multiline={multiline}
-          textAlignVertical={multiline ? 'top' : 'center'}
+          multiline={isMultiline}
+          numberOfLines={isMultiline ? numberOfLines : undefined}
+          textAlignVertical={isMultiline ? 'top' : 'center'}
           onFocus={(e) => {
             setFocused(true);
             onFocus?.(e);
@@ -65,13 +84,14 @@ export function TextField({
             setFocused(false);
             onBlur?.(e);
           }}
-          style={[styles.input, multiline && styles.inputMultiline]}
+          style={[styles.input, isMultiline ? styles.inputMultiline : styles.inputSingleLine, isMultiline && multilineHeight ? { minHeight: multilineHeight - 24 } : null, showSingleLinePreview && styles.inputBehindPreview]}
           {...inputProps}
         />
+        {showSingleLinePreview ? <Pressable accessible={false} onPress={() => { setFocused(true); nativeInput.current?.focus(); }} style={styles.singleLinePreview}><AppText accessible={false} numberOfLines={1} ellipsizeMode="tail" style={styles.singleLinePreviewText}>{inputProps.value}</AppText></Pressable> : null}
         {accessory}
       </View>
       {hint ? (
-        <AppText style={styles.hint} color={hintColor} accessibilityLiveRegion="polite">
+        <AppText style={[styles.hint, appearance === 'editorial' && styles.editorialHint]} color={hintColor} accessibilityLiveRegion="polite">
           {hint}
         </AppText>
       ) : null}
@@ -94,8 +114,20 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 18,
   },
+  editorialLabel: {
+    fontFamily: Fonts.monoSemibold,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
   aside: {
     fontSize: 13.5,
+    lineHeight: 18,
+  },
+  editorialAside: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
     lineHeight: 18,
   },
   box: {
@@ -107,6 +139,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     backgroundColor: Colors.paper,
     paddingHorizontal: 14,
+  },
+  editorialBox: {
+    borderRadius: 0,
   },
   boxMultiline: {
     alignItems: 'flex-start',
@@ -137,9 +172,36 @@ const styles = StyleSheet.create({
     minHeight: 64,
     lineHeight: 22,
   },
+  inputSingleLine: {
+    height: 48,
+    maxHeight: 48,
+    minWidth: 0,
+    flexShrink: 1,
+    overflow: 'hidden',
+  },
+  inputBehindPreview: {
+    opacity: 0,
+  },
+  singleLinePreview: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  singleLinePreviewText: {
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    lineHeight: 21,
+    color: Colors.ink,
+  },
   hint: {
     fontFamily: Fonts.bold,
     fontSize: 13,
     lineHeight: 17,
+  },
+  editorialHint: {
+    fontFamily: Fonts.regular,
   },
 });

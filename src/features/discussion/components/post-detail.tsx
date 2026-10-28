@@ -1,8 +1,9 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
+import { Icon } from '@/components/icon';
 import { PillButton } from '@/components/pill-button';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { usePostActions } from '@/features/interactions/use-post-actions';
@@ -36,7 +37,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         />
         <AppText style={styles.text}>{post.text}</AppText>
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
-        {post.document ? <DocumentCard document={post.document} /> : null}
+        {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}
         {post.event ? <EventBox event={post.event} /> : null}
         {post.media ? <MediaBox media={post.media} /> : null}
 
@@ -45,23 +46,8 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         </AppText>
 
         <View style={styles.actions}>
-          <PillButton
-            label={`Apoiar · ${formatCount(actions.supportCount)}`}
-            icon="support"
-            iconFilled={actions.supported}
-            onPress={actions.toggleSupport}
-            variant={actions.supported ? 'primary' : 'outline'}
-            selected={actions.supported}
-            style={styles.flex}
-          />
-          <PillButton
-            label="Ecoar"
-            icon="echo"
-            onPress={actions.toggleEcho}
-            variant={actions.echoed ? 'dark' : 'outline'}
-            selected={actions.echoed}
-            style={styles.flex}
-          />
+          <CompactAction icon="support" count={actions.supportCount} active={actions.supported} label="Apoiar publicação" onPress={actions.toggleSupport} />
+          <CompactAction icon="echo" count={actions.echoCount} active={actions.echoed} label="Ecoar publicação" onPress={actions.toggleEcho} />
           <IconButton
             icon="bookmark"
             accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
@@ -85,6 +71,14 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
       </View>
     </View>
   );
+}
+
+function CompactAction({ icon, count, active, label, onPress }: { icon: 'support' | 'echo'; count: number; active: boolean; label: string; onPress: () => void }) {
+  const color = active ? Colors.red : Colors.inkSoft;
+  return <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatCount(count)}`} accessibilityState={{ selected: active }} style={styles.compactAction}>
+    <Icon name={icon} size={19} color={color} filled={active && icon === 'support'} />
+    <AppText style={styles.compactCount} color={color}>{formatCount(count)}</AppText>
+  </Pressable>;
 }
 
 function SortChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -123,9 +117,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  flex: {
-    flex: 1,
-  },
+  compactAction: { minWidth: 54, minHeight: 44, paddingHorizontal: Spacing.two, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  compactCount: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },
   commentsHeader: {
     borderTopWidth: 1.5,
     borderTopColor: Colors.ink,

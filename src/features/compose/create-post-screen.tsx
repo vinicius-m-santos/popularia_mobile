@@ -1,30 +1,29 @@
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PillButton } from '@/components/pill-button';
 import { AppText } from '@/components/app-text';
-import { KeyboardView } from '@/components/keyboard-view';
 import { Avatar } from '@/components/avatar';
 import { BottomSheet } from '@/components/bottom-sheet';
+import { EditorialAction } from '@/components/editorial-action';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
+import { KeyboardView } from '@/components/keyboard-view';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { getComunas, getMyComunas } from '@/features/comunas/api';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
 import { useInteractions } from '@/features/interactions/interactions-context';
-import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
-import { DocumentCard } from '@/features/library/document-card';
-import { LibraryPane } from '@/features/library/library-screen';
 import { getDocument } from '@/features/library/api';
 import { subscribeAttachment } from '@/features/library/composer-attachment';
+import { DocumentCard } from '@/features/library/document-card';
+import { LibraryPane } from '@/features/library/library-screen';
 import type { LibraryDocument } from '@/features/library/types';
+import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { createPost } from '@/features/posts/api';
 import { PostCard } from '@/features/posts/components/post-card';
 import { useAsyncData } from '@/hooks/use-async-data';
@@ -75,7 +74,6 @@ export default function CreatePostScreen() {
   }, [params?.documentId]);
   const { account, reloadAccount } = useAccount();
   const toast = useToast();
-  const insets = useSafeAreaInsets();
   const { membershipOf, addPost, notifyPostCreated } = useInteractions();
   // Na API, só as comunas de que a pessoa participa, segundo o servidor.
   const loadComunas = useCallback(() => (DEMO_MODE ? getComunas() : getMyComunas()), []);
@@ -207,13 +205,14 @@ export default function CreatePostScreen() {
     <Screen edges={['top', 'left', 'right']}>
       <KeyboardView style={styles.flex}>
         <View style={styles.bar}>
-          <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={close} />
-          <AppText style={styles.barTitle} accessibilityRole="header" numberOfLines={1}>
+          <IconButton icon="back" size={24} accessibilityLabel="Fechar" onPress={close} />
+          <View style={styles.barDivider} />
+          <AppText variant="label" style={styles.barTitle} accessibilityRole="header" numberOfLines={1}>
             Nova publicação
           </AppText>
           <Pressable
             onPress={publish}
-            disabled={publishing}
+            disabled={!canPublish || publishing}
             accessibilityRole="button"
             accessibilityLabel={publishing ? 'Publicando' : 'Publicar'}
             accessibilityState={{ disabled: !canPublish, busy: publishing }}
@@ -233,7 +232,7 @@ export default function CreatePostScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
+        <ScrollView style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>
           {comunas.status === 'loading' && !comunas.data ? (
             <ActivityIndicator color={Colors.red} accessibilityLabel="Carregando destinos" />
           ) : null}
@@ -255,7 +254,7 @@ export default function CreatePostScreen() {
             </Pressable>
           ) : null}
           <View>
-            <AppText variant="label" color={Colors.muted} style={styles.fieldLabel}>
+            <AppText variant="label" style={styles.fieldLabel}>
               Publicar em
             </AppText>
             <Pressable
@@ -276,24 +275,40 @@ export default function CreatePostScreen() {
                     : `Visível para ${formatPeople(destination.comuna.memberCount)} membros da comuna`}
                 </AppText>
               </View>
-              <AppText style={styles.change} color={Colors.red}>
-                Trocar
-              </AppText>
+              <Icon name="chevronRight" size={24} />
             </Pressable>
           </View>
 
           {destination.kind === 'perfil' && !DEMO_MODE ? <SingleTopicField value={topic} onChange={setTopic} optional disabled={publishing} /> : null}
 
-          <View style={styles.segment} role="tablist">
-            <Segment label="Escrever" active={!preview} onPress={() => setPreview(false)} />
-            <Segment label="Pré-visualizar" active={preview} onPress={() => setPreview(true)} />
+          <View>
+            <AppText variant="label" style={styles.sectionLabel}>
+              Tipo de publicação
+            </AppText>
+            <View style={styles.typeGrid} role="tablist">
+              <TypeButton icon="document" label="Escrever" active onPress={() => setPreview(false)} />
+              <TypeButton icon="image" label="Imagem" onPress={soon('Publicar uma imagem')} />
+              <TypeButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
+              <TypeButton icon="poll" label="Enquete" onPress={soon('Criar enquete')} />
+            </View>
           </View>
 
-          {preview ? (
-            <View style={styles.previewWrap}>
-              <AppText variant="label" color={Colors.muted} style={styles.previewLabel}>
-                Assim vai aparecer em {where}
+          <View>
+            <View style={styles.sectionHeading}>
+              <AppText variant="label" style={styles.sectionLabel}>
+                Conteúdo
               </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={preview ? 'Editar publicação' : 'Pré-visualizar publicação'}
+                onPress={() => setPreview((value) => !value)}
+                style={({ pressed }) => pressed && styles.pressed}>
+                <AppText style={styles.previewToggle} color={Colors.red}>
+                  {preview ? 'Editar' : 'Pré-visualizar'}
+                </AppText>
+              </Pressable>
+            </View>
+            {preview ? (
               <View
                 style={styles.previewBox}
                 pointerEvents="none"
@@ -302,50 +317,58 @@ export default function CreatePostScreen() {
                 importantForAccessibility="no-hide-descendants">
                 <PostCard item={previewItem} />
               </View>
-            </View>
-          ) : (
-            <View>
-              <View style={styles.writeRow}>
-                <Avatar initials={me.initials} tone={me.tone} size={36} />
-                <TextInput
-                  editable={!publishing}
-                  scrollEnabled={false}
-                  value={text}
-                  onChangeText={setText}
-                  maxLength={MAX_LENGTH}
-                  multiline
-                  autoFocus
-                  textAlignVertical="top"
-                  placeholder={pdfMode ? 'Conte por que este documento importa…' : 'Conte para a comuna o que está acontecendo…'}
-                  placeholderTextColor={Colors.placeholder}
-                  accessibilityLabel="Texto da publicação"
-                  style={styles.input}
-                />
+            ) : (
+              <View style={styles.contentBox}>
+                <View style={styles.writeRow}>
+                  <Avatar initials={me.initials} tone={me.tone} size={38} />
+                  <TextInput
+                    editable={!publishing}
+                    scrollEnabled={false}
+                    value={text}
+                    onChangeText={setText}
+                    maxLength={MAX_LENGTH}
+                    multiline
+                    autoFocus
+                    textAlignVertical="top"
+                    placeholder={pdfMode ? 'Conte por que este documento importa…' : 'Conte para a comuna o que está acontecendo…'}
+                    placeholderTextColor={Colors.placeholder}
+                    accessibilityLabel="Texto da publicação"
+                    style={styles.input}
+                  />
+                </View>
+                <AppText style={styles.counter} color={text.length >= MAX_LENGTH ? Colors.red : Colors.muted}>
+                  {text.length}/{MAX_LENGTH}
+                </AppText>
               </View>
-              <AppText style={styles.counter} color={text.length >= MAX_LENGTH ? Colors.red : Colors.muted}>
-                {text.length}/{MAX_LENGTH}
-              </AppText>
+            )}
+          </View>
+
+          <View>
+            <AppText variant="label" style={styles.sectionLabel}>
+              Adicionar mídia (opcional)
+            </AppText>
+            <View style={styles.mediaGrid}>
+              <MediaButton icon="document" label="PDF" caption="Até 20 MB" onPress={() => setPdfMode(true)} />
+              <MediaButton icon="image" label="Imagem" caption="Até 10 MB" onPress={soon('Anexar imagens')} />
+              <MediaButton icon="camera" label="Vídeo" caption="Até 200 MB" onPress={soon('Anexar vídeos')} />
+              <MediaButton icon="link" label="Link" caption="Adicionar URL" onPress={soon('Adicionar link')} />
             </View>
-          )}
-          {pdfMode ? <View style={{ gap: Spacing.three }}>
-            <AppText variant="heading">PDF</AppText>{attachmentError ? <AppText color={Colors.error}>{attachmentError}</AppText> : null}<AppText variant="caption">Use um documento da sua biblioteca ou envie um novo. O PDF não é duplicado e mantém o acesso que já tem.</AppText>
-            {document ? <DocumentCard document={document} /> : null}
+          </View>
+
+          {pdfMode ? <View style={styles.pdfSection}>
+            <AppText variant="label" style={styles.sectionLabel}>PDF anexado</AppText>
+            {attachmentError ? <AppText color={Colors.error}>{attachmentError}</AppText> : null}
+            <AppText variant="caption">Use um documento da sua biblioteca ou envie um novo. O PDF não é duplicado e mantém o acesso que já tem.</AppText>
+            {document ? <DocumentCard document={document} appearance="editorial" /> : null}
             {document && !document.isPublic ? <View style={styles.verify}>
               <AppText>{document.access === 'private' && !document.distributions?.length ? 'Só você pode abrir este PDF.' : 'Este PDF tem acesso restrito.'}</AppText>
               <AppText variant="caption">Publicar não concede acesso ao PDF.</AppText>
-              {document.viewer.canEdit ? <PillButton label="Ajustar acesso do PDF" variant="outline" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { edit: document.id, composerKey } })} /> : null}
+              {document.viewer.canEdit ? <EditorialAction label="Ajustar acesso do PDF" icon="edit" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { edit: document.id, composerKey } })} /> : null}
             </View> : null}
-            <PillButton label="Escolher da biblioteca" variant="outline" onPress={() => setPickingDocument(true)} />
-            <PillButton label="Enviar novo PDF" variant="outline" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { composerKey } })} />
-            <PillButton label="Remover PDF da publicação" variant="outline" onPress={() => { setDocument(null); setPdfMode(false); }} />
+            <EditorialAction label="Escolher da biblioteca" icon="library" onPress={() => setPickingDocument(true)} />
+            <EditorialAction label="Enviar novo PDF" icon="plus" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { composerKey } })} />
+            <EditorialAction label="Remover PDF da publicação" icon="trash" onPress={() => { setDocument(null); setPdfMode(false); }} />
           </View> : null}
-        </ScrollView>
-
-        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]}>
-          <ToolButton icon="bookmark" label="PDF" onPress={() => setPdfMode(true)} />
-          <ToolButton icon="image" label="Imagem" onPress={soon('Anexar imagens')} />
-          <ToolButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
-          <ToolButton icon="poll" label="Enquete" onPress={soon('Criar enquete')} />
         </ScrollView>
       </KeyboardView>
 
@@ -417,29 +440,31 @@ function DestinationMark({ destination, me }: { destination: Destination; me: Fe
   return <ComunaMark initials={comuna.initials} tone={comuna.tone} size={44} />;
 }
 
-function Segment({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function TypeButton({ icon, label, active = false, onPress }: { icon: IconName; label: string; active?: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
       role="tab"
       accessibilityState={{ selected: active }}
-      hitSlop={{ top: 5, bottom: 5 }}
-      style={[styles.segmentItem, active && styles.segmentActive]}>
-      <AppText style={styles.segmentLabel} color={active ? Colors.cream : Colors.ink}>
+      style={({ pressed }) => [styles.typeButton, active && styles.typeButtonActive, pressed && styles.pressed]}>
+      <Icon name={icon} size={22} color={active ? Colors.paper : Colors.ink} />
+      <AppText style={styles.typeButtonLabel} color={active ? Colors.paper : Colors.ink} numberOfLines={1}>
         {label}
       </AppText>
     </Pressable>
   );
 }
 
-function ToolButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+function MediaButton({ icon, label, caption, onPress }: { icon: IconName; label: string; caption: string; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.tool, pressed && styles.pressed]}>
-      <Icon name={icon} size={21} />
-      <AppText style={styles.toolLabel}>{label}</AppText>
+      accessibilityLabel={`${label}, ${caption}`}
+      style={({ pressed }) => [styles.mediaButton, pressed && styles.pressed]}>
+      <Icon name={icon} size={25} />
+      <AppText style={styles.mediaButtonLabel} numberOfLines={1}>{label}</AppText>
+      <AppText style={styles.mediaButtonCaption} color={Colors.muted} numberOfLines={1}>{caption}</AppText>
     </Pressable>
   );
 }
@@ -482,31 +507,35 @@ const styles = StyleSheet.create({
     height: 58,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingLeft: 6,
-    paddingRight: Spacing.two + 2,
+    paddingHorizontal: Spacing.one,
     borderBottomWidth: 1.5,
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
+  barDivider: {
+    width: 1.5,
+    height: 28,
+    marginLeft: Spacing.one,
+    marginRight: Spacing.three,
+    backgroundColor: Colors.ink,
+  },
   barTitle: {
     flex: 1,
-    fontFamily: Fonts.condensed,
-    fontSize: 23,
-    lineHeight: 26,
-    textTransform: 'uppercase',
+    fontSize: 12.5,
+    lineHeight: 16,
   },
   publish: {
-    height: 42,
-    paddingHorizontal: Spacing.five,
-    borderRadius: Radius.pill,
+    minWidth: 104,
+    height: 50,
+    paddingHorizontal: Spacing.four,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
     backgroundColor: Colors.red,
     alignItems: 'center',
     justifyContent: 'center',
   },
   verify: {
     padding: Spacing.three,
-    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.red,
     backgroundColor: Colors.paper,
@@ -534,24 +563,32 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
-    paddingTop: 14,
+    paddingTop: Spacing.five,
     paddingHorizontal: Spacing.five,
-    paddingBottom: Spacing.six,
-    gap: 14,
+    paddingBottom: Spacing.seven,
+    gap: Spacing.six,
   },
   fieldLabel: {
-    fontSize: 10.5,
-    marginBottom: 6,
+    marginBottom: Spacing.two,
+  },
+  sectionLabel: {
+    marginBottom: Spacing.two,
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
   },
   dest: {
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    paddingVertical: Spacing.two + 2,
+    paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.three,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: Colors.ink,
-    borderRadius: 14,
     backgroundColor: Colors.paper,
   },
   destText: {
@@ -560,97 +597,111 @@ const styles = StyleSheet.create({
   },
   destName: {
     fontFamily: Fonts.extrabold,
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 17,
+    lineHeight: 22,
   },
   destSub: {
     fontSize: 12.5,
     lineHeight: 17,
     marginTop: 1,
   },
-  change: {
-    fontFamily: Fonts.extrabold,
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  segment: {
-    alignSelf: 'flex-start',
+  typeGrid: {
     flexDirection: 'row',
+    backgroundColor: Colors.paper,
+  },
+  typeButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: Spacing.one,
-    padding: 3,
     borderWidth: 1.5,
     borderColor: Colors.ink,
-    borderRadius: Radius.pill,
+    marginRight: -1.5,
+    paddingHorizontal: Spacing.one,
   },
-  segmentItem: {
-    height: 34,
-    paddingHorizontal: 14,
-    borderRadius: Radius.pill,
-    justifyContent: 'center',
-  },
-  segmentActive: {
+  typeButtonActive: {
     backgroundColor: Colors.ink,
   },
-  segmentLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 13.5,
-    lineHeight: 18,
+  typeButtonLabel: {
+    flexShrink: 1,
+    fontFamily: Fonts.condensed,
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  contentBox: {
+    minHeight: 270,
+    padding: Spacing.three,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    backgroundColor: Colors.paper,
+    justifyContent: 'space-between',
   },
   writeRow: {
+    flex: 1,
     flexDirection: 'row',
-    gap: Spacing.two + 2,
+    alignItems: 'flex-start',
+    gap: Spacing.three,
   },
   input: {
     flex: 1,
-    minHeight: 180,
-    paddingTop: 6,
+    minHeight: 220,
+    paddingTop: Spacing.one,
     paddingBottom: 0,
     fontFamily: Fonts.regular,
-    fontSize: 18,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 24,
     color: Colors.ink,
     outlineWidth: 0,
   },
   counter: {
     textAlign: 'right',
     fontFamily: Fonts.mono,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  previewToggle: {
+    fontFamily: Fonts.monoSemibold,
     fontSize: 11,
     lineHeight: 14,
-  },
-  previewWrap: {
-    gap: Spacing.two,
-  },
-  previewLabel: {
-    fontSize: 10.5,
+    textTransform: 'uppercase',
   },
   previewBox: {
     borderWidth: 1.5,
-    borderStyle: 'dashed',
     borderColor: Colors.ink,
-    borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: Colors.cream,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderTopWidth: 1.5,
-    borderTopColor: Colors.ink,
     backgroundColor: Colors.paper,
   },
-  tool: {
-    height: 48,
-    paddingHorizontal: Spacing.two + 2,
+  mediaGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    backgroundColor: Colors.paper,
   },
-  toolLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 13.5,
-    lineHeight: 18,
+  mediaButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 98,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    marginRight: -1.5,
+    paddingHorizontal: Spacing.half,
+  },
+  mediaButtonLabel: {
+    fontFamily: Fonts.condensed,
+    fontSize: 16,
+    lineHeight: 19,
+  },
+  mediaButtonCaption: {
+    fontFamily: Fonts.mono,
+    fontSize: 9.5,
+    lineHeight: 13,
+  },
+  pdfSection: {
+    gap: Spacing.three,
   },
   option: {
     minHeight: 62,

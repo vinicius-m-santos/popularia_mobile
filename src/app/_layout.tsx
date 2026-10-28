@@ -1,4 +1,3 @@
-import LegalAcceptanceScreen from '@/features/legal/legal-acceptance-screen';
 // Importa cada peso pelo subcaminho: o índice do pacote embutiria todos os pesos no app.
 import { Archivo_400Regular } from '@expo-google-fonts/archivo/400Regular';
 import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
@@ -6,13 +5,14 @@ import { Archivo_800ExtraBold } from '@expo-google-fonts/archivo/800ExtraBold';
 import { ArchivoNarrow_700Bold } from '@expo-google-fonts/archivo-narrow/700Bold';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { IBMPlexMono_600SemiBold } from '@expo-google-fonts/ibm-plex-mono/600SemiBold';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
-import { Stack, type ErrorBoundaryProps } from 'expo-router';
+import { router, Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { Modal } from 'react-native';
+import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
@@ -58,6 +58,7 @@ export default function RootLayout() {
     ArchivoNarrow_700Bold,
     IBMPlexMono_500Medium,
     IBMPlexMono_600SemiBold,
+    ...MaterialIcons.font,
   });
 
   useEffect(() => {
@@ -68,20 +69,22 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <InteractionsProvider>
-      <AccountProvider>
-        <NotificationsProvider>
-          <ModerationProvider>
-            <ToastProvider>
-              <ActionsSheetProvider>
-                <StatusBar style="dark" />
-                <RootStack />
-              </ActionsSheetProvider>
-            </ToastProvider>
-          </ModerationProvider>
-        </NotificationsProvider>
-      </AccountProvider>
-    </InteractionsProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <InteractionsProvider>
+        <AccountProvider>
+          <NotificationsProvider>
+            <ModerationProvider>
+              <ToastProvider>
+                <ActionsSheetProvider>
+                  <StatusBar style="dark" />
+                  <RootStack />
+                </ActionsSheetProvider>
+              </ToastProvider>
+            </ModerationProvider>
+          </NotificationsProvider>
+        </AccountProvider>
+      </InteractionsProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -92,42 +95,53 @@ export default function RootLayout() {
  */
 function RootStack() {
   const { onboarded, status, account } = useAccount();
-  const [deferredLegalUser, setDeferredLegalUser] = useState<string | null>(null);
+  const pathname = usePathname();
   const restoring = status === 'restoring';
 
   useEffect(() => {
     if (!restoring) SplashScreen.hideAsync();
   }, [restoring]);
 
+  const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted;
+
+  useEffect(() => {
+    if (restoring) return;
+    const legalDocument = pathname === '/sobre-e-legal' || pathname.startsWith('/documento-legal/');
+    if (needsLegal && pathname !== '/aceite-legal' && !legalDocument) {
+      router.replace('/aceite-legal');
+      return;
+    }
+    if (!needsLegal && pathname === '/aceite-legal') {
+      if (status !== 'signedIn') router.replace('/boas-vindas');
+      else if (onboarded) router.replace('/');
+      else router.replace(account?.pendingOnboarding ? '/boas-vindas/perfil' : '/boas-vindas');
+    }
+  }, [account?.pendingOnboarding, needsLegal, onboarded, pathname, restoring, status]);
+
   if (restoring) return null;
-  const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted && deferredLegalUser !== account.id;
 
   return (
-    <>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
-      <Stack.Screen name="sobre-e-legal" options={{ presentation: 'modal' }} />
-      <Stack.Protected guard={onboarded}>
+      <Stack.Screen name="aceite-legal" />
+      <Stack.Screen name="sobre-e-legal" />
+      <Stack.Screen name="documento-legal/[id]" />
+      <Stack.Protected guard={onboarded && !needsLegal}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="avisos" />
         <Stack.Screen name="biblioteca" />
-        <Stack.Screen name="praca/[id]" />
+        <Stack.Screen name="praca/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="praca/figurinhas/[id]" />
-        <Stack.Screen name="criar" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="interesses" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="criar" />
+        <Stack.Screen name="interesses" />
         <Stack.Screen name="moderacao/[id]" />
-        <Stack.Screen name="criar-comuna" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="criar-comuna" />
         <Stack.Screen name="gerir-comuna/[id]" />
-        <Stack.Screen name="conta" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="verificar-email" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="conta" />
+        <Stack.Screen name="verificar-email" />
       </Stack.Protected>
-      <Stack.Protected guard={!onboarded}>
+      <Stack.Protected guard={!onboarded && !needsLegal}>
         <Stack.Screen name="boas-vindas" />
       </Stack.Protected>
     </Stack>
-    {/* Mantém o navegador montado enquanto o login social abre o onboarding por baixo do aceite. */}
-    <Modal visible={needsLegal} presentationStyle="fullScreen" animationType="slide">
-      <LegalAcceptanceScreen onDefer={() => { if (account) setDeferredLegalUser(account.id); }} />
-    </Modal>
-    </>
   );
 }

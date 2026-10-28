@@ -6,6 +6,7 @@ import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 
 /** Etapas do cadastro depois das boas-vindas: conta, perfil, assuntos e comunas. */
 export const ONBOARDING_STEPS = 4;
@@ -44,8 +45,9 @@ type FooterProps = {
 /** Rodapé fixo com o botão de avançar. */
 export function OnboardingFooter({ label, onPress, hint, count, accessibilityHint, disabled = false }: FooterProps) {
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
   return (
-    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.four) + Spacing.two }]}>
+    <View style={[styles.footer, { paddingBottom: keyboardVisible ? Spacing.three : Math.max(insets.bottom, Spacing.four) + Spacing.two }]}>
       {hint ? (
         <View style={styles.hintRow}>
           <AppText style={styles.hint} color={Colors.inkSoft}>

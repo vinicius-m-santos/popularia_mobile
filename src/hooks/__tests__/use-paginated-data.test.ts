@@ -125,6 +125,39 @@ describe('usePaginatedData', () => {
     await waitFor(() => expect(result.current.items).toEqual(items('novo', 'a')));
   });
 
+  it('revalida uma lista vazia em segundo plano sem exibir loader', async () => {
+    const next = deferred<Page<Item>>();
+    const load = jest.fn<Loader>()
+      .mockResolvedValueOnce({ items: [], nextCursor: null })
+      .mockImplementationOnce(() => next.promise);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await waitFor(() => expect(result.current.status).toBe('success'));
+
+    await act(() => result.current.revalidate());
+    expect(result.current.status).toBe('success');
+    expect(result.current.items).toEqual([]);
+    expect(result.current.isRefreshing).toBe(false);
+
+    await act(async () => next.resolve({ items: items('novo'), nextCursor: null }));
+    expect(result.current.items).toEqual(items('novo'));
+  });
+
+  it('mantém conteúdo e layout quando a revalidação silenciosa falha', async () => {
+    const next = deferred<Page<Item>>();
+    const load = jest.fn<Loader>()
+      .mockResolvedValueOnce({ items: items('a'), nextCursor: null })
+      .mockImplementationOnce(() => next.promise);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await waitFor(() => expect(result.current.items).toEqual(items('a')));
+
+    await act(() => result.current.revalidate());
+    await act(async () => next.reject(new Error('offline')));
+    expect(result.current.status).toBe('success');
+    expect(result.current.items).toEqual(items('a'));
+    expect(result.current.refreshError).toBeNull();
+    expect(result.current.isRefreshing).toBe(false);
+  });
+
   it('descarta a resposta atrasada de uma consulta anterior (troca de aba)', async () => {
     const slow = deferred<Page<Item>>();
     const loadA = jest.fn(() => slow.promise);

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -10,10 +10,12 @@ import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
-import { resendVerificationCode, verifyEmail } from '@/features/account/api';
+import { resendVerificationCode } from '@/features/account/api';
 import { describeError } from '@/lib/errors';
 
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
+
+let lastAutomaticSend: { address: string; at: number } | null = null;
 
 /**
  * Confirmação do e-mail com o código de 6 dígitos. No cadastro fica entre o perfil e os
@@ -22,16 +24,41 @@ import { OnboardingFooter, OnboardingProgress } from './components/onboarding-ch
  * Também abre pela tela Conta (`/verificar-email`).
  */
 export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboarding?: boolean }) {
-  const { email } = useLocalSearchParams<{ email?: string }>();
-  const { account, reloadAccount } = useAccount();
+  const { email, sent } = useLocalSearchParams<{ email?: string; sent?: string }>();
+  const { account, confirmEmail } = useAccount();
   const toast = useToast();
+  const address = account?.email ?? email ?? 'seu e-mail';
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
   const busyRef = useRef(false);
+  const autoSendStarted = useRef(false);
+  const [cooldown, setCooldown] = useState(() => {
+    const elapsed = lastAutomaticSend?.address === address ? Date.now() - lastAutomaticSend.at : Number.POSITIVE_INFINITY;
+    return elapsed < 60_000 ? Math.ceil((60_000 - elapsed) / 1000) : 60;
+  });
 
-  const address = account?.email ?? email ?? 'seu e-mail';
+  useEffect(() => {
+    const timer = setInterval(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (account?.emailVerified || autoSendStarted.current) return;
+    autoSendStarted.current = true;
+    // O cadastro já emite o primeiro código no backend; entrar nesta rota logo depois
+    // apenas inicia o cooldown, sem invalidá-lo com um segundo e-mail.
+    if (sent === '1') {
+      lastAutomaticSend = { address, at: Date.now() };
+      return;
+    }
+    const elapsed = lastAutomaticSend?.address === address ? Date.now() - lastAutomaticSend.at : Number.POSITIVE_INFINITY;
+    if (elapsed < 60_000) return;
+    lastAutomaticSend = { address, at: Date.now() };
+    resendVerificationCode()
+      .catch((e) => toast.show(describeError(e)));
+  }, [account?.emailVerified, address, sent, toast]);
 
   const leave = () => {
     if (inOnboarding) router.push('/boas-vindas/assuntos');
@@ -49,8 +76,7 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
     setBusy(true);
     setError(null);
     try {
-      await verifyEmail(code);
-      await reloadAccount();
+      await confirmEmail(code);
       toast.show('E-mail confirmado.');
       leave();
     } catch (e) {
@@ -62,9 +88,11 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
   };
 
   const resend = async () => {
-    if (busyRef.current) return;
+    if (busyRef.current || cooldown > 0) return;
     busyRef.current = true;
     setResending(true);
+    setCooldown(60);
+    lastAutomaticSend = { address, at: Date.now() };
     try {
       await resendVerificationCode();
       toast.show('Enviamos um novo código. O anterior deixou de valer.');
@@ -83,7 +111,7 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
           <OnboardingProgress step={2} />
         ) : (
           <View style={styles.backRow}>
-            <IconButton icon="close" size={20} accessibilityLabel="Fechar" onPress={leave} />
+            <IconButton icon="back" size={20} accessibilityLabel="Voltar" onPress={leave} />
           </View>
         )}
         <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
@@ -113,9 +141,9 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
           />
 
           <View style={styles.links}>
-            <Pressable onPress={resend} disabled={busy || resending} accessibilityState={{ busy: resending, disabled: busy || resending }} accessibilityRole="button" style={styles.link}>
+            <Pressable onPress={resend} disabled={busy || resending || cooldown > 0} accessibilityState={{ busy: resending, disabled: busy || resending || cooldown > 0 }} accessibilityRole="button" style={styles.link}>
               <AppText style={styles.linkLabel} color={Colors.red}>
-                {resending ? 'Reenviando…' : 'Reenviar código'}
+                {resending ? 'Enviando…' : cooldown > 0 ? `Reenviar em ${cooldown}s` : 'Reenviar código'}
               </AppText>
             </Pressable>
             {inOnboarding ? (

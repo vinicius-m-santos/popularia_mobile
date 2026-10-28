@@ -116,10 +116,10 @@ describe('central de avisos', () => {
   it('marca todas de forma persistida; falha não apaga o estado de não lida', async () => {
     mocked.markAllNotificationsRead.mockRejectedValueOnce(new NetworkError());
     await render(<App />);
-    await fireEvent.press(screen.getByText('Marcar todas como lidas'));
+    await fireEvent.press(screen.getByText('Ler todas'));
     expect(screen.getByRole('link').props.accessibilityLabel).toContain('Não lido');
     expect(screen.getByTestId('unread-count').props.children).toBe(1);
-    await fireEvent.press(screen.getByText('Marcar todas como lidas'));
+    await fireEvent.press(screen.getByText('Ler todas'));
     expect(screen.getByTestId('unread-count').props.children).toBe(0);
     expect(screen.getByRole('link').props.accessibilityLabel).not.toContain('Não lido');
   });

@@ -11,12 +11,13 @@ type ScreenProps = {
   children: ReactNode;
   /** As abas já tratam a borda inferior; telas modais podem precisar dela. */
   edges?: Edge[];
+  backgroundColor?: string;
 };
 
 /** Contêiner padrão de tela: fundo creme, área segura e largura máxima. */
-export function Screen({ title, children, edges = ['top', 'left', 'right'] }: ScreenProps) {
+export function Screen({ title, children, edges = ['top', 'left', 'right'], backgroundColor = Colors.cream }: ScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea} edges={edges}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={edges}>
       <View style={styles.content}>
         {title ? (
           <AppText variant="display" accessibilityRole="header" style={styles.title}>

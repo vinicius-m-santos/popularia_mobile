@@ -11,6 +11,7 @@ export type LibraryDocument = {
   origin: Origin | null;
   collection: { id: string; name: string } | null;
   responsible: { id: string; name: string; handle: string } | null;
+  author?: string | null;
   createdAt: string | null;
   byteSize: number | null;
   pageCount: number | null;
@@ -24,5 +25,5 @@ export type LibraryDocument = {
 };
 export type LibraryCollection = { id: string; name: string; description: string; origin: Origin; documentCount: number; canManage: boolean; canAdd: boolean };
 export type LibraryFilters = { scope: LibraryScope; owner?: string; comuna?: string; q?: string; topic?: string; origin?: 'all' | 'people' | 'comunas'; sort?: 'recent' | 'relevance'; collection?: string };
-export type DocumentMetadata = { title: string; description: string; collectionId: string; access: DocumentAccess; topic: TopicId | null; isPublic: boolean; sharedWith?: string[]; clientId?: string; clearTopic?: boolean };
+export type DocumentMetadata = { title: string; description: string; author?: string | null; clearAuthor?: boolean; collectionId: string; access: DocumentAccess; topic: TopicId | null; isPublic: boolean; sharedWith?: string[]; clientId?: string; clearTopic?: boolean };
 export type PickedPdf = { uri: string; name: string; mimeType?: string; size?: number; file?: File };

@@ -37,7 +37,13 @@ export class NetworkError extends Error {
 export function describeError(error: unknown): string {
   if (error instanceof NetworkError) return 'Sem conexão com o servidor. Confira a internet e tente de novo.';
   if (error instanceof ApiError) {
-    if (error.status === 429) return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
+    if (error.status === 429) {
+      if (error.retryAfter !== null) {
+        const wait = error.retryAfter < 90 ? `${error.retryAfter} s` : `${Math.ceil(error.retryAfter / 60)} min`;
+        return `Muitas tentativas. Tente novamente em ${wait}.`;
+      }
+      return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
+    }
     if (error.status >= 500) return 'O servidor teve um problema. Tente de novo em instantes.';
     return error.title;
   }

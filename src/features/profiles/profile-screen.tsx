@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
+import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
@@ -13,23 +14,24 @@ import { StatRow } from '@/components/stat-row';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
+import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
-import { DEMO_MODE } from '@/constants/config';
 import { getComunas, getMyComunas, roleLabel } from '@/features/comunas/api';
 import { ComunaRow } from '@/features/comunas/components/comuna-row';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { profileTarget } from '@/features/moderation/targets';
-import { useModerationQueue } from '@/features/moderation/use-moderation-queue';
 import { PostCard } from '@/features/posts/components/post-card';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { useAsyncData, type AsyncData } from '@/hooks/use-async-data';
+import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { NotFoundError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
-import { goBack, openCreateComuna, openManageComuna, openModeration, useNav } from '@/lib/routes';
+import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 
+import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { LibraryPane } from '@/features/library/library-screen';
 
 import { getProfile, getUserPosts } from './api';
@@ -66,11 +68,14 @@ export default function ProfileScreen() {
     focusedOnce.current = true;
   }, [isMe, reloadComunas]));
 
-  const refresh = useCallback(() => {
+  const reloadProfileContent = useCallback(() => {
     reloadProfile();
     reloadPosts();
     reloadAllComunas();
   }, [reloadProfile, reloadPosts, reloadAllComunas]);
+
+  const requestsLoading = [profile, posts, comunas].some((item) => item.status === 'loading');
+  const pullRefresh = useManualRefresh(requestsLoading, reloadProfileContent);
 
   const header = (handle?: string, onMore?: () => void, onBack?: () => void) => (
     <ProfileBar isMe={isMe} canGoBack={!isTabRoot || onBack !== undefined} handle={handle} onMore={onMore} onBack={onBack} />
@@ -107,8 +112,8 @@ export default function ProfileScreen() {
       posts={posts}
       allComunas={comunas.data ?? []}
       comunasState={comunas}
-      refreshing={[profile, posts, comunas].some((item) => item.status === 'loading')}
-      onRefresh={refresh}
+      refreshing={pullRefresh.refreshing}
+      onRefresh={pullRefresh.onRefresh}
     />
   );
 }
@@ -168,7 +173,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   return (
     <Screen>
       {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)))}
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
+      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
           <View style={styles.identityBlock}>
@@ -188,34 +193,34 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                 <AppText variant="caption" style={styles.handle}>
                   @{user.handle}
                 </AppText>
+                {isMe ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Editar perfil"
+                    onPress={() => router.push('/conta/meus-dados' as never)}
+                    style={({ pressed }) => [styles.editAction, pressed && styles.pressed]}>
+                    <Icon name="edit" size={18} color={Colors.ink} />
+                    <AppText style={styles.editLabel}>Editar perfil</AppText>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
             {profile.isPrivate ? <AppText variant="caption">Perfil privado · Novos seguidores precisam de aprovação. Cada PDF mantém o acesso escolhido.</AppText> : null}
             <AppText style={styles.bio}>{bio}</AppText>
-            {metaLines.map((line) => <AppText key={line} style={styles.meta} color={Colors.muted}>{line}</AppText>)}
+            <View style={styles.metaList}>
+              {metaLines.map((line, index) => (
+                <View key={line} style={styles.metaRow}>
+                  <Icon name={index === 0 ? 'pin' : 'calendar'} size={21} color={Colors.ink} />
+                  <AppText style={styles.meta} color={Colors.muted}>{line}</AppText>
+                </View>
+              ))}
+            </View>
             <StatRow stats={stats} />
 
-            {isMe ? (
-              <View style={styles.actions}>
-                <PillButton
-                  label="Editar perfil"
-                  onPress={() => router.push('/conta/meus-dados' as never)}
-                  variant="outline"
-                  size="lg"
-                  display
-                  style={styles.action}
-                />
-                <PillButton
-                  label="Interesses"
-                  onPress={() => router.push('/interesses')}
-                  variant="outline"
-                  size="lg"
-                  display
-                  accessibilityHint="Escolha os assuntos que você acompanha"
-                  style={styles.action}
-                />
-              </View>
-            ) : (
+            {isMe ? <View style={styles.actions}>
+              <EditorialAction label="Itens salvos" icon="bookmark" iconPosition="trailing" onPress={() => router.push('/biblioteca' as never)} style={styles.action} />
+              <EditorialAction label="Meus interesses" icon="heart" iconPosition="trailing" onPress={() => router.push('/interesses')} style={styles.action} />
+            </View> : (
               <View style={styles.actions}>
                 <FollowButton user={user} size="lg" display style={styles.action} />
                 <PillButton
@@ -229,16 +234,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
               </View>
             )}
 
-            {isMe && DEMO_MODE
-              ? allComunas
-                  .filter((c) => c.moderatorIds.includes(me.id))
-                  .map((c) => <ModeratorShortcut key={c.id} comuna={c} />)
-              : null}
-            {isMe && !DEMO_MODE
-              ? comunas
-                  .filter((c) => c.viewerRole === 'founder' || c.viewerRole === 'moderator')
-                  .map((c) => <ManageShortcut key={c.id} comuna={c} />)
-              : null}
+            {isMe && comunas.length > 0 ? <ComunasShortcut count={comunas.length} onPress={() => setTab('comunas')} /> : null}
 
             {profile.creator ? <CollectiveSupport creatorName={profile.creator.mastheadTitle} /> : null}
           </View>
@@ -253,7 +249,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         <View style={styles.column}>
           {tab === 'posts' ? (
             <>
-              {isMe ? <PillButton label="+ Criar publicação" onPress={() => router.push('/criar')} variant="outline" style={styles.wideAction} /> : null}
+              {isMe ? <ComposerPrompt placeholder="O que você quer compartilhar?" /> : null}
               {posts.status === 'loading' && localPosts.length === 0 ? (
                 <StateView kind="loading" message="Carregando publicações" />
               ) : null}
@@ -298,17 +294,8 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
           ) : null}
 
           {tab === 'comunas' ? (
-            <View style={styles.listPad}>
-              {isMe && !DEMO_MODE ? (
-                <PillButton
-                  label="Criar comuna"
-                  icon="plus"
-                  onPress={openCreateComuna}
-                  variant="outline"
-                  accessibilityHint="Abre o formulário de nova comuna"
-                  style={styles.wideAction}
-                />
-              ) : null}
+            <>
+              <View style={styles.listPad}>
               {comunasState.status === 'loading' && !comunasState.data ? <StateView kind="loading" message="Carregando comunas" /> : null}
               {comunasState.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar as comunas." onRetry={comunasState.reload} /> : null}
               {comunasState.status === 'success' && comunas.length === 0 ? (
@@ -335,7 +322,8 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                   }
                 />
               ))}
-            </View>
+              </View>
+            </>
           ) : null}
         </View>
       </ScrollView>
@@ -353,11 +341,10 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack }: ProfileBarProps
         {handle ? `@${handle}` : ''}
       </AppText>
       {isMe ? (
-        <IconButton
-          icon="settings"
-          accessibilityLabel="Conta e sessões"
-          onPress={() => router.push('/conta')}
-        />
+        <View style={styles.barActions}>
+          <IconButton icon="shareNodes" accessibilityLabel="Compartilhar perfil" onPress={() => {}} />
+          <IconButton icon="settings" accessibilityLabel="Conta e sessões" onPress={() => router.push('/conta')} />
+        </View>
       ) : onMore ? (
         <IconButton icon="more" size={20} accessibilityLabel="Mais opções do perfil" onPress={onMore} />
       ) : (
@@ -367,54 +354,19 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack }: ProfileBarProps
   );
 }
 
-/** Atalho para a fila de moderação de uma comuna que a pessoa modera (2i). */
-function ModeratorShortcut({ comuna }: { comuna: Comuna }) {
-  const { pending, overview } = useModerationQueue(comuna.id);
-  const status =
-    overview.status !== 'success'
-      ? 'Carregando a fila…'
-      : pending === 0
-        ? 'Fila em dia. Nenhuma denúncia pendente.'
-        : `${pending} ${pending === 1 ? 'denúncia aguardando' : 'denúncias aguardando'} análise`;
+function ComunasShortcut({ count, onPress }: { count: number; onPress: () => void }) {
   return (
     <Pressable
-      onPress={() => openModeration(comuna.id)}
+      onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Você modera c/ ${comuna.name}. ${status}`}
-      style={({ pressed }) => [styles.modShortcut, pressed && styles.pressed]}>
-      <Icon name="shield" size={24} color={Colors.red} />
+      accessibilityLabel={`Minhas comunas, ${count} ${count === 1 ? 'comuna' : 'comunas'}`}
+      style={({ pressed }) => [styles.comunasShortcut, pressed && styles.pressed]}>
+      <Icon name="shield" size={28} color={Colors.red} />
       <View style={styles.modText}>
-        <AppText style={styles.modTitle} color={Colors.cream}>
-          Você modera c/ {comuna.name}
-        </AppText>
-        <AppText style={styles.modSub} color={Colors.onInkMuted}>
-          {status}
-        </AppText>
+        <AppText style={styles.modTitle} color={Colors.cream}>Minhas comunas</AppText>
+        <AppText style={styles.modSub} color={Colors.onInkMuted}>{count} comunas · Membro e moderação</AppText>
       </View>
-      <Icon name="chevronRight" size={18} color={Colors.cream} />
-    </Pressable>
-  );
-}
-
-/** Atalho para gerir uma comuna de que a pessoa é proprietária ou moderadora (papel vindo da API). */
-function ManageShortcut({ comuna }: { comuna: Comuna }) {
-  const owner = comuna.viewerRole === 'founder';
-  return (
-    <Pressable
-      onPress={() => openManageComuna(comuna.id)}
-      accessibilityRole="button"
-      accessibilityLabel={`${owner ? 'Você é proprietário de' : 'Você modera'} c/ ${comuna.name}. Abrir gestão`}
-      style={({ pressed }) => [styles.modShortcut, pressed && styles.pressed]}>
-      <Icon name="shield" size={24} color={Colors.red} />
-      <View style={styles.modText}>
-        <AppText style={styles.modTitle} color={Colors.cream}>
-          {owner ? 'Sua comuna' : 'Você modera'} c/ {comuna.name}
-        </AppText>
-        <AppText style={styles.modSub} color={Colors.onInkMuted}>
-          {comuna.status === 'archived' ? 'Arquivada · só leitura' : 'Membros, pedidos e configurações'}
-        </AppText>
-      </View>
-      <Icon name="chevronRight" size={18} color={Colors.cream} />
+      <Icon name="chevronRight" size={22} color={Colors.cream} />
     </Pressable>
   );
 }
@@ -485,11 +437,6 @@ function RoleTag({ label }: { label: string }) {
 }
 
 const styles = StyleSheet.create({
-  wideAction: {
-    alignSelf: 'center',
-    width: '100%',
-    marginBottom: Spacing.two,
-  },
   bar: {
     height: 52,
     flexDirection: 'row',
@@ -511,6 +458,11 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.monoSemibold,
     fontSize: 12.5,
     lineHeight: 16,
+  },
+  barActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: -Spacing.two,
   },
   scroll: {
     paddingBottom: Spacing.seven,
@@ -563,6 +515,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
+  editAction: {
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+    paddingVertical: Spacing.one,
+    paddingRight: Spacing.three,
+  },
+  editLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    lineHeight: 16,
+    textDecorationLine: 'underline',
+  },
   avatarRing: {
     padding: 3,
     borderRadius: 50,
@@ -580,8 +548,8 @@ const styles = StyleSheet.create({
   },
   name: {
     fontFamily: Fonts.condensed,
-    fontSize: 34,
-    lineHeight: 34,
+    fontSize: 18,
+    lineHeight: 20,
     textTransform: 'uppercase',
   },
   handle: {
@@ -599,13 +567,31 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
+  metaList: {
+    gap: Spacing.two,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   actions: {
     flexDirection: 'row',
     gap: Spacing.two,
   },
   action: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 58,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three,
+  },
+  comunasShortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    backgroundColor: Colors.ink,
   },
   modShortcut: {
     flexDirection: 'row',

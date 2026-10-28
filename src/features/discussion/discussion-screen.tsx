@@ -12,12 +12,12 @@ import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
-import { createComment, getComments, getDiscussionPost } from '@/features/discussion/api';
+import { createComment, getComments, getDiscussionPost, setCommentSupport } from '@/features/discussion/api';
 import { CommentComposer, type ComposerNotice } from '@/features/discussion/components/comment-composer';
 import { CommentRow } from '@/features/discussion/components/comment-row';
 import { PostDetail } from '@/features/discussion/components/post-detail';
 import { buildThread, type CommentSort, type ThreadRow } from '@/features/discussion/thread';
-import { useInteractions, withLocal } from '@/features/interactions/interactions-context';
+import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { commentTarget, postTarget } from '@/features/moderation/targets';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
@@ -67,6 +67,8 @@ export default function DiscussionScreen() {
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   // Comentários enviados à API nesta tela: aparecem primeiro, como os locais.
   const [sentIds, setSentIds] = useState<string[]>([]);
+  const [supportOverrides, setSupportOverrides] = useState<Record<string, { supported: boolean; count?: number }>>({});
+  const supportPending = useRef(new Set<string>());
 
   const me = useMe();
   const local = localCommentsFor(id);
@@ -96,18 +98,44 @@ export default function DiscussionScreen() {
     reloadPost();
   }, [emailVerified, reloadPost]);
 
+  const mergedComments = useMemo(() => {
+    const mine: CommentWithAuthor[] = local.map((c) => ({ ...c, author: me }));
+    return mergeById(comments.items, mine);
+  }, [comments.items, local, me]);
+  const supportedOf = useCallback((comment: CommentWithAuthor) => supportOverrides[comment.id]?.supported ?? comment.viewerSupported ?? (DEMO_MODE && isOn('supportedComments', comment.id)), [isOn, supportOverrides]);
+  const supportCountOf = useCallback((comment: CommentWithAuthor) => supportOverrides[comment.id]?.count ?? comment.supportCount + (supportedOf(comment) ? 1 : 0) - (comment.viewerSupported ? 1 : 0), [supportedOf, supportOverrides]);
+
   const rows = useMemo(() => {
     if (!post) return [];
-    const mine: CommentWithAuthor[] = local.map((c) => ({ ...c, author: me }));
-    return buildThread(mergeById(comments.items, mine), {
+    return buildThread(mergedComments, {
       sort,
       collapsed,
       localIds: new Set([...local.map((c) => c.id), ...sentIds]),
-      supportOf: (c) => withLocal(c.supportCount, isOn('supportedComments', c.id)),
+      supportOf: supportCountOf,
     });
-  }, [post, comments.items, local, me, sort, collapsed, sentIds, isOn]);
+  }, [post, mergedComments, sort, collapsed, local, sentIds, supportCountOf]);
 
-  const onSupport = useCallback((commentId: string) => toggle('supportedComments', commentId), [toggle]);
+  const onSupport = useCallback(async (commentId: string) => {
+    const comment = mergedComments.find((item) => item.id === commentId);
+    if (!comment || supportPending.current.has(commentId)) return;
+    if (DEMO_MODE || commentId.startsWith('local-')) {
+      toggle('supportedComments', commentId);
+      return;
+    }
+    const previous = supportedOf(comment);
+    const next = !previous;
+    setSupportOverrides((current) => ({ ...current, [commentId]: { ...current[commentId], supported: next } }));
+    supportPending.current.add(commentId);
+    try {
+      const updated = await setCommentSupport(commentId, next);
+      setSupportOverrides((current) => ({ ...current, [commentId]: { supported: updated.viewerSupported ?? next, count: updated.supportCount } }));
+    } catch (error) {
+      setSupportOverrides((current) => ({ ...current, [commentId]: { ...current[commentId], supported: previous } }));
+      toast.show(`Não foi possível ${next ? 'apoiar' : 'remover o apoio'}. ${describeError(error)}`);
+    } finally {
+      supportPending.current.delete(commentId);
+    }
+  }, [mergedComments, supportedOf, toast, toggle]);
   const onToggleCollapse = useCallback(
     (commentId: string) => setCollapsed((prev) => ({ ...prev, [commentId]: !prev[commentId] })),
     [],
@@ -130,7 +158,8 @@ export default function DiscussionScreen() {
 
   const onSend = async (text: string): Promise<boolean> => {
     if (DEMO_MODE || !post) {
-      addComment({ postId: id, parentId: replyTo?.id ?? null, text });
+      const created = addComment({ postId: id, parentId: replyTo?.id ?? null, text });
+      setOn('supportedComments', [created.id], true);
       afterSend();
       toast.show('Comentário adicionado só neste aparelho. Nada foi publicado.');
       return true;
@@ -223,8 +252,8 @@ export default function DiscussionScreen() {
             <CommentRow
               row={item}
               authorLabel={item.comment.authorId === post.authorId ? authorLabel : null}
-              supported={isOn('supportedComments', item.comment.id)}
-              supportCount={withLocal(item.comment.supportCount, isOn('supportedComments', item.comment.id))}
+              supported={supportedOf(item.comment)}
+              supportCount={supportCountOf(item.comment)}
               onSupport={onSupport}
               onReply={notice ? undefined : onReply}
               onToggleCollapse={onToggleCollapse}
@@ -266,7 +295,6 @@ export default function DiscussionScreen() {
         />
         <CommentComposer
           key={id}
-          me={me}
           replyingTo={replyTo?.name ?? null}
           onCancelReply={() => setReplyTo(null)}
           onSend={onSend}

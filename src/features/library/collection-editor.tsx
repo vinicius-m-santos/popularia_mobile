@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
-import { BottomSheet } from '@/components/bottom-sheet';
-import { PillButton } from '@/components/pill-button';
-import { TextField } from '@/components/text-field';
+import { Alert, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
+import { BottomSheet } from '@/components/bottom-sheet';
+import { EditorialAction } from '@/components/editorial-action';
+import { TextField } from '@/components/text-field';
+import { Colors, Spacing } from '@/constants/theme';
 import { describeError } from '@/lib/errors';
 import { createCollection, deleteCollection, editCollection } from './api';
 import type { LibraryCollection } from './types';
@@ -31,12 +32,45 @@ export function CollectionEditor({ visible, onClose, onDone, comuna, initial }: 
     } },
   ]);
   return <BottomSheet visible={visible} onClose={() => { if (!busy) onClose(); }} title={initial ? 'Editar coleção' : 'Nova coleção'}>
-    <View style={{ gap: 14 }}>
-      <TextField label="Nome da coleção" value={name} onChangeText={setName} maxLength={100} editable={!busy} />
-      <TextField label="Descrição da coleção" labelAside="opcional" value={description} onChangeText={setDescription} maxLength={500} multiline editable={!busy} />
-      {error ? <AppText accessibilityLiveRegion="polite">{error}</AppText> : null}
-      <PillButton label={busy ? 'Salvando…' : initial ? 'Salvar coleção' : 'Criar e selecionar'} disabled={busy} onPress={save} />
-      {initial ? <PillButton label="Excluir coleção vazia" variant="outline" disabled={busy} onPress={remove} /> : null}
+    <View style={styles.content}>
+      <AppText style={styles.intro}>{initial ? 'Atualize o nome e a descrição desta coleção.' : 'Organize documentos relacionados em um mesmo espaço.'}</AppText>
+      <TextField
+        appearance="editorial"
+        label="Nome da coleção"
+        labelAside={`${name.length}/100`}
+        placeholder="Ex.: Formação popular"
+        value={name}
+        onChangeText={setName}
+        maxLength={100}
+        editable={!busy}
+      />
+      <TextField
+        appearance="editorial"
+        label="Descrição da coleção"
+        labelAside={`opcional · ${description.length}/500`}
+        placeholder="Ex.: Cartilhas, estudos e materiais de referência"
+        value={description}
+        onChangeText={setDescription}
+        maxLength={500}
+        multiline
+        multilineHeight={112}
+        editable={!busy}
+      />
+      {error ? <AppText color={Colors.error} accessibilityLiveRegion="polite">{error}</AppText> : null}
+      <EditorialAction label={busy ? 'Salvando…' : initial ? 'Salvar coleção' : 'Criar e selecionar'} icon={initial ? 'check' : 'plus'} tone="red" disabled={busy} onPress={save} />
+      {initial ? <EditorialAction label="Excluir coleção vazia" icon="trash" disabled={busy} onPress={remove} /> : null}
     </View>
   </BottomSheet>;
 }
+
+const styles = StyleSheet.create({
+  content: {
+    gap: Spacing.four,
+    paddingBottom: Spacing.two,
+  },
+  intro: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: Colors.muted,
+  },
+});

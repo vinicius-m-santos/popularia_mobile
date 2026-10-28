@@ -40,13 +40,13 @@ export async function getProfile(id: string): Promise<Profile> {
   if (!DEMO_MODE) {
     try {
       const dto = id === 'me' ? await getMe() : await apiRequest<{
-        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string; isPrivate?: boolean;
+        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string; isPrivate?: boolean; followerCount: number;
       }>(`/users/${encodeURIComponent(id)}`, { auth: true });
       const since = 'memberSince' in dto ? dto.memberSince : dto.createdAt;
       return {
         user: toUser(dto), bio: dto.bio, isPrivate: dto.isPrivate,
         meta: [dto.city, `Na Popularia desde ${new Date(since).getFullYear()}`].filter(Boolean).join(' · '),
-        summary: dto.bio, stats: [], comunaIds: [], creator: null,
+        summary: dto.bio, stats: [{ value: String(dto.followerCount ?? 0), label: 'Seguidores' }], comunaIds: [], creator: null,
       };
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) throw new NotFoundError('Pessoa');

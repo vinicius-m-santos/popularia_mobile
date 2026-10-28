@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 
 type BottomSheetProps = {
   visible: boolean;
@@ -15,9 +16,31 @@ type BottomSheetProps = {
   scrollable?: boolean;
 };
 
-/** Folha que sobe de baixo, com fundo escurecido. Tocar fora ou voltar fecha. */
+/** Folha que sobe de baixo, com fundo escurecido. Tocar fora, voltar ou arrastar o cabeçalho para baixo fecha. */
 export function BottomSheet({ visible, onClose, title, children, scrollable = true }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
+  const [translateY] = useState(() => new Animated.Value(0));
+  useEffect(() => { if (visible) translateY.setValue(0); }, [translateY, visible]);
+  const settle = useCallback((close: boolean) => {
+    if (close) {
+      Animated.timing(translateY, { toValue: 1000, duration: 180, useNativeDriver: true }).start(({ finished }) => {
+        if (finished) onClose();
+      });
+      return;
+    }
+    Animated.spring(translateY, { toValue: 0, damping: 22, stiffness: 240, mass: 0.8, useNativeDriver: true }).start();
+  }, [onClose, translateY]);
+  const panResponder = useMemo(() => PanResponder.create({
+    // O cabeçalho assume o toque desde o início. Sem isso, o Text do título pode
+    // manter o responder e o arraste só funciona quando começa no puxador.
+    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
+    onMoveShouldSetPanResponder: (_event, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderMove: (_event, gesture) => translateY.setValue(Math.max(0, gesture.dy)),
+    onPanResponderRelease: (_event, gesture) => settle(gesture.dy > 80 || gesture.vy > 0.8),
+    onPanResponderTerminate: () => settle(false),
+  }), [settle, translateY]);
   return (
     <Modal
       visible={visible}
@@ -33,19 +56,21 @@ export function BottomSheet({ visible, onClose, title, children, scrollable = tr
           accessibilityRole="button"
           accessibilityLabel="Fechar"
         />
-        <View
-          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.four) + Spacing.four }]}
+        <Animated.View
+          style={[styles.sheet, { paddingBottom: keyboardVisible ? Spacing.four : Math.max(insets.bottom, Spacing.four) + Spacing.four }, { transform: [{ translateY }] }]}
           accessibilityViewIsModal>
-          <View style={styles.handle} />
-          {title ? (
-            <AppText style={styles.title} accessibilityRole="header">
-              {title}
-            </AppText>
-          ) : null}
+          <View style={styles.dragHeader} testID="bottom-sheet-drag-header" {...panResponder.panHandlers}>
+            <View style={styles.handle} />
+            {title ? (
+              <AppText style={styles.title} accessibilityRole="header">
+                {title}
+              </AppText>
+            ) : null}
+          </View>
           {scrollable ? <ScrollView bounces={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {children}
           </ScrollView> : children}
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -64,9 +89,8 @@ const styles = StyleSheet.create({
     maxHeight: '86%',
     alignSelf: 'center',
     backgroundColor: Colors.paper,
-    // A folha mantém a leitura de painel, mas acompanha a linguagem mais reta do app.
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     paddingTop: 10,
     paddingHorizontal: Spacing.five,
     gap: Spacing.three,
@@ -77,6 +101,9 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.strawDark,
+  },
+  dragHeader: {
+    gap: Spacing.three,
   },
   title: {
     fontFamily: Fonts.condensed,

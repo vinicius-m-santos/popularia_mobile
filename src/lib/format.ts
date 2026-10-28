@@ -18,6 +18,14 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
+/** Data civil em formato brasileiro, sem deslocar o dia por fuso horário. */
+export function formatBrazilDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR').format(date);
+}
+
 /** Tempo relativo curto: "agora", "12 min", "3 h", "2 d", ou a data se for antiga. */
 export function formatRelative(iso: string, now = Date.now()): string {
   const d = new Date(iso);

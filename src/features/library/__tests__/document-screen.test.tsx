@@ -20,8 +20,10 @@ describe('detalhe de PDF', () => {
   it('abre arquivo autorizado, salva sem refetch completo e publica a referência', async () => {
     await render(<DocumentScreen />);
     await fireEvent.press(await screen.findByText('Abrir PDF'));
+    expect(screen.getAllByText(document.title!)).toHaveLength(1);
+    expect(screen.getByText('Autoria: Coletivo Tarifa Zero')).toBeTruthy();
     expect(openPdf).toHaveBeenCalledWith(document.id, expect.anything());
-    await fireEvent.press(screen.getByText('Salvar'));
+    await fireEvent.press(screen.getByLabelText('Salvar documento'));
     expect(saveDocument).toHaveBeenCalledWith(document.id, true); expect(getDocument).toHaveBeenCalledTimes(1);
     await fireEvent.press(screen.getByText('Publicar no feed'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/criar', params: { documentId: document.id } });

@@ -13,8 +13,8 @@ import type { TopicId } from '@/types/models';
 import { getTopicGroups } from '../api';
 
 /** Escolha única da taxonomia oficial; compartilhada entre comuna e publicação geral. */
-export function SingleTopicField({ value, onChange, optional = false, error, disabled = false }: {
-  value: TopicId | null; onChange: (value: TopicId | null) => void; optional?: boolean; error?: string; disabled?: boolean;
+export function SingleTopicField({ value, onChange, optional = false, error, disabled = false, appearance = 'default' }: {
+  value: TopicId | null; onChange: (value: TopicId | null) => void; optional?: boolean; error?: string; disabled?: boolean; appearance?: 'default' | 'editorial';
 }) {
   const [open, setOpen] = useState(false);
   const load = useCallback(() => getTopicGroups(), []);
@@ -25,9 +25,9 @@ export function SingleTopicField({ value, onChange, optional = false, error, dis
   return (
     <View style={styles.field}>
       <AppText variant="label">Assunto{optional ? ' · opcional' : ''}</AppText>
-      <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Assunto: ${selected?.shortLabel ?? 'Escolher assunto'}`} onPress={() => setOpen(true)} style={styles.trigger}>
+      <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Assunto: ${selected?.shortLabel ?? 'Escolher assunto'}`} onPress={() => setOpen(true)} style={[styles.trigger, appearance === 'editorial' && styles.editorialTrigger]}>
         <AppText style={styles.name}>{selected?.label ?? (value && data.status === 'loading' ? 'Carregando assunto…' : 'Escolher assunto')}</AppText>
-        <Icon name="chevronRight" size={18} />
+        <Icon name={appearance === 'editorial' ? 'chevronDown' : 'chevronRight'} size={18} />
       </Pressable>
       {error ? <AppText variant="caption" color={Colors.red}>{error}</AppText> : null}
       <BottomSheet visible={open} onClose={() => setOpen(false)} title="Escolher assunto">
@@ -52,6 +52,7 @@ export function SingleTopicField({ value, onChange, optional = false, error, dis
 const styles = StyleSheet.create({
   field: { gap: Spacing.two },
   trigger: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.lg, backgroundColor: Colors.paper },
+  editorialTrigger: { minHeight: 46, borderRadius: 0, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
   name: { flex: 1, minWidth: 0 },
   option: { minHeight: 48, paddingVertical: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
   group: { paddingTop: Spacing.five, paddingBottom: Spacing.two },

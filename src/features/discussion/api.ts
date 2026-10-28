@@ -34,7 +34,8 @@ export function toComment(dto: CommentDto): CommentWithAuthor {
     postId: dto.postId,
     parentId: dto.parentId,
     createdAt: dto.createdAt,
-    supportCount: 0,
+    supportCount: dto.supportCount,
+    viewerSupported: dto.viewer.supported,
     status: dto.status,
     isOwn: dto.viewer.isAuthor,
   };
@@ -95,6 +96,14 @@ export async function createComment(input: {
   const dto = await apiRequest<CommentDto>(`${postPath(input.postId)}/comments`, {
     method: 'POST',
     body: { body: input.text, parentId: input.parentId },
+    auth: true,
+  });
+  return toComment(dto);
+}
+
+export async function setCommentSupport(commentId: string, supported: boolean): Promise<CommentWithAuthor> {
+  const dto = await apiRequest<CommentDto>(`/comments/${encodeURIComponent(commentId)}/support`, {
+    method: supported ? 'PUT' : 'DELETE',
     auth: true,
   });
   return toComment(dto);

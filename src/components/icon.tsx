@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { View } from 'react-native';
 import Svg, { Circle, Path, Polygon, Rect } from 'react-native-svg';
 
@@ -33,6 +34,8 @@ const ICONS = {
       </>
     ),
   },
+  heart: { strokeWidth: 2.2, body: <Path d="M20.5 8.8c0 5.2-8.5 10.7-8.5 10.7S3.5 14 3.5 8.8A4.8 4.8 0 0 1 12 6a4.8 4.8 0 0 1 8.5 2.8z" /> },
+  pin: { strokeWidth: 2.2, body: <><Path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z" /><Circle cx={12} cy={10} r={2.2} /></> },
   support: {
     strokeWidth: 2,
     body: <Polygon points="12,2.8 14.7,9 21.2,9.3 16.1,13.4 17.9,20 12,16.3 6.1,20 7.9,13.4 2.8,9.3 9.3,9" />,
@@ -50,6 +53,16 @@ const ICONS = {
     ),
   },
   bookmark: { strokeWidth: 2.2, body: <Path d="M6 3.5h12v17l-6-4-6 4z" /> },
+  library: { strokeWidth: 2.2, body: <><Path d="M4 4.5h6a3 3 0 0 1 3 3v12a3 3 0 0 0-3-3H4z" /><Path d="M20 4.5h-4a3 3 0 0 0-3 3v12a3 3 0 0 1 3-3h4z" /><Path d="M7 8h3M7 11h3M16 8h1M16 11h1" /></> },
+  folder: { strokeWidth: 2.2, body: <Path d="M3.5 6.5h6l2 2h9v11h-17z" /> },
+  institution: { strokeWidth: 1.9, body: <><Path d="M2.5 9 12 3l9.5 6zM4 20.5h16M5.5 9v9M10 9v9M14 9v9M18.5 9v9" /></> },
+  document: { strokeWidth: 2, body: <><Path d="M5 2.5h9l5 5v14H5zM14 2.5v5h5" /><Path d="M8.5 12h7M8.5 16h7" /></> },
+  edit: { strokeWidth: 2, body: <><Path d="m4 20 1-5L16.5 3.5a2.1 2.1 0 0 1 3 3L8 18zM14.5 5.5l4 4" /><Path d="M4 20h16" /></> },
+  trash: { strokeWidth: 2, body: <><Path d="M4 6.5h16M9 3.5h6l1 3H8zM6.5 6.5l1 14h9l1-14M10 10v7M14 10v7" /></> },
+  pie: { strokeWidth: 2, body: <><Path d="M11 2.5a9.5 9.5 0 1 0 9.5 9.5H11z" /><Path d="M14 2.8v6.3h6.3A9.5 9.5 0 0 0 14 2.8z" /></> },
+  share: { strokeWidth: 2.2, body: <><Path d="M12 16V3M7 8l5-5 5 5" /><Path d="M6 12H4v9h16v-9h-2" /></> },
+  shareNodes: { strokeWidth: 2.2, body: <><Circle cx={18} cy={5} r={2.2} /><Circle cx={6} cy={12} r={2.2} /><Circle cx={18} cy={19} r={2.2} /><Path d="m8 11 7.8-5M8 13l7.8 5" /></> },
+  globe: { strokeWidth: 1.9, body: <><Circle cx={12} cy={12} r={9.5} /><Path d="M2.8 12h18.4M12 2.5c3 2.7 4.5 5.9 4.5 9.5S15 18.8 12 21.5M12 2.5C9 5.2 7.5 8.4 7.5 12S9 18.8 12 21.5" /></> },
   play: { strokeWidth: 0, solid: true, body: <Polygon points="8,5.5 19,12 8,18.5" /> },
   close: { strokeWidth: 2.4, body: <Path d="M6 6l12 12M18 6 6 18" /> },
   back: { strokeWidth: 2.4, body: <Path d="M15 4.5 7.5 12l7.5 7.5" /> },
@@ -97,15 +110,7 @@ const ICONS = {
     ),
   },
   chevronRight: { strokeWidth: 2.4, body: <Path d="M9 4.5 16.5 12 9 19.5" /> },
-  settings: {
-    strokeWidth: 2.2,
-    body: (
-      <>
-        <Circle cx={12} cy={12} r={3.2} />
-        <Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
-      </>
-    ),
-  },
+  chevronDown: { strokeWidth: 2.4, body: <Path d="m4.5 9 7.5 7.5L19.5 9" /> },
   calendar: {
     strokeWidth: 2.2,
     body: (
@@ -138,7 +143,7 @@ const ICONS = {
   },
 } satisfies Record<string, IconDef>;
 
-export type IconName = keyof typeof ICONS;
+export type IconName = keyof typeof ICONS | 'settings';
 
 type IconProps = {
   name: IconName;
@@ -150,6 +155,13 @@ type IconProps = {
 
 /** Ícones são decorativos: o rótulo acessível fica no botão que os contém. */
 export function Icon({ name, size = 24, color = Colors.ink, filled = false }: IconProps) {
+  if (name === 'settings') {
+    return (
+      <View accessible={false} importantForAccessibility="no-hide-descendants">
+        <MaterialIcons name="settings" size={size} color={color} />
+      </View>
+    );
+  }
   const icon: IconDef = ICONS[name];
   // A ocultação fica num View: o Svg repassa essas props cruas ao DOM na web e quebra o SSR.
   return (

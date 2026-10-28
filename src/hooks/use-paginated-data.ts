@@ -25,6 +25,8 @@ export type PaginatedData<T> = Omit<State<T>, 'load' | 'nextCursor'> & {
    * e `refreshError` explica o motivo; sem itens, a lista vai para o estado de erro.
    */
   refresh: () => void;
+  /** Atualiza em segundo plano sem acionar loader nem alterar o offset da lista. */
+  revalidate: () => void;
   /** Acrescenta um item criado pela pessoa, sem duplicar se ele já tiver chegado da API. */
   append: (item: T) => void;
 };
@@ -62,7 +64,7 @@ export function usePaginatedData<T extends { id: string }>(
   const loadingMore = useRef(false);
 
   const fetchFirstPage = useCallback(
-    (mode: 'initial' | 'refresh') => {
+    (mode: 'initial' | 'refresh' | 'revalidate') => {
       const current = ++generation.current;
       loadingMore.current = false;
       load(null).then(
@@ -79,9 +81,9 @@ export function usePaginatedData<T extends { id: string }>(
           if (current !== generation.current) return;
           const error = toError(err);
           setState((prev) =>
-            mode === 'refresh' && prev.load === load && prev.items.length > 0 &&
+            mode !== 'initial' && prev.load === load && prev.status === 'success' &&
             !(error instanceof NotFoundError) && !(error instanceof ApiError && [401, 403, 404].includes(error.status))
-              ? { ...prev, isRefreshing: false, refreshError: error }
+              ? { ...prev, isRefreshing: false, refreshError: mode === 'revalidate' ? null : error }
               : { ...initialState(load), status: 'error', error },
           );
         },
@@ -105,6 +107,12 @@ export function usePaginatedData<T extends { id: string }>(
     );
     fetchFirstPage('refresh');
   }, [fetchFirstPage, load]);
+
+  const revalidate = useCallback(() => {
+    if (!sameQuery || state.status !== 'success') return;
+    setState((prev) => prev.load === load && prev.status === 'success' ? { ...prev, refreshError: null } : prev);
+    fetchFirstPage('revalidate');
+  }, [fetchFirstPage, load, sameQuery, state.status]);
 
   const loadMore = useCallback(() => {
     if (!sameQuery || state.status !== 'success' || !state.nextCursor || loadingMore.current) return;
@@ -147,6 +155,7 @@ export function usePaginatedData<T extends { id: string }>(
     hasMore: view.nextCursor !== null,
     loadMore,
     refresh,
+    revalidate,
     append,
   };
 }

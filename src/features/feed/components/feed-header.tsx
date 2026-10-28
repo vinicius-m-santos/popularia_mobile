@@ -66,6 +66,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     resizeMode: 'contain',
+    transform: [{ translateY: -2 }],
   },
   wordmark: {
     fontFamily: Fonts.condensed,

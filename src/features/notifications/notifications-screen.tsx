@@ -147,10 +147,8 @@ export default function NotificationsScreen() {
     <Screen>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <View style={styles.heading}>
-            <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-            <AppText variant="display" accessibilityRole="header" style={styles.title}>Avisos</AppText>
-          </View>
+          <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
+          <AppText variant="heading" accessibilityRole="header" style={styles.title}>Avisos</AppText>
           <Pressable
             onPress={markAllRead}
             disabled={busy || unreadCount === 0}
@@ -159,7 +157,7 @@ export default function NotificationsScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.readAll}>
             <AppText style={styles.readAllLabel} color={Colors.red}>
-              {busy ? 'Aguarde…' : 'Marcar todas como lidas'}
+              {busy ? 'Aguarde…' : 'Ler todas'}
             </AppText>
           </Pressable>
         </View>
@@ -257,8 +255,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
-  heading: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
-  title: { flexShrink: 1 },
+  title: { position: 'absolute', left: 88, right: 88, textAlign: 'center', textTransform: 'uppercase' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -266,8 +263,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   readAll: {
-    flexShrink: 1,
-    maxWidth: '45%',
+    marginLeft: 'auto',
     minHeight: 44,
     justifyContent: 'center',
   },

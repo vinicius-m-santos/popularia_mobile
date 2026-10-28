@@ -3,11 +3,10 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { PillButton } from '@/components/pill-button';
 import { Colors, Fonts, MinTouchTarget, Radius, Spacing } from '@/constants/theme';
-import type { User } from '@/types/models';
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 
 export const MAX_COMMENT_LENGTH = 2000;
 
@@ -15,7 +14,6 @@ export const MAX_COMMENT_LENGTH = 2000;
 export type ComposerNotice = { message: string; actionLabel?: string; onAction?: () => void };
 
 type CommentComposerProps = {
-  me: User;
   replyingTo: string | null;
   onCancelReply: () => void;
   /** Envia o comentário; devolve `true` se deu certo (o rascunho só é apagado nesse caso). */
@@ -26,11 +24,12 @@ type CommentComposerProps = {
 };
 
 /** Campo fixo no rodapé da discussão para comentar ou responder. */
-export function CommentComposer({ me, replyingTo, onCancelReply, onSend, notice, inputRef }: CommentComposerProps) {
+export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inputRef }: CommentComposerProps) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
   const canSend = draft.trim().length > 0 && !sending;
 
   const send = async () => {
@@ -47,7 +46,7 @@ export function CommentComposer({ me, replyingTo, onCancelReply, onSend, notice,
     }
   };
 
-  const padding = { paddingBottom: Math.max(insets.bottom, Spacing.three) };
+  const padding = { paddingBottom: keyboardVisible ? Spacing.two : Math.max(insets.bottom, Spacing.three) };
 
   if (notice) {
     return (
@@ -80,7 +79,6 @@ export function CommentComposer({ me, replyingTo, onCancelReply, onSend, notice,
         </View>
       ) : null}
       <View style={styles.row}>
-        <Avatar initials={me.initials} tone={me.tone} size={34} />
         <TextInput
           ref={inputRef}
           value={draft}

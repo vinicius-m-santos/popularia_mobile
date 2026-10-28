@@ -25,8 +25,11 @@ export type SquareReport = { id: string; reason: string; createdAt: string; mess
 const path = (id: string) => `/squares/${encodeURIComponent(id)}`;
 const messagePath = (id: string, messageId: string) => `${path(id)}/messages/${encodeURIComponent(messageId)}`;
 
-export function listSquares(section: 'mine' | 'discover', cursor: string | null = null) {
-  return apiRequest<PageDto<Square>>(`/squares?section=${section}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, { auth: true });
+export function listSquares(section: 'mine' | 'discover', cursor: string | null = null, term = '') {
+  const params = new URLSearchParams({ section });
+  if (cursor) params.set('cursor', cursor);
+  if (term) params.set('q', term);
+  return apiRequest<PageDto<Square>>(`/squares?${params.toString()}`, { auth: true });
 }
 export function getSquare(id: string) { return apiRequest<Square>(path(id), { auth: true }); }
 export function getComunaSquare(slug: string) { return apiRequest<Square>(`/comunas/${encodeURIComponent(slug)}/square`, { auth: true }); }

@@ -1,22 +1,54 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { AppText } from '@/components/app-text';
-import { TextField } from '@/components/text-field';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+
+import { SelectField } from '@/components/select-field';
 import { DEMO_MODE } from '@/constants/config';
+import { Spacing } from '@/constants/theme';
+
 import { getBrazilMunicipalities, getBrazilStates, type LocationState, type Municipality } from './api';
 
-const DEMO_STATES: LocationState[] = [{ id: '12', name: 'Acre', abbreviation: 'AC' }, { id: '27', name: 'Alagoas', abbreviation: 'AL' }, { id: '16', name: 'Amapá', abbreviation: 'AP' }, { id: '13', name: 'Amazonas', abbreviation: 'AM' }, { id: '29', name: 'Bahia', abbreviation: 'BA' }, { id: '23', name: 'Ceará', abbreviation: 'CE' }, { id: '53', name: 'Distrito Federal', abbreviation: 'DF' }, { id: '32', name: 'Espírito Santo', abbreviation: 'ES' }, { id: '52', name: 'Goiás', abbreviation: 'GO' }, { id: '21', name: 'Maranhão', abbreviation: 'MA' }, { id: '51', name: 'Mato Grosso', abbreviation: 'MT' }, { id: '50', name: 'Mato Grosso do Sul', abbreviation: 'MS' }, { id: '31', name: 'Minas Gerais', abbreviation: 'MG' }, { id: '15', name: 'Pará', abbreviation: 'PA' }, { id: '25', name: 'Paraíba', abbreviation: 'PB' }, { id: '41', name: 'Paraná', abbreviation: 'PR' }, { id: '26', name: 'Pernambuco', abbreviation: 'PE' }, { id: '22', name: 'Piauí', abbreviation: 'PI' }, { id: '33', name: 'Rio de Janeiro', abbreviation: 'RJ' }, { id: '24', name: 'Rio Grande do Norte', abbreviation: 'RN' }, { id: '43', name: 'Rio Grande do Sul', abbreviation: 'RS' }, { id: '11', name: 'Rondônia', abbreviation: 'RO' }, { id: '14', name: 'Roraima', abbreviation: 'RR' }, { id: '42', name: 'Santa Catarina', abbreviation: 'SC' }, { id: '35', name: 'São Paulo', abbreviation: 'SP' }, { id: '28', name: 'Sergipe', abbreviation: 'SE' }, { id: '17', name: 'Tocantins', abbreviation: 'TO' }];
+const BRAZIL_STATES: LocationState[] = [
+  ['12', 'Acre', 'AC'], ['27', 'Alagoas', 'AL'], ['16', 'Amapá', 'AP'], ['13', 'Amazonas', 'AM'], ['29', 'Bahia', 'BA'], ['23', 'Ceará', 'CE'], ['53', 'Distrito Federal', 'DF'], ['32', 'Espírito Santo', 'ES'], ['52', 'Goiás', 'GO'], ['21', 'Maranhão', 'MA'], ['51', 'Mato Grosso', 'MT'], ['50', 'Mato Grosso do Sul', 'MS'], ['31', 'Minas Gerais', 'MG'], ['15', 'Pará', 'PA'], ['25', 'Paraíba', 'PB'], ['41', 'Paraná', 'PR'], ['26', 'Pernambuco', 'PE'], ['22', 'Piauí', 'PI'], ['33', 'Rio de Janeiro', 'RJ'], ['24', 'Rio Grande do Norte', 'RN'], ['43', 'Rio Grande do Sul', 'RS'], ['11', 'Rondônia', 'RO'], ['14', 'Roraima', 'RR'], ['42', 'Santa Catarina', 'SC'], ['35', 'São Paulo', 'SP'], ['28', 'Sergipe', 'SE'], ['17', 'Tocantins', 'TO'],
+].map(([id, name, abbreviation]) => ({ id, name, abbreviation }));
 
 type Props = { stateId: string; municipalityId: string; city: string; state: string; onChange: (patch: { stateIbgeCode: string; municipalityIbgeCode: string; city: string; state: string }) => void };
-export function BrazilLocationFields({ stateId, municipalityId, city, state, onChange }: Props) {
-  const [states, setStates] = useState<LocationState[]>(DEMO_MODE ? DEMO_STATES : []); const [municipalities, setMunicipalities] = useState<Municipality[]>([]); const [stateQuery, setStateQuery] = useState(state); const [cityQuery, setCityQuery] = useState(city); const [error, setError] = useState('');
-  useEffect(() => { if (DEMO_MODE) return; getBrazilStates().then(setStates).catch(() => setError('Não conseguimos carregar os estados. Tente novamente.')); }, []);
-  useEffect(() => { if (!stateId) return; getBrazilMunicipalities(stateId).then(setMunicipalities).catch(() => setError('Não conseguimos carregar as cidades. Tente novamente.')); }, [stateId]);
-  const matchingStates = useMemo(() => states.filter((item) => `${item.name} ${item.abbreviation}`.toLowerCase().includes(stateQuery.toLowerCase())).slice(0, 8), [states, stateQuery]);
-  const matchingCities = useMemo(() => stateId ? municipalities.filter((item) => item.name.toLowerCase().includes(cityQuery.toLowerCase())).slice(0, 12) : [], [municipalities, cityQuery, stateId]);
-  const chooseState = (item: LocationState) => { setStateQuery(item.name); setCityQuery(''); onChange({ stateIbgeCode: item.id, municipalityIbgeCode: '', city: '', state: item.name }); };
-  const chooseCity = (item: Municipality) => { setCityQuery(item.name); onChange({ stateIbgeCode: stateId, municipalityIbgeCode: item.id, city: item.name, state: states.find((item) => item.id === stateId)?.name ?? state }); };
-  return <View style={styles.group}><TextField label="Estado" value={stateQuery} onChangeText={(value) => { setStateQuery(value); if (stateId && value !== state) onChange({ stateIbgeCode: '', municipalityIbgeCode: '', city: '', state: '' }); }} placeholder="Digite para buscar" /><View style={styles.options}>{matchingStates.map((item) => <Pressable key={item.id} onPress={() => chooseState(item)} style={styles.option}><AppText>{item.name} ({item.abbreviation})</AppText></Pressable>)}</View><TextField label="Cidade" value={cityQuery} editable={Boolean(stateId)} onChangeText={setCityQuery} placeholder={stateId ? 'Digite para buscar' : 'Escolha o estado primeiro'} /><View style={styles.options}>{matchingCities.map((item) => <Pressable key={item.id} onPress={() => chooseCity(item)} style={styles.option}><AppText>{item.name}</AppText></Pressable>)}</View>{error ? <AppText color={Colors.red}>{error}</AppText> : null}</View>;
+
+export function BrazilLocationFields({ stateId, municipalityId, state, onChange }: Props) {
+  const [states, setStates] = useState<LocationState[]>(DEMO_MODE ? BRAZIL_STATES : []);
+  const [municipalityResult, setMunicipalityResult] = useState<{ stateId: string; items: Municipality[]; error?: string }>({ stateId: '', items: [] });
+  const [statesError, setStatesError] = useState('');
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    getBrazilStates().then(setStates, () => setStatesError('Não conseguimos carregar os estados.'));
+  }, []);
+
+  useEffect(() => {
+    if (!stateId) return;
+    let active = true;
+    getBrazilMunicipalities(stateId).then(
+      (items) => { if (active) setMunicipalityResult({ stateId, items }); },
+      () => { if (active) setMunicipalityResult({ stateId, items: [], error: 'Não conseguimos carregar as cidades.' }); },
+    );
+    return () => { active = false; };
+  }, [stateId]);
+
+  const municipalities = municipalityResult.stateId === stateId ? municipalityResult.items : [];
+  const citiesLoading = !!stateId && municipalityResult.stateId !== stateId;
+
+  const chooseState = (id: string) => {
+    const selected = states.find((item) => item.id === id);
+    if (selected) onChange({ stateIbgeCode: selected.id, municipalityIbgeCode: '', city: '', state: selected.name });
+  };
+  const chooseCity = (id: string) => {
+    const selected = municipalities.find((item) => item.id === id);
+    if (selected) onChange({ stateIbgeCode: stateId, municipalityIbgeCode: selected.id, city: selected.name, state: states.find((item) => item.id === stateId)?.name ?? state });
+  };
+
+  return <View style={styles.group}>
+    <SelectField label="Estado" value={stateId} placeholder="Selecione o estado" loading={!DEMO_MODE && states.length === 0 && !statesError} options={states.map((item) => ({ value: item.id, label: `${item.name} (${item.abbreviation})` }))} onChange={chooseState} error={!stateId ? statesError || undefined : undefined} />
+    <SelectField label="Cidade" value={municipalityId} placeholder={stateId ? 'Selecione a cidade' : 'Escolha o estado primeiro'} disabled={!stateId} loading={citiesLoading} options={municipalities.map((item) => ({ value: item.id, label: item.name }))} onChange={chooseCity} error={municipalityResult.stateId === stateId ? municipalityResult.error : undefined} />
+  </View>;
 }
-const styles = StyleSheet.create({ group: { gap: Spacing.two }, options: { borderWidth: 1, borderColor: Colors.ink, borderRadius: Radius.md, overflow: 'hidden' }, option: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, backgroundColor: Colors.paper, borderBottomWidth: 1, borderBottomColor: Colors.rule } });
+
+const styles = StyleSheet.create({ group: { gap: Spacing.three } });

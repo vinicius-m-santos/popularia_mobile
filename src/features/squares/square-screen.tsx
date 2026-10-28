@@ -1,18 +1,20 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, Modal, Pressable, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { BottomSheet } from '@/components/bottom-sheet';
+import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
 import { PillButton } from '@/components/pill-button';
+import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
-import { Colors, Fonts } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { joinComuna, requestToJoin } from '@/features/comunas/api';
 import { useInteractions } from '@/features/interactions/interactions-context';
@@ -23,7 +25,7 @@ import { initialsOf } from '@/lib/format';
 import { goBack, openModeration, useNav } from '@/lib/routes';
 
 import * as api from './api';
-import { MessageRow } from './components/message-row';
+import { MessageRow, QUICK_REACTIONS, type MessageAnchor } from './components/message-row';
 import { SquareComposer } from './components/square-composer';
 import { StickerTile } from './components/sticker-tile';
 import { useSquare } from './use-square';
@@ -47,7 +49,7 @@ function Conversation({ id }: { id: string }) {
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const [replyId, setReplyId] = useState<string | null>(null);
   const reply = chat.messages.find((m) => m.id === replyId && m.status === 'published' && m.viewer.canReply) ?? null;
-  const [selected, setSelected] = useState<string | null>(null);
+  const [picker, setPicker] = useState<{ messageId: string; anchor: MessageAnchor } | null>(null);
   const [actionsId, setActionsId] = useState<string | null>(null);
   const actions = chat.messages.find((m) => m.id === actionsId && m.status === 'published') ?? null;
   const [form, setForm] = useState<'report' | 'remove' | null>(null);
@@ -63,7 +65,7 @@ function Conversation({ id }: { id: string }) {
   if (previousReadable !== readable) {
     setPreviousReadable(readable);
     if (!readable) {
-      setPacks([]); setPeople([]); setReplyId(null); setSelected(null);
+      setPacks([]); setPeople([]); setReplyId(null); setPicker(null);
       setActionsId(null); setForm(null); setSheet(null); setReason('');
     }
   }
@@ -73,8 +75,9 @@ function Conversation({ id }: { id: string }) {
   useEffect(() => { messageRows.current = chat.messages; }, [chat.messages]);
   useFocusEffect(useCallback(() => { setStatusBarStyle('light'); return () => setStatusBarStyle('dark'); }, []));
 
-  const onReply = useCallback((m: api.SquareMessage) => { if (!m.viewer.canReply) return; setReplyId(m.id); setSelected(null); input.current?.focus(); }, []);
+  const onReply = useCallback((m: api.SquareMessage) => { if (!m.viewer.canReply) return; setReplyId(m.id); setPicker(null); input.current?.focus(); }, []);
   const onActions = useCallback((m: api.SquareMessage) => { setActionsId(m.id); setForm(null); setReason(''); }, [setActionsId, setForm, setReason]);
+  const openPicker = useCallback((m: api.SquareMessage, anchor: MessageAnchor) => setPicker({ messageId: m.id, anchor }), []);
   const original = useCallback((messageId: string) => {
     const index = messageRows.current.findIndex((m) => m.id === messageId);
     if (index >= 0) list.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
@@ -125,11 +128,12 @@ function Conversation({ id }: { id: string }) {
     }, form === 'report' ? 'Denúncia registrada para a moderação da comuna.' : 'Mensagem removida.');
   };
   const freshAction = actions ? chat.messages.find((m) => m.id === actions.id) ?? actions : null;
+  const pickerMessage = picker ? chat.messages.find((m) => m.id === picker.messageId && m.status === 'published') ?? null : null;
   const locked = s && !s.viewer.canRead;
   const joinLabel = busy ? 'Aguarde…' : s?.viewer.joinRequest === 'pending' ? 'Solicitação pendente' : locked ? 'Solicitar entrada' : 'Participar';
   const notice = s?.status === 'closed' ? 'Praça encerrada · somente leitura' : s?.viewer.isMember && !s.viewer.canWrite ? (account && !account.emailVerified ? 'Confirme seu e-mail para conversar na Praça.' : 'A conversa está disponível somente para leitura.') : 'Participe da comuna para conversar na Praça';
 
-  return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+  return <Screen backgroundColor={Colors.ink}>
     <KeyboardView style={styles.flex}>
       <View style={styles.header}>
         <IconButton icon="back" color={Colors.cream} accessibilityLabel="Voltar" onPress={goBack} />
@@ -147,21 +151,21 @@ function Conversation({ id }: { id: string }) {
         <PillButton label={joinLabel} disabled={busy || s.viewer.joinRequest === 'pending'} onPress={join} variant="dark" />
       </View> : <>
         {chat.syncError ? <Pressable onPress={() => { void chat.reload(); }} accessibilityRole="button" style={styles.sync}><AppText variant="caption" color={Colors.red}>{chat.syncError} Toque para tentar novamente.</AppText></Pressable> : null}
+        {/* Older pages append at the visual top in this inverted list; native anchoring can shift its initial offset. */}
         <FlatList
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
+          automaticallyAdjustsScrollIndicatorInsets={false}
           ref={list} data={chat.messages} inverted keyExtractor={(m) => m.id}
-          renderItem={({ item }) => <MessageRow message={item} selected={selected === item.id} separator={chat.separatorId === item.id} onSelect={setSelected} onReply={onReply} onReact={chat.react} onActions={onActions} onOriginal={original} />}
+          renderItem={({ item }) => <MessageRow message={item} separator={chat.separatorId === item.id} onOpenPicker={openPicker} onReply={onReply} onReact={chat.react} onOriginal={original} />}
           initialNumToRender={20} maxToRenderPerBatch={12} windowSize={9}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={styles.messages}
           onScroll={(event) => { const bottom = event.nativeEvent.contentOffset.y < 80; atBottom.current = bottom; chat.onBottom(bottom); }} scrollEventThrottle={100}
-          onScrollBeginDrag={() => setSelected(null)}
-          onContentSizeChange={() => { if (atBottom.current && !chat.loadingOlder && !chat.hasRecentGap) list.current?.scrollToOffset({ offset: 0, animated: false }); }}
+          onScrollBeginDrag={() => setPicker(null)}
           onEndReached={() => { if (!chat.loading) void chat.loadOlder(); }} onEndReachedThreshold={0.25}
           onScrollToIndexFailed={() => toast.show('Role um pouco mais para encontrar a mensagem original.')}
-          ListEmptyComponent={<View>{chat.loading ? <StateView kind="loading" message="Carregando conversa" /> : chat.error ? <StateView kind="error" message={chat.error} onRetry={() => { void chat.reload(); }} /> : <StateView kind="empty" title="A Praça é nossa" message="Abra a conversa com a primeira mensagem." />}</View>}
+          ListEmptyComponent={<View>{chat.loading ? <StateView kind="loading" message="Carregando conversa" /> : chat.error ? <StateView kind="error" message={chat.error} onRetry={() => { void chat.reload(); }} /> : <StateView kind="empty" title="Onde a comunidade se encontra" message="Abra a conversa com a primeira mensagem." />}</View>}
           ListFooterComponent={<View>{chat.olderError ? <StateView kind="error" message="Não conseguimos carregar mensagens anteriores." onRetry={() => { void chat.loadOlder(); }} /> : chat.nextCursor ? <PillButton label={chat.loadingOlder ? 'Carregando anteriores…' : 'Mensagens anteriores'} variant="outline" disabled={chat.loadingOlder} onPress={() => { void chat.loadOlder(); }} style={styles.older} /> : null}</View>}
         />
         {chat.newCount > 0 || chat.hasRecentGap ? <PillButton label={chat.newCount > 0 ? `↓ ${chat.newCount} novas mensagens` : '↓ Ir às recentes'} variant="dark" size="sm" style={styles.new} onPress={() => { void chat.jumpRecent().then(() => list.current?.scrollToOffset({ offset: 0, animated: true })); }} /> : null}
@@ -170,6 +174,14 @@ function Conversation({ id }: { id: string }) {
           {s.status === 'active' && !s.viewer.isMember ? <PillButton label={joinLabel} onPress={join} disabled={busy} variant="dark" /> : account && !account.emailVerified && s.status === 'active' ? <PillButton label="Confirmar e-mail" onPress={() => router.push('/verificar-email')} /> : null}
         </View>}
       </>}
+      <ReactionPicker
+        message={pickerMessage}
+        anchor={picker?.anchor ?? null}
+        insets={insets}
+        onClose={() => setPicker(null)}
+        onReact={(message, emoji) => { void chat.react(message, emoji); setPicker(null); }}
+        onMore={(message) => { setPicker(null); onActions(message); }}
+      />
       <BottomSheet visible={sheet === 'presence' && !!s?.viewer.canRead} onClose={() => setSheet(null)} title="Na Praça agora">
         <AppText variant="caption">Presença recente, aproximada.</AppText>
         {people.length ? people.map((p) => <View key={p.id} style={styles.person}><Avatar initials={initialsOf(p.displayName)} tone="red" size={34} /><View style={styles.flex}><AppText variant="bodyStrong">{p.displayName}</AppText><AppText variant="caption">@{p.handle}</AppText></View></View>) : <AppText>Ninguém por aqui no momento.</AppText>}
@@ -202,8 +214,49 @@ function Conversation({ id }: { id: string }) {
         </View> : null}
       </BottomSheet>
     </KeyboardView>
-  </SafeAreaView>;
+  </Screen>;
+}
+
+function ReactionPicker({ message, anchor, insets, onClose, onReact, onMore }: {
+  message: api.SquareMessage | null;
+  anchor: MessageAnchor | null;
+  insets: { top: number; bottom: number; left: number; right: number };
+  onClose: () => void;
+  onReact: (message: api.SquareMessage, emoji: string) => void;
+  onMore: (message: api.SquareMessage) => void;
+}) {
+  const { width, height } = useWindowDimensions();
+  const [pickerHeight, setPickerHeight] = useState(0);
+  if (!message || !anchor) return null;
+  const margin = Spacing.two;
+  const safeTop = insets.top + margin;
+  const safeBottom = height - insets.bottom - margin;
+  const above = anchor.y - pickerHeight - margin;
+  const below = anchor.y + anchor.height + margin;
+  const top = above >= safeTop ? above : Math.min(below, Math.max(safeTop, safeBottom - pickerHeight));
+  const alignItems = anchor.x + anchor.width / 2 < width / 2 ? 'flex-start' : 'flex-end';
+  return <Modal transparent animationType="fade" presentationStyle="overFullScreen" visible onRequestClose={onClose} statusBarTranslucent>
+    <View style={styles.pickerOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+      <View pointerEvents="box-none" style={[styles.pickerBounds, { top, left: insets.left + margin, right: insets.right + margin, alignItems }]}>
+        <View
+          accessibilityLabel="Reações rápidas"
+          onLayout={(event) => setPickerHeight(event.nativeEvent.layout.height)}
+          style={[styles.pickerBar, pickerHeight === 0 && styles.pickerMeasuring]}>
+          {message.viewer.canReact ? QUICK_REACTIONS.map((emoji) => <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`Reagir ${emoji}`} onPress={() => onReact(message, emoji)} style={styles.pickerEmoji}><AppText style={styles.pickerEmojiText}>{emoji}</AppText></Pressable>) : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Mais ações da mensagem" onPress={() => onMore(message)} style={styles.pickerMore}><Icon name="more" size={20} /></Pressable>
+        </View>
+      </View>
+    </View>
+  </Modal>;
 }
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.ink }, flex: { flex: 1, backgroundColor: Colors.cream }, header: { backgroundColor: Colors.ink, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 10 }, heading: { flex: 1, minWidth: 0 }, title: { textTransform: 'uppercase', letterSpacing: 0.7 }, presence: { paddingTop: 5, paddingBottom: 3, minHeight: 30 }, messages: { paddingVertical: 10 }, locked: { flex: 1, justifyContent: 'center', padding: 30, gap: 20 }, center: { textAlign: 'center' }, notice: { borderTopWidth: 1, borderColor: Colors.rule, backgroundColor: Colors.strawLight, padding: 16, alignItems: 'center', gap: 12 }, sync: { padding: 10, backgroundColor: Colors.paper }, new: { alignSelf: 'center', marginVertical: 8 }, older: { alignSelf: 'center', margin: 16 }, menu: { gap: 12, paddingBottom: 8 }, person: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 }, tabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', paddingBottom: 16 }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 }, reason: { minHeight: 88, maxHeight: 160, padding: 12, borderWidth: 1, borderColor: Colors.rule, borderRadius: 10, color: Colors.ink, fontFamily: Fonts.regular, lineHeight: 22, fontSize: 15, textAlignVertical: 'top' },
+  flex: { flex: 1, backgroundColor: Colors.cream }, header: { backgroundColor: Colors.ink, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 10 }, heading: { flex: 1, minWidth: 0 }, title: { textTransform: 'uppercase', letterSpacing: 0.7 }, presence: { paddingTop: 5, paddingBottom: 3, minHeight: 30 }, messages: { paddingVertical: 10 }, locked: { flex: 1, justifyContent: 'center', padding: 30, gap: 20 }, center: { textAlign: 'center' }, notice: { borderTopWidth: 1, borderColor: Colors.rule, backgroundColor: Colors.strawLight, padding: 16, alignItems: 'center', gap: 12 }, sync: { padding: 10, backgroundColor: Colors.paper }, new: { alignSelf: 'center', marginVertical: 8 }, older: { alignSelf: 'center', margin: 16 }, menu: { gap: 12, paddingBottom: 8 }, person: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 }, tabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', paddingBottom: 16 }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 }, reason: { minHeight: 88, maxHeight: 160, padding: 12, borderWidth: 1, borderColor: Colors.rule, borderRadius: 10, color: Colors.ink, fontFamily: Fonts.regular, lineHeight: 22, fontSize: 15, textAlignVertical: 'top' },
+  pickerOverlay: { flex: 1 },
+  pickerBounds: { position: 'absolute' },
+  pickerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, backgroundColor: Colors.paper, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.pill, boxShadow: '0 5px 16px rgba(0,0,0,0.18)' },
+  pickerMeasuring: { opacity: 0 },
+  pickerEmoji: { width: 40, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  pickerEmojiText: { fontSize: 22, lineHeight: 30 },
+  pickerMore: { width: 44, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
 });
