@@ -3,6 +3,7 @@ import { Archivo_400Regular } from '@expo-google-fonts/archivo/400Regular';
 import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
 import { Archivo_800ExtraBold } from '@expo-google-fonts/archivo/800ExtraBold';
 import { ArchivoNarrow_700Bold } from '@expo-google-fonts/archivo-narrow/700Bold';
+import { Anton_400Regular } from '@expo-google-fonts/anton/400Regular';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { IBMPlexMono_600SemiBold } from '@expo-google-fonts/ibm-plex-mono/600SemiBold';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -56,6 +57,7 @@ export default function RootLayout() {
     Archivo_700Bold,
     Archivo_800ExtraBold,
     ArchivoNarrow_700Bold,
+    Anton_400Regular,
     IBMPlexMono_500Medium,
     IBMPlexMono_600SemiBold,
     ...MaterialIcons.font,
@@ -94,7 +96,7 @@ export default function RootLayout() {
  * A splash fica na tela enquanto a sessão guardada no aparelho é retomada.
  */
 function RootStack() {
-  const { onboarded, status, account } = useAccount();
+  const { onboarded, status, account, showLoginWelcome } = useAccount();
   const pathname = usePathname();
   const restoring = status === 'restoring';
 
@@ -118,6 +120,13 @@ function RootStack() {
     }
   }, [account?.pendingOnboarding, needsLegal, onboarded, pathname, restoring, status]);
 
+  // A mensagem editorial pertence a cada autenticação concluída, antes do feed.
+  useEffect(() => {
+    if (!restoring && showLoginWelcome && pathname !== '/boas-vindas/mensagem') {
+      router.replace('/boas-vindas/mensagem');
+    }
+  }, [pathname, restoring, showLoginWelcome]);
+
   if (restoring) return null;
 
   return (
@@ -139,7 +148,7 @@ function RootStack() {
         <Stack.Screen name="conta" />
         <Stack.Screen name="verificar-email" />
       </Stack.Protected>
-      <Stack.Protected guard={!onboarded && !needsLegal}>
+      <Stack.Protected guard={(!onboarded || showLoginWelcome) && !needsLegal}>
         <Stack.Screen name="boas-vindas" />
       </Stack.Protected>
     </Stack>

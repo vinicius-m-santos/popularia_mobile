@@ -90,6 +90,9 @@ type AccountValue = {
   deleteAccount: (proof: accountApi.DeletionProof) => Promise<void>;
   showWelcome: boolean;
   dismissWelcome: () => void;
+  /** Mensagem exibida entre um login concluído e a entrada no app. */
+  showLoginWelcome: boolean;
+  dismissLoginWelcome: () => void;
 };
 
 const AccountContext = createContext<AccountValue | null>(null);
@@ -110,6 +113,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [interests, setInterests] = useState<TopicId[]>([]);
   const [signingUp, setSigningUp] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showLoginWelcome, setShowLoginWelcome] = useState(false);
   // E-mail e senha da etapa 1: só na memória, apagados assim que o cadastro é enviado.
   const credentials = useRef<{ email: string; password: string } | null>(null);
 
@@ -131,6 +135,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setInterests([]);
     setSigningUp(false);
     setShowWelcome(false);
+    setShowLoginWelcome(false);
     setStatus('signedOut');
   }, [resetAll]);
 
@@ -243,6 +248,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setDraft(DEMO_PROFILE);
         setSigningUp(false);
         setShowWelcome(false);
+        setShowLoginWelcome(true);
         setStatus('signedIn');
         return;
       }
@@ -250,6 +256,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       resetAll();
       setSigningUp(false);
       setShowWelcome(false);
+      setShowLoginWelcome(true);
       applyAccount(await accountApi.getMe());
     },
     [applyAccount, replaceAll, resetAll],
@@ -270,6 +277,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       } else {
         setSigningUp(false);
         setShowWelcome(false);
+        setShowLoginWelcome(true);
         applyAccount(me);
       }
     },
@@ -384,6 +392,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [applyAccount]);
 
   const dismissWelcome = useCallback(() => setShowWelcome(false), []);
+  const dismissLoginWelcome = useCallback(() => setShowLoginWelcome(false), []);
 
   const onboarded = status === 'signedIn' && !signingUp;
 
@@ -411,6 +420,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       deleteAccount,
       showWelcome,
       dismissWelcome,
+      showLoginWelcome,
+      dismissLoginWelcome,
     }),
     [
       status,
@@ -435,6 +446,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       deleteAccount,
       showWelcome,
       dismissWelcome,
+      showLoginWelcome,
+      dismissLoginWelcome,
     ],
   );
 

@@ -56,7 +56,7 @@ export default function WelcomeScreen() {
 
         <View style={styles.middle}>
           <AppText
-            style={[styles.title, { fontSize: titleSize, lineHeight: Math.round(titleSize * 0.9) }]}
+            style={[styles.title, { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.1) }]}
             color={Colors.paper}
             maxFontSizeMultiplier={1.1}
             accessibilityRole="header">

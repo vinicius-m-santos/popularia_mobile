@@ -51,6 +51,7 @@ export const Fonts = {
   condensed: 'ArchivoNarrow_700Bold',
   mono: 'IBMPlexMono_500Medium',
   monoSemibold: 'IBMPlexMono_600SemiBold',
+  anton: 'Anton_400Regular',
 } as const;
 
 export const Spacing = {

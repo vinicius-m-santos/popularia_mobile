@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/anton": "^0.4.2",
     "@expo-google-fonts/archivo": "^0.4.2",
     "@expo-google-fonts/archivo-narrow": "^0.4.2",
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
