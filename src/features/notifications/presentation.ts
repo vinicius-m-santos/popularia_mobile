@@ -2,6 +2,7 @@ import type { NotificationKind } from '@/types/models';
 
 export function notificationText(kind: NotificationKind, hasActor: boolean): string {
   const messages: Record<NotificationKind, string> = {
+    comment_support: 'apoiou seu comentário',
     square_reply: 'respondeu à sua mensagem na Praça',
     follow: 'começou a seguir você',
     comment: 'comentou na sua publicação',

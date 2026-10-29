@@ -1,16 +1,18 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
+import { queryClient } from '@/lib/query/client';
 import { ApiError, NetworkError } from '@/lib/errors';
 import type { AppNotification } from '@/types/models';
 
 import * as api from '../api';
-import { NotificationsProvider } from '../notifications-context';
+import { NotificationsProvider, useNotifications } from '../notifications-context';
 import NotificationsScreen from '../notifications-screen';
 import { useUnreadCount } from '../use-unread-count';
 import { AppText } from '@/components/app-text';
 
+jest.mock('../push-permission-prompt', () => ({ PushPermissionPrompt: () => null }));
 jest.mock('../api', () => ({ getNotifications: jest.fn(), getUnreadCount: jest.fn(), readNotification: jest.fn(), markAllNotificationsRead: jest.fn() }));
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
 jest.mock('@/features/profiles/components/follow-button', () => ({ FollowButton: () => null }));
@@ -52,12 +54,15 @@ function deferred<T>() {
 const mocked = jest.mocked(api);
 beforeEach(() => {
   jest.resetAllMocks();
+  queryClient.clear();
   mockAccount = { status: 'signedIn', account: { id: 'bia' } };
   mocked.getNotifications.mockResolvedValue({ items: [notification()], nextCursor: null });
   mocked.getUnreadCount.mockResolvedValue(1);
   mocked.readNotification.mockResolvedValue(notification({ unread: false }));
   mocked.markAllNotificationsRead.mockResolvedValue(0);
 });
+
+afterEach(() => { queryClient.clear(); });
 
 describe('central de avisos', () => {
   it('mostra loading, vazio e permite atualizar a lista vazia', async () => {
@@ -71,6 +76,21 @@ describe('central de avisos', () => {
     await fireEvent(refreshControl, 'refresh');
     await waitFor(() => expect(screen.getByText('@ana')).toBeTruthy());
     await view.unmount();
+  });
+
+  it('revalida aviso recebido durante a carga inicial assim que a lista fica pronta', async () => {
+    const first = deferred<Awaited<ReturnType<typeof api.getNotifications>>>();
+    mocked.getNotifications.mockReturnValueOnce(first.promise);
+    function PushSignal() {
+      const { changed } = useNotifications();
+      return <AppText onPress={changed}>Simular push</AppText>;
+    }
+    await render(<NotificationsProvider><Count /><NotificationsScreen /><PushSignal /></NotificationsProvider>);
+    await fireEvent.press(screen.getByText('Simular push'));
+    expect(api.getNotifications).toHaveBeenCalledTimes(1);
+    await act(async () => { first.resolve({ items: [], nextCursor: null }); });
+    await screen.findByText('@ana');
+    expect(api.getNotifications).toHaveBeenCalledTimes(2);
   });
 
   it('oferece retry após erro na primeira página', async () => {
@@ -89,6 +109,29 @@ describe('central de avisos', () => {
     expect(router.push).toHaveBeenCalledWith('/avisos/pessoa/ana');
     expect(screen.getByTestId('unread-count').props.children).toBe(0);
     expect(screen.getByRole('link').props.accessibilityLabel).not.toContain('Não lido');
+  });
+
+  it('marca visual e contador imediatamente e restaura ambos se a leitura falhar', async () => {
+    let reject!: (error: unknown) => void;
+    mocked.readNotification.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+    await render(<App />);
+    await fireEvent.press(screen.getByRole('link'));
+    expect(screen.getByTestId('unread-count').props.children).toBe(0);
+    expect(screen.getByRole('link').props.accessibilityLabel).not.toContain('Não lido');
+    expect(router.push).not.toHaveBeenCalled();
+    await act(async () => { reject(new NetworkError()); });
+    expect(screen.getByTestId('unread-count').props.children).toBe(1);
+    expect(screen.getByRole('link').props.accessibilityLabel).toContain('Não lido');
+    expect(mockShow).toHaveBeenCalledWith('Não conseguimos abrir este aviso. Tente novamente.');
+  });
+
+  it('não inventa unread ao falhar a leitura quando o contador já era zero', async () => {
+    mocked.getUnreadCount.mockResolvedValue(0);
+    mocked.readNotification.mockRejectedValueOnce(new NetworkError());
+    await render(<App />);
+    mocked.getUnreadCount.mockRejectedValue(new NetworkError());
+    await fireEvent.press(screen.getByRole('link'));
+    expect(screen.getByTestId('unread-count').props.children).toBe(0);
   });
 
   it('impede navegação e submissão duplicadas por toques rápidos', async () => {

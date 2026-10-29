@@ -28,6 +28,7 @@
     },
     "plugins": [
       "expo-router",
+      ["expo-notifications", { "defaultChannel": "social", "color": "#B82025" }],
       "expo-video",
       "expo-image",
       "expo-sharing",

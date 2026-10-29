@@ -46,9 +46,9 @@ export async function getNotifications(cursor: string | null = null): Promise<Pa
   return { items: page.items.map(toNotification), nextCursor: page.nextCursor };
 }
 
-export async function getUnreadCount(): Promise<number> {
+export async function getUnreadCount(signal?: AbortSignal): Promise<number> {
   if (DEMO_MODE) return mockDelay(demoNotifications().filter((n) => n.unread).length);
-  return (await apiRequest<{ unreadCount: number }>('/me/notifications/unread-count', { auth: true })).unreadCount;
+  return (await apiRequest<{ unreadCount: number }>('/me/notifications/unread-count', { auth: true, ...(signal ? { signal } : {}) })).unreadCount;
 }
 
 /** Revalidates current access on the server immediately before navigation. */

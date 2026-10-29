@@ -20,6 +20,7 @@ module.exports = ({ config }) => {
     ios: { ...config.ios, usesAppleSignIn: true, infoPlist: { ...config.ios?.infoPlist, NSAppTransportSecurity: { NSAllowsArbitraryLoads: false } } },
     android: {
       ...config.android,
+      ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       blockedPermissions: [
         'android.permission.RECORD_AUDIO', 'android.permission.CAMERA',
         'android.permission.ACCESS_FINE_LOCATION', 'android.permission.ACCESS_COARSE_LOCATION',
@@ -27,8 +28,8 @@ module.exports = ({ config }) => {
         'android.permission.WRITE_CONTACTS', 'android.permission.READ_MEDIA_IMAGES',
         'android.permission.READ_MEDIA_VIDEO', 'android.permission.READ_MEDIA_AUDIO',
         'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE',
-        'android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.VIBRATE',
-        'com.google.android.gms.permission.AD_ID', 'android.permission.POST_NOTIFICATIONS',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'com.google.android.gms.permission.AD_ID',
       ],
     },
     plugins: config.plugins.map((plugin) => plugin === 'expo-secure-store' ? ['expo-secure-store', { faceIDPermission: false }] : Array.isArray(plugin) && plugin[0] === '@react-native-google-signin/google-signin' && iosUrlScheme ? [plugin[0], { ...plugin[1], iosUrlScheme }] : plugin),

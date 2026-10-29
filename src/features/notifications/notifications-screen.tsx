@@ -1,6 +1,6 @@
 import { PopulariaList } from '@/components/list/popularia-list';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { IconButton } from '@/components/icon-button';
@@ -23,6 +23,7 @@ import type { AppNotification, NotificationKind } from '@/types/models';
 import { getNotifications } from './api';
 import { openNotificationTarget } from './navigation';
 import { useNotifications } from './notifications-context';
+import { PushPermissionPrompt } from './push-permission-prompt';
 import { showsActorInMessage } from './presentation';
 
 type NotificationFilter = 'tudo' | 'conversas' | 'comunas';
@@ -47,7 +48,7 @@ export default function NotificationsScreen() {
   const [busy, setBusy] = useState(false);
   const [allReadIds, setAllReadIds] = useState<ReadonlySet<string>>(new Set());
   const pending = useRef(false);
-  const { unreadCount, readIds, refreshUnread, read, readAll } = useNotifications();
+  const { revision, unreadCount, readIds, refreshUnread, read, readAll } = useNotifications();
   const toast = useToast();
   const refreshList = list.refresh;
   const focused = useRef(false);
@@ -65,6 +66,14 @@ export default function NotificationsScreen() {
     void refreshUnread();
     return () => { active.current = false; };
   }, [refreshList, refreshUnread]));
+
+  const previousRevision = useRef(revision);
+  const revalidateList = list.revalidate;
+  useEffect(() => {
+    if (previousRevision.current === revision || list.status !== 'success') return;
+    previousRevision.current = revision;
+    revalidateList();
+  }, [revision, revalidateList, list.status]);
 
   const isUnread = (n: AppNotification) => n.unread && !readIds.has(n.id) && !allReadIds.has(n.id);
 
@@ -166,6 +175,7 @@ export default function NotificationsScreen() {
           <ChipRow options={FILTERS} value={filter} onChange={setFilter} accessibilityLabel="Filtrar avisos" />
         </View>
       </View>
+      <PushPermissionPrompt />
       {body}
     </Screen>
   );
@@ -230,6 +240,7 @@ function NotificationRow({ notification: n, unread, disabled, onOpen, onInteract
 }
 
 const BADGE_ICONS: Record<NotificationKind, IconName> = {
+  comment_support: 'support',
   square_reply: 'comment',
   comment: 'comment',
   reply: 'comment',

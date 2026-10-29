@@ -123,6 +123,7 @@ export async function login(email: string, password: string, deviceLabel: string
  */
 export async function logout(everywhere = false): Promise<void> {
   try {
+    await import('@/features/notifications/push').then(({ logoutPush }) => logoutPush()).catch(() => {});
     await apiRequest(everywhere ? '/auth/logout-all' : '/auth/logout', { method: 'POST', auth: true });
   } catch (error) {
     if (!(error instanceof NetworkError)) throw error;

@@ -26,6 +26,7 @@ import { AccountProvider, useAccount } from '@/features/account/account-context'
 import { InteractionsProvider } from '@/features/interactions/interactions-context';
 import { ActionsSheetProvider } from '@/features/moderation/actions-sheet';
 import { ModerationProvider } from '@/features/moderation/moderation-context';
+import { PushRuntime } from '@/features/notifications/push-runtime';
 import { NotificationsProvider } from '@/features/notifications/notifications-context';
 import { initSentry } from '@/lib/monitoring';
 
@@ -97,6 +98,7 @@ export default function RootLayout() {
                 <ActionsSheetProvider>
                   <StatusBar style="dark" />
                   <RootStack />
+                  <PushRuntime />
                 </ActionsSheetProvider>
               </ToastProvider>
             </ModerationProvider>

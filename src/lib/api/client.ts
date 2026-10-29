@@ -38,6 +38,10 @@ export type RequestOptions = {
 
 let accessToken: string | null = null;
 let accessTokenExpiresAt = 0;
+let sessionId: string | null = null;
+
+export function getSessionId(): string | null { return sessionId; }
+export function getSessionGeneration(): number { return sessionGeneration; }
 let refreshing: { generation: number; promise: Promise<string | null> } | null = null;
 /** Muda a cada login/logout: uma renovação iniciada antes não pode ressuscitar a sessão encerrada. */
 let sessionGeneration = 0;
@@ -56,6 +60,7 @@ export async function startSession(tokens: TokensDto): Promise<void> {
 }
 
 function storeTokens(tokens: TokensDto): void {
+  sessionId = tokens.sessionId;
   accessToken = tokens.accessToken;
   // Renova 30 s antes de vencer, para não mandar um token no limite.
   accessTokenExpiresAt = Date.now() + (tokens.accessTokenExpiresIn - 30) * 1000;
@@ -66,6 +71,7 @@ export async function clearSession(): Promise<void> {
   queryClient.clear();
   sessionGeneration += 1;
   accessToken = null;
+  sessionId = null;
   accessTokenExpiresAt = 0;
   await deleteRefreshToken();
 }
