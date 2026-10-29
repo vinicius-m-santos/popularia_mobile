@@ -46,6 +46,7 @@ export function toFeedItem(post: PostDto): FeedItem {
     commentCount: post.commentCount,
     echoCount: 0,
     viewer: post.viewer,
+    poll: post.poll ?? null,
     author: toUser(post.author),
     comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name, status: post.comuna.status } : null,
     event: null,
@@ -67,10 +68,20 @@ export async function getPost(id: string, signal?: AbortSignal): Promise<FeedIte
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[] } | null }): Promise<FeedItem> {
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    auth: true,
+  });
+  return toFeedItem(post);
+}
+
+/** PUT /posts/{id}/poll/vote. A resposta já traz a publicação com o resultado atualizado. */
+export async function voteOnPoll(postId: string, optionId: string): Promise<FeedItem> {
+  const post = await apiRequest<PostDto>(`/posts/${encodeURIComponent(postId)}/poll/vote`, {
+    method: 'PUT',
+    body: { optionId },
     auth: true,
   });
   return toFeedItem(post);

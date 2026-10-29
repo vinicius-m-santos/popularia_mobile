@@ -15,6 +15,7 @@ import { EventBox } from '@/features/posts/components/event-box';
 import { MediaBox } from '@/features/posts/components/media-box';
 import { PostImages } from '@/features/posts/components/post-images';
 import { PostAttachment } from '@/features/posts/components/post-attachment';
+import { PostPollBlock } from '@/features/posts/components/post-poll';
 import { PostBody } from '@/features/posts/components/post-body';
 import { formatCount, formatStamp } from '@/lib/format';
 import type { FeedItem } from '@/types/models';
@@ -47,6 +48,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         {post.attachment ? <PostAttachment media={post.attachment} /> : null}
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
         {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}
+        {post.poll ? <PostPollBlock postId={post.id} poll={post.poll} /> : null}
         {post.event ? <EventBox event={post.event} /> : null}
         {post.media ? <MediaBox media={post.media} /> : null}
 

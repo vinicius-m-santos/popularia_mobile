@@ -67,7 +67,7 @@ export default function FeedScreen() {
     data={feed.items}
     keyExtractor={(item) => item.id}
     renderItem={({ item, index }) => <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />}
-    getItemType={(item) => item.attachment?.type ?? (item.document ? 'document' : 'text')}
+    getItemType={(item) => `${item.poll ? 'poll' : 'text'}:${item.attachment?.type ?? (item.document ? 'document' : 'plain')}`}
     ListHeaderComponent={<><WelcomeBanner /><ComposerPrompt /></>}
     emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
     emptyMessage={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).message}

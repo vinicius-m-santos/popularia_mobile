@@ -23,6 +23,7 @@ import { MediaBox } from './media-box';
 import { PostImages } from './post-images';
 import { PostAttachment } from './post-attachment';
 import { PostBody } from './post-body';
+import { PostPollBlock } from './post-poll';
 
 type PostCardProps = {
   item: FeedItem;
@@ -88,6 +89,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
 
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
+      {item.poll ? <PostPollBlock postId={item.id} poll={item.poll} /> : null}
       {event ? <EventBox event={event} /> : null}
       {media ? (
         <Pressable onPress={open} accessibilityHint="Abre a discussão">

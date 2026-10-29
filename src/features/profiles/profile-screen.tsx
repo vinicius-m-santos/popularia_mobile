@@ -357,7 +357,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         onViewableItemsChanged={visibility.onViewableItemsChanged}
         viewabilityConfig={mediaViewabilityConfig}
         keyExtractor={(row) => row.id}
-        getItemType={(row) => row.kind}
+        getItemType={(row) => row.kind === 'post' ? (row.item.poll ? 'post-poll' : 'post') : row.kind}
         stickyHeaderIndices={[1]}
         refreshing={refreshing} onRefresh={onRefresh}
         contentContainerStyle={styles.scroll}

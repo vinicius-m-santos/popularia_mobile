@@ -126,6 +126,8 @@ export type Post = {
   topComment?: { authorId: string; text: string };
   /** Só na API: o que a pessoa logada pode fazer, calculado no servidor. */
   viewer?: PostViewer;
+  /** Enquete opcional. Ausente nos mocks e nas publicações sem enquete. */
+  poll?: import('@/features/posts/poll').PostPoll | null;
 };
 
 export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean };

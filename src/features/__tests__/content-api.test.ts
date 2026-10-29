@@ -8,7 +8,7 @@ import { getComuna, getComunaPosts, getMyComunas, joinComuna, leaveComuna, toCom
 import { createComment, getComments, setCommentSupport, toComment } from '@/features/discussion/api';
 import { buildThread } from '@/features/discussion/thread';
 import { getFeed } from '@/features/feed/api';
-import { createPost, getPost, toFeedItem } from '@/features/posts/api';
+import { createPost, getPost, toFeedItem, voteOnPoll } from '@/features/posts/api';
 import { getUserPostsPage } from '@/features/profiles/api';
 import { apiRequest } from '@/lib/api/client';
 import type { CommentDto, ComunaDto, PostDto } from '@/lib/api/dto';
@@ -125,6 +125,30 @@ describe('publicações', () => {
     api.mockResolvedValue({ ...postDto, media });
     await createPost({ comunaServerId: null, text: '', mediaId: media.id });
     expect(api).toHaveBeenCalledWith('/posts', { method: 'POST', body: { mediaId: media.id, comunaId: null, body: '' }, auth: true });
+  });
+
+  it('leva a enquete no item e manda só pergunta e opções ao criar ou votar', async () => {
+    const poll = {
+      id: 'poll-1',
+      question: 'Qual livro vamos ler?',
+      totalVotes: 1,
+      votedOptionId: 'opt-1',
+      options: [
+        { id: 'opt-1', label: 'O cortiço', voteCount: 1, percent: 100, selected: true },
+        { id: 'opt-2', label: 'Capitães da Areia', voteCount: 0, percent: 0, selected: false },
+      ],
+    };
+    expect(toFeedItem({ ...postDto, poll }).poll).toEqual(poll);
+    expect(toFeedItem(postDto).poll).toBeNull();
+    api.mockResolvedValue({ ...postDto, poll });
+    await createPost({ comunaServerId: null, text: '', poll: { question: poll.question, options: poll.options.map(({ label }) => ({ label })) } });
+    expect(api).toHaveBeenCalledWith('/posts', {
+      method: 'POST',
+      body: { poll: { question: poll.question, options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }] }, comunaId: null, body: '' },
+      auth: true,
+    });
+    await voteOnPoll(postDto.id, 'opt-2');
+    expect(api).toHaveBeenCalledWith(`/posts/${encodeURIComponent(postDto.id)}/poll/vote`, { method: 'PUT', body: { optionId: 'opt-2' }, auth: true });
   });
 
   it('publicação invisível (404) vira NotFoundError', async () => {

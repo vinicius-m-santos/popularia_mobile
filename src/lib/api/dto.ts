@@ -115,6 +115,13 @@ export type PostDto = {
   commentCount: number;
   /** Dicas para a interface, calculadas no servidor; a decisão que vale é a da API. */
   viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean };
+  poll?: {
+    id: string;
+    question: string;
+    totalVotes: number;
+    votedOptionId: string | null;
+    options: { id: string; label: string; voteCount: number; percent: number; selected: boolean }[];
+  } | null;
 };
 
 export type CommentDto = {

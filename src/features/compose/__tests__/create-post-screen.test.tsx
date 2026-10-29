@@ -130,3 +130,29 @@ describe('PDF no composer', () => {
     expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: 'Rascunho preservado', documentId: document.id });
   });
 });
+
+describe('enquete no compositor', () => {
+  it('não publica enquete incompleta ou com opções repetidas, e publica a válida', async () => {
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.press(screen.getByRole('tab', { name: 'Enquete' }));
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByLabelText('Pergunta'), 'Qual livro vamos ler?');
+    await fireEvent.changeText(screen.getByLabelText('Opção 1'), 'O cortiço');
+    await fireEvent.changeText(screen.getByLabelText('Opção 2'), 'O cortiço');
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByLabelText('Opção 2'), 'Capitães da Areia');
+    await fireEvent.press(screen.getByLabelText('Adicionar opção'));
+    await fireEvent.changeText(screen.getByLabelText('Opção 3'), 'Memórias póstumas');
+    await fireEvent.press(screen.getByLabelText('Remover opção 3'));
+    expect(screen.queryByLabelText('Opção 3')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).toHaveBeenCalledWith({
+      comunaServerId: null,
+      text: '',
+      poll: { question: 'Qual livro vamos ler?', options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }] },
+    });
+  });
+});

@@ -11,6 +11,7 @@ import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
+import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -25,6 +26,7 @@ import { LibraryPane } from '@/features/library/library-screen';
 import type { LibraryDocument } from '@/features/library/types';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { createPost } from '@/features/posts/api';
+import { POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
 import { PostCard } from '@/features/posts/components/post-card';
 import { PostAttachment } from '@/features/posts/components/post-attachment';
 import { durationLabel, pickPostImage, pickPostVideo, uploadPostMedia, type LocalPostMedia } from '@/features/posts/post-media';
@@ -46,6 +48,8 @@ function publishErrorMessage(error: unknown): string {
     if (error.type === '/errors/not-a-member') return 'Entre na comuna para publicar nela.';
     if (error.violations.body) return error.violations.body;
     if (error.violations.comunaId) return error.violations.comunaId;
+    const pollViolation = Object.entries(error.violations).find(([path]) => path.startsWith('poll'));
+    if (pollViolation) return pollViolation[1];
   }
   return `Não foi possível publicar. ${describeError(error)}`;
 }
@@ -86,6 +90,8 @@ export default function CreatePostScreen() {
   const comunas = useAsyncData(loadComunas);
 
   const [text, setText] = useState('');
+  const [poll, setPoll] = useState<PollDraft | null>(null);
+  const optionSeq = useRef(2);
   const [topic, setTopic] = useState<TopicId | null>(null);
   const [preview, setPreview] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -109,9 +115,9 @@ export default function CreatePostScreen() {
 
   const trimmed = text.trim();
   const destinationsReady = chosenId === 'perfil' || comunas.data !== null;
-  const canPublish = (!!document || !!media || trimmed.length > 0) && !publishing && destinationsReady;
+  const canPublish = (!!document || !!media || trimmed.length > 0 || poll !== null) && !publishing && destinationsReady;
   const where = destination.kind === 'perfil' ? 'seu perfil' : `c/ ${destination.comuna.name}`;
-  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || !!document || !!media), ({ repeat }) => {
+  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || !!document || !!media || poll !== null), ({ repeat }) => {
     if (publishingRef.current) return;
     Alert.alert('Descartar publicação?', 'O texto e os anexos deste rascunho serão perdidos.', [
       { text: 'Continuar escrevendo', style: 'cancel' },
@@ -141,7 +147,9 @@ export default function CreatePostScreen() {
       return;
     }
     if (pdfMode && !document) { toast.show('Escolha um PDF da biblioteca ou envie um novo.'); return; }
-    if (!trimmed && !document && !media) {
+    const pollIssue = pollDraftError(poll);
+    if (pollIssue) { toast.show(pollIssue); return; }
+    if (!trimmed && !document && !media && !poll) {
       toast.show('Escreva algo antes de publicar.');
       return;
     }
@@ -151,7 +159,7 @@ export default function CreatePostScreen() {
       publishingRef.current = true;
       setLeaving(true);
       disablePrevention();
-      addPost({ comunaId, text: trimmed });
+      addPost({ comunaId, text: trimmed, ...(poll ? { poll: { ...draftToPoll(poll), id: `local-poll-${Date.now()}` } } : {}) });
       toast.show(`Publicado em ${where} só neste aparelho. Nada foi enviado.`);
       if (comunaId) router.dismissTo({ pathname: '/comuna/[id]', params: { id: comunaId } });
       else router.dismissTo('/perfil');
@@ -179,7 +187,14 @@ export default function CreatePostScreen() {
         mediaId = uploaded.id;
         setMedia(readyMedia);
       }
-      await createPost({ comunaServerId, text: trimmed, ...(pdfMode && document ? { documentId: document.id } : {}), ...(mediaId ? { mediaId } : {}), ...(destination.kind === 'perfil' && topic ? { topic } : {}) });
+      await createPost({
+        comunaServerId,
+        text: trimmed,
+        ...(pdfMode && document ? { documentId: document.id } : {}),
+        ...(mediaId ? { mediaId } : {}),
+        ...(destination.kind === 'perfil' && topic ? { topic } : {}),
+        ...(poll ? { poll: { question: poll.question.trim(), options: poll.options.map((option) => ({ label: option.label.trim() })) } } : {}),
+      });
     } catch (error) {
       publishingRef.current = false;
       setPublishing(false);
@@ -236,6 +251,7 @@ export default function CreatePostScreen() {
     comuna: destination.kind === 'comuna' ? destination.comuna : null,
     event: null,
     topCommentAuthor: null,
+    poll: poll ? draftToPoll(poll) : null,
   };
 
   return (
@@ -325,7 +341,7 @@ export default function CreatePostScreen() {
             <View style={styles.typeGrid} role="tablist">
               <TypeButton icon="document" label="Escrever" active onPress={() => setPreview(false)} />
               <TypeButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
-              <TypeButton icon="poll" label="Enquete" onPress={soon('Criar enquete')} />
+              <TypeButton icon="poll" label="Enquete" active={poll !== null} onPress={() => { if (!poll) setPoll({ question: '', options: [{ key: 'option-1', label: '' }, { key: 'option-2', label: '' }] }); }} />
             </View>
           </View>
 
@@ -396,6 +412,17 @@ export default function CreatePostScreen() {
             {publishing && !media.uploaded ? <View><AppText variant="caption">Enviando mídia · {uploadProgress}%</AppText><EditorialAction label="Interromper envio" icon="close" onPress={() => uploadController.current?.abort()} /></View> : null}
             <EditorialAction label={`Trocar ${media.kind === 'image' ? 'imagem' : 'vídeo'}`} icon="edit" onPress={() => selectMedia(media.kind)} />
             <EditorialAction label="Remover mídia da publicação" icon="trash" onPress={() => setMedia(null)} />
+          </View> : null}
+
+          {poll ? <View style={styles.pdfSection}>
+            <AppText variant="label" style={styles.sectionLabel}>Enquete</AppText>
+            <TextField appearance="editorial" label="Pergunta" labelAside={`${poll.question.length}/${POLL_QUESTION_MAX}`} value={poll.question} onChangeText={(question) => setPoll((current) => current ? { ...current, question } : current)} maxLength={POLL_QUESTION_MAX} placeholder="Ex.: Qual livro vamos ler?" editable={!publishing} />
+            {poll.options.map((option, index) => <View key={option.key} style={styles.pollOption}>
+              <View style={styles.flex}><TextField appearance="editorial" label={`Opção ${index + 1}`} value={option.label} onChangeText={(label) => setPoll((current) => current ? { ...current, options: current.options.map((item) => item.key === option.key ? { ...item, label } : item) } : current)} maxLength={POLL_OPTION_MAX} placeholder={index === 0 ? 'Ex.: O cortiço' : index === 1 ? 'Ex.: Capitães da Areia' : 'Ex.: Uma outra opção'} editable={!publishing} /></View>
+              {poll.options.length > 2 ? <IconButton icon="close" size={18} accessibilityLabel={`Remover opção ${index + 1}`} onPress={() => setPoll((current) => current ? { ...current, options: current.options.filter((item) => item.key !== option.key) } : current)} style={styles.pollRemove} /> : null}
+            </View>)}
+            {poll.options.length < POLL_MAX_OPTIONS ? <EditorialAction label="Adicionar opção" icon="plus" onPress={() => { optionSeq.current += 1; const key = `option-${optionSeq.current}`; setPoll((current) => current && current.options.length < POLL_MAX_OPTIONS ? { ...current, options: [...current.options, { key, label: '' }] } : current); }} /> : <AppText variant="caption">Máximo de 6 opções.</AppText>}
+            <EditorialAction label="Remover enquete" icon="trash" onPress={() => setPoll(null)} />
           </View> : null}
 
           {pdfMode ? <View style={styles.pdfSection}>
@@ -745,6 +772,14 @@ const styles = StyleSheet.create({
   },
   pdfSection: {
     gap: Spacing.three,
+  },
+  pollOption: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Spacing.two,
+  },
+  pollRemove: {
+    marginBottom: 2,
   },
   option: {
     minHeight: 62,
