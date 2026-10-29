@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
-import { usePathname } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { router, usePathname } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { useToast } from '@/components/toast';
@@ -10,6 +10,8 @@ import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
 
 import { openNotificationTarget } from './navigation';
+import { destinationHref } from '@/features/links/destinations';
+import { subscribeIncoming, takeIncomingDestination, peekIncomingDestination, incomingRevision, beginIncomingPush, receivePushDestination } from '@/features/links/incoming';
 import { useNotifications } from './notifications-context';
 import { flushPushRevocations, pushAvailable, pushNotificationId, registerPush, syncIconBadge } from './push';
 
@@ -26,6 +28,27 @@ export function PushRuntime() {
   const accountId = account?.id;
   const ready = !DEMO_MODE && status === 'signedIn' && onboarded && !!account?.legalAccepted && !showLoginWelcome && !pathname.startsWith('/boas-vindas') && pathname !== '/aceite-legal';
   const handled = useRef(new Set<string>());
+
+  const [incomingVersion, setIncomingVersion] = useState(0);
+  const waitedForSession = useRef(!ready);
+  useEffect(() => subscribeIncoming(() => setIncomingVersion((value) => value + 1)), []);
+  useEffect(() => {
+    if (!ready) { waitedForSession.current = true; return; }
+    // Native-intent rewrites to a neutral bridge. Wait until Router committed it;
+    // after authentication Router may instead have replaced it with the feed.
+    const intent = peekIncomingDestination();
+    if (!intent) { waitedForSession.current = false; return; }
+    if (intent.source === 'link' && pathname !== '/abrir-link' && !waitedForSession.current) return;
+    takeIncomingDestination();
+    waitedForSession.current = false;
+    if (intent.source === 'push') {
+      if (intent.accountId === accountId) openNotificationTarget(intent.target);
+    }
+    else {
+      if (pushAvailable) Notifications.clearLastNotificationResponse();
+      router.replace(destinationHref(intent.target));
+    }
+  }, [ready, pathname, incomingVersion, accountId]);
 
   useEffect(() => {
     if (!pushAvailable || DEMO_MODE) return;
@@ -68,13 +91,16 @@ export function PushRuntime() {
         return;
       }
       handled.current.add(key);
+      const revision = beginIncomingPush();
       try {
         const notification = await read(id, true);
         if (!current) { handled.current.delete(key); return; }
-        if (notification.target) openNotificationTarget(notification.target);
+        if (revision !== incomingRevision()) return;
+        if (notification.target) receivePushDestination(notification.target, accountId);
         changed();
       } catch (error) {
         if (!current) { handled.current.delete(key); return; }
+        if (revision !== incomingRevision()) return;
         if (error instanceof ApiError && [403, 404, 410].includes(error.status)) {
           show('Este conteúdo não está mais disponível ou você não tem mais acesso.');
         } else {

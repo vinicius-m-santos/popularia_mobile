@@ -1,3 +1,4 @@
+import { shareDestination } from '@/features/links/share';
 import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
 import { useQuery } from '@tanstack/react-query';
 import { PopulariaList } from '@/components/list/popularia-list';
@@ -55,6 +56,7 @@ export default function ProfileScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const me = useMe();
   const { account } = useAccount();
+  const toast = useToast();
   const isMe = !params.id || params.id === me.id || params.id === account?.id;
   const id = isMe ? 'me' : params.id!;
   const isTabRoot = params.id === undefined;
@@ -99,7 +101,10 @@ export default function ProfileScreen() {
   const pullRefresh = useManualRefresh(requestsLoading, reloadProfileContent);
 
   const header = (handle?: string, onMore?: () => void, onBack?: () => void) => (
-    <ProfileBar isMe={isMe} canGoBack={!isTabRoot || onBack !== undefined} handle={handle} onMore={onMore} onBack={onBack} />
+    <ProfileBar isMe={isMe} canGoBack={!isTabRoot || onBack !== undefined} handle={handle} onMore={onMore} onBack={onBack} onShare={() => {
+      if (account?.id) void shareDestination({ kind: 'profile', id: account.id }).catch(() => toast.show('Não conseguimos compartilhar este perfil.'));
+      else toast.show('Este perfil ainda não possui um link público.');
+    }} />
   );
 
   if (profile.status === 'loading' && !profile.data) {
@@ -376,9 +381,9 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   );
 }
 
-type ProfileBarProps = { isMe: boolean; canGoBack: boolean; handle?: string; onMore?: () => void; onBack?: () => void };
+type ProfileBarProps = { isMe: boolean; canGoBack: boolean; handle?: string; onMore?: () => void; onBack?: () => void; onShare?: () => void };
 
-function ProfileBar({ isMe, canGoBack, handle, onMore, onBack }: ProfileBarProps) {
+function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: ProfileBarProps) {
   return (
     <View style={styles.bar}>
       {canGoBack ? <IconButton icon="back" accessibilityLabel="Voltar" onPress={onBack ?? goBack} /> : <View style={styles.barSpacer} />}
@@ -387,7 +392,7 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack }: ProfileBarProps
       </AppText>
       {isMe ? (
         <View style={styles.barActions}>
-          <IconButton icon="shareNodes" accessibilityLabel="Compartilhar perfil" onPress={() => {}} />
+          <IconButton icon="shareNodes" accessibilityLabel="Compartilhar perfil" onPress={() => onShare?.()} />
           <IconButton icon="settings" accessibilityLabel="Conta e sessões" onPress={() => router.push('/conta')} />
         </View>
       ) : onMore ? (

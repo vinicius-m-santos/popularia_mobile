@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, render, waitFor } from '@testing-library/react-native';
 import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
+import { receivePopulariaUrl, takeIncomingDestination } from '@/features/links/incoming';
+import { PUBLIC_LINK_ORIGIN } from '@/features/links/destinations';
+import { redirectSystemPath } from '@/app/+native-intent';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { queryClient } from '@/lib/query/client';
@@ -10,8 +14,12 @@ import { registerPush, syncIconBadge } from '../push';
 import { PushRuntime } from '../push-runtime';
 import type { AppNotification } from '@/types/models';
 
-jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
+jest.mock('@/constants/config', () => ({ DEMO_MODE: false, API_BASE_URL: 'https://api-stg.popularia.com.br/api/v1' }));
 let mockReady = true;
+let mockPath = '/';
+let mockLegal = true;
+let mockOnboarded = true;
+let mockWelcome = false;
 let mockAccountId = 'bia';
 let mockCount = 2;
 let mockReceived: (n: Notifications.Notification) => void;
@@ -21,10 +29,10 @@ const mockRead = jest.fn<(id: string, unread: boolean) => Promise<AppNotificatio
 const mockRefresh = jest.fn<() => Promise<void>>();
 const mockChanged = jest.fn();
 const mockShow = jest.fn();
-jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ status: mockReady ? 'signedIn' : 'restoring', account: { id: mockAccountId, legalAccepted: true }, onboarded: mockReady, showLoginWelcome: false }) }));
+jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ status: mockReady ? 'signedIn' : 'restoring', account: { id: mockAccountId, legalAccepted: mockLegal }, onboarded: mockReady && mockOnboarded, showLoginWelcome: mockWelcome }) }));
 jest.mock('../notifications-context', () => ({ useNotifications: () => ({ unreadCount: mockCount, refreshUnread: mockRefresh, read: mockRead, changed: mockChanged }) }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockShow }) }));
-jest.mock('expo-router', () => ({ usePathname: () => '/' }));
+jest.mock('expo-router', () => ({ usePathname: () => mockPath, router: { replace: jest.fn() } }));
 jest.mock('../navigation', () => ({ openNotificationTarget: jest.fn() }));
 jest.mock('../push', () => ({ flushPushRevocations: async () => {}, pushAvailable: true, registerPush: jest.fn(), syncIconBadge: jest.fn(), pushNotificationId: (data: Record<string, unknown>, id: string) => data.recipientId === id ? data.notificationId : null }));
 jest.mock('expo-notifications', () => ({
@@ -42,6 +50,7 @@ const target = { kind: 'post', id: 'post-1' } as const;
 beforeEach(() => {
   jest.resetAllMocks();
   jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
+  takeIncomingDestination(); mockPath = '/'; mockLegal = true; mockOnboarded = true; mockWelcome = false;
   mockReady = true; mockAccountId = 'bia'; mockCount = 2;
   mockRead.mockResolvedValue({ target } as AppNotification);
   mockRefresh.mockResolvedValue();
@@ -118,5 +127,60 @@ describe('ciclo de vida de push', () => {
     await view.rerender(<PushRuntime />);
     await act(async () => { resolve({ target } as AppNotification); });
     expect(openNotificationTarget).not.toHaveBeenCalled();
+  });
+});
+
+const linkedPost = '019abcde-0000-7000-8000-000000000001';
+describe('links externos no runtime único', () => {
+  it('cold start preserva link durante restauração, termos e onboarding', async () => {
+    mockReady = false;
+    mockPath = redirectSystemPath({ path: `${PUBLIC_LINK_ORIGIN}/p/${linkedPost}`, initial: true });
+    const view = await render(<PushRuntime />);
+    expect(router.replace).not.toHaveBeenCalled();
+    mockReady = true; mockLegal = false; mockPath = '/aceite-legal';
+    await view.rerender(<PushRuntime />);
+    expect(router.replace).not.toHaveBeenCalled();
+    mockLegal = true; mockOnboarded = false; mockPath = '/boas-vindas/perfil';
+    await view.rerender(<PushRuntime />);
+    expect(router.replace).not.toHaveBeenCalled();
+    mockOnboarded = true; mockWelcome = true; mockPath = '/boas-vindas/mensagem';
+    await view.rerender(<PushRuntime />);
+    expect(router.replace).not.toHaveBeenCalled();
+    mockWelcome = false; mockPath = '/';
+    await view.rerender(<PushRuntime />);
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`/post/${linkedPost}`));
+    expect(router.replace).toHaveBeenCalledTimes(1);
+  });
+  it('app aberto/background espera o Router confirmar a ponte antes de navegar', async () => {
+    const view = await render(<PushRuntime />);
+    await act(async () => { receivePopulariaUrl(`${PUBLIC_LINK_ORIGIN}/d/${linkedPost}`); });
+    expect(router.replace).not.toHaveBeenCalled();
+    mockPath = '/abrir-link';
+    await view.rerender(<PushRuntime />);
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith({ pathname: '/biblioteca/documento/[id]', params: { id: linkedPost } }));
+    expect(takeIncomingDestination()).toBeNull();
+  });
+  it('login sem link não permite que um link futuro ultrapasse a ponte', async () => {
+    mockReady = false;
+    const view = await render(<PushRuntime />);
+    mockReady = true;
+    await view.rerender(<PushRuntime />);
+    await act(async () => { receivePopulariaUrl(`${PUBLIC_LINK_ORIGIN}/p/${linkedPost}`); });
+    expect(router.replace).not.toHaveBeenCalled();
+    mockPath = '/abrir-link';
+    await view.rerender(<PushRuntime />);
+    expect(router.replace).toHaveBeenCalledWith(`/post/${linkedPost}`);
+  });
+  it('URL inválida não navega e URL recente cancela leitura de push anterior', async () => {
+    let resolve!: (n: AppNotification) => void;
+    mockRead.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    const view = await render(<PushRuntime />);
+    await act(async () => { expect(receivePopulariaUrl('https://evil.test/p/x')).toBe(false); mockRespond(response); });
+    await act(async () => { receivePopulariaUrl(`${PUBLIC_LINK_ORIGIN}/p/${linkedPost}`); });
+    mockPath = '/abrir-link';
+    await view.rerender(<PushRuntime />);
+    await act(async () => { resolve({ target } as AppNotification); });
+    expect(openNotificationTarget).not.toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith(`/post/${linkedPost}`);
   });
 });

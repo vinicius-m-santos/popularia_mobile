@@ -12,14 +12,20 @@ module.exports = ({ config }) => {
     if (!expected || api !== expected) throw new Error('Ambiente/API inválidos para build distribuível.');
     if (process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT !== environment) throw new Error('Ambiente Sentry divergente.');
   }
+  const linkOrigin = process.env.EXPO_PUBLIC_LINK_ORIGIN || api.replace(/\/api\/v1$/, '') || 'http://localhost:8080';
+  const linkUrl = new URL(linkOrigin);
+  if (linkUrl.username || linkUrl.password || linkUrl.search || linkUrl.hash || linkUrl.pathname !== '/') throw new Error('Origem de links inválida.');
+  if (profile && profile !== 'development' && (linkUrl.protocol !== 'https:' || linkOrigin !== api.replace(/\/api\/v1$/, ''))) throw new Error('Origem de links deve corresponder ao host HTTPS da API neste ambiente.');
+  const linkPaths = ['/p/', '/u/', '/c/', '/d/'];
   const iosClient = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const iosUrlScheme = iosClient ? `com.googleusercontent.apps.${iosClient.replace(/\.apps\.googleusercontent\.com$/, '')}` : null;
   return {
     ...config,
     name: environment === 'staging' ? 'Popularia Beta' : 'Popularia',
-    ios: { ...config.ios, usesAppleSignIn: true, infoPlist: { ...config.ios?.infoPlist, NSAppTransportSecurity: { NSAllowsArbitraryLoads: false } } },
+    ios: { ...config.ios, usesAppleSignIn: true, associatedDomains: [...new Set([...(config.ios?.associatedDomains || []), ...(linkUrl.protocol === 'https:' ? [`applinks:${linkUrl.host}`] : [])])], infoPlist: { ...config.ios?.infoPlist, NSAppTransportSecurity: { NSAllowsArbitraryLoads: false } } },
     android: {
       ...config.android,
+      intentFilters: [...(config.android?.intentFilters || []), ...(linkUrl.protocol === 'https:' ? [{ action: 'VIEW', autoVerify: true, category: ['BROWSABLE', 'DEFAULT'], data: linkPaths.map((pathPrefix) => ({ scheme: 'https', host: linkUrl.hostname, pathPrefix })) }] : [])],
       ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       blockedPermissions: [
         'android.permission.RECORD_AUDIO', 'android.permission.CAMERA',

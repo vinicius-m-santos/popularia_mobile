@@ -21,7 +21,8 @@
         "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "staging",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1009324469949-t3kdg7iie98v9aalj9ln4bh9b71fjub7.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-g0jt9vfoalp1pl4q1c3ro2c020m4694o.apps.googleusercontent.com",
-        "EXPO_PUBLIC_APP_ENV": "staging"
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_LINK_ORIGIN": "https://api-stg.popularia.com.br"
       },
       "environment": "preview",
       "autoIncrement": true
@@ -33,7 +34,8 @@
         "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "production",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1009324469949-l9m7r4dcbni1596nercrpko8upqm7v4m.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-a7n9k5v7ddbnf6vgk57nejesv67ij0h3.apps.googleusercontent.com",
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_LINK_ORIGIN": "https://api.popularia.com.br"
       },
       "environment": "production",
       "autoIncrement": true

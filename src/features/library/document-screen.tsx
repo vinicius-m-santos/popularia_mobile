@@ -1,3 +1,4 @@
+import { shareDestination } from '@/features/links/share';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -132,6 +133,7 @@ export default function DocumentScreen() {
     </ScrollView>
     <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)} title="Opções do documento">
       <View style={styles.sheetActions}>
+        {available ? <EditorialAction label="Compartilhar link" icon="shareNodes" onPress={() => { setMenuVisible(false); void action(() => shareDestination({ kind: 'document', id }).then(() => {})); }} /> : null}
         {d?.viewer.canEdit ? <EditorialAction label="Editar documento e acesso" icon="edit" onPress={() => { setMenuVisible(false); router.push({ pathname: '/biblioteca/enviar', params: { edit: id } }); }} /> : null}
         {d?.viewer.canDelete ? <EditorialAction label="Excluir documento" icon="trash" disabled={busy} onPress={() => { setMenuVisible(false); remove(); }} /> : null}
         <EditorialAction label="Denunciar documento" icon="flag" onPress={() => { setMenuVisible(false); setReporting(true); }} />

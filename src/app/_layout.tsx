@@ -159,6 +159,8 @@ function RootStack() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
+      <Stack.Screen name="abrir-link" />
+      <Stack.Screen name="link-indisponivel" />
       <Stack.Screen name="aceite-legal" />
       <Stack.Screen name="sobre-e-legal" />
       <Stack.Screen name="documento-legal/[id]" />

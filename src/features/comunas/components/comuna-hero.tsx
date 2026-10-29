@@ -1,3 +1,4 @@
+import { shareDestination } from '@/features/links/share';
 import { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
@@ -227,6 +228,10 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
         ) : null}
       </View>
       <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)} title="Opções da comuna" scrollable={false}>
+        <EditorialAction label="Compartilhar comuna" icon="shareNodes" onPress={() => {
+          setMenuVisible(false);
+          void shareDestination({ kind: 'comuna', id: comuna.handle }).catch(() => toast.show('Não conseguimos compartilhar esta comuna.'));
+        }} />
         {manages ? (
           <EditorialAction
             label="Gerenciar comuna"
@@ -238,11 +243,7 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
               openManageComuna(comuna.id);
             }}
           />
-        ) : (
-          <AppText style={styles.menuEmpty} color={Colors.inkSoft}>
-            Mais opções da comuna estarão disponíveis em breve.
-          </AppText>
-        )}
+        ) : null}
       </BottomSheet>
     </View>
   );

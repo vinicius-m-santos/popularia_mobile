@@ -4,6 +4,8 @@
  */
 import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { canonicalUrl } from '@/features/links/destinations';
+import { shareDestination } from '@/features/links/share';
 import * as Clipboard from 'expo-clipboard';
 
 import { AppText } from '@/components/app-text';
@@ -160,15 +162,16 @@ function SheetBody(props: BodyProps) {
             }}
           />
         ) : null}
-        <MenuItem
-          icon="link"
-          label="Copiar link"
-          onPress={async () => {
-            await Clipboard.setStringAsync(`https://popularia.app/pessoa/${encodeURIComponent(handle)}`);
-            close();
-            toast.show('Link copiado.');
-          }}
-        />
+        {target.kind !== 'comment' ? <>
+          <MenuItem icon="shareNodes" label={target.kind === 'profile' ? 'Compartilhar perfil' : 'Compartilhar publicação'} onPress={async () => {
+            try { await shareDestination({ kind: target.kind as 'post' | 'profile', id: target.id }); close(); }
+            catch { toast.show('Não conseguimos compartilhar este conteúdo.'); }
+          }} />
+          <MenuItem icon="link" label="Copiar link" onPress={async () => {
+            try { await Clipboard.setStringAsync(canonicalUrl({ kind: target.kind as 'post' | 'profile', id: target.id })); close(); toast.show('Link copiado.'); }
+            catch { toast.show('Este conteúdo ainda não possui um link público.'); }
+          }} />
+        </> : null}
         {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={blocked ? `Desbloquear @${handle}` : `Bloquear @${handle}`} danger onPress={async () => {
           try {
             await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: blocked ? 'DELETE' : 'PUT' });

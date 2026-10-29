@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { ApiError } from '@/lib/errors';
 import { getDocument, saveDocument } from '../api';
 import DocumentScreen from '../document-screen';
+import { shareDestination } from '@/features/links/share';
 import { openPdf } from '../transfers';
 import { document } from '../testing/fixtures';
 
@@ -14,6 +15,7 @@ jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }
 jest.mock('@/features/comunas/api', () => ({ getComuna: jest.fn() }));
 jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Política', topics: [{ id: 'trab', label: 'Trabalho e direitos trabalhistas' }] }]) }));
 jest.mock('../api', () => ({ getDocument: jest.fn(), saveDocument: jest.fn(), deleteDocument: jest.fn(), reportDocument: jest.fn(), removeDocument: jest.fn() }));
+jest.mock('@/features/links/share', () => ({ shareDestination: jest.fn<() => Promise<void>>().mockResolvedValue(undefined) }));
 jest.mock('../transfers', () => ({ openPdf: jest.fn() }));
 beforeEach(() => { jest.clearAllMocks(); jest.mocked(getDocument).mockResolvedValue(document); jest.mocked(openPdf).mockResolvedValue(undefined); jest.mocked(saveDocument).mockResolvedValue(undefined); });
 describe('detalhe de PDF', () => {
@@ -44,5 +46,24 @@ describe('detalhe de PDF', () => {
     await render(<DocumentScreen />); await screen.findByText('Abrir PDF');
     expect(screen.queryByText('Editar documento e acesso')).toBeNull(); expect(screen.queryByText('Excluir documento')).toBeNull();
     expect(screen.queryByText('Biblioteca Pública · Fora')).toBeNull();
+  });
+});
+
+describe('link externo de documento', () => {
+  it('compartilha referência canônica pelo menu sem baixar PDF', async () => {
+    await render(<DocumentScreen />);
+    await screen.findByText('Abrir PDF');
+    await fireEvent.press(screen.getByLabelText('Mais opções do documento'));
+    await fireEvent.press(screen.getByText('Compartilhar link'));
+    expect(shareDestination).toHaveBeenCalledWith({ kind: 'document', id: document.id });
+    expect(openPdf).not.toHaveBeenCalled();
+  });
+  it.each([403, 404])('destino sem acesso (%s) dá feedback sem metadata anterior', async (status) => {
+    jest.mocked(getDocument).mockRejectedValue(new ApiError(status, '/errors/not-found', 'Indisponível'));
+    await render(<DocumentScreen />);
+    await screen.findByText('Acesso restrito');
+    expect(screen.queryByText(document.title!)).toBeNull();
+    expect(screen.queryByText('Compartilhar link')).toBeNull();
+    expect(screen.queryByText('Abrir PDF')).toBeNull();
   });
 });
