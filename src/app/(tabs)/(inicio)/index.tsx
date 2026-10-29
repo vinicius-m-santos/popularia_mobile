@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, PanResponder, RefreshControl, StyleSheet, View } from 'react-native';
+import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PanResponder, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
-import { StateView } from '@/components/state-view';
+import { PopulariaList } from '@/components/list/popularia-list';
+import { useCachedPages } from '@/hooks/use-cached-pages';
+import { contentPolicy } from '@/lib/query/client';
 import { useToast } from '@/components/toast';
-import { Colors, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { getFeed, isFeedTabAvailable } from '@/features/feed/api';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { FeedHeader } from '@/features/feed/components/feed-header';
 import { WelcomeBanner } from '@/features/feed/components/welcome-banner';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { PostCard } from '@/features/posts/components/post-card';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { describeError } from '@/lib/errors';
 import type { FeedTab } from '@/types/models';
 
@@ -25,17 +27,18 @@ const UNAVAILABLE = { title: 'Em breve', message: '"Perto de mim" chega numa pr�
 
 /** Feed principal (design 1a). */
 export default function FeedScreen() {
+  const visibility = useListVisibility();
   const [tab, setTab] = useState<FeedTab>('para-voce');
-  const { joinedComunaIds, postsVersion } = useInteractions();
+  const { joinedComunaIds } = useInteractions();
   const { show: showToast } = useToast();
   // "Minhas comunas" recarrega quando a pessoa entra ou sai de uma comuna.
   const joinedKey = tab === 'minhas' ? joinedComunaIds.join(',') : '';
   const load = useCallback(
-    (cursor: string | null) => getFeed({ tab, joinedComunaIds: joinedKey ? joinedKey.split(',') : [], cursor }),
+    (cursor: string | null, signal: AbortSignal) => getFeed({ tab, joinedComunaIds: joinedKey ? joinedKey.split(',') : [], cursor, signal }),
     [tab, joinedKey],
   );
-  const feed = usePaginatedData(load);
-  const { refresh, refreshError } = feed;
+  const feed = useCachedPages({ queryKey: ['feed', tab, joinedKey], load, ...contentPolicy.feed });
+  const { refreshError } = feed;
   const tabs = useMemo<FeedTab[]>(() => ['para-voce', 'minhas', 'perto'], []);
   const tabIndex = tabs.indexOf(tab);
   const changeBySwipe = useCallback((direction: 1 | -1) => {
@@ -51,73 +54,25 @@ export default function FeedScreen() {
     },
   }), [changeBySwipe]);
 
-  // Depois de publicar, recarrega o feed para mostrar a publicação nova no topo.
-  const seenVersion = useRef(postsVersion);
-  useEffect(() => {
-    if (seenVersion.current === postsVersion) return;
-    seenVersion.current = postsVersion;
-    refresh();
-  }, [postsVersion, refresh]);
-
   // Falha ao atualizar com itens na tela: eles continuam, e um aviso explica.
   useEffect(() => {
     if (refreshError) showToast(`Não foi possível atualizar o feed. ${describeError(refreshError)}`);
   }, [refreshError, showToast]);
 
-  let body;
-  if (feed.status === 'error') {
-    body = (
-      <StateView
-        kind="error"
-        message={`Não conseguimos carregar o feed. ${describeError(feed.error)}`}
-        onRetry={feed.refresh}
-      />
-    );
-  } else {
-    body = (
-      <FlatList
-        contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}
-        data={feed.items}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => <PostCard item={item} showRule={index > 0} />}
-        ListHeaderComponent={
-          <>
-            <WelcomeBanner />
-            <ComposerPrompt />
-          </>
-        }
-        ListEmptyComponent={
-          feed.status === 'loading' ? (
-            <StateView kind="loading" message="Carregando publicações" />
-          ) : (
-            <StateView kind="empty" {...(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE)} />
-          )
-        }
-        ListFooterComponent={
-          feed.loadMoreError ? (
-            <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={feed.loadMore} />
-          ) : feed.loadingMore ? (
-            <View style={styles.footer}>
-              <ActivityIndicator color={Colors.red} accessibilityLabel="Carregando mais publicações" />
-            </View>
-          ) : undefined
-        }
-        // Depois de uma falha, só tenta de novo pelo botão (sem repetir a cada rolagem).
-        onEndReached={feed.loadMoreError ? undefined : feed.loadMore}
-        onEndReachedThreshold={0.5}
-        refreshControl={
-          <RefreshControl
-            refreshing={feed.isRefreshing}
-            onRefresh={feed.refresh}
-            tintColor={Colors.red}
-            colors={[Colors.red]}
-          />
-        }
-        contentContainerStyle={styles.list}
-      />
-    );
-  }
+  const body = <PopulariaList
+    state={feed}
+    extraData={visibility.visibleIds}
+    onViewableItemsChanged={visibility.onViewableItemsChanged}
+    viewabilityConfig={mediaViewabilityConfig}
+    data={feed.items}
+    keyExtractor={(item) => item.id}
+    renderItem={({ item, index }) => <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />}
+    getItemType={(item) => item.attachment?.type ?? (item.document ? 'document' : 'text')}
+    ListHeaderComponent={<><WelcomeBanner /><ComposerPrompt /></>}
+    emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
+    emptyMessage={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).message}
+    contentContainerStyle={styles.list}
+  />;
 
   return (
     <Screen>

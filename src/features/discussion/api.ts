@@ -53,8 +53,8 @@ export function toComment(dto: CommentDto): CommentWithAuthor {
   };
 }
 
-export async function getDiscussionPost(postId: string): Promise<FeedItem> {
-  if (!DEMO_MODE) return getPost(postId);
+export async function getDiscussionPost(postId: string, signal?: AbortSignal): Promise<FeedItem> {
+  if (!DEMO_MODE) return getPost(postId, signal);
 
   const raw = posts.find((p) => p.id === postId);
   const post = raw ? mockToFeedItem(raw) : null;

@@ -1,6 +1,13 @@
+import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { useQuery } from '@tanstack/react-query';
+import { PopulariaList } from '@/components/list/popularia-list';
+import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
+import { useCachedPages } from '@/hooks/use-cached-pages';
+import { accessDenied, contentPolicy, queryClient } from '@/lib/query/client';
+import { mergeById } from '@/lib/pagination';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
@@ -34,10 +41,11 @@ import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { LibraryPane } from '@/features/library/library-screen';
 
-import { getProfile, getUserPosts } from './api';
+import { getProfile, getUserPostsPage, toProfile } from './api';
 import { FollowButton } from './components/follow-button';
+import { ProfileMediaGrid } from './components/profile-media-grid';
 
-type ProfileTab = 'posts' | 'episodios' | 'comunas' | 'biblioteca';
+type ProfileTab = 'posts' | 'media' | 'episodios' | 'comunas' | 'biblioteca';
 
 /**
  * Perfil pessoal (2i) na aba Perfil e perfil de outras pessoas (2j), inclusive
@@ -51,30 +59,43 @@ export default function ProfileScreen() {
   const id = isMe ? 'me' : params.id!;
   const isTabRoot = params.id === undefined;
 
-  const loadProfile = useCallback(() => getProfile(id), [id]);
-  const loadPosts = useCallback(() => getUserPosts(id), [id]);
+  const { joinedComunaIds } = useInteractions();
+  const author = isMe && !DEMO_MODE ? account?.handle ?? '' : id;
+  const loadPosts = useCallback((cursor: string | null, signal: AbortSignal) => getUserPostsPage(author, cursor, signal), [author]);
   // Na API, o próprio perfil lista as comunas de que a pessoa participa, com o papel dado pelo servidor.
   const loadComunas = useCallback(() => (!DEMO_MODE && isMe ? getMyComunas() : getComunas()), [isMe]);
-  const profile = useAsyncData(loadProfile);
-  const posts = useAsyncData(loadPosts);
+  const profileQuery = useQuery({ queryKey: ['profile', id],
+    queryFn: ({ signal }) => getProfile(id, signal), ...contentPolicy.profile,
+    initialData: isMe && !DEMO_MODE && account ? () => toProfile(account) : undefined,
+    initialDataUpdatedAt: 0,
+  }, queryClient);
+  const profile = { data: accessDenied(profileQuery.error) ? null : profileQuery.data,
+    status: profileQuery.isPending ? 'loading' : profileQuery.isError ? 'error' : 'success',
+    error: profileQuery.error, reload: profileQuery.refetch };
+  const posts = useCachedPages({ queryKey: ['profile-posts', author], load: loadPosts, ...contentPolicy.profile, enabled: !!author });
   const comunas = useAsyncData(loadComunas);
-  const reloadProfile = profile.reload;
-  const reloadPosts = posts.reload;
-  const reloadAllComunas = comunas.reload;
-  const focusedOnce = useRef(false);
+  const reloadProfile = profileQuery.refetch;
+  const reloadPosts = posts.refresh;
   const reloadComunas = comunas.reload;
+  const seen = useRef({ joined: joinedComunaIds.join(','), account });
+  useEffect(() => {
+    if (seen.current.joined !== joinedComunaIds.join(',')) reloadComunas();
+    if (seen.current.account !== account) void reloadProfile();
+    seen.current = { joined: joinedComunaIds.join(','), account };
+  }, [joinedComunaIds, account, reloadPosts, reloadComunas, reloadProfile]);
   useFocusEffect(useCallback(() => {
-    if (focusedOnce.current && isMe && !DEMO_MODE) reloadComunas();
-    focusedOnce.current = true;
-  }, [isMe, reloadComunas]));
-
+    // Voltar imediatamente não gera requests; dados antigos revalidam sem loader.
+    for (const queryKey of [['profile', id], ['profile-posts', author]]) {
+      const cached = queryClient.getQueryState(queryKey);
+      if (cached && cached.fetchStatus === 'idle' && cached.dataUpdatedAt > 0 && Date.now() - cached.dataUpdatedAt > contentPolicy.profile.staleTime) {
+        void queryClient.invalidateQueries({ queryKey, exact: true });
+      }
+    }
+  }, [id, author]));
   const reloadProfileContent = useCallback(() => {
-    reloadProfile();
-    reloadPosts();
-    reloadAllComunas();
-  }, [reloadProfile, reloadPosts, reloadAllComunas]);
-
-  const requestsLoading = [profile, posts, comunas].some((item) => item.status === 'loading');
+    void reloadProfile(); reloadPosts(); reloadComunas();
+  }, [reloadProfile, reloadPosts, reloadComunas]);
+  const requestsLoading = profileQuery.isFetching || posts.isFetching || comunas.status === 'loading';
   const pullRefresh = useManualRefresh(requestsLoading, reloadProfileContent);
 
   const header = (handle?: string, onMore?: () => void, onBack?: () => void) => (
@@ -122,7 +143,7 @@ type ContentProps = {
   profile: Profile;
   isMe: boolean;
   header: (handle?: string, onMore?: () => void, onBack?: () => void) => ReactNode;
-  posts: AsyncData<FeedItem[]>;
+  posts: ReturnType<typeof useCachedPages<FeedItem>>;
   allComunas: Comuna[];
   comunasState: AsyncData<Comuna[]>;
   refreshing: boolean;
@@ -130,6 +151,7 @@ type ContentProps = {
 };
 
 function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState, refreshing, onRefresh }: ContentProps) {
+  const visibility = useListVisibility();
   const toast = useToast();
   const nav = useNav();
   const sheet = useActionsSheet();
@@ -145,8 +167,8 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const metaLines = isMe
     ? [account.city.trim(), ...profile.meta.split(' · ').filter((part) => part.trim() && part.trim().toLowerCase() !== account.city.trim().toLowerCase())].filter(Boolean)
     : profile.meta.split(' · ').filter(Boolean);
-  const postItems = [...localPosts, ...(posts.data ?? [])];
-  const stats = [{ value: String(postItems.length), label: 'Publicações' }, ...profile.stats.filter((stat) => stat.label.toLowerCase() !== 'publicações')];
+  const postItems = useMemo(() => mergeById(localPosts, posts.items), [localPosts, posts.items]);
+  const stats = [{ value: `${postItems.length}${posts.hasMore ? '+' : ''}`, label: 'Publicações' }, ...profile.stats.filter((stat) => stat.label.toLowerCase() !== 'publicações')];
   // Própria conta: participação local ou, na API, a informada pelo servidor com cada comuna.
   const comunas = useMemo(
     () =>
@@ -158,6 +180,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
 
   const tabs: TabOption<ProfileTab>[] = [
     { key: 'posts', label: 'Publicações' },
+    { key: 'media', label: 'Mídia' },
     ...(profile.creator ? [{ key: 'episodios' as const, label: 'Episódios' }] : []),
     { key: 'comunas', label: 'Comunas' },
     { key: 'biblioteca', label: 'Biblioteca pessoal' },
@@ -170,11 +193,14 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       header={<UnderlineTabs options={tabs} value={tab} onChange={setTab} />} />
   </Screen>;
 
-  return (
-    <Screen>
-      {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)))}
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} stickyHeaderIndices={[1]} contentContainerStyle={styles.scroll}>
-        <View style={styles.column}>
+  type Row = { kind: 'identity'; id: string } | { kind: 'tabs'; id: string } | { kind: 'content'; id: string } | { kind: 'post'; id: string; item: FeedItem; index: number } | { kind: 'media'; id: string; items: FeedItem[] };
+  const rows: Row[] = [{ kind: 'identity', id: 'identity' }, { kind: 'tabs', id: 'tabs' }, { kind: 'content', id: 'content' }];
+  if (tab === 'posts') postItems.forEach((item, index) => rows.push({ kind: 'post', id: item.id, item, index }));
+  if (tab === 'media') {
+    const media = postItems.filter((item) => item.attachment);
+    for (let index = 0; index < media.length; index += 3) rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3) });
+  }
+  const identity = (<View style={styles.column}>
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
           <View style={styles.identityBlock}>
             <View style={styles.identity}>
@@ -238,32 +264,28 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
 
             {profile.creator ? <CollectiveSupport creatorName={profile.creator.mastheadTitle} /> : null}
           </View>
-        </View>
-
-        <View style={styles.tabs}>
+        </View>);
+  const tabBar = (<View style={styles.tabs}>
           <View style={styles.column}>
             <UnderlineTabs options={tabs} value={tab} onChange={setTab} height={46} />
           </View>
-        </View>
-
-        <View style={styles.column}>
+        </View>);
+  const content = (<View style={styles.column}>
           {tab === 'posts' ? (
             <>
               {isMe ? <ComposerPrompt placeholder="O que você quer compartilhar?" /> : null}
-              {posts.status === 'loading' && localPosts.length === 0 ? (
-                <StateView kind="loading" message="Carregando publicações" />
+              {posts.status === 'loading' && postItems.length === 0 ? (
+                <PopulariaListSkeleton />
               ) : null}
               {posts.status === 'error' ? (
-                <StateView kind="error" message="Não conseguimos carregar as publicações." onRetry={posts.reload} />
+                <StateView kind="error" message="Não conseguimos carregar as publicações." onRetry={posts.refresh} />
               ) : null}
               {posts.status === 'success' && postItems.length === 0 ? (
                 <AppText style={styles.emptyText} color={Colors.muted}>
                   Nenhuma publicação ainda.
                 </AppText>
               ) : null}
-              {postItems.map((item, i) => (
-                <PostCard key={item.id} item={item} showRule={i > 0} showMuted />
-              ))}
+
             </>
           ) : null}
 
@@ -325,8 +347,33 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
               </View>
             </>
           ) : null}
-        </View>
-      </ScrollView>
+        </View>);
+  return (
+    <Screen>
+      {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)))}
+      <PopulariaList<Row>
+        data={rows}
+        extraData={visibility.visibleIds}
+        onViewableItemsChanged={visibility.onViewableItemsChanged}
+        viewabilityConfig={mediaViewabilityConfig}
+        keyExtractor={(row) => row.id}
+        getItemType={(row) => row.kind}
+        stickyHeaderIndices={[1]}
+        refreshing={refreshing} onRefresh={onRefresh}
+        contentContainerStyle={styles.scroll}
+        onEndReached={tab === 'posts' && !posts.loadMoreError ? posts.loadMore : undefined}
+        renderItem={({ item }) => item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
+          ? <View style={styles.column}><PostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={item.index > 0} showMuted /></View>
+          : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} /></View>}
+        ListFooterComponent={tab === 'posts' || tab === 'media' ? <View style={styles.column}>
+          {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
+          {tab === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
+          {tab === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
+          {tab === 'media' && rows.length === 3 && posts.status === 'success' ? <AppText style={styles.emptyText} color={Colors.muted}>{posts.hasMore ? 'Nenhuma mídia nesta página. Carregue mais publicações para continuar.' : 'Nenhuma imagem ou vídeo publicado ainda.'}</AppText> : null}
+          {posts.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
+            : posts.hasMore ? <PillButton label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'} variant="outline" disabled={posts.loadingMore} onPress={posts.loadMore} /> : null}
+        </View> : undefined}
+      />
     </Screen>
   );
 }

@@ -1,3 +1,4 @@
+import { queryClient } from '@/lib/query/client';
 /**
  * Conta da pessoa: sessão, dados de /me e o rascunho do cadastro.
  *
@@ -126,6 +127,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetToSignedOut = useCallback(() => {
+    queryClient.clear();
     credentials.current = null;
     clearSentryUser();
     // Participações, contagens e interações locais são desta pessoa: não passam para a próxima.
@@ -156,10 +158,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (DEMO_MODE) return;
     onSessionEnded(resetToSignedOut);
     let cancelled = false;
+    let restoreTimer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       try {
-        if ((await hasStoredSession()) && (await refreshSession())) {
-          const me = await accountApi.getMe();
+        const restored = (async () => {
+          if (!(await hasStoredSession()) || !(await refreshSession())) return null;
+          return accountApi.getMe();
+        })();
+        const timedOut = new Promise<null>((resolve) => {
+          // A API local pode não ser alcançável pelo celular. Isso não pode prender o
+          // aplicativo na inicialização durante todo o timeout HTTP de desenvolvimento.
+          restoreTimer = setTimeout(() => resolve(null), 8000);
+        });
+        const me = await Promise.race([restored, timedOut]);
+        if (restoreTimer) clearTimeout(restoreTimer);
+        if (me) {
           if (!cancelled) applyAccount(me);
           return;
         }
@@ -171,6 +184,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     })();
     return () => {
       cancelled = true;
+      if (restoreTimer) clearTimeout(restoreTimer);
       onSessionEnded(null);
     };
   }, [applyAccount, resetToSignedOut]);

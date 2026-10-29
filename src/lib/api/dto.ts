@@ -105,6 +105,7 @@ export type ComunaNameAvailabilityDto = { name: string; slug: string; available:
 
 export type PostDto = {
   document?: import('@/features/library/types').LibraryDocument | null;
+  media?: import('@/features/posts/post-media').PostMediaDto | null;
   topic?: string | null;
   id: string;
   body: string;

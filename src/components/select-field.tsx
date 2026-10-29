@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet } from '@/components/bottom-sheet';
+import { BottomSheet, PopulariaBottomSheetFlatList } from '@/components/bottom-sheet';
 import { Icon } from '@/components/icon';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
@@ -39,8 +39,8 @@ export function SelectField({ label, value, options, placeholder, onChange, disa
         <Icon name="chevronRight" size={18} color={Colors.muted} />
       </Pressable>
       {error ? <AppText style={styles.error} color={Colors.red}>{error}</AppText> : null}
-      <BottomSheet visible={open} onClose={() => setOpen(false)} title={label} scrollable={false}>
-        <FlatList
+      <BottomSheet visible={open} onClose={() => setOpen(false)} title={label} scrollable={false} virtualized>
+        <PopulariaBottomSheetFlatList
           data={options}
           keyExtractor={(item) => item.value}
           style={styles.list}

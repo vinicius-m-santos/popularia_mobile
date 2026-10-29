@@ -9,6 +9,7 @@ import type { AuthorDto, PostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 import type { FeedItem, Tone, TopicId, User } from '@/types/models';
+import { API_BASE_URL } from '@/constants/config';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
 
@@ -31,9 +32,11 @@ export function toUser(author: AuthorDto): User {
 
 /** Publicação da API → item exibível. Apoios e ecos ainda não existem na API (ficam em 0). */
 export function toFeedItem(post: PostDto): FeedItem {
+  const media = post.media ? { ...post.media, url: post.media.url?.startsWith('/') ? `${API_BASE_URL.replace(/\/api\/v1$/, '')}${post.media.url}` : post.media.url } : null;
   return {
     id: post.id,
     document: post.document ?? null,
+    attachment: media,
     authorId: post.author.id,
     // No app, a comuna é identificada pelo slug, que também é o endereço da rota.
     comunaId: post.comuna?.slug ?? null,
@@ -51,9 +54,9 @@ export function toFeedItem(post: PostDto): FeedItem {
 }
 
 /** GET /posts/{id}. A API responde 404 também para publicações que a pessoa não pode ver. */
-export async function getPost(id: string): Promise<FeedItem> {
+export async function getPost(id: string, signal?: AbortSignal): Promise<FeedItem> {
   try {
-    return toFeedItem(await apiRequest<PostDto>(`/posts/${encodeURIComponent(id)}`, { auth: true }));
+    return toFeedItem(await apiRequest<PostDto>(`/posts/${encodeURIComponent(id)}`, { auth: true, ...(signal ? { signal } : {}) }));
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) throw new NotFoundError('Publicação');
     throw error;
@@ -64,10 +67,10 @@ export async function getPost(id: string): Promise<FeedItem> {
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string }): Promise<FeedItem> {
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { ...(input.documentId ? { documentId: input.documentId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
     auth: true,
   });
   return toFeedItem(post);

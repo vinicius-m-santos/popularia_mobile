@@ -1,5 +1,6 @@
 import { apiRequest } from '@/lib/api/client';
 import type { AuthorDto, PageDto } from '@/lib/api/dto';
+import type { TopicId } from '@/types/models';
 
 export type Sticker = { id: string; packId: string; label: string; symbol: string; tone: 'red' | 'black' | 'cream' };
 export type StickerPack = { id: string; name: string; scope: 'popularia' | 'comuna'; stickers: Sticker[] };
@@ -14,7 +15,7 @@ export type SquareMessage = {
 };
 export type Square = {
   id: string; title: string;
-  comuna: { id: string; slug: string; name: string; tone: 'red' | 'black' | 'cream'; visibility: 'public' | 'private' } | null;
+  comuna: { id: string; slug: string; name: string; tone: 'red' | 'black' | 'cream'; visibility: 'public' | 'private'; topics: TopicId[] } | null;
   status: 'active' | 'closed' | null; closedAt: string | null; version: number | null;
   presence: number | null; unread: number | null; lastReadId: string | null; lastMessage: SquareMessage | null;
   viewer: { canRead: boolean; isMember: boolean; canWrite: boolean; canManage: boolean; joinRequest: 'pending' | null };

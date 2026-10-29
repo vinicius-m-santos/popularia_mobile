@@ -4,31 +4,28 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { LibraryPane } from '@/features/library/library-screen';
-import { SquareEntry } from '@/features/squares/square-entry';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
+import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { getComuna, getComunaPosts } from '@/features/comunas/api';
 import { ComunaHero } from '@/features/comunas/components/comuna-hero';
 import { MembersList, ServerMembersList } from '@/features/comunas/components/members-list';
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
 import { RulesList } from '@/features/comunas/components/rules-list';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { LibraryPane } from '@/features/library/library-screen';
 import { PostCard } from '@/features/posts/components/post-card';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
+import { SquareEntry } from '@/features/squares/square-entry';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
-
-/** Cor de fundo da capa listrada escura. */
-const COVER_DARK = '#221C18';
 
 type ComunaTab = 'posts' | 'biblioteca' | 'regras' | 'membros';
 
@@ -71,7 +68,7 @@ export default function ComunaScreen() {
     if (refreshError) showToast(`Não foi possível atualizar. ${describeError(refreshError)}`);
   }, [refreshError, showToast]);
 
-  // A capa é escura: ícones claros na barra de status enquanto esta tela está em foco.
+  // A nova capa usa papel claro; a barra de status acompanha esse fundo.
   // Ao voltar para a tela (por exemplo, da gestão), recarrega a comuna: papel e estado podem ter mudado.
   const focusedOnce = useRef(false);
   const reloadComuna = comuna.reload;
@@ -83,7 +80,7 @@ export default function ComunaScreen() {
   }, [viewerIsMember, refresh]);
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle('light');
+      setStatusBarStyle('dark');
       if (focusedOnce.current && !DEMO_MODE) reloadComuna();
       focusedOnce.current = true;
       return () => setStatusBarStyle('dark');
@@ -192,7 +189,7 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: COVER_DARK,
+    backgroundColor: Colors.cream,
   },
   scrollView: {
     backgroundColor: Colors.cream,

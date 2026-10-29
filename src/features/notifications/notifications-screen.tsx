@@ -1,6 +1,7 @@
+import { PopulariaList } from '@/components/list/popularia-list';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { IconButton } from '@/components/icon-button';
 import { goBack } from '@/lib/routes';
@@ -119,7 +120,7 @@ export default function NotificationsScreen() {
     body = <StateView kind="loading" message="Carregando avisos" />;
   } else {
     body = (
-      <FlatList
+      <PopulariaList
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
         data={list.items.filter((n) => MATCHES[filter](n.kind))}

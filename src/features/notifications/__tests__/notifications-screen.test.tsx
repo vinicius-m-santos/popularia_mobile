@@ -129,7 +129,9 @@ describe('central de avisos', () => {
       .mockRejectedValueOnce(new NetworkError())
       .mockResolvedValueOnce({ items: [notification({ id: 'n2', text: 'respondeu ao seu comentário', kind: 'reply', target: { kind: 'post', id: 'post-1' } })], nextCursor: null });
     await render(<App />);
-    await fireEvent.press(screen.getByText('Carregar mais'));
+    // A primeira página cabe na viewport: FlashList pede a próxima automaticamente.
+    await screen.findByText('Não conseguimos carregar mais avisos.');
+    expect(api.getNotifications).toHaveBeenCalledTimes(2);
     expect(screen.getByText('@ana')).toBeTruthy();
     expect(screen.getByText('Não conseguimos carregar mais avisos.')).toBeTruthy();
     await fireEvent.press(screen.getByText('Tentar de novo'));

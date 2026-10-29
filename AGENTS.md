@@ -36,6 +36,8 @@ Docs: https://docs.expo.dev/eas/index.md
 
 ## Rules
 
+- Never reintroduce a UI element the user has removed unless they explicitly ask for it to return. Treat removals as persistent product decisions, including when making related layout or feature changes.
+- Never reduce existing typography sizing or line height without an explicit request. Display and condensed fonts need vertical headroom: preserve enough line height to prevent clipping of uppercase letters and numbers, and verify counters as well as headings after typography changes.
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
@@ -44,6 +46,8 @@ Docs: https://docs.expo.dev/eas/index.md
 
 - Standard primary and secondary actions in editorial screens use `EditorialAction` from `src/components/editorial-action.tsx`. Do not copy its styles into feature files.
 - Editorial actions are rectangular: 50 px minimum height, 1.5 px `Colors.ink` border, square corners, 22 px leading icon, 8 px icon/text gap, and the mono uppercase `label` text variant. Every tone keeps the black/ink border—including red primary actions; never change the primary border to red. The red tone is the primary action; the paper tone is secondary.
+- In icon-and-label editorial actions, keep the label centered in the full button. When an icon must stay on the left edge, use `EditorialAction` with `pinnedLeadingIcon` rather than shifting the whole label-and-icon group.
+- The `Gerenciar comuna` action is always a red editorial primary action, with its settings icon aligned to the left edge of the action.
 - Use pill-shaped buttons only for compact controls, toggles, chips, or established legacy flows. Do not introduce pills for full-width or side-by-side page actions.
 - When two editorial actions share a row, keep them the same height and size them with `flex` on the component's `style` prop rather than changing internal padding, typography, or icon size.
 - Editorial inner-page headers follow the library chrome: a 58 px minimum-height row with 4 px horizontal padding, back button, a 1.5 px × 28 px `Colors.ink` vertical divider, then the mono uppercase `label` title. Optional actions such as the overflow menu stay at the far right; use a 44 px spacer when the action is absent so the title area remains stable.

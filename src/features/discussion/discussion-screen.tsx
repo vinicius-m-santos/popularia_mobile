@@ -12,7 +12,7 @@ import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
-import { createComment, getComments, getDiscussionPost, setCommentSupport } from '@/features/discussion/api';
+import { createComment, getComments, setCommentSupport } from '@/features/discussion/api';
 import { CommentComposer, type ComposerNotice } from '@/features/discussion/components/comment-composer';
 import { CommentRow } from '@/features/discussion/components/comment-row';
 import { PostDetail } from '@/features/discussion/components/post-detail';
@@ -21,7 +21,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { commentTarget, postTarget } from '@/features/moderation/targets';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { useCachedPost } from '@/features/posts/queries';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { mergeById, singlePage } from '@/lib/pagination';
@@ -44,15 +44,11 @@ export default function DiscussionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   // Modo demonstração: publicações criadas neste aparelho não existem nos mocks e abrem sem comentários.
   const localPost = useLocalFeedItems((p) => p.id === id)[0] ?? null;
-  const loadPost = useCallback(
-    (): Promise<FeedItem> => (localPost ? Promise.resolve(localPost) : getDiscussionPost(id)),
-    [id, localPost],
-  );
   const loadComments = useCallback(
     (cursor: string | null) => (localPost ? Promise.resolve(singlePage([])) : getComments(id, cursor)),
     [id, localPost],
   );
-  const discussion = useAsyncData(loadPost);
+  const discussion = useCachedPost(id, localPost);
   const comments = usePaginatedData(loadComments);
   const { isOn, toggle, localCommentsFor, addComment, membershipOf, setOn, commentCountOf, noteCommentCount } =
     useInteractions();

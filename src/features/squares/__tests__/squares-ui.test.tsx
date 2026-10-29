@@ -53,6 +53,9 @@ describe('Praças no aplicativo', () => {
     await render(<SquaresScreen />);
     await waitFor(() => expect(screen.getByText('Encontre sua comunidade')).toBeTruthy());
     expect(screen.getByText('Acontecendo agora')).toBeTruthy();
+    expect(screen.getByText('Tecnologia')).toBeTruthy();
+    expect(screen.getByText('Trabalho')).toBeTruthy();
+    expect(screen.queryByText('Comunidade')).toBeNull();
     await fireEvent.press(screen.getByText('→ Explorar comunas'));
     expect(router.navigate).toHaveBeenCalledWith('/explorar');
     await fireEvent.press(screen.getByLabelText('Entrar na Praça Trabalhadores de TI'));

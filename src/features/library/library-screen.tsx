@@ -1,8 +1,5 @@
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '@/components/app-text';
-import { BottomSheet } from '@/components/bottom-sheet';
+import { BottomSheet, InsideBottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { ChipRow } from '@/components/chip';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
@@ -20,6 +17,9 @@ import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { goBack } from '@/lib/routes';
 import type { TopicId } from '@/types/models';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState, FlatList, Image, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { getCollection, listCollections, listDocuments, saveDocument } from './api';
 import { CollectionEditor } from './collection-editor';
 import { DocumentCard } from './document-card';
@@ -47,7 +47,11 @@ export default function LibraryScreen() {
 export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, title, header, collectionData, onEditCollection, onSelect, initialQuery, initialTopic, profileContext = false }: {
   scope: LibraryScope; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; collectionData?: LibraryCollection; onEditCollection?: () => void; onSelect?: (document: LibraryDocument) => void; profileContext?: boolean;
 }) {
+  const inSheet = useContext(InsideBottomSheet);
+  const List = inSheet ? PopulariaBottomSheetFlatList : FlatList;
+  const Input = inSheet ? PopulariaBottomSheetTextInput : TextInput;
   const me = useMe();
+  const { width } = useWindowDimensions();
   const [query, setQuery] = useState(initialQuery ?? '');
   const [term, setTerm] = useState(initialQuery ?? '');
   const [topic, setTopic] = useState<TopicId | null>(initialTopic ?? null);
@@ -86,14 +90,16 @@ export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, 
   const own = scope === 'personal' && (!owner || owner === me.id);
   const editorial = scope === 'public' && !collection && !profileContext && !onSelect;
   const editorialCollection = !!collection && !!collectionData && !profileContext && !onSelect;
+  const editorialTitleSize = Math.min(50, Math.max(42, Math.round(width * 0.12)));
+  const editorialIllustrationHeight = Math.min(230, Math.max(190, Math.round(width * 0.45)));
   const filtered = !!term || topic !== null || origin !== 'all';
   const emptyTitle = filtered ? 'Nenhum resultado' : own ? 'Sua biblioteca está vazia' : 'Poxa, não achamos nada por aqui';
   const emptyMessage = filtered ? `Nenhum documento ${scope === 'public' ? 'público ' : ''}neste filtro. Tente outra palavra ou assunto.` : own ? 'Guarde cartilhas, atas e estudos em PDF. Cada um fica numa coleção e você decide quem pode abrir.' : scope === 'comuna' && canAdd ? 'Ninguém adicionou documentos aqui ainda. Que tal o primeiro?' : 'Nenhum documento disponível por aqui ainda.';
   const isEmptyLibrary = !editorial && !editorialCollection && documents.status === 'success' && documents.items.length === 0 && !documents.hasMore && !filtered;
   const add = () => router.push({ pathname: '/biblioteca/enviar', params: { ...(comuna ? { comuna } : {}), ...(collection ? { collection } : {}) } });
   return <>
-    <FlatList style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content} data={documents.items.filter((item) => !removedSaves.includes(item.id))} keyExtractor={(item) => item.id}
-      keyboardShouldPersistTaps="handled" refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} onEndReached={() => documents.loadMore()} onEndReachedThreshold={0.4}
+    <List style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content} data={documents.items.filter((item) => !removedSaves.includes(item.id))} keyExtractor={(item) => item.id}
+      keyboardShouldPersistTaps="handled" refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} onEndReached={documents.loadMoreError ? undefined : documents.loadMore} onEndReachedThreshold={0.4}
       ListHeaderComponent={<>
         {isEmptyLibrary ? <View style={styles.emptyLibrary}>
           <StateView kind="empty" title="Poxa, não achamos nada por aqui" message={canAdd ? 'Esta biblioteca ainda está esperando o primeiro documento.' : 'Nenhum documento disponível por aqui ainda.'} />
@@ -116,20 +122,39 @@ export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, 
           </View> : null}
           <View style={styles.searchBox}>
             <Icon name="search" size={22} />
-            <TextInput accessibilityLabel="Buscar nesta coleção" placeholder="Buscar nesta coleção" placeholderTextColor={Colors.placeholder} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
+            <Input accessibilityLabel="Buscar nesta coleção" placeholder="Buscar nesta coleção" placeholderTextColor={Colors.placeholder} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
           </View>
           <SingleTopicField value={topic} onChange={setTopic} optional appearance="editorial" />
           <View style={styles.collectionResults}><AppText variant="label">Documentos</AppText><AppText variant="caption">{collectionData.documentCount} {collectionData.documentCount === 1 ? 'documento' : 'documentos'}{term ? ' · por relevância' : ' · mais recentes'}</AppText></View>
         </View> : editorial ? <View style={styles.editorialHero}>
-          <AppText variant="display" accessibilityRole="header" style={styles.editorialTitle}>{title ?? 'Biblioteca pública'}</AppText>
-          <AppText style={styles.editorialSubtitle}>Acervo público da comunidade.</AppText>
+          <View style={[styles.editorialIntro, { minHeight: editorialIllustrationHeight }]}>
+            <View style={styles.editorialCopy}>
+              <AppText
+                accessibilityRole="header"
+                style={[styles.editorialTitle, { fontSize: editorialTitleSize, lineHeight: Math.round(editorialTitleSize * 1.25) }]}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}>
+                {title ?? 'BIBLIOTECA\nPÚBLICA'}
+              </AppText>
+              <AppText style={styles.editorialSubtitle}>Acervo público da comunidade.</AppText>
+            </View>
+            <View pointerEvents="none" style={styles.editorialIllustrationWrap}>
+              <Image
+                source={require('@/assets/library/library-hero-illustration.png')}
+                resizeMode="contain"
+                style={styles.editorialIllustration}
+                accessible={false}
+              />
+            </View>
+          </View>
           <View style={styles.editorialActions}>
             {canAdd ? <EditorialAction label="Adicionar PDF" icon="plus" tone="red" onPress={add} style={styles.addAction} /> : null}
             <EditorialAction label="Criar coleção" icon="folder" onPress={() => setNewCollection(true)} style={styles.createAction} />
           </View>
           <View style={styles.searchBox}>
             <Icon name="search" size={22} />
-            <TextInput accessibilityLabel="Buscar na biblioteca" placeholder="Título, autoria, coleção ou assunto" placeholderTextColor={Colors.placeholder} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
+            <Input accessibilityLabel="Buscar na biblioteca" placeholder="Título, autoria, coleção ou assunto" placeholderTextColor={Colors.placeholder} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
           </View>
           <SingleTopicField value={topic} onChange={setTopic} optional appearance="editorial" />
           <EditorialOriginTabs value={origin} onChange={setOrigin} />
@@ -246,9 +271,13 @@ const styles = StyleSheet.create({
   collectionEditAction: { flex: 1 },
   collectionResults: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two, borderTopWidth: 1.5, borderTopColor: Colors.ink, paddingTop: Spacing.three },
   editorialHero: { paddingHorizontal: Spacing.five, paddingTop: Spacing.four, paddingBottom: Spacing.three, gap: Spacing.four },
-  editorialTitle: { fontSize: 44, lineHeight: 48 },
-  editorialSubtitle: { fontFamily: Fonts.mono, fontSize: 15.5, lineHeight: 22, marginTop: -Spacing.three },
-  editorialActions: { flexDirection: 'row', gap: Spacing.two },
+  editorialIntro: { position: 'relative', justifyContent: 'flex-start' },
+  editorialCopy: { width: '75%', zIndex: 1, paddingTop: Spacing.one },
+  editorialTitle: { fontFamily: Fonts.anton, fontWeight: '400', letterSpacing: -0.8, textTransform: 'uppercase', color: '#0A0A08' },
+  editorialSubtitle: { width: '78%', fontFamily: Fonts.mono, fontSize: 16, lineHeight: 23, letterSpacing: 0.3, marginTop: Spacing.three, color: '#0A0A08' },
+  editorialIllustrationWrap: { position: 'absolute', top: -10, right: -14, width: '54%', height: '112%' },
+  editorialIllustration: { width: '100%', height: '100%' },
+  editorialActions: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
   addAction: { flex: 1.12 },
   createAction: { flex: 1 },
   actionPressed: { opacity: 0.68 },

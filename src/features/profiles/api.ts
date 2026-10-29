@@ -1,9 +1,10 @@
+import { singlePage, type Page } from '@/lib/pagination';
 /** Acesso a perfis de pessoas e às publicações de cada uma. */
 import { DEMO_MODE, USE_MOCKS } from '@/constants/config';
-import { getMe } from '@/features/account/api';
+import { getMe, type MeDto } from '@/features/account/api';
 import { toFeedItem, toUser } from '@/features/posts/api';
 import { apiRequest } from '@/lib/api/client';
-import type { PageDto, PostDto } from '@/lib/api/dto';
+import { MAX_PAGE_LIMIT, type PageDto, type PostDto } from '@/lib/api/dto';
 import { findUser, toFeedItems } from '@/features/lookup';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { mockDelay } from '@/lib/mock-delay';
@@ -36,18 +37,25 @@ function buildProfile(id: string): Profile | null {
   };
 }
 
-export async function getProfile(id: string): Promise<Profile> {
+type ProfileDto = Pick<MeDto, 'id' | 'handle' | 'displayName' | 'bio' | 'city' | 'isPrivate' | 'followerCount'> & ({ memberSince: string } | { createdAt: string });
+
+/** Permite pintar o próprio perfil a partir da conta já restaurada. */
+export function toProfile(dto: ProfileDto): Profile {
+  const since = 'memberSince' in dto ? dto.memberSince : dto.createdAt;
+  return {
+    user: toUser(dto), bio: dto.bio, isPrivate: dto.isPrivate,
+    meta: [dto.city, `Na Popularia desde ${new Date(since).getFullYear()}`].filter(Boolean).join(' · '),
+    summary: dto.bio, stats: [{ value: String(dto.followerCount ?? 0), label: 'Seguidores' }], comunaIds: [], creator: null,
+  };
+}
+
+export async function getProfile(id: string, signal?: AbortSignal): Promise<Profile> {
   if (!DEMO_MODE) {
     try {
-      const dto = id === 'me' ? await getMe() : await apiRequest<{
+      const dto = id === 'me' ? await getMe(signal) : await apiRequest<{
         id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string; isPrivate?: boolean; followerCount: number;
-      }>(`/users/${encodeURIComponent(id)}`, { auth: true });
-      const since = 'memberSince' in dto ? dto.memberSince : dto.createdAt;
-      return {
-        user: toUser(dto), bio: dto.bio, isPrivate: dto.isPrivate,
-        meta: [dto.city, `Na Popularia desde ${new Date(since).getFullYear()}`].filter(Boolean).join(' · '),
-        summary: dto.bio, stats: [{ value: String(dto.followerCount ?? 0), label: 'Seguidores' }], comunaIds: [], creator: null,
-      };
+      }>(`/users/${encodeURIComponent(id)}`, { auth: true, ...(signal ? { signal } : {}) });
+      return toProfile(dto);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) throw new NotFoundError('Pessoa');
       throw error;
@@ -59,18 +67,17 @@ export async function getProfile(id: string): Promise<Profile> {
   return mockDelay(profile);
 }
 
-/** Publicações de uma pessoa, das mais recentes para as mais antigas. */
-export async function getUserPosts(id: string): Promise<FeedItem[]> {
+/** Uma página por intenção de leitura. O chamador fornece o handle já conhecido de /me. */
+export async function getUserPostsPage(id: string, cursor: string | null, signal?: AbortSignal): Promise<Page<FeedItem>> {
   if (!DEMO_MODE) {
-    const handle = id === 'me' ? (await getMe()).handle : id;
-    const page = await apiRequest<PageDto<PostDto>>(`/users/${encodeURIComponent(handle)}/posts`, { auth: true });
-    return page.items.map(toFeedItem);
+    const query = new URLSearchParams({ limit: String(MAX_PAGE_LIMIT) });
+    if (cursor) query.set('cursor', cursor);
+    const page = await apiRequest<PageDto<PostDto>>(`/users/${encodeURIComponent(id)}/posts?${query}`, { auth: true, ...(signal ? { signal } : {}) });
+    return { items: page.items.map(toFeedItem), nextCursor: page.nextCursor };
   }
   assertMocks();
-  const list = posts
-    .filter((p) => p.authorId === id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return mockDelay(toFeedItems(list));
+  const list = posts.filter((p) => p.authorId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return mockDelay(singlePage(toFeedItems(list)));
 }
 
 export type FollowState = { following: boolean; requested?: boolean };

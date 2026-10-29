@@ -1,3 +1,4 @@
+import { queryClient } from '@/lib/query/client';
 /**
  * Estado local das interações da pessoa (apoiar, ecoar, salvar, participar…).
  *
@@ -206,7 +207,12 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     (postId: string, count: number) => dispatch({ type: 'commentCount', postId, count }),
     [],
   );
-  const notifyPostCreated = useCallback(() => dispatch({ type: 'postCreated' }), []);
+  const notifyPostCreated = useCallback(() => {
+    dispatch({ type: 'postCreated' });
+    // Invalida também listas desmontadas, que podem continuar no cache.
+    void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    void queryClient.invalidateQueries({ queryKey: ['profile-posts'] });
+  }, []);
   const resetAll = useCallback(() => dispatch({ type: 'reset' }), []);
 
   const value = useMemo(

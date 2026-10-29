@@ -121,7 +121,7 @@ describe('criar comuna', () => {
   it('cancelar sem preencher retorna ao contexto anterior sem criar nem abrir outra rota', async () => {
     mocked.getComunaQuota.mockResolvedValue(quota());
     await render(<CreateComunaScreen />);
-    await fireEvent.press(await screen.findByLabelText('Fechar'));
+    await fireEvent.press(await screen.findByLabelText('Voltar'));
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
     expect(mockRouter.dismissTo).not.toHaveBeenCalled();
     expect(mocked.createComuna).not.toHaveBeenCalled();

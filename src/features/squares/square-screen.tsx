@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
-import { BottomSheet } from '@/components/bottom-sheet';
+import { BottomSheet, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -204,7 +204,7 @@ function Conversation({ id }: { id: string }) {
       <BottomSheet visible={!!freshAction && !!s?.viewer.canRead} onClose={() => { setActionsId(null); setForm(null); }} title={form === 'report' ? 'Denunciar mensagem' : form === 'remove' ? 'Remover mensagem' : 'Mensagem'}>
         {form ? <View style={styles.menu}>
           {form === 'report' ? REPORT_REASONS.map((label) => <PillButton key={label} label={label} variant={reason === label ? 'dark' : 'outline'} onPress={() => setReason(label)} />) : null}
-          <TextInput value={reason} onChangeText={setReason} maxLength={500} multiline accessibilityLabel="Motivo" placeholder="Motivo" style={styles.reason} />
+          <PopulariaBottomSheetTextInput value={reason} onChangeText={setReason} maxLength={500} multiline accessibilityLabel="Motivo" placeholder="Motivo" style={styles.reason} />
           <PillButton label={busy ? 'Enviando…' : 'Confirmar'} disabled={busy || reason.trim().length < 3} onPress={submitAction} variant="dark" />
         </View> : freshAction ? <View style={styles.menu}>
           {freshAction.viewer.canReply ? <PillButton label="Responder" variant="outline" onPress={() => { setActionsId(null); onReply(freshAction); }} /> : null}

@@ -109,6 +109,7 @@ export type PostImage = {
 
 export type Post = {
   document?: import('@/features/library/types').LibraryDocument | null;
+  attachment?: import('@/features/posts/post-media').PostMediaDto | null;
   id: string;
   authorId: string;
   comunaId: string | null;

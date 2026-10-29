@@ -129,8 +129,8 @@ export async function logout(everywhere = false): Promise<void> {
   }
 }
 
-export function getMe(): Promise<MeDto> {
-  return apiRequest<MeDto>('/me', { auth: true });
+export function getMe(signal?: AbortSignal): Promise<MeDto> {
+  return apiRequest<MeDto>('/me', { auth: true, ...(signal ? { signal } : {}) });
 }
 
 export function updateMe(patch: ProfilePatch): Promise<MeDto> {

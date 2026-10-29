@@ -1,7 +1,7 @@
 import { router, useSegments } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Fragment, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, type ImageSourcePropType, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
@@ -96,47 +96,54 @@ function CreateButton() {
         style={({ pressed }) => [styles.createButton, pressed && styles.createPressed]}>
         <Icon name="plus" color={Colors.paper} />
       </Pressable>
-      <BottomSheet visible={menuVisible} onClose={closeMenu} title="O que você quer criar?">
+      <BottomSheet visible={menuVisible} onClose={closeMenu}>
+        <View style={styles.createMenu}>
+          <View style={styles.createIntro}>
+            <View style={styles.createIntroCopy}>
+              <AppText variant="display" accessibilityRole="header" style={styles.createTitle}>O que você{`\n`}quer criar?</AppText>
+              <AppText variant="label" style={styles.createSubtitle}>Compartilhe ideias, organize conteúdos e fortaleça sua comuna.</AppText>
+            </View>
+            <Image source={require('@/assets/create/create-hero-optimized.png')} resizeMode="contain" style={styles.createIntroArt} accessible={false} />
+          </View>
         <CreateMenuItem
-          icon="image"
           title="Publicação"
           description="Compartilhe uma ideia, imagem ou enquete."
+          image={require('@/assets/create/create-publication-optimized.png')}
           onPress={() => navigateTo('/criar')}
         />
-        <CreateMenuItem icon="bookmark" title="Adicionar PDF" description="Guarde um PDF na sua biblioteca e escolha quem pode abrir." onPress={() => navigateTo('/biblioteca/enviar')} />
+        <CreateMenuItem title="Adicionar PDF" description="Guarde um PDF na sua biblioteca e escolha quem pode abrir." image={require('@/assets/create/create-pdf-optimized.png')} onPress={() => navigateTo('/biblioteca/enviar')} />
         <CreateMenuItem
-          icon="support"
           title="Comuna"
           description="Crie uma comunidade e reúna pessoas."
+          image={require('@/assets/create/create-comuna-optimized.png')}
           onPress={() => navigateTo('/criar-comuna')}
         />
+        </View>
       </BottomSheet>
     </View>
   );
 }
 
 type MenuItemProps = {
-  icon: IconName;
   title: string;
   description: string;
+  image: ImageSourcePropType;
   onPress: () => void;
 };
 
-function CreateMenuItem({ icon, title, description, onPress }: MenuItemProps) {
+function CreateMenuItem({ title, description, image, onPress }: MenuItemProps) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={title}
       style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}>
-      <View style={styles.menuItemIcon}>
-        <Icon name={icon} color={Colors.ink} size={22} />
-      </View>
+      <View style={styles.menuItemImageFrame}><Image source={image} resizeMode="cover" style={styles.menuItemImage} accessible={false} /></View>
       <View style={styles.menuItemContent}>
-        <AppText variant="bodyStrong">{title}</AppText>
-        <AppText variant="caption">{description}</AppText>
+        <AppText variant="heading" style={styles.menuItemTitle}>{title}</AppText>
+        <AppText variant="label" style={styles.menuItemDescription}>{description}</AppText>
       </View>
-      <Icon name="arrowRight" color={Colors.muted} size={20} />
+      <Icon name="arrowRight" color={Colors.ink} size={26} />
     </Pressable>
   );
 }
@@ -175,27 +182,75 @@ const styles = StyleSheet.create({
   createPressed: {
     backgroundColor: Colors.redPressed,
   },
+  createMenu: {
+    gap: Spacing.three,
+    paddingBottom: Spacing.one,
+  },
+  createIntro: {
+    minHeight: 164,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    alignItems: 'stretch',
+  },
+  createIntroCopy: {
+    flex: 1.1,
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  createTitle: {
+    fontFamily: Fonts.anton,
+    fontSize: 40,
+    lineHeight:60,
+    letterSpacing: -0.5,
+  },
+  createSubtitle: {
+    maxWidth: 235,
+    color: Colors.inkSoft,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  createIntroArt: {
+    position: 'absolute',
+    right: -30,
+    bottom: -20,
+    width: 196,
+    height: 196,
+  },
   menuItem: {
+    minHeight: 104,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.four,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Radius.lg,
+    gap: Spacing.three,
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    padding: Spacing.two,
   },
   menuItemPressed: {
     backgroundColor: Colors.strawLight,
   },
-  menuItemIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
+  menuItemImageFrame: {
+    width: 82,
+    height: 82,
+    overflow: 'hidden',
     backgroundColor: Colors.straw,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  menuItemImage: {
+    width: '100%',
+    height: '100%',
   },
   menuItemContent: {
     flex: 1,
-    gap: 2,
+    gap: Spacing.one,
+  },
+  menuItemTitle: {
+    fontFamily: Fonts.anton,
+    fontSize: 28,
+    lineHeight: 38,
+  },
+  menuItemDescription: {
+    color: Colors.inkSoft,
+    fontSize: 10.5,
+    lineHeight: 15,
+    letterSpacing: 0.3,
   },
 });

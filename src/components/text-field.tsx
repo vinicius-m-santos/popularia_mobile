@@ -1,4 +1,6 @@
-import { useRef, useState, type ComponentProps, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { InsideBottomSheet } from '@/components/bottom-sheet';
+import { useContext, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -30,6 +32,9 @@ function updateRef<T>(ref: Ref<T> | undefined, value: T | null) {
 }
 
 /** Campo de formulário do design: rótulo em negrito, borda de tinta e foco vermelho. */
+// Gorhom encaminha a instância nativa; seus tipos ainda usam o alias de RNGH 2.
+const SheetTextInput = BottomSheetTextInput as unknown as typeof TextInput;
+
 export function TextField({
   label,
   labelAside,
@@ -47,6 +52,8 @@ export function TextField({
   onBlur,
   ...inputProps
 }: TextFieldProps) {
+  const inSheet = useContext(InsideBottomSheet);
+  const Input = inSheet ? SheetTextInput : TextInput;
   const [focused, setFocused] = useState(false);
   const nativeInput = useRef<ComponentRef<typeof TextInput>>(null);
   const isMultiline = multiline === true;
@@ -68,8 +75,8 @@ export function TextField({
             {prefix}
           </AppText>
         ) : null}
-        <TextInput
-          ref={(node) => { nativeInput.current = node; updateRef(inputRef, node); }}
+        <Input
+          ref={(node: ComponentRef<typeof TextInput> | null | undefined) => { nativeInput.current = node ?? null; updateRef(inputRef, node ?? null); }}
           accessibilityLabel={label}
           accessibilityHint={hint}
           placeholderTextColor={Colors.placeholder}

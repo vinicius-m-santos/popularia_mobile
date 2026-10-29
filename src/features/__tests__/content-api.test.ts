@@ -9,6 +9,7 @@ import { createComment, getComments, setCommentSupport, toComment } from '@/feat
 import { buildThread } from '@/features/discussion/thread';
 import { getFeed } from '@/features/feed/api';
 import { createPost, getPost, toFeedItem } from '@/features/posts/api';
+import { getUserPostsPage } from '@/features/profiles/api';
 import { apiRequest } from '@/lib/api/client';
 import type { CommentDto, ComunaDto, PostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
@@ -116,6 +117,14 @@ describe('publicações', () => {
       body: { comunaId: comunaDto.id, body: 'Olá' },
       auth: true,
     });
+  });
+
+  it('converte mídia e envia somente o mediaId ao publicar', async () => {
+    const media = { id: 'media-1', type: 'video' as const, mimeType: 'video/mp4', byteSize: 100, width: 720, height: 1280, durationMs: 15_000, url: '/signed/video' };
+    expect(toFeedItem({ ...postDto, media }).attachment).toMatchObject({ ...media, url: 'http://api.test/signed/video' });
+    api.mockResolvedValue({ ...postDto, media });
+    await createPost({ comunaServerId: null, text: '', mediaId: media.id });
+    expect(api).toHaveBeenCalledWith('/posts', { method: 'POST', body: { mediaId: media.id, comunaId: null, body: '' }, auth: true });
   });
 
   it('publicação invisível (404) vira NotFoundError', async () => {
@@ -244,5 +253,23 @@ describe('comentários', () => {
       ['pai', 0],
       ['filho', 1],
     ]);
+  });
+});
+
+describe('paginação progressiva do perfil', () => {
+  it('busca somente a página solicitada, sem consultar /me ou esgotar o cursor', async () => {
+    api.mockResolvedValue({ items: [postDto], nextCursor: 'older' });
+    const controller = new AbortController();
+    const result = await getUserPostsPage('ana', null, controller.signal);
+    expect(api).toHaveBeenCalledTimes(1);
+    expect(api).toHaveBeenCalledWith('/users/ana/posts?limit=50', { auth: true, signal: controller.signal });
+    expect(result.nextCursor).toBe('older');
+    expect(result.items[0].id).toBe(postDto.id);
+  });
+  it('encaminha cursor e cancelamento da próxima página', async () => {
+    api.mockResolvedValue({ items: [], nextCursor: null });
+    const controller = new AbortController();
+    await getUserPostsPage('ana', 'older', controller.signal);
+    expect(api).toHaveBeenCalledWith('/users/ana/posts?limit=50&cursor=older', { auth: true, signal: controller.signal });
   });
 });

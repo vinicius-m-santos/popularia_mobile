@@ -1,3 +1,5 @@
+import { memo } from 'react';
+import { preparePost } from '@/features/posts/queries';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -19,9 +21,12 @@ import { AuthorLine } from './author-line';
 import { EventBox } from './event-box';
 import { MediaBox } from './media-box';
 import { PostImages } from './post-images';
+import { PostAttachment } from './post-attachment';
+import { PostBody } from './post-body';
 
 type PostCardProps = {
   item: FeedItem;
+  mediaVisible?: boolean;
   /** Linha divisória no topo (todos menos o primeiro). */
   showRule?: boolean;
   /** Na página da própria comuna, o rótulo "c/ …" é redundante. */
@@ -31,13 +36,13 @@ type PostCardProps = {
 };
 
 /** Publicação no feed e na página da comuna (design 1a/1b). */
-export function PostCard({ item, showRule = false, showComuna = true, showMuted = false }: PostCardProps) {
+export const PostCard = memo(function PostCard({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true }: PostCardProps) {
   const { author, comuna, event, media, images, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();
   const sheet = useActionsSheet();
   const { isOn } = useInteractions();
-  const open = () => nav.openPost(item.id);
+  const open = () => { preparePost(item); nav.openPost(item.id); };
   // Na API, só o próprio perfil abre (perfis de outras pessoas ainda são fictícios).
   const openAuthor = !item.viewer
     ? () => nav.openProfile(author.id)
@@ -71,12 +76,15 @@ export function PostCard({ item, showRule = false, showComuna = true, showMuted 
 
       <Pressable
         onPress={open}
+        onPressIn={() => preparePost(item)}
         accessibilityRole="button"
         accessibilityHint="Abre a discussão"
         style={styles.body}>
-        <AppText>{item.text}</AppText>
+        <PostBody text={item.text} />
         {images && images.length > 0 ? <PostImages images={images} /> : null}
       </Pressable>
+
+      {item.attachment ? <PostAttachment key={item.attachment.id} media={item.attachment} visible={mediaVisible} /> : null}
 
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
@@ -130,7 +138,7 @@ export function PostCard({ item, showRule = false, showComuna = true, showMuted 
       </View>
     </View>
   );
-}
+});
 
 type ActionButtonProps = {
   icon: IconName;

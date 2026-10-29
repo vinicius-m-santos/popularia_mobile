@@ -1,3 +1,5 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/query/client';
 // Importa cada peso pelo subcaminho: o índice do pacote embutiria todos os pesos no app.
 import { Archivo_400Regular } from '@expo-google-fonts/archivo/400Regular';
 import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
@@ -12,7 +14,8 @@ import { useFonts } from 'expo-font';
 import { router, Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Screen } from '@/components/screen';
@@ -52,6 +55,13 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void queryClient.refetchQueries({ type: 'active', stale: true }, { cancelRefetch: false });
+    });
+    return () => listener.remove();
+  }, []);
+  const [fontWaitExpired, setFontWaitExpired] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Archivo_400Regular,
     Archivo_700Bold,
@@ -67,11 +77,18 @@ export default function RootLayout() {
     if (fontError && __DEV__) console.warn('Falha ao carregar fontes; usando fontes do sistema.', fontError);
   }, [fontError]);
 
+  useEffect(() => {
+    if (fontsLoaded || fontError) return;
+    const timer = setTimeout(() => setFontWaitExpired(true), 5000);
+    return () => clearTimeout(timer);
+  }, [fontError, fontsLoaded]);
+
   // Sem fontes, o app segue com as fontes do sistema em vez de travar na splash.
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError && !fontWaitExpired) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
       <InteractionsProvider>
         <AccountProvider>
           <NotificationsProvider>
@@ -86,6 +103,7 @@ export default function RootLayout() {
           </NotificationsProvider>
         </AccountProvider>
       </InteractionsProvider>
+      </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }
@@ -100,9 +118,11 @@ function RootStack() {
   const pathname = usePathname();
   const restoring = status === 'restoring';
 
+  // Sai da splash assim que a árvore React montou. A restauração da sessão tem estado
+  // visual próprio e nunca deve parecer uma tela preta/travada.
   useEffect(() => {
-    if (!restoring) SplashScreen.hideAsync();
-  }, [restoring]);
+    SplashScreen.hideAsync();
+  }, []);
 
   const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted;
 
@@ -127,7 +147,13 @@ function RootStack() {
     }
   }, [pathname, restoring, showLoginWelcome]);
 
-  if (restoring) return null;
+  if (restoring) {
+    return (
+      <Screen>
+        <StateView kind="loading" message="Abrindo o Popularia" />
+      </Screen>
+    );
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>

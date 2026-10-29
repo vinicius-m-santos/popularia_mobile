@@ -31,7 +31,7 @@ export function CollectionEditor({ visible, onClose, onDone, comuna, initial }: 
       catch (e) { setError(describeError(e)); } finally { setBusy(false); }
     } },
   ]);
-  return <BottomSheet visible={visible} onClose={() => { if (!busy) onClose(); }} title={initial ? 'Editar coleção' : 'Nova coleção'}>
+  return <BottomSheet dismissible={!busy} visible={visible} onClose={() => { if (!busy) onClose(); }} title={initial ? 'Editar coleção' : 'Nova coleção'}>
     <View style={styles.content}>
       <AppText style={styles.intro}>{initial ? 'Atualize o nome e a descrição desta coleção.' : 'Organize documentos relacionados em um mesmo espaço.'}</AppText>
       <TextField

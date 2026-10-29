@@ -1,115 +1,87 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import GorhomBottomSheet, { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Keyboard, Modal, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
+
+export { BottomSheetFlatList as PopulariaBottomSheetFlatList, BottomSheetScrollView as PopulariaBottomSheetScrollView, BottomSheetTextInput as PopulariaBottomSheetTextInput } from '@gorhom/bottom-sheet';
+export const InsideBottomSheet = createContext(false);
 
 type BottomSheetProps = {
   visible: boolean;
   onClose: () => void;
-  /** Título grande; omitido quando o conteúdo traz o próprio cabeçalho. */
   title?: string;
   children: ReactNode;
-  /** Listas virtualizadas já controlam a própria rolagem. */
   scrollable?: boolean;
+  /** Conteúdo com BottomSheetFlatList: não envolver em outro scrollable. */
+  virtualized?: boolean;
+  dismissible?: boolean;
 };
 
-/** Folha que sobe de baixo, com fundo escurecido. Tocar fora, voltar ou arrastar o cabeçalho para baixo fecha. */
-export function BottomSheet({ visible, onClose, title, children, scrollable = true }: BottomSheetProps) {
+/** Aparência Popularia, física e arbitragem entre scroll/teclado delegadas ao Gorhom. */
+export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true }: BottomSheetProps) {
+  const sheet = useRef<GorhomBottomSheet>(null);
+  const [mounted, setMounted] = useState(visible);
   const insets = useSafeAreaInsets();
-  const keyboardVisible = useKeyboardVisible();
-  const [translateY] = useState(() => new Animated.Value(0));
-  useEffect(() => { if (visible) translateY.setValue(0); }, [translateY, visible]);
-  const settle = useCallback((close: boolean) => {
-    if (close) {
-      Animated.timing(translateY, { toValue: 1000, duration: 180, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) onClose();
-      });
-      return;
-    }
-    Animated.spring(translateY, { toValue: 0, damping: 22, stiffness: 240, mass: 0.8, useNativeDriver: true }).start();
-  }, [onClose, translateY]);
-  const panResponder = useMemo(() => PanResponder.create({
-    // O cabeçalho assume o toque desde o início. Sem isso, o Text do título pode
-    // manter o responder e o arraste só funciona quando começa no puxador.
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => true,
-    onMoveShouldSetPanResponder: (_event, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-    onPanResponderMove: (_event, gesture) => translateY.setValue(Math.max(0, gesture.dy)),
-    onPanResponderRelease: (_event, gesture) => settle(gesture.dy > 80 || gesture.vy > 0.8),
-    onPanResponderTerminate: () => settle(false),
-  }), [settle, translateY]);
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Fechar"
-        />
-        <Animated.View
-          style={[styles.sheet, { paddingBottom: keyboardVisible ? Spacing.four : Math.max(insets.bottom, Spacing.four) + Spacing.four }, { transform: [{ translateY }] }]}
-          accessibilityViewIsModal>
-          <View style={styles.dragHeader} testID="bottom-sheet-drag-header" {...panResponder.panHandlers}>
-            <View style={styles.handle} />
-            {title ? (
-              <AppText style={styles.title} accessibilityRole="header">
-                {title}
-              </AppText>
-            ) : null}
-          </View>
-          {scrollable ? <ScrollView bounces={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-            {children}
-          </ScrollView> : children}
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
+  const { height, width } = useWindowDimensions();
+  const close = useCallback(() => { if (dismissible) sheet.current?.close(); }, [dismissible]);
+  useEffect(() => {
+    if (visible) {
+      // Mantém o Modal nativo montado até a animação de saída do Gorhom terminar.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMounted(true);
+      sheet.current?.snapToIndex(0);
+    } else sheet.current?.close();
+  }, [visible]);
+  const backdrop = useCallback((props: BottomSheetBackdropProps) => <BottomSheetBackdrop {...props}
+    appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.55}
+    pressBehavior={dismissible ? 'close' : 'none'} accessibilityRole="button" accessibilityLabel="Fechar" accessibilityHint="Fecha esta folha" />,
+  [dismissible]);
+  const handle = useCallback(() => <View style={styles.dragHeader} testID="bottom-sheet-drag-header"
+    accessible accessibilityRole="adjustable" accessibilityLabel={title ?? 'Opções'} accessibilityHint="Arraste para baixo para fechar"
+    accessibilityActions={[{ name: 'escape', label: 'Fechar' }, { name: 'decrement', label: 'Fechar' }]}
+    onAccessibilityAction={close} onAccessibilityEscape={close}>
+    <View style={styles.handle} />
+    {title ? <AppText style={styles.title} accessibilityRole="header">{title}</AppText> : null}
+  </View>, [title, close]);
+  const paddingBottom = Math.max(insets.bottom, Spacing.four) + Spacing.four;
+  if (!mounted) return null;
+  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
+    <GestureHandlerRootView style={styles.overlay}>
+    <GorhomBottomSheet ref={sheet}
+    onClose={() => { Keyboard.dismiss(); setMounted(false); if (visible) onClose(); }}
+    enablePanDownToClose={dismissible}
+    enableHandlePanningGesture={dismissible}
+    enableContentPanningGesture={dismissible}
+    enableDynamicSizing={!virtualized}
+    snapPoints={virtualized ? ['86%'] : undefined}
+    maxDynamicContentSize={height * 0.86}
+    topInset={insets.top}
+    keyboardBehavior="interactive" keyboardBlurBehavior="restore"
+    enableBlurKeyboardOnGesture android_keyboardInputMode="adjustResize"
+    backdropComponent={backdrop} handleComponent={handle}
+    backgroundStyle={styles.background}
+    style={{ marginHorizontal: Math.max(0, (width - MaxContentWidth) / 2) }}>
+    <InsideBottomSheet.Provider value>
+      {virtualized ? <View style={[styles.list, { paddingBottom }]}>{children}</View>
+        : scrollable ? <BottomSheetScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom }]}>{children}</BottomSheetScrollView>
+          : <BottomSheetView style={[styles.content, { paddingBottom }]}>{children}</BottomSheetView>}
+    </InsideBottomSheet.Provider>
+  </GorhomBottomSheet>
+    </GestureHandlerRootView>
+  </Modal>;
 }
 
+export const PopulariaBottomSheet = BottomSheet;
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(22,18,15,0.55)',
-  },
-  sheet: {
-    flexShrink: 1,
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    maxHeight: '86%',
-    alignSelf: 'center',
-    backgroundColor: Colors.paper,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingTop: 10,
-    paddingHorizontal: Spacing.five,
-    gap: Spacing.three,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.strawDark,
-  },
-  dragHeader: {
-    gap: Spacing.three,
-  },
-  title: {
-    fontFamily: Fonts.condensed,
-    fontSize: 32,
-    lineHeight: 40,
-    textTransform: 'uppercase',
-    color: Colors.ink,
-  },
+  overlay: { flex: 1 },
+  background: { backgroundColor: Colors.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  content: { paddingHorizontal: Spacing.five },
+  list: { flex: 1, paddingHorizontal: Spacing.five },
+  dragHeader: { minHeight: 48, paddingTop: 10, paddingBottom: Spacing.three, paddingHorizontal: Spacing.five, gap: Spacing.three },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.strawDark },
+  title: { fontFamily: Fonts.condensed, fontSize: 32, lineHeight: 40, textTransform: 'uppercase', color: Colors.ink },
 });

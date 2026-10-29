@@ -6,6 +6,7 @@ import { getDocument } from '@/features/library/api';
 import { returnAttachment } from '@/features/library/composer-attachment';
 import { document } from '@/features/library/testing/fixtures';
 import { createPost } from '@/features/posts/api';
+import { pickPostImage, uploadPostMedia } from '@/features/posts/post-media';
 import { NetworkError } from '@/lib/errors';
 
 import CreatePostScreen from '../create-post-screen';
@@ -33,11 +34,35 @@ jest.mock('@/features/interactions/interactions-context', () => ({
 jest.mock('@/features/comunas/api', () => ({ getMyComunas: () => Promise.resolve([]) }));
 jest.mock('@/features/posts/api', () => ({ createPost: jest.fn() }));
 jest.mock('@/features/posts/components/post-card', () => ({ PostCard: () => null }));
+jest.mock('@/features/posts/components/post-attachment', () => ({ PostAttachment: () => null }));
+jest.mock('@/features/posts/post-media', () => ({
+  durationLabel: (value: number | null) => value ? '0:15' : '',
+  pickPostImage: jest.fn(), pickPostVideo: jest.fn(), uploadPostMedia: jest.fn(),
+}));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 
 beforeEach(() => { jest.clearAllMocks(); delete mockParams.documentId; });
 
 describe('criação de publicação', () => {
+  it('remove redundâncias e informa os limites das mídias', async () => {
+    await render(<CreatePostScreen />);
+    expect(screen.queryByText('Link')).toBeNull();
+    expect(screen.getAllByText('Imagem')).toHaveLength(1);
+    expect(screen.getByText('Até 100 MB · 30 s')).toBeTruthy();
+  });
+
+  it('publica somente imagem, enviando bytes uma vez e referenciando mediaId', async () => {
+    jest.mocked(pickPostImage).mockResolvedValue({ clientId: 'client', kind: 'image', uri: 'file:///image.jpg', name: 'imagem.jpg', mimeType: 'image/jpeg', size: 100, width: 800, height: 600, durationMs: null });
+    jest.mocked(uploadPostMedia).mockResolvedValue({ id: 'media-1', type: 'image', mimeType: 'image/jpeg', byteSize: 100, width: 800, height: 600, durationMs: null, url: null });
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.press(screen.getByText('Imagem'));
+    expect(screen.getByText('Imagem anexada')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(uploadPostMedia).toHaveBeenCalledTimes(1);
+    expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: '', mediaId: 'media-1' });
+  });
+
   it('envia um assunto opcional na publicação de perfil', async () => {
     jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
     await render(<CreatePostScreen />);

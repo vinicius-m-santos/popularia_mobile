@@ -28,6 +28,17 @@
     },
     "plugins": [
       "expo-router",
+      "expo-video",
+      "expo-image",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Popularia acessa suas fotos e vídeos apenas quando você escolhe uma mídia para publicar.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

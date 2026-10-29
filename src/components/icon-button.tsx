@@ -35,6 +35,7 @@ export function IconButton({
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={2}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={selected === undefined ? undefined : { selected }}

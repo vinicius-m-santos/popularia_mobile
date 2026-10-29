@@ -26,6 +26,8 @@ import type { LibraryDocument } from '@/features/library/types';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { createPost } from '@/features/posts/api';
 import { PostCard } from '@/features/posts/components/post-card';
+import { PostAttachment } from '@/features/posts/components/post-attachment';
+import { durationLabel, pickPostImage, pickPostVideo, uploadPostMedia, type LocalPostMedia } from '@/features/posts/post-media';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { ApiError, describeError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
@@ -64,12 +66,16 @@ export default function CreatePostScreen() {
   const [document, setDocument] = useState<LibraryDocument | null>(null);
   const [pickingDocument, setPickingDocument] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
+  const [media, setMedia] = useState<LocalPostMedia | null>(null);
+  const [pickingMedia, setPickingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const uploadController = useRef<AbortController | null>(null);
   const composerKey = useId();
-  useEffect(() => subscribeAttachment(composerKey, (attachment) => { setDocument(attachment); setPdfMode(true); }), [composerKey]);
+  useEffect(() => subscribeAttachment(composerKey, (attachment) => { setDocument(attachment); setPdfMode(true); setMedia(null); }), [composerKey]);
   useEffect(() => {
     if (!params?.documentId) return;
     let active = true;
-    getDocument(params.documentId).then((value) => { if (active && value.state === 'available') { setDocument(value); setPdfMode(true); } }, () => { if (active) { setAttachmentError('Este documento não está mais disponível para você.'); setPdfMode(true); } });
+    getDocument(params.documentId).then((value) => { if (active && value.state === 'available') { setDocument(value); setPdfMode(true); setMedia(null); } }, () => { if (active) { setAttachmentError('Este documento não está mais disponível para você.'); setPdfMode(true); } });
     return () => { active = false; };
   }, [params?.documentId]);
   const { account, reloadAccount } = useAccount();
@@ -103,11 +109,11 @@ export default function CreatePostScreen() {
 
   const trimmed = text.trim();
   const destinationsReady = chosenId === 'perfil' || comunas.data !== null;
-  const canPublish = (pdfMode ? !!document : trimmed.length > 0) && !publishing && destinationsReady;
+  const canPublish = (!!document || !!media || trimmed.length > 0) && !publishing && destinationsReady;
   const where = destination.kind === 'perfil' ? 'seu perfil' : `c/ ${destination.comuna.name}`;
-  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || !!document), ({ repeat }) => {
+  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || !!document || !!media), ({ repeat }) => {
     if (publishingRef.current) return;
-    Alert.alert('Descartar publicação?', 'O texto que você escreveu será perdido.', [
+    Alert.alert('Descartar publicação?', 'O texto e os anexos deste rascunho serão perdidos.', [
       { text: 'Continuar escrevendo', style: 'cancel' },
       { text: 'Descartar', style: 'destructive', onPress: () => { setLeaving(true); repeat(); } },
     ]);
@@ -135,7 +141,7 @@ export default function CreatePostScreen() {
       return;
     }
     if (pdfMode && !document) { toast.show('Escolha um PDF da biblioteca ou envie um novo.'); return; }
-    if (!trimmed && !(pdfMode && document)) {
+    if (!trimmed && !document && !media) {
       toast.show('Escreva algo antes de publicar.');
       return;
     }
@@ -162,7 +168,18 @@ export default function CreatePostScreen() {
     publishingRef.current = true;
     setPublishing(true);
     try {
-      await createPost({ comunaServerId, text: trimmed, ...(pdfMode && document ? { documentId: document.id } : {}), ...(destination.kind === 'perfil' && topic ? { topic } : {}) });
+      let mediaId = media?.uploaded?.id;
+      let readyMedia = media;
+      if (media && !mediaId) {
+        const controller = new AbortController();
+        uploadController.current = controller;
+        setUploadProgress(0);
+        const uploaded = await uploadPostMedia(media, setUploadProgress, controller.signal);
+        readyMedia = { ...media, uploaded };
+        mediaId = uploaded.id;
+        setMedia(readyMedia);
+      }
+      await createPost({ comunaServerId, text: trimmed, ...(pdfMode && document ? { documentId: document.id } : {}), ...(mediaId ? { mediaId } : {}), ...(destination.kind === 'perfil' && topic ? { topic } : {}) });
     } catch (error) {
       publishingRef.current = false;
       setPublishing(false);
@@ -173,6 +190,8 @@ export default function CreatePostScreen() {
       }
       toast.show(publishErrorMessage(error));
       return;
+    } finally {
+      uploadController.current = null;
     }
     notifyPostCreated();
     toast.show(`Publicado em ${where}.`);
@@ -185,9 +204,27 @@ export default function CreatePostScreen() {
 
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
 
+  const selectMedia = async (kind: 'image' | 'video') => {
+    if (pickingMedia || publishing) return;
+    setPickingMedia(true);
+    try {
+      const selected = kind === 'image' ? await pickPostImage() : await pickPostVideo();
+      if (!selected) return;
+      setMedia(selected);
+      setDocument(null);
+      setPdfMode(false);
+      setAttachmentError('');
+    } catch (error) {
+      toast.show(describeError(error));
+    } finally {
+      setPickingMedia(false);
+    }
+  };
+
   const previewItem: FeedItem = {
     id: 'preview',
     document: pdfMode ? document : null,
+    attachment: media ? { id: media.uploaded?.id ?? 'preview-media', type: media.kind, mimeType: media.mimeType, byteSize: media.size, width: media.width, height: media.height, durationMs: media.durationMs, url: media.uri } : null,
     authorId: me.id,
     comunaId: destination.kind === 'comuna' ? destination.comuna.id : null,
     createdAt: new Date().toISOString(),
@@ -287,7 +324,6 @@ export default function CreatePostScreen() {
             </AppText>
             <View style={styles.typeGrid} role="tablist">
               <TypeButton icon="document" label="Escrever" active onPress={() => setPreview(false)} />
-              <TypeButton icon="image" label="Imagem" onPress={soon('Publicar uma imagem')} />
               <TypeButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
               <TypeButton icon="poll" label="Enquete" onPress={soon('Criar enquete')} />
             </View>
@@ -330,7 +366,7 @@ export default function CreatePostScreen() {
                     multiline
                     autoFocus
                     textAlignVertical="top"
-                    placeholder={pdfMode ? 'Conte por que este documento importa…' : 'Conte para a comuna o que está acontecendo…'}
+                    placeholder={pdfMode ? 'Conte por que este documento importa…' : media ? 'Conte o contexto desta mídia…' : 'Conte para a comuna o que está acontecendo…'}
                     placeholderTextColor={Colors.placeholder}
                     accessibilityLabel="Texto da publicação"
                     style={styles.input}
@@ -348,12 +384,19 @@ export default function CreatePostScreen() {
               Adicionar mídia (opcional)
             </AppText>
             <View style={styles.mediaGrid}>
-              <MediaButton icon="document" label="PDF" caption="Até 20 MB" onPress={() => setPdfMode(true)} />
-              <MediaButton icon="image" label="Imagem" caption="Até 10 MB" onPress={soon('Anexar imagens')} />
-              <MediaButton icon="camera" label="Vídeo" caption="Até 200 MB" onPress={soon('Anexar vídeos')} />
-              <MediaButton icon="link" label="Link" caption="Adicionar URL" onPress={soon('Adicionar link')} />
+              <MediaButton icon="document" label="PDF" caption="Até 25 MB" onPress={() => { setPdfMode(true); setMedia(null); }} />
+              <MediaButton icon="image" label="Imagem" caption="Até 10 MB" onPress={() => selectMedia('image')} />
+              <MediaButton icon="camera" label="Vídeo" caption="Até 100 MB · 30 s" onPress={() => selectMedia('video')} />
             </View>
           </View>
+
+          {media ? <View style={styles.pdfSection}>
+            <View style={styles.sectionHeading}><AppText variant="label" style={styles.sectionLabel}>{media.kind === 'image' ? 'Imagem anexada' : 'Vídeo anexado'}</AppText>{media.kind === 'video' ? <AppText variant="caption">{durationLabel(media.durationMs)}</AppText> : null}</View>
+            <PostAttachment media={{ id: media.uploaded?.id ?? 'local', type: media.kind, mimeType: media.mimeType, byteSize: media.size, width: media.width, height: media.height, durationMs: media.durationMs, url: media.uri }} localUri={media.uri} />
+            {publishing && !media.uploaded ? <View><AppText variant="caption">Enviando mídia · {uploadProgress}%</AppText><EditorialAction label="Interromper envio" icon="close" onPress={() => uploadController.current?.abort()} /></View> : null}
+            <EditorialAction label={`Trocar ${media.kind === 'image' ? 'imagem' : 'vídeo'}`} icon="edit" onPress={() => selectMedia(media.kind)} />
+            <EditorialAction label="Remover mídia da publicação" icon="trash" onPress={() => setMedia(null)} />
+          </View> : null}
 
           {pdfMode ? <View style={styles.pdfSection}>
             <AppText variant="label" style={styles.sectionLabel}>PDF anexado</AppText>
@@ -372,8 +415,8 @@ export default function CreatePostScreen() {
         </ScrollView>
       </KeyboardView>
 
-      <BottomSheet scrollable={false} visible={pickingDocument} onClose={() => setPickingDocument(false)} title="Sua biblioteca">
-        <View style={{ height: 480, flexShrink: 1 }}><LibraryPane scope="personal" owner={me.id} onSelect={(attachment) => { setDocument(attachment); setPdfMode(true); setPickingDocument(false); }} /></View>
+      <BottomSheet scrollable={false} virtualized visible={pickingDocument} onClose={() => setPickingDocument(false)} title="Sua biblioteca">
+        <View style={{ height: 480, flexShrink: 1 }}><LibraryPane scope="personal" owner={me.id} onSelect={(attachment) => { setDocument(attachment); setPdfMode(true); setMedia(null); setPickingDocument(false); }} /></View>
       </BottomSheet>
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Publicar em">
         <DestinationOption

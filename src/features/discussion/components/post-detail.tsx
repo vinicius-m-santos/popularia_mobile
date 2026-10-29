@@ -7,11 +7,15 @@ import { Icon } from '@/components/icon';
 import { PillButton } from '@/components/pill-button';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { usePostActions } from '@/features/interactions/use-post-actions';
+import { useActionsSheet } from '@/features/moderation/actions-sheet';
+import { postTarget } from '@/features/moderation/targets';
 import { FollowButton } from '@/features/profiles/components/follow-button';
 import { AuthorLine } from '@/features/posts/components/author-line';
 import { EventBox } from '@/features/posts/components/event-box';
 import { MediaBox } from '@/features/posts/components/media-box';
 import { PostImages } from '@/features/posts/components/post-images';
+import { PostAttachment } from '@/features/posts/components/post-attachment';
+import { PostBody } from '@/features/posts/components/post-body';
 import { formatCount, formatStamp } from '@/lib/format';
 import type { FeedItem } from '@/types/models';
 
@@ -26,6 +30,7 @@ type PostDetailProps = {
 /** Publicação aberta em destaque, ações e o cabeçalho dos comentários (design 1c). */
 export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
   const actions = usePostActions(post);
+  const sheet = useActionsSheet();
 
   return (
     <View>
@@ -33,9 +38,13 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         <AuthorLine
           author={post.author}
           avatarSize={44}
-          trailing={post.viewer?.isAuthor ? undefined : <FollowButton user={post.author} />}
+          trailing={<View style={styles.authorActions}>
+            {post.viewer?.isAuthor ? null : <FollowButton user={post.author} />}
+            <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={() => sheet.open(postTarget(post))} />
+          </View>}
         />
-        <AppText style={styles.text}>{post.text}</AppText>
+        <PostBody text={post.text} style={styles.text} />
+        {post.attachment ? <PostAttachment media={post.attachment} /> : null}
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
         {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}
         {post.event ? <EventBox event={post.event} /> : null}
@@ -117,6 +126,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
+  authorActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   compactAction: { minWidth: 54, minHeight: 44, paddingHorizontal: Spacing.two, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   compactCount: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },
   commentsHeader: {

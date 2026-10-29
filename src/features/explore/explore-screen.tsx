@@ -1,10 +1,8 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
-import { ChipRow } from '@/components/chip';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -12,14 +10,15 @@ import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { SectionHeading } from '@/components/section-heading';
 import { StateView } from '@/components/state-view';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { ComunaRow } from '@/features/comunas/components/comuna-row';
 import { JoinButton } from '@/features/comunas/components/join-button';
+import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
+import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { formatPeople } from '@/lib/format';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, Topic } from '@/types/models';
@@ -77,7 +76,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   return (
     <Screen>
       <KeyboardView style={styles.flex}>
-        <View style={styles.header}>
+        <View style={[styles.header, topicId && styles.topicHeader]}>
           {topicId ? <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /> : null}
           <View style={styles.titleWrap}>
             {topicId ? <AppText variant="label" color={Colors.red}>Assuntos da Popularia</AppText> : null}
@@ -89,9 +88,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
               placeholderTextColor={Colors.placeholder} returnKeyType="search" autoCorrect={false} autoCapitalize="none" maxLength={100} style={styles.input} />
             {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}
           </View>
-          <View style={styles.filters}>
-            <ChipRow options={FILTERS.filter((f) => !topicId || f.key !== 'people')} value={filter} onChange={setFilter} accessibilityLabel="Filtrar resultados" />
-          </View>
+          <ExploreFilters options={FILTERS.filter((f) => !topicId || f.key !== 'people')} value={filter} onChange={setFilter} />
         </View>
         {data.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a descoberta." onRetry={reload} /> : null}
         {!data.data ? (data.status === 'loading' ? <StateView kind="loading" message="Carregando descoberta" /> : null) :
@@ -105,6 +102,24 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   );
 }
 
+function ExploreFilters({ options, value, onChange }: {
+  options: { key: DiscoveryFilter; label: string }[]; value: DiscoveryFilter; onChange: (filter: DiscoveryFilter) => void;
+}) {
+  return <View accessibilityRole="radiogroup" accessibilityLabel="Filtrar resultados" style={styles.filters}>
+    {options.map((option) => {
+      const active = option.key === value;
+      return <Pressable
+        key={option.key}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: active }}
+        onPress={() => onChange(option.key)}
+        style={({ pressed }) => [styles.filter, active && styles.filterActive, pressed && styles.pressed]}>
+        <AppText style={styles.filterLabel} color={active ? Colors.paper : Colors.ink}>{option.label}</AppText>
+      </Pressable>;
+    })}
+  </View>;
+}
+
 function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
   data: DiscoveryData; topic?: Topic; onSee: (filter: DiscoveryFilter) => void; refreshing: boolean; onRefresh: () => void;
 }) {
@@ -115,15 +130,17 @@ function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.red} />}>
       {!topic ? <Pressable accessibilityRole="link" accessibilityLabel="Abrir Biblioteca Pública" accessibilityHint="Vai para a Biblioteca Pública" onPress={() => router.push('/biblioteca')} style={({ pressed }) => [styles.libraryCard, pressed && styles.libraryCardPressed]}>
-        <View style={styles.libraryCardHead}>
-          <View style={styles.libraryIcon}><Icon name="library" size={22} color={Colors.cream} /></View>
-          <View style={styles.libraryTitle}>
-            <AppText variant="label" color={Colors.red}>Abrir acervo</AppText>
-            <AppText variant="heading" color={Colors.cream}>Biblioteca Pública</AppText>
+        <Image source={require('@/assets/library/library-explore-banner.png')} resizeMode="cover" style={styles.libraryArt} accessible={false} />
+        <View style={styles.libraryContent}>
+          <View style={styles.libraryCardHead}>
+            <View style={styles.libraryTitle}>
+              <AppText variant="label" color={Colors.red}>Acervo público</AppText>
+              <AppText style={styles.libraryHeading} color={Colors.paper}>Biblioteca Pública</AppText>
+            </View>
           </View>
-          <Icon name="chevronRight" size={20} color={Colors.cream} />
+          <AppText style={styles.libraryDescription} color={Colors.onInkSoft}>Cartilhas, atas e estudos compartilhados pela comunidade.</AppText>
+          <View style={styles.libraryArrow}><Icon name="chevronRight" size={30} color={Colors.paper} /></View>
         </View>
-        <AppText color={Colors.onInkMuted}>Cartilhas, atas e estudos compartilhados por pessoas e comunas.</AppText>
       </Pressable> : null}
       {!topic ? (
         <View style={styles.section}>
@@ -215,21 +232,29 @@ function DiscoveryComuna({ comuna, topics }: { comuna: Comuna; topics: Topic[] }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingTop: Spacing.one, paddingBottom: Spacing.three, borderBottomWidth: 1.5, borderBottomColor: Colors.ink, backgroundColor: Colors.cream },
+  header: { paddingTop: Spacing.three, paddingBottom: Spacing.two, backgroundColor: Colors.cream },
+  topicHeader: { paddingTop: Spacing.one },
   titleWrap: { paddingHorizontal: Spacing.five, paddingTop: Spacing.one },
-  title: { lineHeight: 48, paddingBottom: Spacing.one },
-  search: { marginTop: Spacing.two, marginHorizontal: Spacing.five, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.pill, backgroundColor: Colors.paper, paddingLeft: 14, paddingRight: 2 },
-  input: { flex: 1, minWidth: 0, minHeight: 46, fontFamily: Fonts.regular, fontSize: 15.5, color: Colors.ink, paddingVertical: Spacing.two, outlineWidth: 0 },
-  filters: { paddingTop: Spacing.three },
-  content: { paddingHorizontal: Spacing.five, paddingTop: Spacing.three, paddingBottom: Spacing.seven, gap: Spacing.three },
-  libraryCard: { padding: Spacing.five, gap: Spacing.three, backgroundColor: Colors.ink, borderRadius: Radius.xl, borderBottomWidth: 4, borderBottomColor: Colors.red },
+  title: { fontFamily: Fonts.anton, fontSize: 54, lineHeight: 66, letterSpacing: -0.8, paddingBottom: Spacing.one },
+  search: { marginTop: Spacing.two, marginHorizontal: Spacing.five, minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+  input: { flex: 1, minWidth: 0, minHeight: 58, fontFamily: Fonts.regular, fontSize: 18, color: Colors.ink, paddingVertical: Spacing.two, outlineWidth: 0 },
+  filters: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.five, paddingTop: Spacing.two },
+  filter: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.one },
+  filterActive: { backgroundColor: Colors.ink },
+  filterLabel: { fontFamily: Fonts.bold, fontSize: 11, lineHeight: 18, textAlign: 'center' },
+  content: { paddingHorizontal: Spacing.five, paddingTop: Spacing.two, paddingBottom: Spacing.seven, gap: Spacing.four },
+  libraryCard: { height: 192, overflow: 'hidden', position: 'relative', backgroundColor: Colors.ink },
   libraryCardPressed: { opacity: 0.82 },
-  libraryCardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  libraryIcon: { width: 42, height: 42, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.inkSoft },
-  libraryTitle: { flex: 1, minWidth: 0, gap: 2 },
-  section: { gap: Spacing.one },
+  libraryArt: { position: 'absolute', inset: 0, width: '100%', height: '100%' },
+  libraryContent: { flex: 1, padding: Spacing.four, justifyContent: 'space-between' },
+  libraryCardHead: { maxWidth: '62%' },
+  libraryTitle: { gap: 2 },
+  libraryHeading: { fontFamily: Fonts.condensed, fontSize: 30, lineHeight: 35, textTransform: 'uppercase' },
+  libraryDescription: { maxWidth: '61%', fontSize: 15.5, lineHeight: 22 },
+  libraryArrow: { position: 'absolute', right: Spacing.four, bottom: Spacing.four },
+  section: { gap: Spacing.one, borderTopWidth: 1.5, borderTopColor: Colors.ink, paddingTop: Spacing.two },
   topics: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, paddingTop: Spacing.two },
-  topic: { minHeight: 44, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.lg, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, justifyContent: 'center', maxWidth: '100%' },
-  topicLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 20 },
+  topic: { minHeight: 44, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, justifyContent: 'center', alignItems: 'center', flexGrow: 1, maxWidth: '100%' },
+  topicLabel: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 20, textAlign: 'center' },
   pressed: { opacity: 0.75 },
 });

@@ -27,13 +27,14 @@ type FeedQuery = {
   /** Comunas de que a pessoa participa (só nos mocks; na API, o servidor sabe). */
   joinedComunaIds: string[];
   cursor: string | null;
+  signal?: AbortSignal;
 };
 
-export async function getFeed({ tab, joinedComunaIds, cursor }: FeedQuery): Promise<Page<FeedItem>> {
+export async function getFeed({ tab, joinedComunaIds, cursor, signal }: FeedQuery): Promise<Page<FeedItem>> {
   if (!DEMO_MODE) {
     if (!isFeedTabAvailable(tab)) return singlePage([]);
     const query = `?tab=${tab}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
-    const page = await apiRequest<PageDto<PostDto>>(`/feed${query}`, { auth: true });
+    const page = await apiRequest<PageDto<PostDto>>(`/feed${query}`, { auth: true, ...(signal ? { signal } : {}) });
     return { items: page.items.map(toFeedItem), nextCursor: page.nextCursor };
   }
 

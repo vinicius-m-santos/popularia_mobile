@@ -137,7 +137,7 @@ export default function DocumentScreen() {
         <EditorialAction label="Denunciar documento" icon="flag" onPress={() => { setMenuVisible(false); setReporting(true); }} />
       </View>
     </BottomSheet>
-    <BottomSheet visible={reporting} onClose={() => { if (!busy) setReporting(false); }} title="Denunciar documento">
+    <BottomSheet dismissible={!busy} visible={reporting} onClose={() => { if (!busy) setReporting(false); }} title="Denunciar documento">
       <View style={{ gap: Spacing.two }}>{[...REPORT_REASONS, 'Violação de direitos autorais'].map((item) => <PillButton key={item} label={item} variant={reason === item ? 'dark' : 'outline'} onPress={() => setReason(item)} />)}
         <PillButton label={busy ? 'Enviando…' : 'Enviar denúncia'} disabled={busy || !reason.trim()} onPress={() => action(async () => { await reportDocument(id, reason, comuna); toast.show('Denúncia registrada.'); setReporting(false); })} />
         {error ? <AppText color={Colors.error}>{error}</AppText> : null}

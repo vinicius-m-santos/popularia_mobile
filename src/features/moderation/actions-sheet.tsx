@@ -3,11 +3,11 @@
  * menu → motivo → detalhes → confirmação. Um único provedor serve o app inteiro.
  */
 import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet } from '@/components/bottom-sheet';
+import { BottomSheet, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { CheckboxMark, RadioMark } from '@/components/choice-marks';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
@@ -263,7 +263,7 @@ function SheetBody(props: BodyProps) {
               (opcional)
             </AppText>
           </AppText>
-          <TextInput
+          <PopulariaBottomSheetTextInput
             value={details}
             onChangeText={setDetails}
             maxLength={DETAILS_MAX_LENGTH}
