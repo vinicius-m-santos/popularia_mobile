@@ -26,7 +26,7 @@ import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { mergeById, singlePage } from '@/lib/pagination';
 import { goBack, useNav } from '@/lib/routes';
-import type { CommentWithAuthor, FeedItem } from '@/types/models';
+import type { CommentWithAuthor, ContentMention, FeedItem } from '@/types/models';
 
 /** Texto para as recusas conhecidas de POST /posts/{id}/comments. */
 function commentErrorMessage(error: unknown): string {
@@ -152,16 +152,16 @@ export default function DiscussionScreen() {
     setReplyTo(null);
   };
 
-  const onSend = async (text: string): Promise<boolean> => {
+  const onSend = async (text: string, mentions: ContentMention[]): Promise<boolean> => {
     if (DEMO_MODE || !post) {
-      const created = addComment({ postId: id, parentId: replyTo?.id ?? null, text });
+      const created = addComment({ postId: id, parentId: replyTo?.id ?? null, text, mentions });
       setOn('supportedComments', [created.id], true);
       afterSend();
       toast.show('Comentário adicionado só neste aparelho. Nada foi publicado.');
       return true;
     }
     try {
-      const created = await createComment({ postId: id, parentId: replyTo?.id ?? null, text });
+      const created = await createComment({ postId: id, parentId: replyTo?.id ?? null, text, mentions });
       comments.append(created);
       setSentIds((prev) => [...prev, created.id]);
       noteCommentCount(id, commentCountOf(id, post.commentCount) + 1);

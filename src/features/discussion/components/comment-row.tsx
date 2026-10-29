@@ -7,6 +7,7 @@ import { Badge } from '@/components/badge';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { PostBody } from '@/features/posts/components/post-body';
 import { formatCount, formatRelative, plural } from '@/lib/format';
 
 import { MAX_VISUAL_DEPTH, type ThreadRow } from '../thread';
@@ -64,18 +65,17 @@ export const CommentRow = memo(function CommentRow({
       <Avatar initials={comment.author.initials} tone={comment.author.tone} size={30} userId={comment.author.id} imageUrl={comment.author.avatarUrl} />
       <View style={styles.body}>
         <View
+          style={styles.header}
           accessible
-          accessibilityLabel={`${row.depth > 0 ? 'Resposta de' : 'Comentário de'} ${comment.author.name}${authorLabel ? `, ${authorLabel}` : ''}, ${time}: ${comment.text}`}>
-          <View style={styles.header}>
-            <AppText style={styles.name}>{comment.author.name}</AppText>
-            {authorLabel ? <Badge label={authorLabel} tone="red" /> : null}
-            {comment.author.badge ? <Badge label={comment.author.badge} /> : null}
-            <AppText style={styles.time} color={Colors.muted}>
-              {time}
-            </AppText>
-          </View>
-          <AppText style={styles.text}>{comment.text}</AppText>
+          accessibilityLabel={`${row.depth > 0 ? 'Resposta de' : 'Comentário de'} ${comment.author.name}${authorLabel ? `, ${authorLabel}` : ''}, ${time}`}>
+          <AppText style={styles.name}>{comment.author.name}</AppText>
+          {authorLabel ? <Badge label={authorLabel} tone="red" /> : null}
+          {comment.author.badge ? <Badge label={comment.author.badge} /> : null}
+          <AppText style={styles.time} color={Colors.muted}>
+            {time}
+          </AppText>
         </View>
+        <PostBody text={comment.text} mentions={comment.mentions} style={styles.text} />
         <View style={styles.actions}>
           <Pressable
             onPress={() => onSupport(comment.id)}

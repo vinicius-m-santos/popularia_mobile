@@ -44,7 +44,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
             <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={() => sheet.open(postTarget(post))} />
           </View>}
         />
-        <PostBody text={post.text} style={styles.text} />
+        <PostBody text={post.text} mentions={post.mentions} style={styles.text} />
         {post.attachment ? <PostAttachment media={post.attachment} /> : null}
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
         {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}

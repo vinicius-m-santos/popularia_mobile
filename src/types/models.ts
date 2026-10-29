@@ -113,6 +113,16 @@ export type PostImage = {
   alt: string;
 };
 
+/** Menção estruturada. `start`/`end` são pontos de código no texto publicado. */
+export type ContentMention = {
+  userId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  start: number;
+  end: number;
+};
+
 export type Post = {
   document?: import('@/features/library/types').LibraryDocument | null;
   attachment?: import('@/features/posts/post-media').PostMediaDto | null;
@@ -136,6 +146,7 @@ export type Post = {
   poll?: import('@/features/posts/poll').PostPoll | null;
   /** Quando esta pessoa guardou a publicação. Só na lista de salvos. */
   savedAt?: string;
+  mentions?: ContentMention[];
 };
 
 export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean; saved?: boolean };
@@ -169,6 +180,7 @@ export type Comment = {
   isOwn?: boolean;
   /** Estado persistido do apoio da pessoa logada. */
   viewerSupported?: boolean;
+  mentions?: ContentMention[];
 };
 
 export type CommentStatus = 'published' | 'deleted' | 'removed' | 'hidden';
@@ -257,7 +269,7 @@ export type Profile = {
 
 export type NotificationKind =
   | 'comment_support' | 'square_reply'
-  | 'follow' | 'comment' | 'reply'
+  | 'follow' | 'comment' | 'reply' | 'mention_post' | 'mention_comment'
   | 'join_requested' | 'join_approved' | 'join_rejected'
   | 'ownership_proposed' | 'ownership_accepted' | 'ownership_declined' | 'ownership_cancelled';
 

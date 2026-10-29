@@ -36,7 +36,7 @@ const FILTERS: { key: NotificationFilter; label: string }[] = [
 
 const MATCHES: Record<NotificationFilter, (kind: NotificationKind) => boolean> = {
   tudo: () => true,
-  conversas: (k) => k === 'reply' || k === 'comment' || k === 'square_reply',
+  conversas: (k) => k === 'reply' || k === 'comment' || k === 'square_reply' || k === 'mention_post' || k === 'mention_comment',
   comunas: (k) => k.startsWith('join_') || k.startsWith('ownership_'),
 };
 
@@ -244,6 +244,8 @@ const BADGE_ICONS: Record<NotificationKind, IconName> = {
   square_reply: 'comment',
   comment: 'comment',
   reply: 'comment',
+  mention_post: 'user',
+  mention_comment: 'user',
   follow: 'plus',
   join_requested: 'support', join_approved: 'check', join_rejected: 'close',
   ownership_proposed: 'shield', ownership_accepted: 'shield', ownership_declined: 'shield', ownership_cancelled: 'shield',
@@ -251,7 +253,7 @@ const BADGE_ICONS: Record<NotificationKind, IconName> = {
 
 /** Selo no canto do avatar com o tipo do aviso. */
 function KindBadge({ kind }: { kind: NotificationKind }) {
-  const red = kind === 'reply' || kind === 'comment' || kind === 'square_reply';
+  const red = kind === 'reply' || kind === 'comment' || kind === 'square_reply' || kind === 'mention_post' || kind === 'mention_comment';
   return (
     <View style={[styles.badge, { backgroundColor: red ? Colors.red : Colors.ink }]}>
       <Icon name={BADGE_ICONS[kind]} size={11} color={Colors.paper} />

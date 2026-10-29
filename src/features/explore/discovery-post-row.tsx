@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { PostBody } from '@/features/posts/components/post-body';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { formatCount, formatRelative } from '@/lib/format';
 import { useNav } from '@/lib/routes';
@@ -17,7 +18,7 @@ export function DiscoveryPostRow({ post, rank }: { post: FeedItem; rank?: number
           {post.comuna ? `c/ ${post.comuna.name}` : 'No perfil'}
         </AppText>
         <AppText variant="caption" numberOfLines={1}>{post.author.name} · @{post.author.handle}</AppText>
-        <AppText numberOfLines={3} style={styles.body}>{post.text}</AppText>
+        <PostBody text={post.text} mentions={post.mentions} numberOfLines={3} style={styles.body} />
         <AppText variant="caption">{formatRelative(post.createdAt)} · {formatCount(post.commentCount)} comentários</AppText>
       </View>
     </Pressable>

@@ -119,9 +119,9 @@ type InteractionsValue = {
   joinedComunaIds: string[];
   followedUserIds: string[];
   localCommentsFor: (postId: string) => Comment[];
-  addComment: (input: { postId: string; parentId: string | null; text: string }) => Comment;
+  addComment: (input: { postId: string; parentId: string | null; text: string; mentions?: Comment['mentions'] }) => Comment;
   localPosts: Post[];
-  addPost: (input: { comunaId: string | null; text: string; poll?: Post['poll'] }) => Post;
+  addPost: (input: { comunaId: string | null; text: string; poll?: Post['poll']; mentions?: Post['mentions'] }) => Post;
   /** Na API: contagem exibida = a maior entre a do servidor e a última conhecida nesta sessão. */
   commentCountOf: (postId: string, serverCount: number) => number;
   /** Registra uma contagem vista no servidor ou atualizada depois de comentar (nunca diminui). */
@@ -176,7 +176,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     [state.localComments],
   );
 
-  const addComment = useCallback<InteractionsValue['addComment']>(({ postId, parentId, text }) => {
+  const addComment = useCallback<InteractionsValue['addComment']>(({ postId, parentId, text, mentions }) => {
     localIdCounter += 1;
     const comment: Comment = {
       id: `local-${localIdCounter}`,
@@ -186,12 +186,13 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
       text,
       supportCount: 0,
+      ...(mentions && mentions.length > 0 ? { mentions } : {}),
     };
     dispatch({ type: 'addComment', comment });
     return comment;
   }, []);
 
-  const addPost = useCallback<InteractionsValue['addPost']>(({ comunaId, text, poll }) => {
+  const addPost = useCallback<InteractionsValue['addPost']>(({ comunaId, text, poll, mentions }) => {
     localIdCounter += 1;
     const post: Post = {
       id: `local-post-${localIdCounter}`,
@@ -203,6 +204,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
       commentCount: 0,
       echoCount: 0,
       ...(poll ? { poll } : {}),
+      ...(mentions && mentions.length > 0 ? { mentions } : {}),
     };
     dispatch({ type: 'addPost', post });
     return post;

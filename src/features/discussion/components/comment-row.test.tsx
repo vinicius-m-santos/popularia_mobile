@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { describe, expect, it, jest } from '@jest/globals';
-import type { CommentWithAuthor } from '@/types/models';
+import type { CommentWithAuthor, ContentMention } from '@/types/models';
 import { CommentComposer } from './comment-composer';
 import { CommentRow } from './comment-row';
 
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), navigate: jest.fn() }, useSegments: () => [] }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 jest.mock('@/hooks/use-keyboard-visible', () => ({ useKeyboardVisible: () => false }));
 
@@ -36,11 +37,11 @@ describe('ações de comentário e resposta', () => {
   });
 
   it('remove o avatar do campo fixo de comentário sem alterar o envio', async () => {
-    const onSend = jest.fn<(text: string) => Promise<boolean>>().mockResolvedValue(true);
+    const onSend = jest.fn<(text: string, mentions: ContentMention[]) => Promise<boolean>>().mockResolvedValue(true);
     await render(<CommentComposer replyingTo={null} onCancelReply={jest.fn()} onSend={onSend} />);
     expect(screen.queryByText('C')).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Escrever comentário'), 'Minha contribuição');
     await fireEvent.press(screen.getByLabelText('Enviar comentário'));
-    expect(onSend).toHaveBeenCalledWith('Minha contribuição');
+    expect(onSend).toHaveBeenCalledWith('Minha contribuição', []);
   });
 });

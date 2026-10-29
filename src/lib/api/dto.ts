@@ -104,6 +104,15 @@ export type ComunaQuotaDto = {
 /** GET /comuna-names/availability?name=. */
 export type ComunaNameAvailabilityDto = { name: string; slug: string; available: boolean; message: string | null };
 
+export type MentionDto = {
+  userId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+  start: number;
+  end: number;
+};
+
 export type PostDto = {
   document?: import('@/features/library/types').LibraryDocument | null;
   media?: import('@/features/posts/post-media').PostMediaDto | null;
@@ -116,6 +125,7 @@ export type PostDto = {
   commentCount: number;
   /** Dicas para a interface, calculadas no servidor; a decisão que vale é a da API. */
   viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean; saved?: boolean };
+  mentions?: MentionDto[];
   poll?: {
     id: string;
     question: string;
@@ -139,4 +149,5 @@ export type CommentDto = {
   createdAt: string;
   supportCount: number;
   viewer: { isAuthor: boolean; canRemove: boolean; supported: boolean };
+  mentions?: MentionDto[];
 };

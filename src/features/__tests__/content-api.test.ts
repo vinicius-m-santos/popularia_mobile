@@ -111,10 +111,21 @@ describe('publicações', () => {
 
   it('cria mandando só o texto e a comuna (nunca autoria ou contagens)', async () => {
     api.mockResolvedValue(postDto);
-    await createPost({ comunaServerId: comunaDto.id, text: 'Olá' });
+    await createPost({ comunaServerId: comunaDto.id, text: 'Olá', mentions: [] });
     expect(api).toHaveBeenCalledWith('/posts', {
       method: 'POST',
       body: { comunaId: comunaDto.id, body: 'Olá' },
+      auth: true,
+    });
+    api.mockResolvedValue(postDto);
+    await createPost({
+      comunaServerId: null,
+      text: 'Olá @ana',
+      mentions: [{ userId: 'user-ana', handle: 'ana', displayName: 'Ana Souza', avatarUrl: null, start: 4, end: 8 }],
+    });
+    expect(api).toHaveBeenLastCalledWith('/posts', {
+      method: 'POST',
+      body: { mentions: [{ userId: 'user-ana', start: 4, end: 8 }], comunaId: null, body: 'Olá @ana' },
       auth: true,
     });
   });
@@ -251,19 +262,36 @@ describe('comunas', () => {
 
 describe('comentários', () => {
   it('lista com cursor e converte a autoria do servidor', async () => {
-    api.mockResolvedValue({ items: [comment({ viewer: { isAuthor: true, canRemove: false, supported: true } })], nextCursor: 'c1' });
+    api.mockResolvedValue({ items: [comment({
+      viewer: { isAuthor: true, canRemove: false, supported: true },
+      mentions: [{ userId: author.id, handle: 'ana', displayName: 'Ana Souza', avatarUrl: null, start: 0, end: 4 }],
+    })], nextCursor: 'c1' });
     const page = await getComments(postDto.id, 'c0');
     expect(api).toHaveBeenCalledWith(`/posts/${postDto.id}/comments?cursor=c0`, { auth: true });
-    expect(page.items[0]).toMatchObject({ text: 'Vou levar mudas', isOwn: true, author: { name: 'Ana Souza' } });
+    expect(page.items[0]).toMatchObject({
+      text: 'Vou levar mudas', isOwn: true, author: { name: 'Ana Souza' },
+      mentions: [{ userId: author.id, handle: 'ana', start: 0, end: 4 }],
+    });
     expect(page.nextCursor).toBe('c1');
   });
 
-  it('cria resposta mandando só o texto e o comentário pai', async () => {
+  it('cria resposta com o texto, o comentário pai e as menções escolhidas', async () => {
     api.mockResolvedValue(comment({ id: 'c2', parentId: 'c1' }));
     await createComment({ postId: postDto.id, parentId: 'c1', text: 'Combinado' });
-    expect(api).toHaveBeenCalledWith(`/posts/${postDto.id}/comments`, {
+    expect(api).toHaveBeenLastCalledWith(`/posts/${postDto.id}/comments`, {
       method: 'POST',
       body: { body: 'Combinado', parentId: 'c1' },
+      auth: true,
+    });
+    await createComment({
+      postId: postDto.id,
+      parentId: 'c1',
+      text: 'Combinado @ana',
+      mentions: [{ userId: 'user-ana', handle: 'ana', displayName: 'Ana Souza', avatarUrl: null, start: 10, end: 14 }],
+    });
+    expect(api).toHaveBeenLastCalledWith(`/posts/${postDto.id}/comments`, {
+      method: 'POST',
+      body: { body: 'Combinado @ana', parentId: 'c1', mentions: [{ userId: 'user-ana', start: 10, end: 14 }] },
       auth: true,
     });
   });

@@ -25,6 +25,8 @@ import { DocumentCard } from '@/features/library/document-card';
 import { LibraryPane } from '@/features/library/library-screen';
 import type { LibraryDocument } from '@/features/library/types';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
+import { MentionSuggestions } from '@/features/mentions/mention-suggestions';
+import { useMentionDraft } from '@/features/mentions/use-mention-draft';
 import { createPost } from '@/features/posts/api';
 import { POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
 import { PostCard } from '@/features/posts/components/post-card';
@@ -89,7 +91,8 @@ export default function CreatePostScreen() {
   const loadComunas = useCallback(() => (DEMO_MODE ? getComunas() : getMyComunas()), []);
   const comunas = useAsyncData(loadComunas);
 
-  const [text, setText] = useState('');
+  const draft = useMentionDraft();
+  const text = draft.text;
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const optionSeq = useRef(2);
   const [topic, setTopic] = useState<TopicId | null>(null);
@@ -113,7 +116,8 @@ export default function CreatePostScreen() {
     return comuna ? { kind: 'comuna', comuna } : { kind: 'perfil' };
   }, [chosenId, joined]);
 
-  const trimmed = text.trim();
+  const composed = draft.compose();
+  const trimmed = composed.body;
   const destinationsReady = chosenId === 'perfil' || comunas.data !== null;
   const canPublish = (!!document || !!media || trimmed.length > 0 || poll !== null) && !publishing && destinationsReady;
   const where = destination.kind === 'perfil' ? 'seu perfil' : `c/ ${destination.comuna.name}`;
@@ -159,7 +163,7 @@ export default function CreatePostScreen() {
       publishingRef.current = true;
       setLeaving(true);
       disablePrevention();
-      addPost({ comunaId, text: trimmed, ...(poll ? { poll: { ...draftToPoll(poll), id: `local-poll-${Date.now()}` } } : {}) });
+      addPost({ comunaId, text: trimmed, ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}), ...(poll ? { poll: { ...draftToPoll(poll), id: `local-poll-${Date.now()}` } } : {}) });
       toast.show(`Publicado em ${where} só neste aparelho. Nada foi enviado.`);
       if (comunaId) router.dismissTo({ pathname: '/comuna/[id]', params: { id: comunaId } });
       else router.dismissTo('/perfil');
@@ -190,6 +194,7 @@ export default function CreatePostScreen() {
       await createPost({
         comunaServerId,
         text: trimmed,
+        ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}),
         ...(pdfMode && document ? { documentId: document.id } : {}),
         ...(mediaId ? { mediaId } : {}),
         ...(destination.kind === 'perfil' && topic ? { topic } : {}),
@@ -244,6 +249,7 @@ export default function CreatePostScreen() {
     comunaId: destination.kind === 'comuna' ? destination.comuna.id : null,
     createdAt: new Date().toISOString(),
     text: trimmed || (pdfMode ? '' : 'Seu texto aparece aqui.'),
+    ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}),
     supportCount: 0,
     commentCount: 0,
     echoCount: 0,
@@ -371,13 +377,16 @@ export default function CreatePostScreen() {
               </View>
             ) : (
               <View style={styles.contentBox}>
+                {draft.query ? <MentionSuggestions query={draft.query.query} onSelect={draft.insert} /> : null}
                 <View style={styles.writeRow}>
                   <Avatar initials={me.initials} tone={me.tone} size={38} userId={me.id} imageUrl={me.avatarUrl} />
                   <TextInput
                     editable={!publishing}
                     scrollEnabled={false}
                     value={text}
-                    onChangeText={setText}
+                    onChangeText={draft.onChangeText}
+                    onSelectionChange={(event) => draft.onSelectionChange(event.nativeEvent.selection)}
+                    {...(draft.selection ? { selection: draft.selection } : {})}
                     maxLength={MAX_LENGTH}
                     multiline
                     autoFocus

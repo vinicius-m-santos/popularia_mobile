@@ -7,7 +7,7 @@
  */
 import { DEMO_MODE } from '@/constants/config';
 import { findUser, toFeedItem as mockToFeedItem } from '@/features/lookup';
-import { getPost, toUser } from '@/features/posts/api';
+import { getPost, toContentMentions, toUser } from '@/features/posts/api';
 import { apiRequest } from '@/lib/api/client';
 import type { CommentDto, PageDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
@@ -15,7 +15,7 @@ import { mockDelay } from '@/lib/mock-delay';
 import { singlePage, type Page } from '@/lib/pagination';
 import { comments } from '@/mocks/comments';
 import { posts } from '@/mocks/posts';
-import type { CommentStatus, CommentWithAuthor, FeedItem } from '@/types/models';
+import type { CommentStatus, CommentWithAuthor, ContentMention, FeedItem } from '@/types/models';
 
 /** Texto exibido no lugar de comentários sem conteúdo. */
 const PLACEHOLDER_TEXT: Record<Exclude<CommentStatus, 'published'>, string> = {
@@ -40,7 +40,7 @@ export function toComment(dto: CommentDto): CommentWithAuthor {
     isOwn: dto.viewer.isAuthor,
   };
   if (dto.status === 'published' && dto.author && dto.body !== null) {
-    return { ...base, authorId: dto.author.id, text: dto.body, author: toUser(dto.author) };
+    return { ...base, authorId: dto.author.id, text: dto.body, author: toUser(dto.author), mentions: toContentMentions(dto.mentions) };
   }
   // Marcador: sem texto nem autoria (apagado, removido ou de quem tem bloqueio com você).
   const status = dto.status === 'published' ? 'hidden' : dto.status;
@@ -92,10 +92,12 @@ export async function createComment(input: {
   postId: string;
   parentId: string | null;
   text: string;
+  mentions?: ContentMention[];
 }): Promise<CommentWithAuthor> {
+  const mentions = input.mentions?.map(({ userId, start, end }) => ({ userId, start, end }));
   const dto = await apiRequest<CommentDto>(`${postPath(input.postId)}/comments`, {
     method: 'POST',
-    body: { body: input.text, parentId: input.parentId },
+    body: { body: input.text, parentId: input.parentId, ...(mentions && mentions.length > 0 ? { mentions } : {}) },
     auth: true,
   });
   return toComment(dto);

@@ -7,11 +7,11 @@
 import { API_BASE_URL } from '@/constants/config';
 import { absoluteMediaUrl } from '@/features/media/media-url';
 import { apiRequest } from '@/lib/api/client';
-import type { AuthorDto, PageDto, PostDto, SavedPostDto } from '@/lib/api/dto';
+import type { AuthorDto, MentionDto, PageDto, PostDto, SavedPostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 import type { Page } from '@/lib/pagination';
-import type { FeedItem, Tone, TopicId, User } from '@/types/models';
+import type { ContentMention, FeedItem, Tone, TopicId, User } from '@/types/models';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
 
@@ -20,6 +20,23 @@ export function toneFor(id: string): Tone {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
   return TONES[Math.abs(hash) % TONES.length];
+}
+
+export function toContentMentions(mentions: MentionDto[] | undefined): ContentMention[] | undefined {
+  if (!mentions?.length) return undefined;
+  return mentions.map((mention) => ({
+    userId: mention.userId,
+    handle: mention.handle,
+    displayName: mention.displayName,
+    avatarUrl: mention.avatarUrl,
+    start: mention.start,
+    end: mention.end,
+  }));
+}
+
+function mentionRefs(mentions: ContentMention[] | undefined): { userId: string; start: number; end: number }[] | undefined {
+  if (!mentions?.length) return undefined;
+  return mentions.map(({ userId, start, end }) => ({ userId, start, end }));
 }
 
 export function toUser(author: AuthorDto): User {
@@ -50,6 +67,7 @@ export function toFeedItem(post: PostDto): FeedItem {
     echoCount: 0,
     viewer: post.viewer,
     poll: post.poll ?? null,
+    mentions: toContentMentions(post.mentions),
     author: toUser(post.author),
     comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name, status: post.comuna.status } : null,
     event: null,
@@ -71,10 +89,11 @@ export async function getPost(id: string, signal?: AbortSignal): Promise<FeedIte
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[] } | null }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[] } | null; mentions?: ContentMention[] }): Promise<FeedItem> {
+  const mentions = mentionRefs(input.mentions);
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), ...(mentions ? { mentions } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
     auth: true,
   });
   return toFeedItem(post);

@@ -7,6 +7,9 @@ import { Icon } from '@/components/icon';
 import { PillButton } from '@/components/pill-button';
 import { Colors, Fonts, MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
+import { MentionSuggestions } from '@/features/mentions/mention-suggestions';
+import { useMentionDraft } from '@/features/mentions/use-mention-draft';
+import type { ContentMention } from '@/types/models';
 
 export const MAX_COMMENT_LENGTH = 2000;
 
@@ -17,7 +20,7 @@ type CommentComposerProps = {
   replyingTo: string | null;
   onCancelReply: () => void;
   /** Envia o comentário; devolve `true` se deu certo (o rascunho só é apagado nesse caso). */
-  onSend: (text: string) => boolean | Promise<boolean>;
+  onSend: (text: string, mentions: ContentMention[]) => boolean | Promise<boolean>;
   /** Quando presente, substitui o campo (e-mail não confirmado, fora da comuna). */
   notice?: ComposerNotice | null;
   inputRef?: Ref<ComponentRef<typeof TextInput>>;
@@ -25,21 +28,21 @@ type CommentComposerProps = {
 
 /** Campo fixo no rodapé da discussão para comentar ou responder. */
 export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inputRef }: CommentComposerProps) {
-  const [draft, setDraft] = useState('');
+  const draft = useMentionDraft();
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardVisible();
-  const canSend = draft.trim().length > 0 && !sending;
+  const composed = draft.compose();
+  const canSend = composed.body.length > 0 && !sending;
 
   const send = async () => {
-    const text = draft.trim();
-    if (!text || sendingRef.current) return;
+    if (!composed.body || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
     try {
       // Se falhar (sem rede, por exemplo), o texto continua no campo para tentar de novo.
-      if (await onSend(text)) setDraft('');
+      if (await onSend(composed.body, composed.mentions)) draft.reset();
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -78,11 +81,14 @@ export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inp
           </Pressable>
         </View>
       ) : null}
+      {draft.query ? <MentionSuggestions query={draft.query.query} onSelect={draft.insert} /> : null}
       <View style={styles.row}>
         <TextInput
           ref={inputRef}
-          value={draft}
-          onChangeText={setDraft}
+          value={draft.text}
+          onChangeText={draft.onChangeText}
+          onSelectionChange={(event) => draft.onSelectionChange(event.nativeEvent.selection)}
+          {...(draft.selection ? { selection: draft.selection } : {})}
           placeholder={replyingTo ? 'Escreva sua resposta…' : 'Entre na discussão…'}
           placeholderTextColor={Colors.muted}
           accessibilityLabel={replyingTo ? `Resposta para ${replyingTo}` : 'Escrever comentário'}

@@ -81,7 +81,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         accessibilityRole="button"
         accessibilityHint="Abre a discussão"
         style={styles.body}>
-        <PostBody text={item.text} />
+        <PostBody text={item.text} mentions={item.mentions} />
         {images && images.length > 0 ? <PostImages images={images} /> : null}
       </Pressable>
 
