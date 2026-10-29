@@ -222,7 +222,7 @@ function MembersTab({ comuna, onChanged }: TabProps) {
           return (
             <View key={person.id} style={styles.row}>
               <View style={styles.identity} accessible accessibilityLabel={`${person.name}, @${person.handle}, ${roleLabel(person.role)}`}>
-                <Avatar initials={person.initials} tone={person.tone} size={42} />
+                <Avatar initials={person.initials} tone={person.tone} size={42} userId={person.id} imageUrl={person.avatarUrl} />
                 <View style={styles.rowText}>
                   <AppText variant="bodyStrong" numberOfLines={1}>
                     {person.name}
@@ -313,7 +313,7 @@ function RequestsTab({ comuna, onChanged }: TabProps) {
       {requests.items.map((r) => (
         <View key={r.id} style={styles.row}>
           <View style={styles.identity}>
-            <Avatar initials={r.user.initials} tone={r.user.tone} size={42} />
+            <Avatar initials={r.user.initials} tone={r.user.tone} size={42} userId={r.user.id} imageUrl={r.user.avatarUrl} />
             <View style={styles.rowText}>
               <AppText variant="bodyStrong" numberOfLines={1}>
                 {r.user.name}

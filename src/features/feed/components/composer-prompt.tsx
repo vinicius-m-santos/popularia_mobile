@@ -15,7 +15,7 @@ export function ComposerPrompt({ placeholder = 'O que sua comuna precisa saber?'
       accessibilityRole="button"
       accessibilityLabel="Criar publicação"
       style={({ pressed }) => [styles.box, pressed && styles.pressed]}>
-      <Avatar initials={me.initials} tone={me.tone} size={34} />
+      <Avatar initials={me.initials} tone={me.tone} size={34} userId={me.id} imageUrl={me.avatarUrl} />
       <AppText style={styles.placeholder} color={Colors.muted} numberOfLines={1}>
         {placeholder}
       </AppText>

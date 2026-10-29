@@ -10,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
@@ -41,6 +40,7 @@ import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { LibraryPane } from '@/features/library/library-screen';
 
+import { ProfilePhoto } from './profile-photo';
 import { getProfile, getUserPostsPage, toProfile } from './api';
 import { FollowButton } from './components/follow-button';
 import { ProfileMediaGrid } from './components/profile-media-grid';
@@ -156,7 +156,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const nav = useNav();
   const sheet = useActionsSheet();
   const me = useMe();
-  const { profile: account } = useAccount();
+  const { profile: account, replaceAvatarUrl } = useAccount();
   const { membershipOf } = useInteractions();
   const localPosts = useLocalFeedItems((p) => isMe && p.authorId === 'me');
   const [tab, setTab] = useState<ProfileTab>('posts');
@@ -204,9 +204,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
           <View style={styles.identityBlock}>
             <View style={styles.identity}>
-              <View style={styles.avatarRing} accessible={false}>
-                <Avatar initials={user.initials} tone={user.tone} size={80} />
-              </View>
+              <ProfilePhoto user={user} editable={isMe && !DEMO_MODE} onUploaded={replaceAvatarUrl} />
               <View style={styles.names}>
                 {user.badge ? (
                   <View style={styles.badge}>
@@ -577,13 +575,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 16,
     textDecorationLine: 'underline',
-  },
-  avatarRing: {
-    padding: 3,
-    borderRadius: 50,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    backgroundColor: Colors.cream,
   },
   names: {
     flex: 1,

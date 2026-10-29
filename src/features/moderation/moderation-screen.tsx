@@ -246,7 +246,7 @@ function ReportCard({ report, onKeep, onRestrict, onRemove }: CardProps) {
         style={styles.quote}
         accessible
         accessibilityLabel={`${author.name}, @${author.handle}, escreveu: ${report.text}`}>
-        <Avatar initials={author.initials} tone={author.tone} size={30} />
+        <Avatar initials={author.initials} tone={author.tone} size={30} userId={author.id} imageUrl={author.avatarUrl} />
         <View style={styles.flex}>
           <AppText style={styles.quoteName}>
             {author.name}{' '}

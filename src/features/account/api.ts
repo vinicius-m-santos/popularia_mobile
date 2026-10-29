@@ -32,6 +32,8 @@ export type MeDto = {
   hasPassword: boolean;
   legalAccepted: boolean;
   followerCount: number;
+  /** Foto atual. Null quando a conta ainda usa as iniciais. */
+  avatarUrl?: string | null;
 };
 
 export type SocialProvider = 'google' | 'apple';

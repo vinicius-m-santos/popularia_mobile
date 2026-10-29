@@ -16,6 +16,7 @@ import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
+import { absoluteMediaUrl } from '@/features/media/media-url';
 import { joinComuna, requestToJoin } from '@/features/comunas/api';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { REPORT_REASONS } from '@/features/moderation/constants';
@@ -184,7 +185,7 @@ function Conversation({ id }: { id: string }) {
       />
       <BottomSheet visible={sheet === 'presence' && !!s?.viewer.canRead} onClose={() => setSheet(null)} title="Na Praça agora">
         <AppText variant="caption">Presença recente, aproximada.</AppText>
-        {people.length ? people.map((p) => <View key={p.id} style={styles.person}><Avatar initials={initialsOf(p.displayName)} tone="red" size={34} /><View style={styles.flex}><AppText variant="bodyStrong">{p.displayName}</AppText><AppText variant="caption">@{p.handle}</AppText></View></View>) : <AppText>Ninguém por aqui no momento.</AppText>}
+        {people.length ? people.map((p) => <View key={p.id} style={styles.person}><Avatar initials={initialsOf(p.displayName)} tone="red" size={34} userId={p.id} imageUrl={absoluteMediaUrl(p.avatarUrl)} /><View style={styles.flex}><AppText variant="bodyStrong">{p.displayName}</AppText><AppText variant="caption">@{p.handle}</AppText></View></View>) : <AppText>Ninguém por aqui no momento.</AppText>}
       </BottomSheet>
       <BottomSheet visible={sheet === 'stickers' && !!s?.viewer.canWrite} onClose={() => setSheet(null)} title="Figurinhas">
         <View style={styles.tabs}>{packs.map((p) => <PillButton key={p.id} label={p.scope === 'popularia' ? 'Popularia' : 'Da comuna'} variant={p.id === packId ? 'dark' : 'outline'} onPress={() => setPackId(p.id)} />)}</View>

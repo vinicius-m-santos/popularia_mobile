@@ -11,7 +11,7 @@ export type PageDto<T> = { items: T[]; nextCursor: string | null };
 export const MAX_PAGE_LIMIT = 50;
 
 /** Autoria de publicações e comentários: só dados públicos. */
-export type AuthorDto = { id: string; handle: string; displayName: string };
+export type AuthorDto = { id: string; handle: string; displayName: string; avatarUrl?: string | null };
 
 export type ComunaRoleDto = 'member' | 'moderator' | 'founder';
 
@@ -33,7 +33,7 @@ export type ComunaPermissionsDto = {
 };
 
 /** Pessoa numa comuna (lista de membros e moderação). `founder` é quem é proprietário. */
-export type ComunaMemberDto = { id: string; handle: string; displayName: string; role: ComunaRoleDto; joinedAt: string };
+export type ComunaMemberDto = { id: string; handle: string; displayName: string; role: ComunaRoleDto; joinedAt: string; avatarUrl?: string | null };
 
 export type ComunaDto = {
   /** UUID: usado em POST /posts (comunaId). */
@@ -52,6 +52,7 @@ export type ComunaDto = {
   foundedYear: number;
   memberCount: number;
   moderationNote: string;
+  coverUrl?: string | null;
   rules: { title: string; body: string }[];
   /** Null em comunas da equipe da plataforma. */
   owner: AuthorDto | null;

@@ -372,7 +372,7 @@ export default function CreatePostScreen() {
             ) : (
               <View style={styles.contentBox}>
                 <View style={styles.writeRow}>
-                  <Avatar initials={me.initials} tone={me.tone} size={38} />
+                  <Avatar initials={me.initials} tone={me.tone} size={38} userId={me.id} imageUrl={me.avatarUrl} />
                   <TextInput
                     editable={!publishing}
                     scrollEnabled={false}
@@ -448,7 +448,7 @@ export default function CreatePostScreen() {
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Publicar em">
         <DestinationOption
           selected={destination.kind === 'perfil'}
-          mark={<Avatar initials={me.initials} tone={me.tone} size={42} />}
+          mark={<Avatar initials={me.initials} tone={me.tone} size={42} userId={me.id} imageUrl={me.avatarUrl} />}
           name="Meu perfil"
           subtitle={DEMO_MODE ? `${MY_FOLLOWERS} seguidores` : 'Visível no seu perfil e no feed'}
           onPress={() => {
@@ -505,7 +505,7 @@ export default function CreatePostScreen() {
 }
 
 function DestinationMark({ destination, me }: { destination: Destination; me: FeedItem['author'] }) {
-  if (destination.kind === 'perfil') return <Avatar initials={me.initials} tone={me.tone} size={44} />;
+  if (destination.kind === 'perfil') return <Avatar initials={me.initials} tone={me.tone} size={44} userId={me.id} imageUrl={me.avatarUrl} />;
   const { comuna } = destination;
   return <ComunaMark initials={comuna.initials} tone={comuna.tone} size={44} />;
 }

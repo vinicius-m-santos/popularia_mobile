@@ -38,6 +38,8 @@ export type User = {
   tone: Tone;
   /** Selo exibido ao lado do nome, como "Criadora" ou "Moderação". */
   badge?: string;
+  /** Foto de perfil. Ausente, a interface mostra as iniciais. */
+  avatarUrl?: string | null;
   /** Relação enviada em lote pela descoberta. */
   viewerFollowing?: boolean;
 };
@@ -70,6 +72,8 @@ export type Comuna = {
   onlineCount?: number;
   /** Descrição da foto de capa (texto alternativo). */
   coverAlt: string;
+  /** Capa enviada. Ausente, a comuna usa a arte padrão. */
+  coverUrl?: string | null;
   topics: TopicId[];
   stats: ComunaStat[];
   rules: ComunaRule[];

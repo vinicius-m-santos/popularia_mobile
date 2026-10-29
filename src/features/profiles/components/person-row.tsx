@@ -24,7 +24,7 @@ export function PersonRow({ user, subtitle, onOpen }: PersonRowProps) {
         accessibilityLabel={`${user.name}${user.badge ? `, ${user.badge}` : ''}, ${subtitle}`}
         accessibilityHint="Abre o perfil"
         style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
-        <Avatar initials={user.initials} tone={user.tone} size={44} />
+        <Avatar initials={user.initials} tone={user.tone} size={44} userId={user.id} imageUrl={user.avatarUrl} />
         <View style={styles.text}>
           <View style={styles.nameRow}>
             <AppText variant="bodyStrong" numberOfLines={1} style={styles.name}>

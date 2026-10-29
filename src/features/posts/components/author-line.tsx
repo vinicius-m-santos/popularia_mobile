@@ -29,7 +29,7 @@ export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress }:
         style={styles.identity}
         accessible
         accessibilityLabel={`${author.name}${author.badge ? `, ${author.badge}` : ''}, @${author.handle}${meta ? `, ${meta}` : ''}`}>
-        <Avatar initials={author.initials} tone={author.tone} size={avatarSize} />
+        <Avatar initials={author.initials} tone={author.tone} size={avatarSize} userId={author.id} imageUrl={author.avatarUrl} />
         <View style={styles.text}>
           <View style={styles.nameRow}>
             <AppText variant="bodyStrong">{author.name}</AppText>

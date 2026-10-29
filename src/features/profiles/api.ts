@@ -37,7 +37,7 @@ function buildProfile(id: string): Profile | null {
   };
 }
 
-type ProfileDto = Pick<MeDto, 'id' | 'handle' | 'displayName' | 'bio' | 'city' | 'isPrivate' | 'followerCount'> & ({ memberSince: string } | { createdAt: string });
+type ProfileDto = Pick<MeDto, 'id' | 'handle' | 'displayName' | 'bio' | 'city' | 'isPrivate' | 'followerCount' | 'avatarUrl'> & ({ memberSince: string } | { createdAt: string });
 
 /** Permite pintar o próprio perfil a partir da conta já restaurada. */
 export function toProfile(dto: ProfileDto): Profile {
@@ -53,7 +53,7 @@ export async function getProfile(id: string, signal?: AbortSignal): Promise<Prof
   if (!DEMO_MODE) {
     try {
       const dto = id === 'me' ? await getMe(signal) : await apiRequest<{
-        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string; isPrivate?: boolean; followerCount: number;
+        id: string; handle: string; displayName: string; bio: string; city: string | null; memberSince: string; isPrivate?: boolean; followerCount: number; avatarUrl?: string | null;
       }>(`/users/${encodeURIComponent(id)}`, { auth: true, ...(signal ? { signal } : {}) });
       return toProfile(dto);
     } catch (error) {

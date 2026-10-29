@@ -49,7 +49,7 @@ export function RulesList({ rules, moderationNote, moderators }: RulesListProps)
         <View style={styles.mods}>
           {moderators.map((m) => (
             <View key={m.id} style={styles.mod}>
-              <Avatar initials={m.initials} tone={m.tone} size={30} />
+              <Avatar initials={m.initials} tone={m.tone} size={30} userId={m.id} imageUrl={m.avatarUrl} />
               <AppText style={styles.modName}>{m.name}</AppText>
             </View>
           ))}

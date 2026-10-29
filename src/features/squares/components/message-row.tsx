@@ -6,6 +6,7 @@ import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { Colors, Spacing } from '@/constants/theme';
+import { absoluteMediaUrl } from '@/features/media/media-url';
 import { initialsOf } from '@/lib/format';
 
 import type { SquareMessage } from '../api';
@@ -42,7 +43,7 @@ export const MessageRow = memo(function MessageRow({ message: m, separator, onOp
     accessibilityActions={canAct ? [...(m.viewer.canReply ? [{ name: 'reply', label: 'Responder' }] : []), { name: 'options', label: 'Reações e opções' }] : []}
     onAccessibilityAction={(event) => event.nativeEvent.actionName === 'reply' ? onReply(m) : openPicker()}
     style={[styles.row, m.viewer.isAuthor && styles.mine]}>
-    <Avatar initials={initialsOf(m.author.displayName)} tone={m.viewer.isAuthor ? 'black' : 'red'} size={34} />
+    <Avatar initials={initialsOf(m.author.displayName)} tone={m.viewer.isAuthor ? 'black' : 'red'} size={34} userId={m.author.id} imageUrl={absoluteMediaUrl(m.author.avatarUrl)} />
     <View style={styles.content}>
       <View style={styles.meta}>
         <AppText variant="bodyStrong">{m.author.displayName}</AppText>

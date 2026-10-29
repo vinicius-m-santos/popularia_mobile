@@ -1,3 +1,4 @@
+import { absoluteMediaUrl } from '@/features/media/media-url';
 import { queryClient } from '@/lib/query/client';
 /**
  * Conta da pessoa: sessão, dados de /me e o rascunho do cadastro.
@@ -88,6 +89,8 @@ type AccountValue = {
   reloadAccount: () => Promise<void>;
   /** Confirma no servidor e publica imediatamente o novo estado para todas as telas. */
   confirmEmail: (code: string) => Promise<void>;
+  /** Publica a foto nova na conta já carregada, sem recarregar a sessão. */
+  replaceAvatarUrl: (avatarUrl: string) => void;
   deleteAccount: (proof: accountApi.DeletionProof) => Promise<void>;
   showWelcome: boolean;
   dismissWelcome: () => void;
@@ -393,6 +396,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (!DEMO_MODE) applyAccount(await accountApi.getMe());
   }, [applyAccount]);
 
+  const replaceAvatarUrl = useCallback((avatarUrl: string) => {
+    setAccount((current) => current ? { ...current, avatarUrl } : current);
+  }, []);
+
   const confirmEmail = useCallback(async (code: string) => {
     if (DEMO_MODE) return;
     await accountApi.verifyEmail(code);
@@ -431,6 +438,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signOut,
       reloadAccount,
       confirmEmail,
+      replaceAvatarUrl,
       deleteAccount,
       showWelcome,
       dismissWelcome,
@@ -457,6 +465,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signOut,
       reloadAccount,
       confirmEmail,
+      replaceAvatarUrl,
       deleteAccount,
       showWelcome,
       dismissWelcome,
@@ -490,6 +499,7 @@ export function useMe(): User {
       name,
       handle,
       initials: initialsOf(name),
+      avatarUrl: absoluteMediaUrl(account?.avatarUrl),
     };
   }, [account, profile.name, profile.handle]);
 }

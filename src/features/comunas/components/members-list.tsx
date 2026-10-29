@@ -99,7 +99,7 @@ function MemberRow({ member, canFollow = true }: { member: ComunaMember; canFoll
   return (
     <View style={styles.row}>
       <View style={styles.identity} accessible accessibilityLabel={`${member.name}, ${member.role}`}>
-        <Avatar initials={member.initials} tone={member.tone} size={42} />
+        <Avatar initials={member.initials} tone={member.tone} size={42} userId={member.id} imageUrl={member.avatarUrl} />
         <View style={styles.text}>
           <AppText variant="bodyStrong">{member.name}</AppText>
           <AppText style={styles.role} color={Colors.muted}>

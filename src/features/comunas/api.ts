@@ -11,6 +11,7 @@
  */
 import { DEMO_MODE } from '@/constants/config';
 import { findComuna, findUsers, toFeedItems } from '@/features/lookup';
+import { absoluteMediaUrl } from '@/features/media/media-url';
 import { toFeedItem, toUser } from '@/features/posts/api';
 import { apiRequest } from '@/lib/api/client';
 import {
@@ -60,6 +61,7 @@ export function toComuna(dto: ComunaDto): Comuna {
     description: dto.description,
     memberCount: dto.memberCount,
     coverAlt: `capa de ${dto.name}`,
+    coverUrl: absoluteMediaUrl(dto.coverUrl),
     // Os assuntos são os mesmos IDs de GET /topics.
     topics: dto.topics as TopicId[],
     primaryTopic: dto.primaryTopic ? { ...dto.primaryTopic, id: dto.primaryTopic.id as TopicId } : null,
@@ -75,7 +77,7 @@ export function toComuna(dto: ComunaDto): Comuna {
 }
 
 export function toComunaPerson(dto: ComunaMemberDto): ComunaPerson {
-  return { ...toUser({ id: dto.id, handle: dto.handle, displayName: dto.displayName }), role: dto.role, joinedAt: dto.joinedAt };
+  return { ...toUser({ id: dto.id, handle: dto.handle, displayName: dto.displayName, avatarUrl: dto.avatarUrl }), role: dto.role, joinedAt: dto.joinedAt };
 }
 
 /** Rótulo do papel para a interface. */

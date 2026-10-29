@@ -4,12 +4,13 @@
  *
  * Autoria, contagens e permissões vêm sempre do servidor: o app só manda o texto e a comuna.
  */
+import { API_BASE_URL } from '@/constants/config';
+import { absoluteMediaUrl } from '@/features/media/media-url';
 import { apiRequest } from '@/lib/api/client';
 import type { AuthorDto, PostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 import type { FeedItem, Tone, TopicId, User } from '@/types/models';
-import { API_BASE_URL } from '@/constants/config';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
 
@@ -27,6 +28,7 @@ export function toUser(author: AuthorDto): User {
     handle: author.handle,
     initials: initialsOf(author.displayName),
     tone: toneFor(author.id),
+    avatarUrl: absoluteMediaUrl(author.avatarUrl),
   };
 }
 

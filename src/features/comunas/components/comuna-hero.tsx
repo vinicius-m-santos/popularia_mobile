@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
@@ -16,6 +16,7 @@ import { formatPeople } from '@/lib/format';
 import { goBack, openManageComuna, openModeration } from '@/lib/routes';
 import type { ComunaDetails } from '@/types/models';
 
+import { ComunaCover } from './comuna-cover';
 import { cancelJoinRequest, requestToJoin, respondToTransfer, roleLabel } from '../api';
 import { comunaErrorMessage } from '../errors';
 import { useComunaMembership } from '../use-membership';
@@ -87,8 +88,8 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
   return (
     <View>
       <View style={styles.coverFrame}>
-        <View style={styles.cover} accessible accessibilityRole="image" accessibilityLabel={`Capa: ${comuna.coverAlt}`}>
-          <Image source={require('@/assets/comunas/comuna-hero-people.png')} resizeMode="cover" style={styles.coverArt} accessible={false} />
+        <View style={styles.cover}>
+          <ComunaCover comuna={comuna} canEdit={!DEMO_MODE && !archived && !!perms?.canEditDetails} />
           <View style={styles.coverButtons}>
             <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} background={Colors.paper} bordered style={styles.coverButton} />
             <IconButton
@@ -310,13 +311,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream,
   },
   coverFrame: { height: COVER_HEIGHT, position: 'relative' },
-  coverArt: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    bottom: 0,
-  },
   coverButtons: {
+    zIndex: 1,
     position: 'absolute',
     top: Spacing.two,
     left: Spacing.three,
