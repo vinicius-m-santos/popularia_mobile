@@ -5,22 +5,26 @@ import { DEMO_MODE } from '@/constants/config';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { getFollowing, setFollowing, type FollowState } from '@/features/profiles/api';
 import { isFollowLocked, lockFollow, patchFollowCaches, readRequested, restoreFollowCaches, setRequestedFlag, snapshotFollowCaches, subscribeFollowStore, unlockFollow, followStoreVersion, type FollowFlags } from '@/features/profiles/follow-cache';
-import type { CommunityEvent, Post } from '@/types/models';
+import { rememberPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
+import type { CommunityEvent, FeedItem } from '@/types/models';
 
 import { useInteractions, withLocal } from './interactions-context';
 
 /**
- * Estado e ações de uma publicação. Apoiar, ecoar e salvar ainda não existem na API:
- * os avisos deixam claro que são locais. A contagem de comentários vem do servidor
- * (na API) ou soma os comentários locais (no modo demonstração).
+ * Estado e ações de uma publicação. Apoiar e ecoar ainda são locais.
+ * Salvar persiste na conta quando a API está configurada; no modo demonstração
+ * fica só neste aparelho. A contagem de comentários vem do servidor (na API)
+ * ou soma os comentários locais (no modo demonstração).
  */
-export function usePostActions(post: Post) {
+export function usePostActions(post: FeedItem) {
   const { isOn, toggle, localCommentsFor, commentCountOf } = useInteractions();
   const toast = useToast();
+  rememberPost(post);
+  useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
 
   const supported = isOn('supportedPosts', post.id);
   const echoed = isOn('echoedPosts', post.id);
-  const saved = isOn('savedPosts', post.id);
+  const saved = DEMO_MODE ? isOn('savedPosts', post.id) : readSaved(post.id, post.viewer?.saved);
 
   return {
     supported,
@@ -36,7 +40,11 @@ export function usePostActions(post: Post) {
       if (toggle('echoedPosts', post.id)) toast.show('Eco marcado. No protótipo, nada é compartilhado.');
     },
     toggleSave: () => {
-      if (toggle('savedPosts', post.id)) toast.show('Salvo neste aparelho até fechar o app.');
+      if (DEMO_MODE) {
+        if (toggle('savedPosts', post.id)) toast.show('Salvo neste aparelho até fechar o app.');
+        return Promise.resolve(false);
+      }
+      return toggleSavedPost(post, toast.show);
     },
   };
 }

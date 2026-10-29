@@ -1,11 +1,13 @@
+import { resetSavedSession } from '@/features/posts/save';
 import { resetFollowSession } from '@/features/profiles/follow-cache';
 import { queryClient } from '@/lib/query/client';
 /**
  * Estado local das interações da pessoa (apoiar, ecoar, salvar, participar…).
  *
  * Fica só em memória neste aparelho e some ao fechar o app; nada é gravado em disco.
- * Apoiar, ecoar, salvar, seguir e silenciar ainda são só locais. Com a API configurada,
- * algumas partes viram cache do que o servidor respondeu nesta sessão:
+ * Apoiar, ecoar e silenciar ainda são só locais. Salvar publicação persiste na conta
+ * quando a API está configurada. Algumas partes viram cache do que o servidor
+ * respondeu nesta sessão:
  * - `joinedComunas`: participação confirmada pela API depois de entrar ou sair de uma comuna;
  * - `commentCounts`: maior contagem de comentários conhecida por publicação;
  * - `postsVersion`: muda quando a pessoa publica, para as listas recarregarem.
@@ -220,7 +222,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     void queryClient.invalidateQueries({ queryKey: ['feed'] });
     void queryClient.invalidateQueries({ queryKey: ['profile-posts'] });
   }, []);
-  const resetAll = useCallback(() => { resetFollowSession(); dispatch({ type: 'reset' }); }, []);
+  const resetAll = useCallback(() => { resetFollowSession(); resetSavedSession(); dispatch({ type: 'reset' }); }, []);
 
   const value = useMemo(
     () => ({

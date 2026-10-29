@@ -134,9 +134,11 @@ export type Post = {
   viewer?: PostViewer;
   /** Enquete opcional. Ausente nos mocks e nas publicações sem enquete. */
   poll?: import('@/features/posts/poll').PostPoll | null;
+  /** Quando esta pessoa guardou a publicação. Só na lista de salvos. */
+  savedAt?: string;
 };
 
-export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean };
+export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean; saved?: boolean };
 
 /** Comuna citada numa publicação (a API manda só o essencial). */
 export type ComunaRef = Pick<Comuna, 'id' | 'name' | 'status'>;

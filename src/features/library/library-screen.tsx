@@ -21,13 +21,15 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, FlatList, Image, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { getCollection, listCollections, listDocuments, saveDocument } from './api';
+import { LibrarySectionTabs, SavedPostsPane, type LibrarySection } from './saved-posts-pane';
 import { CollectionEditor } from './collection-editor';
 import { DocumentCard } from './document-card';
 import type { LibraryCollection, LibraryDocument, LibraryScope } from './types';
 
 export default function LibraryScreen() {
-  const params = useLocalSearchParams<{ scope?: string; owner?: string; comuna?: string; collection?: string; add?: string; q?: string; topic?: TopicId }>();
+  const params = useLocalSearchParams<{ scope?: string; owner?: string; comuna?: string; collection?: string; add?: string; q?: string; topic?: TopicId; section?: string }>();
   const scope: LibraryScope = ['personal', 'comuna', 'saved'].includes(params.scope ?? '') ? params.scope as LibraryScope : 'public';
+  const section: LibrarySection = params.section === 'salvos' ? 'salvos' : 'documentos';
   const me = useMe();
   const loader = useCallback(() => params.collection ? getCollection(params.collection) : Promise.resolve(null), [params.collection]);
   const collection = useAsyncData(loader);
@@ -38,14 +40,24 @@ export default function LibraryScreen() {
   const collectionPage = !!collection.data;
   return <Screen>
     <View style={[styles.bar, (editorialRoot || collectionPage) && styles.editorialBar]}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />{editorialRoot || collectionPage ? <View style={styles.barDivider} /> : null}<AppText variant="label" style={[(editorialRoot || collectionPage) && styles.barLabel, collectionPage && styles.collectionBarTitle]}>{collectionPage ? 'Coleção' : 'Biblioteca'}</AppText>{collectionPage && collection.data?.canManage ? <IconButton icon="more" accessibilityLabel="Mais opções da coleção" onPress={() => setEditingCollection(true)} /> : collectionPage ? <View style={styles.barSpacer} /> : null}</View>
-    <LibraryPane initialQuery={params.q} initialTopic={params.topic} scope={scope} owner={params.owner} comuna={params.comuna} collection={params.collection} canAdd={canAdd}
+    <LibraryPane key={`${scope}-${section}`} initialSection={section} initialQuery={params.q} initialTopic={params.topic} scope={scope} owner={params.owner} comuna={params.comuna} collection={params.collection} canAdd={canAdd}
       collectionData={collection.data ?? undefined} onEditCollection={() => setEditingCollection(true)} />
     {collection.data ? <CollectionEditor key={`${collection.data.id}-${editingCollection}`} visible={editingCollection} initial={collection.data} onClose={() => setEditingCollection(false)} onDone={(value) => { if (value) collection.reload(); else goBack(); }} /> : null}
   </Screen>;
 }
 
-export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, title, header, collectionData, onEditCollection, onSelect, initialQuery, initialTopic, profileContext = false }: {
-  scope: LibraryScope; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; collectionData?: LibraryCollection; onEditCollection?: () => void; onSelect?: (document: LibraryDocument) => void; profileContext?: boolean;
+export function LibraryPane({ initialSection, ...props }: {
+  scope: LibraryScope; initialSection?: LibrarySection; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; collectionData?: LibraryCollection; onEditCollection?: () => void; onSelect?: (document: LibraryDocument) => void; profileContext?: boolean;
+}) {
+  const me = useMe();
+  const own = props.scope === 'personal' && !props.collection && !props.onSelect && (!props.owner || props.owner === me.id);
+  const [section, setSection] = useState<LibrarySection>(own && initialSection === 'salvos' ? 'salvos' : 'documentos');
+  if (own && section === 'salvos') return <SavedPostsPane header={props.header} onShowDocuments={() => setSection('documentos')} />;
+  return <DocumentLibrary {...props} onShowSaved={own ? () => setSection('salvos') : undefined} />;
+}
+
+function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, title, header, collectionData, onEditCollection, onSelect, initialQuery, initialTopic, profileContext = false, onShowSaved }: {
+  scope: LibraryScope; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; collectionData?: LibraryCollection; onEditCollection?: () => void; onSelect?: (document: LibraryDocument) => void; profileContext?: boolean; onShowSaved?: () => void;
 }) {
   const inSheet = useContext(InsideBottomSheet);
   const List = inSheet ? PopulariaBottomSheetFlatList : FlatList;
@@ -97,15 +109,19 @@ export function LibraryPane({ scope, owner, comuna, collection, canAdd = false, 
   const emptyMessage = filtered ? `Nenhum documento ${scope === 'public' ? 'público ' : ''}neste filtro. Tente outra palavra ou assunto.` : own ? 'Guarde cartilhas, atas e estudos em PDF. Cada um fica numa coleção e você decide quem pode abrir.' : scope === 'comuna' && canAdd ? 'Ninguém adicionou documentos aqui ainda. Que tal o primeiro?' : 'Nenhum documento disponível por aqui ainda.';
   const isEmptyLibrary = !editorial && !editorialCollection && documents.status === 'success' && documents.items.length === 0 && !documents.hasMore && !filtered;
   const add = () => router.push({ pathname: '/biblioteca/enviar', params: { ...(comuna ? { comuna } : {}), ...(collection ? { collection } : {}) } });
+  const sectionTabs = onShowSaved ? <LibrarySectionTabs value="documentos" onChange={(next) => { if (next === 'salvos') onShowSaved(); }} /> : null;
   return <>
     <List style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content} data={documents.items.filter((item) => !removedSaves.includes(item.id))} keyExtractor={(item) => item.id}
       keyboardShouldPersistTaps="handled" refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} onEndReached={documents.loadMoreError ? undefined : documents.loadMore} onEndReachedThreshold={0.4}
       ListHeaderComponent={<>
         {isEmptyLibrary ? <View style={styles.emptyLibrary}>
+          {header}
+          {sectionTabs}
           <StateView kind="empty" title="Poxa, não achamos nada por aqui" message={canAdd ? 'Esta biblioteca ainda está esperando o primeiro documento.' : 'Nenhum documento disponível por aqui ainda.'} />
           {canAdd ? <PillButton label="Adicionar um documento" onPress={add} /> : null}
         </View> : <>
         {header}
+        {sectionTabs}
         {editorialCollection ? <View style={styles.collectionHero}>
           <View style={styles.collectionIdentity}>
             <View style={styles.collectionMonogram}><AppText variant="heading" style={styles.collectionMonogramText}>{collectionMonogram(collectionData.name)}</AppText></View>

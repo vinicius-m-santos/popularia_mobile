@@ -7,9 +7,10 @@
 import { API_BASE_URL } from '@/constants/config';
 import { absoluteMediaUrl } from '@/features/media/media-url';
 import { apiRequest } from '@/lib/api/client';
-import type { AuthorDto, PostDto } from '@/lib/api/dto';
+import type { AuthorDto, PageDto, PostDto, SavedPostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
+import type { Page } from '@/lib/pagination';
 import type { FeedItem, Tone, TopicId, User } from '@/types/models';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
@@ -77,6 +78,21 @@ export async function createPost(input: { comunaServerId: string | null; text: s
     auth: true,
   });
   return toFeedItem(post);
+}
+
+/** PUT ou DELETE /posts/{id}/save. As duas respostas são vazias e podem repetir sem efeito. */
+export function setPostSaved(id: string, saved: boolean): Promise<void> {
+  return apiRequest<void>(`/posts/${encodeURIComponent(id)}/save`, { method: saved ? 'PUT' : 'DELETE', auth: true });
+}
+
+/** GET /me/saved-posts. A ordem é a data em que foi salvo; o cartão continua sendo a publicação. */
+export async function listSavedPosts(cursor: string | null, signal?: AbortSignal): Promise<Page<FeedItem>> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const page = await apiRequest<PageDto<SavedPostDto>>(`/me/saved-posts${query}`, { auth: true, ...(signal ? { signal } : {}) });
+  return {
+    items: page.items.map((item) => ({ ...toFeedItem({ ...item.post, viewer: { ...item.post.viewer, saved: true } }), savedAt: item.savedAt })),
+    nextCursor: page.nextCursor,
+  };
 }
 
 /** PUT /posts/{id}/poll/vote. A resposta já traz a publicação com o resultado atualizado. */

@@ -115,7 +115,7 @@ export type PostDto = {
   comuna: { id: string; slug: string; name: string; status: 'active' | 'archived' } | null;
   commentCount: number;
   /** Dicas para a interface, calculadas no servidor; a decisão que vale é a da API. */
-  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean };
+  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean; saved?: boolean };
   poll?: {
     id: string;
     question: string;
@@ -124,6 +124,9 @@ export type PostDto = {
     options: { id: string; label: string; voteCount: number; percent: number; selected: boolean }[];
   } | null;
 };
+
+/** GET /me/saved-posts. `savedAt` é quando esta pessoa guardou a publicação, não quando ela foi escrita. */
+export type SavedPostDto = { id: string; savedAt: string; post: PostDto };
 
 export type CommentDto = {
   id: string;

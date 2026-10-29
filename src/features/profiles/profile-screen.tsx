@@ -254,7 +254,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
             <StatRow stats={stats} />
 
             {isMe ? <View style={styles.actions}>
-              <EditorialAction label="Itens salvos" icon="bookmark" iconPosition="trailing" onPress={() => router.push('/biblioteca' as never)} style={styles.action} />
+              <EditorialAction label="Itens salvos" icon="bookmark" iconPosition="trailing" onPress={() => router.push({ pathname: '/biblioteca', params: { scope: 'personal', section: 'salvos' } })} style={styles.action} />
               <EditorialAction label="Meus interesses" icon="heart" iconPosition="trailing" onPress={() => router.push('/interesses')} style={styles.action} />
             </View> : (
               <View style={styles.actions}>

@@ -2,7 +2,7 @@
  * Menu "⋯" de publicações, comentários e perfis, com o fluxo de denúncia (design 2h):
  * menu → motivo → detalhes → confirmação. Um único provedor serve o app inteiro.
  */
-import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, use, useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { canonicalUrl } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
@@ -20,6 +20,7 @@ import { describeError } from '@/lib/errors';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { knownPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
 import { openModeration, useNav } from '@/lib/routes';
 import type { ReportTarget } from '@/types/models';
@@ -120,6 +121,7 @@ function SheetBody(props: BodyProps) {
   const me = useMe();
   const nav = useNav();
   const { isOn, toggle, setOn } = useInteractions();
+  useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
   const { submitReport } = useModeration();
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -132,7 +134,8 @@ function SheetBody(props: BodyProps) {
   const title = TITLES[target.kind];
 
   if (step === 'menu') {
-    const saved = isOn('savedPosts', target.id);
+    const savedPost = knownPost(target.id);
+    const saved = DEMO_MODE ? isOn('savedPosts', target.id) : readSaved(target.id, savedPost?.viewer?.saved);
     const muted = isOn('mutedUsers', target.author.id);
     return (
       <View>
@@ -141,9 +144,14 @@ function SheetBody(props: BodyProps) {
             icon="bookmark"
             label={saved ? 'Remover dos salvos' : 'Salvar publicação'}
             onPress={() => {
-              const on = toggle('savedPosts', target.id);
               close();
-              toast.show(on ? 'Salvo neste aparelho até fechar o app.' : 'Removido dos salvos.');
+              if (DEMO_MODE) {
+                const on = toggle('savedPosts', target.id);
+                toast.show(on ? 'Salvo neste aparelho até fechar o app.' : 'Removido dos salvos.');
+                return;
+              }
+              if (!savedPost) return;
+              void toggleSavedPost(savedPost, toast.show);
             }}
           />
         ) : null}
