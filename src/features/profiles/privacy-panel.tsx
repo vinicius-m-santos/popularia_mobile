@@ -5,6 +5,7 @@ import { PillButton } from '@/components/pill-button';
 import { StateView } from '@/components/state-view';
 import { useAccount } from '@/features/account/account-context';
 import { updateMe } from '@/features/account/api';
+import { revalidateFollowSurfaces } from '@/features/profiles/follow-cache';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { apiRequest } from '@/lib/api/client';
 import { describeError } from '@/lib/errors';
@@ -21,14 +22,14 @@ export function PrivacyPanel() {
     { text: 'Cancelar', style: 'cancel' }, { text: account?.isPrivate ? 'Tornar público' : 'Tornar privado', onPress: async () => {
       if (busy) return;
       setBusy(true); setError('');
-      try { await updateMe({ isPrivate: !account?.isPrivate }); await reloadAccount(); requests.refresh(); }
+      try { await updateMe({ isPrivate: !account?.isPrivate }); await reloadAccount(); requests.refresh(); revalidateFollowSurfaces(); }
       catch (e) { setError(describeError(e)); } finally { setBusy(false); }
     } },
   ]);
   const decide = async (id: string, approve: boolean) => {
     if (busy) return;
     setBusy(true); setError('');
-    try { await apiRequest(`/me/follow-requests/${encodeURIComponent(id)}`, { auth: true, method: approve ? 'PUT' : 'DELETE' }); requests.refresh(); }
+    try { await apiRequest(`/me/follow-requests/${encodeURIComponent(id)}`, { auth: true, method: approve ? 'PUT' : 'DELETE' }); requests.refresh(); revalidateFollowSurfaces(); }
     catch (e) { setError(describeError(e)); } finally { setBusy(false); }
   };
   return <View style={{ gap: 12 }}>

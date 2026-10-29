@@ -9,7 +9,7 @@ import { createComment, getComments, setCommentSupport, toComment } from '@/feat
 import { buildThread } from '@/features/discussion/thread';
 import { getFeed } from '@/features/feed/api';
 import { createPost, getPost, toFeedItem, voteOnPoll } from '@/features/posts/api';
-import { getUserPostsPage } from '@/features/profiles/api';
+import { getRelationPage, getUserPostsPage } from '@/features/profiles/api';
 import { apiRequest } from '@/lib/api/client';
 import type { CommentDto, ComunaDto, PostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
@@ -164,6 +164,24 @@ describe('feed', () => {
     expect(api).toHaveBeenCalledWith('/feed?tab=minhas&cursor=xyz', { auth: true });
     expect(page.nextCursor).toBe('abc');
     expect(page.items[0].id).toBe(postDto.id);
+  });
+
+  it('a aba Seguindo pede o feed de quem a pessoa segue', async () => {
+    api.mockResolvedValue({ items: [], nextCursor: null });
+    const page = await getFeed({ tab: 'seguindo', joinedComunaIds: [], cursor: null });
+    expect(api).toHaveBeenCalledWith('/feed?tab=seguindo', { auth: true });
+    expect(page.items).toEqual([]);
+  });
+
+  it('lista seguidores com a relação de quem vê, numa página só', async () => {
+    api.mockResolvedValue({
+      items: [{ id: 'bia', handle: 'bia', displayName: 'Bia', isPrivate: true, following: false, requested: true, avatarUrl: null }],
+      nextCursor: 'next',
+    });
+    const page = await getRelationPage('seguidores', 'ana', 'cursor');
+    expect(api).toHaveBeenCalledWith('/users/ana/followers?limit=50&cursor=cursor', { auth: true });
+    expect(page.items[0]).toMatchObject({ id: 'bia', handle: 'bia', name: 'Bia', isPrivate: true, viewerFollowing: false, viewerRequested: true });
+    expect(page.nextCursor).toBe('next');
   });
 
   it('"Perto de mim" não existe na API: não faz requisição', async () => {

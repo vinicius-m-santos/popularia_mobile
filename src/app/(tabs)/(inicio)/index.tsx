@@ -8,6 +8,7 @@ import { useCachedPages } from '@/hooks/use-cached-pages';
 import { contentPolicy } from '@/lib/query/client';
 import { useToast } from '@/components/toast';
 import { Spacing } from '@/constants/theme';
+import { DEMO_MODE } from '@/constants/config';
 import { getFeed, isFeedTabAvailable } from '@/features/feed/api';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { FeedHeader } from '@/features/feed/components/feed-header';
@@ -19,6 +20,7 @@ import type { FeedTab } from '@/types/models';
 
 const EMPTY_MESSAGES: Record<FeedTab, { title: string; message: string }> = {
   'para-voce': { title: 'Nenhuma publicação ainda', message: 'Bora interagir? Compartilhe uma ideia e puxe a conversa.' },
+  seguindo: { title: 'Nada de quem você segue', message: 'Siga pessoas para ver as publicações delas aqui.' },
   minhas: { title: 'Nenhuma comuna ainda', message: 'Participe de uma comuna para ver as publicações dela aqui.' },
   perto: { title: 'Nada perto de você', message: 'Ainda não há comunas na cidade do seu perfil.' },
 };
@@ -29,17 +31,27 @@ const UNAVAILABLE = { title: 'Em breve', message: '"Perto de mim" chega numa pr�
 export default function FeedScreen() {
   const visibility = useListVisibility();
   const [tab, setTab] = useState<FeedTab>('para-voce');
-  const { joinedComunaIds } = useInteractions();
+  const { joinedComunaIds, followedUserIds } = useInteractions();
   const { show: showToast } = useToast();
   // "Minhas comunas" recarrega quando a pessoa entra ou sai de uma comuna.
   const joinedKey = tab === 'minhas' ? joinedComunaIds.join(',') : '';
+  const followedKey = tab === 'seguindo' ? followedUserIds.join(',') : '';
   const load = useCallback(
-    (cursor: string | null, signal: AbortSignal) => getFeed({ tab, joinedComunaIds: joinedKey ? joinedKey.split(',') : [], cursor, signal }),
-    [tab, joinedKey],
+    (cursor: string | null, signal: AbortSignal) => getFeed({
+      tab,
+      joinedComunaIds: joinedKey ? joinedKey.split(',') : [],
+      followedUserIds: followedKey ? followedKey.split(',') : [],
+      cursor,
+      signal,
+    }),
+    [tab, joinedKey, followedKey],
   );
-  const feed = useCachedPages({ queryKey: ['feed', tab, joinedKey], load, ...contentPolicy.feed });
+  // Na API a chave não inclui quem a pessoa segue: o cache é atualizado no follow.
+  // No modo demonstração o servidor não existe, então a chave recarrega a lista.
+  const feedKey = DEMO_MODE && tab === 'seguindo' ? ['feed', tab, joinedKey, followedKey] : ['feed', tab, joinedKey];
+  const feed = useCachedPages({ queryKey: feedKey, load, ...contentPolicy.feed });
   const { refreshError } = feed;
-  const tabs = useMemo<FeedTab[]>(() => ['para-voce', 'minhas', 'perto'], []);
+  const tabs = useMemo<FeedTab[]>(() => ['para-voce', 'seguindo', 'minhas', 'perto'], []);
   const tabIndex = tabs.indexOf(tab);
   const changeBySwipe = useCallback((direction: 1 | -1) => {
     const next = tabs[tabIndex + direction];

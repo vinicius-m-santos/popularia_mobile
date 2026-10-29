@@ -62,7 +62,7 @@ export type DiscoveryEntry =
 type DiscoveryDto = {
   topics: Topic[];
   comunas: ComunaDto[];
-  people: (AuthorDto & { following: boolean })[];
+  people: (AuthorDto & { following: boolean; requested?: boolean; isPrivate?: boolean })[];
   posts: PostDto[];
   recentPosts: PostDto[];
   documents?: import('@/features/library/types').LibraryDocument[];
@@ -73,7 +73,7 @@ function convertDiscovery(dto: DiscoveryDto): DiscoveryData {
   return {
     ...dto,
     comunas: dto.comunas.map(toComuna),
-    people: dto.people.map((p) => ({ ...toUser(p), viewerFollowing: p.following })),
+    people: dto.people.map((p) => ({ ...toUser(p), viewerFollowing: p.following, viewerRequested: p.requested ?? false, isPrivate: p.isPrivate ?? false })),
     posts: dto.posts.map(toFeedItem),
     recentPosts: dto.recentPosts.map(toFeedItem),
     documents: dto.documents ?? [],

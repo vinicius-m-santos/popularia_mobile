@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useSyncExternalStore, useEffect, useRef } from 'react';
 
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount, useMe } from '@/features/account/account-context';
-import { getFollowing, setFollowing } from '@/features/profiles/api';
+import { getFollowing, setFollowing, type FollowState } from '@/features/profiles/api';
+import { isFollowLocked, lockFollow, patchFollowCaches, readRequested, restoreFollowCaches, setRequestedFlag, snapshotFollowCaches, subscribeFollowStore, unlockFollow, followStoreVersion, type FollowFlags } from '@/features/profiles/follow-cache';
 import type { CommunityEvent, Post } from '@/types/models';
 
 import { useInteractions, withLocal } from './interactions-context';
@@ -55,18 +56,18 @@ export function useEventAttendance(event: CommunityEvent) {
   };
 }
 
-export function useFollow(userId: string, initialFollowing?: boolean) {
-  const [requested, setRequested] = useState(false);
+export function useFollow(userId: string, initialFollowing?: boolean, hint?: { requested?: boolean; isPrivate?: boolean }) {
+  useSyncExternalStore(subscribeFollowStore, followStoreVersion, followStoreVersion);
   const { isOn, toggle, setOn } = useInteractions();
   const me = useMe();
   const { account } = useAccount();
   const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const pending = useRef(false);
   const known = useRef(false);
   const generation = useRef(0);
+  const requestedHint = hint?.requested;
   const canFollow = userId !== me.id && userId !== account?.id;
   const following = canFollow && isOn('followedUsers', userId);
+  const requested = canFollow && readRequested(userId);
   const followingNow = useRef(following);
   useEffect(() => { followingNow.current = following; }, [following]);
 
@@ -75,42 +76,74 @@ export function useFollow(userId: string, initialFollowing?: boolean) {
     known.current = false;
     if (DEMO_MODE || !canFollow) return;
     if (initialFollowing !== undefined) {
+      if (isFollowLocked(userId)) return () => { generation.current = current + 1; };
       known.current = true;
       setOn('followedUsers', [userId], initialFollowing);
+      setRequestedFlag(userId, requestedHint ?? false);
       return () => { generation.current = current + 1; };
     }
     let cancelled = false;
     const before = followingNow.current;
-    getFollowing(userId, (state) => { if (!cancelled && !pending.current && current === generation.current) setRequested(state.requested ?? false); }).then((value) => {
-      if (cancelled || pending.current || current !== generation.current || followingNow.current !== before) return;
+    getFollowing(userId, (state) => { if (!cancelled && !isFollowLocked(userId) && current === generation.current) setRequestedFlag(userId, state.requested ?? false); }).then((value) => {
+      if (cancelled || isFollowLocked(userId) || current !== generation.current || followingNow.current !== before) return;
       known.current = true;
       setOn('followedUsers', [userId], value);
     }).catch(() => { /* A tap retries the lookup before changing the relation. */ });
     return () => { cancelled = true; generation.current = current + 1; };
-  }, [userId, account?.id, canFollow, setOn, initialFollowing]);
+  }, [userId, account?.id, canFollow, setOn, initialFollowing, requestedHint]);
 
   const toggleFollow = async () => {
-    if (!canFollow || pending.current) return false;
+    if (!canFollow || isFollowLocked(userId)) return false;
     if (DEMO_MODE) { toggle('followedUsers', userId); return true; }
-    pending.current = true;
-    setBusy(true);
+    if (!lockFollow(userId)) return false;
     const currentGeneration = generation.current;
+    const viewerId = account?.id ?? me.id;
+    let applied = false;
+    let previous: FollowFlags = { following, requested };
+    let snapshots = snapshotFollowCaches();
     try {
-      const current = known.current ? following || requested : await getFollowing(userId, (state) => setRequested(state.requested ?? false));
-      if (currentGeneration !== generation.current) return false;
-      const state = await setFollowing(userId, !(current || requested));
-      if (currentGeneration !== generation.current) return false;
+      let wasFollowing = following;
+      let wasRequested = requested;
+      if (!known.current) {
+        wasFollowing = await getFollowing(userId, (state) => { wasRequested = state.requested ?? false; });
+        if (currentGeneration !== generation.current) return false;
+      }
+      previous = { following: wasFollowing, requested: wasRequested };
+      const next: FollowFlags = wasFollowing || wasRequested
+        ? { following: false, requested: false }
+        : hint?.isPrivate ? { following: false, requested: true } : { following: true, requested: false };
+      snapshots = snapshotFollowCaches();
+      setOn('followedUsers', [userId], next.following);
+      setRequestedFlag(userId, next.requested);
+      patchFollowCaches({ targetId: userId, viewerId, previous, next });
+      applied = true;
+      const state = await setFollowing(userId, !(wasFollowing || wasRequested));
+      // A trava impede outra mutação até aqui. A resposta deste pedido vale mesmo se a
+      // tela saiu ou o efeito re-rodou: ela é a única em voo e corrige o palpite otimista.
       known.current = true;
-      setOn('followedUsers', [userId], state?.following ?? !current);
-      setRequested(state?.requested ?? false);
-      return true;
+      const confirmed = confirmedFlags(state, next);
+      if (confirmed.following !== next.following || confirmed.requested !== next.requested) {
+        setOn('followedUsers', [userId], confirmed.following);
+        setRequestedFlag(userId, confirmed.requested);
+        patchFollowCaches({ targetId: userId, viewerId, previous: next, next: confirmed });
+      }
+      return currentGeneration === generation.current;
     } catch {
+      if (applied) {
+        restoreFollowCaches(snapshots);
+        setOn('followedUsers', [userId], previous.following);
+        setRequestedFlag(userId, previous.requested);
+      }
       if (currentGeneration === generation.current) toast.show('Não conseguimos atualizar quem você segue. Tente novamente.');
       return false;
     } finally {
-      pending.current = false;
-      setBusy(false);
+      unlockFollow(userId);
     }
   };
-  return { canFollow, following, requested, busy, toggleFollow };
+  return { canFollow, following, requested, busy: isFollowLocked(userId), toggleFollow };
+}
+
+function confirmedFlags(state: FollowState | void, optimistic: FollowFlags): FollowFlags {
+  if (!state || typeof state !== 'object') return optimistic;
+  return { following: Boolean(state.following), requested: Boolean(state.requested) };
 }

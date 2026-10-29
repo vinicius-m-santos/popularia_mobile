@@ -1,3 +1,4 @@
+import { resetFollowSession } from '@/features/profiles/follow-cache';
 import { queryClient } from '@/lib/query/client';
 /**
  * Estado local das interações da pessoa (apoiar, ecoar, salvar, participar…).
@@ -114,6 +115,7 @@ type InteractionsValue = {
   /** Participação conhecida nesta sessão; `undefined` quando ainda não houve ação (use o dado do servidor). */
   membershipOf: (comunaId: string) => boolean | undefined;
   joinedComunaIds: string[];
+  followedUserIds: string[];
   localCommentsFor: (postId: string) => Comment[];
   addComment: (input: { postId: string; parentId: string | null; text: string }) => Comment;
   localPosts: Post[];
@@ -161,6 +163,10 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
   const joinedComunaIds = useMemo(
     () => Object.keys(state.joinedComunas).filter((id) => state.joinedComunas[id]),
     [state.joinedComunas],
+  );
+  const followedUserIds = useMemo(
+    () => Object.keys(state.followedUsers).filter((id) => state.followedUsers[id]),
+    [state.followedUsers],
   );
 
   const localCommentsFor = useCallback(
@@ -214,7 +220,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     void queryClient.invalidateQueries({ queryKey: ['feed'] });
     void queryClient.invalidateQueries({ queryKey: ['profile-posts'] });
   }, []);
-  const resetAll = useCallback(() => dispatch({ type: 'reset' }), []);
+  const resetAll = useCallback(() => { resetFollowSession(); dispatch({ type: 'reset' }); }, []);
 
   const value = useMemo(
     () => ({
@@ -224,6 +230,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
       replaceAll,
       membershipOf,
       joinedComunaIds,
+      followedUserIds,
       localCommentsFor,
       addComment,
       localPosts: state.localPosts,
@@ -241,6 +248,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
       replaceAll,
       membershipOf,
       joinedComunaIds,
+      followedUserIds,
       localCommentsFor,
       addComment,
       state.localPosts,

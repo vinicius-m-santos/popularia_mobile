@@ -40,8 +40,10 @@ export type User = {
   badge?: string;
   /** Foto de perfil. Ausente, a interface mostra as iniciais. */
   avatarUrl?: string | null;
-  /** Relação enviada em lote pela descoberta. */
+  /** Relação enviada em lote pela descoberta, pelo perfil ou pelas listas. */
   viewerFollowing?: boolean;
+  viewerRequested?: boolean;
+  isPrivate?: boolean;
 };
 
 export type ComunaStat = { value: string; label: string };
@@ -213,7 +215,7 @@ export type ComunaDetails = Comuna & {
   members: ComunaMember[];
 };
 
-export type FeedTab = 'para-voce' | 'minhas' | 'perto';
+export type FeedTab = 'para-voce' | 'seguindo' | 'minhas' | 'perto';
 
 export type Topic = { id: TopicId; label: string; shortLabel: string };
 
@@ -238,6 +240,8 @@ export type CreatorInfo = {
 
 export type Profile = {
   isPrivate?: boolean;
+  followerCount?: number;
+  followingCount?: number;
   user: User;
   bio: string;
   /** Linha de contexto: cidade e tempo na Popularia. */

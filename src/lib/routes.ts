@@ -27,6 +27,12 @@ export function hrefComuna(base: TabBase, id: string, tab?: ComunaTab): Href {
   return `${base}/comuna/${encodeURIComponent(id)}${tab ? `?aba=${tab}` : ''}` as Href;
 }
 
+export type RelationKind = 'seguidores' | 'seguindo';
+
+export function hrefRelations(base: TabBase, kind: RelationKind, id: string): Href {
+  return `${base}/relacoes/${kind}/${encodeURIComponent(id)}` as Href;
+}
+
 export function hrefProfile(base: TabBase, id: string): Href {
   // O próprio perfil tem aba; dentro dela, não empilha uma cópia.
   if (id === 'me') return '/perfil';
@@ -43,6 +49,7 @@ export function useNav() {
       openComuna: (id: string, tab?: ComunaTab) => router.push(hrefComuna(base, id, tab)),
       openProfile: (id: string) =>
         id === 'me' ? router.navigate('/perfil') : router.push(hrefProfile(base, id)),
+      openRelations: (kind: RelationKind, id: string) => router.push(hrefRelations(base, kind, id)),
     }),
     [base],
   );

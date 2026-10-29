@@ -2,7 +2,8 @@
  * Acesso a dados do feed.
  *
  * As telas dependem só destas funções, nunca dos mocks diretamente. Com a API configurada,
- * as abas "Para você" e "Minhas comunas" vêm de GET /feed (paginado por cursor). "Perto de mim"
+ * as abas "Para você", "Seguindo" e "Minhas comunas" vêm de GET /feed (paginado por cursor).
+ * "Seguindo" lista publicações de pessoas com follow aprovado. "Perto de mim"
  * e os chamados da semana ainda não existem na API.
  */
 import { DEMO_MODE } from '@/constants/config';
@@ -26,11 +27,13 @@ type FeedQuery = {
   tab: FeedTab;
   /** Comunas de que a pessoa participa (só nos mocks; na API, o servidor sabe). */
   joinedComunaIds: string[];
+  /** Pessoas seguidas nesta sessão (só nos mocks; na API, o servidor sabe). */
+  followedUserIds?: string[];
   cursor: string | null;
   signal?: AbortSignal;
 };
 
-export async function getFeed({ tab, joinedComunaIds, cursor, signal }: FeedQuery): Promise<Page<FeedItem>> {
+export async function getFeed({ tab, joinedComunaIds, followedUserIds = [], cursor, signal }: FeedQuery): Promise<Page<FeedItem>> {
   if (!DEMO_MODE) {
     if (!isFeedTabAvailable(tab)) return singlePage([]);
     const query = `?tab=${tab}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
@@ -42,6 +45,8 @@ export async function getFeed({ tab, joinedComunaIds, cursor, signal }: FeedQuer
   let list = byDate;
   if (tab === 'para-voce') {
     list = byDate.filter((p) => forYouPostIds.includes(p.id));
+  } else if (tab === 'seguindo') {
+    list = byDate.filter((post) => followedUserIds.includes(post.authorId));
   } else if (tab === 'minhas') {
     list = byDate.filter((p) => p.comunaId !== null && joinedComunaIds.includes(p.comunaId));
   } else {

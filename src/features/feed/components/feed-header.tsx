@@ -10,6 +10,7 @@ import type { FeedTab } from '@/types/models';
 
 const TABS: TabOption<FeedTab>[] = [
   { key: 'para-voce', label: 'Para você' },
+  { key: 'seguindo', label: 'Seguindo' },
   { key: 'minhas', label: 'Minhas comunas' },
   { key: 'perto', label: 'Perto de mim' },
 ];

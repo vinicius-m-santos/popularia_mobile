@@ -32,6 +32,7 @@ export type MeDto = {
   hasPassword: boolean;
   legalAccepted: boolean;
   followerCount: number;
+  followingCount?: number;
   /** Foto atual. Null quando a conta ainda usa as iniciais. */
   avatarUrl?: string | null;
 };
