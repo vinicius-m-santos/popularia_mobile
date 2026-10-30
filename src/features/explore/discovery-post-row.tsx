@@ -19,7 +19,7 @@ export function DiscoveryPostRow({ post, rank }: { post: FeedItem; rank?: number
         </AppText>
         <AppText variant="caption" numberOfLines={1}>{post.author.name} · @{post.author.handle}</AppText>
         <PostBody text={post.text} mentions={post.mentions} numberOfLines={3} style={styles.body} />
-        <AppText variant="caption">{formatRelative(post.createdAt)} · {formatCount(post.commentCount)} comentários</AppText>
+        <AppText variant="caption">{formatRelative(post.createdAt)} · {formatCount(post.commentCount)} comentários{post.media || post.attachment || post.images?.length || post.document ? ' · Com mídia' : ''}</AppText>
       </View>
     </Pressable>
   );

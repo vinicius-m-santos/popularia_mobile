@@ -1,3 +1,4 @@
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -6,6 +7,8 @@ import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
+import { PopulariaList } from '@/components/list/popularia-list';
+import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { SectionHeading } from '@/components/section-heading';
@@ -18,17 +21,22 @@ import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { formatPeople } from '@/lib/format';
+import { queryClient } from '@/lib/query/client';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, Topic } from '@/types/models';
 
-import { getDiscoveryData, searchDiscovery, type DiscoveryData, type DiscoveryFilter } from './api';
+import { getDiscoveryData, searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
+import { DiscoveryEventRow } from './discovery-event-row';
 import { DiscoveryPostRow } from './discovery-post-row';
 
-const FILTERS: { key: DiscoveryFilter; label: string }[] = [
-  { key: 'all', label: 'Tudo' }, { key: 'comunas', label: 'Comunas' },
-  { key: 'people', label: 'Pessoas' }, { key: 'posts', label: 'Publicações' },
+const FILTERS: { key: DiscoveryFilter; label: string; action: string }[] = [
+  { key: 'all', label: 'Tudo', action: 'Ver todas' },
+  { key: 'comunas', label: 'Comunas', action: 'Ver todas' },
+  { key: 'people', label: 'Pessoas', action: 'Ver todas' },
+  { key: 'posts', label: 'Publicações', action: 'Ver todas' },
+  { key: 'events', label: 'Eventos', action: 'Ver todos' },
+  { key: 'documents', label: 'Documentos', action: 'Ver todos' },
 ];
 
 export default function ExploreScreen() {
@@ -70,6 +78,8 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const topic = data.data?.topics.find((t) => t.id === topicId);
   const showHome = !query.trim() && filter === 'all';
   const short = !!query.trim() && (query.trim().replace(/^@/, '').length < 3 || !/[\p{L}\p{N}]{3}/u.test(query));
+  const settled = query.trim() === debounced;
+  const debouncedReady = debounced.replace(/^@/, '').length >= 3 && /[\p{L}\p{N}]{3}/u.test(debounced);
   const title = topicId ? topic?.shortLabel ?? 'Assunto' : 'Explorar';
   const placeholder = topicId ? `Buscar em ${title}` : 'Buscar na Popularia';
 
@@ -85,17 +95,18 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
           <View style={styles.search}>
             <Icon name="search" size={20} />
             <TextInput value={query} onChangeText={setQuery} placeholder={placeholder} accessibilityLabel={placeholder}
+              accessibilityHint="Busca pessoas, comunas, publicações, eventos e documentos."
               placeholderTextColor={Colors.placeholder} returnKeyType="search" autoCorrect={false} autoCapitalize="none" maxLength={100} style={styles.input} />
             {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}
           </View>
-          <ExploreFilters options={FILTERS.filter((f) => !topicId || f.key !== 'people')} value={filter} onChange={setFilter} />
+          <ExploreFilters options={FILTERS.filter((f) => f.key === 'all' || !topicId || f.key !== 'people')} value={filter} onChange={setFilter} />
         </View>
         {data.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a descoberta." onRetry={reload} /> : null}
         {!data.data ? (data.status === 'loading' ? <StateView kind="loading" message="Carregando descoberta" /> : null) :
           topicId && !topic ? <StateView kind="empty" title="Assunto não encontrado" /> :
           showHome ? <DiscoveryHome data={data.data} topic={topic} onSee={setFilter} refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} /> :
           short ? <StateView kind="empty" title="Continue escrevendo" message="Use pelo menos três letras ou números seguidos para buscar." /> :
-          query.trim() !== debounced ? <StateView kind="loading" message="Buscando" /> :
+          !settled && !debouncedReady ? <PopulariaListSkeleton rows={4} variant="row" /> :
           <SearchResults ownUserId={me.id} query={debounced} filter={filter} topicId={topicId} topics={data.data.topics} onSee={setFilter} />}
       </KeyboardView>
     </Screen>
@@ -105,7 +116,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
 function ExploreFilters({ options, value, onChange }: {
   options: { key: DiscoveryFilter; label: string }[]; value: DiscoveryFilter; onChange: (filter: DiscoveryFilter) => void;
 }) {
-  return <View accessibilityRole="radiogroup" accessibilityLabel="Filtrar resultados" style={styles.filters}>
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="Filtrar resultados">
     {options.map((option) => {
       const active = option.key === value;
       return <Pressable
@@ -117,7 +128,7 @@ function ExploreFilters({ options, value, onChange }: {
         <AppText style={styles.filterLabel} color={active ? Colors.paper : Colors.ink}>{option.label}</AppText>
       </Pressable>;
     })}
-  </View>;
+  </ScrollView>;
 }
 
 function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
@@ -185,10 +196,18 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
   ownUserId: string; query: string; filter: DiscoveryFilter; topicId?: string; topics: Topic[]; onSee: (filter: DiscoveryFilter) => void;
 }) {
   const nav = useNav();
-  const load = useCallback((cursor: string | null) => searchDiscovery(ownUserId, query, filter, topicId, cursor), [ownUserId, query, filter, topicId]);
-  const result = usePaginatedData(load);
-  const { refresh } = result;
-  const pullRefresh = useManualRefresh(result.status === 'loading' || result.isRefreshing, refresh);
+  const result = useInfiniteQuery({
+    queryKey: ['search', query, filter, topicId ?? null],
+    queryFn: ({ pageParam, signal }) => searchDiscovery(ownUserId, query, filter, topicId, pageParam, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor,
+    retry: false,
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  }, queryClient);
+  const refresh = useCallback(() => { void result.refetch(); }, [result]);
+  const loadMore = useCallback(() => { if (result.hasNextPage && !result.isFetchingNextPage) void result.fetchNextPage(); }, [result]);
   const focusedOnce = useRef(false);
   const refreshRef = useRef(refresh);
   useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -196,29 +215,73 @@ function SearchResults({ ownUserId, query, filter, topicId, topics, onSee }: {
     if (focusedOnce.current) refreshRef.current();
     focusedOnce.current = true;
   }, []));
+  const items = dedupe(result.data?.pages.flatMap((page) => page.items) ?? []);
+  const failed = result.isError;
+  const loading = result.isPending && !result.data;
+  const emptyTitle = query ? 'Nada por aqui ainda.' : 'Nada nesta categoria por enquanto.';
+  const emptyMessage = query ? 'Tente outro termo ou explore as comunas.' : undefined;
+  const footer = result.isFetchingNextPage ? null : result.hasNextPage
+    ? <PillButton label="Carregar mais" variant="outline" onPress={loadMore} />
+    : result.isFetchNextPageError ? <StateView kind="error" message="Não conseguimos carregar mais resultados." onRetry={loadMore} /> : null;
+
+  if (filter !== 'all') {
+    return <View style={styles.flex}>
+      <PopulariaList<DiscoveryEntry>
+        data={loading || (failed && !items.length) ? [] : items}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <DiscoveryHit entry={item} topics={topics} nav={nav} />}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.content}
+        onEndReached={undefined}
+        state={{
+          status: loading ? 'loading' : failed && !items.length ? 'error' : 'success',
+          hasMore: false,
+          loadingMore: result.isFetchingNextPage,
+          loadMoreError: result.isFetchNextPageError ? new Error('mais') : null,
+          isRefreshing: result.isRefetching && !result.isFetchingNextPage && items.length > 0,
+          refreshError: failed && items.length ? new Error('atualizar') : null,
+          refresh,
+          loadMore,
+        }}
+        emptyTitle={emptyTitle}
+        emptyMessage={emptyMessage}
+        loadingComponent={<PopulariaListSkeleton rows={4} variant="row" />}
+      />
+      {footer}
+    </View>;
+  }
+
   return (
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} tintColor={Colors.red} />}>
-      {result.status === 'loading' ? <StateView kind="loading" message="Buscando" /> : null}
-      {result.status === 'error' || result.refreshError ? <StateView kind="error" message="Não conseguimos buscar agora." onRetry={refresh} /> : null}
-      {result.status === 'success' && !result.items.length ? <StateView kind="empty" title="Nenhum resultado" message={query ? `Nada para “${query}”. Tente outra palavra.` : 'Nada nesta categoria por enquanto.'} /> : null}
-      {FILTERS.filter((f) => f.key !== 'all').map((section) => {
-        const items = result.items.filter((item) => item.kind === section.key);
-        return items.length ? <View key={section.key} style={styles.section}>
-          <SectionHeading label={section.label} actionLabel={filter === 'all' ? 'Ver todas' : undefined} onAction={() => onSee(section.key)} />
-          {items.map((entry) => entry.kind === 'comunas' ? <DiscoveryComuna key={entry.id} comuna={entry.value} topics={topics} /> :
-            entry.kind === 'people' ? <PersonRow key={entry.id} user={entry.value} subtitle={`@${entry.value.handle}`} onOpen={() => nav.openProfile(entry.id)} /> :
-            entry.kind === 'posts' ? <DiscoveryPostRow key={entry.id} post={entry.value} /> : <DocumentCard key={entry.id} document={entry.value} appearance="editorial" />)}
+      refreshControl={<RefreshControl refreshing={result.isRefetching && items.length > 0} onRefresh={refresh} tintColor={Colors.red} />}>
+      {loading ? <PopulariaListSkeleton rows={4} variant="row" /> : null}
+      {failed && !items.length ? <StateView kind="error" message="Não conseguimos buscar agora." onRetry={refresh} /> : null}
+      {failed && items.length ? <StateView kind="error" message="Não conseguimos atualizar a busca." onRetry={refresh} /> : null}
+      {!loading && !failed && !items.length ? <StateView kind="empty" title={emptyTitle} message={emptyMessage} /> : null}
+      {FILTERS.filter((section) => section.key !== 'all').map((section) => {
+        const group = items.filter((item) => item.kind === section.key);
+        return group.length ? <View key={section.key} style={styles.section}>
+          <SectionHeading label={section.label} actionLabel={section.action} onAction={() => onSee(section.key)} />
+          {group.map((entry) => <DiscoveryHit key={entry.id} entry={entry} topics={topics} nav={nav} />)}
         </View> : null;
       })}
-      {result.items.some((item) => item.kind === 'documents') ? <View style={styles.section}>
-        <SectionHeading label="Documentos" actionLabel="Ver todos" onAction={() => router.push({ pathname: '/biblioteca', params: { q: query, ...(topicId ? { topic: topicId } : {}) } })} />
-        {result.items.filter((item) => item.kind === 'documents').map((item) => item.kind === 'documents' ? <DocumentCard key={item.id} document={item.value} appearance="editorial" /> : null)}
-      </View> : null}
-      {result.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais resultados." onRetry={result.loadMore} /> :
-        result.hasMore ? <PillButton label={result.loadingMore ? 'Carregando…' : 'Carregar mais'} variant="outline" disabled={result.loadingMore} onPress={result.loadMore} /> : null}
     </ScrollView>
   );
+}
+
+function dedupe(items: DiscoveryEntry[]): DiscoveryEntry[] {
+  const seen = new Set<string>();
+  return items.filter((item) => seen.has(item.id) ? false : (seen.add(item.id), true));
+}
+
+function DiscoveryHit({ entry, topics, nav }: {
+  entry: DiscoveryEntry; topics: Topic[]; nav: ReturnType<typeof useNav>;
+}) {
+  if (entry.kind === 'comunas') return <DiscoveryComuna comuna={entry.value} topics={topics} />;
+  if (entry.kind === 'people') return <PersonRow user={entry.value} subtitle={`@${entry.value.handle}`} onOpen={() => nav.openProfile(entry.id)} />;
+  if (entry.kind === 'posts') return <DiscoveryPostRow post={entry.value} />;
+  if (entry.kind === 'events') return <DiscoveryEventRow event={entry.value} />;
+  return <DocumentCard document={entry.value} appearance="editorial" />;
 }
 
 function DiscoveryComuna({ comuna, topics }: { comuna: Comuna; topics: Topic[] }) {
@@ -238,8 +301,8 @@ const styles = StyleSheet.create({
   title: { fontFamily: Fonts.anton, fontSize: 54, lineHeight: 66, letterSpacing: -0.8, paddingBottom: Spacing.one },
   search: { marginTop: Spacing.two, marginHorizontal: Spacing.five, minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
   input: { flex: 1, minWidth: 0, minHeight: 58, fontFamily: Fonts.regular, fontSize: 18, color: Colors.ink, paddingVertical: Spacing.two, outlineWidth: 0 },
-  filters: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.five, paddingTop: Spacing.two },
-  filter: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.one },
+  filters: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.five, paddingTop: Spacing.two, paddingBottom: Spacing.one },
+  filter: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
   filterActive: { backgroundColor: Colors.ink },
   filterLabel: { fontFamily: Fonts.bold, fontSize: 11, lineHeight: 18, textAlign: 'center' },
   content: { paddingHorizontal: Spacing.five, paddingTop: Spacing.two, paddingBottom: Spacing.seven, gap: Spacing.four },

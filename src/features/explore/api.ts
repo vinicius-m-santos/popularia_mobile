@@ -43,20 +43,22 @@ export async function getExploreData(ownUserId: string): Promise<ExploreData> {
 
 
 /** Contrato agregado: previews pequenos e cursores separados para os filtros de busca. */
-export type DiscoveryFilter = 'all' | 'comunas' | 'people' | 'posts';
+export type DiscoveryFilter = 'all' | 'comunas' | 'people' | 'posts' | 'events' | 'documents';
 export type DiscoveryData = {
   topics: Topic[];
   comunas: Comuna[];
   people: User[];
   posts: FeedItem[];
   recentPosts: FeedItem[];
-  documents?: import('@/features/library/types').LibraryDocument[];
-  next: { comunas: string | null; people: string | null; posts: string | null };
+  documents: import('@/features/library/types').LibraryDocument[];
+  events: import('@/features/events/types').ComunaEvent[];
+  next: { comunas: string | null; people: string | null; posts: string | null; events: string | null; documents: string | null };
 };
 export type DiscoveryEntry =
   | { id: string; kind: 'comunas'; value: Comuna }
   | { id: string; kind: 'people'; value: User }
   | { id: string; kind: 'posts'; value: FeedItem }
+  | { id: string; kind: 'events'; value: import('@/features/events/types').ComunaEvent }
   | { id: string; kind: 'documents'; value: import('@/features/library/types').LibraryDocument };
 
 type DiscoveryDto = {
@@ -66,7 +68,8 @@ type DiscoveryDto = {
   posts: PostDto[];
   recentPosts: PostDto[];
   documents?: import('@/features/library/types').LibraryDocument[];
-  next: DiscoveryData['next'];
+  events?: import('@/features/events/types').ComunaEvent[];
+  next: Partial<DiscoveryData['next']>;
 };
 
 function convertDiscovery(dto: DiscoveryDto): DiscoveryData {
@@ -77,6 +80,8 @@ function convertDiscovery(dto: DiscoveryDto): DiscoveryData {
     posts: dto.posts.map(toFeedItem),
     recentPosts: dto.recentPosts.map(toFeedItem),
     documents: dto.documents ?? [],
+    events: dto.events ?? [],
+    next: { comunas: null, people: null, posts: null, events: null, documents: null, ...dto.next },
   };
 }
 
@@ -93,29 +98,32 @@ export async function getDiscoveryData(ownUserId: string, topic?: string): Promi
     people: topic ? [] : data.featuredPeople.map((p) => p.user).filter((u) => u.id !== ownUserId).slice(0, 5),
     posts: relatedPosts.slice(0, 3),
     recentPosts: topic ? relatedPosts.slice(3, 8) : [],
-    next: { comunas: null, people: null, posts: null },
+    documents: [],
+    events: [],
+    next: { comunas: null, people: null, posts: null, events: null, documents: null },
   };
 }
 
-export async function searchDiscovery(ownUserId: string, query: string, filter: DiscoveryFilter, topic?: string, cursor: string | null = null): Promise<Page<DiscoveryEntry>> {
+export async function searchDiscovery(ownUserId: string, query: string, filter: DiscoveryFilter, topic?: string, cursor: string | null = null, signal?: AbortSignal): Promise<Page<DiscoveryEntry>> {
   let data: DiscoveryData;
   if (!DEMO_MODE) {
-    const params = new URLSearchParams({ q: query, type: filter, limit: '20' });
+    const params = new URLSearchParams({ q: query, type: filter, limit: filter === 'all' ? '3' : '20' });
     if (topic) params.set('topic', topic);
     if (cursor) params.set('cursor', cursor);
-    data = convertDiscovery(await apiRequest<DiscoveryDto>(`/search?${params}`, { auth: true }));
+    data = convertDiscovery(await apiRequest<DiscoveryDto>(`/search?${params}`, { auth: true, ...(signal ? { signal } : {}) }));
   } else {
     const source = await getExploreData(ownUserId);
     const related = source.comunas.filter((c) => !topic || c.topics[0] === topic);
     const result = searchExplore({ ...source, comunas: related, posts: source.posts.filter((p) => !topic || related.some((c) => c.id === p.comunaId)) }, query.replace(/^@/, ''));
     const limit = filter === 'all' ? 3 : 20;
-    data = { topics: source.topics, comunas: result.comunas.slice(0, limit), people: topic ? [] : result.people.map((p) => p.user).slice(0, limit), posts: result.posts.slice(0, limit), recentPosts: [], next: { comunas: null, people: null, posts: null } };
+    data = { topics: source.topics, comunas: result.comunas.slice(0, limit), people: topic ? [] : result.people.map((p) => p.user).slice(0, limit), posts: result.posts.slice(0, limit), recentPosts: [], documents: [], events: [], next: { comunas: null, people: null, posts: null, events: null, documents: null } };
   }
   const items: DiscoveryEntry[] = [
     ...(filter === 'all' || filter === 'comunas' ? data.comunas.map((value) => ({ id: value.id, kind: 'comunas' as const, value })) : []),
     ...(filter === 'all' || filter === 'people' ? data.people.map((value) => ({ id: value.id, kind: 'people' as const, value })) : []),
-    ...(filter === 'all' ? (data.documents ?? []).map((value) => ({ id: value.id, kind: 'documents' as const, value })) : []),
     ...(filter === 'all' || filter === 'posts' ? data.posts.map((value) => ({ id: value.id, kind: 'posts' as const, value })) : []),
+    ...(filter === 'all' || filter === 'events' ? data.events.map((value) => ({ id: value.id, kind: 'events' as const, value })) : []),
+    ...(filter === 'all' || filter === 'documents' ? data.documents.map((value) => ({ id: value.id, kind: 'documents' as const, value })) : []),
   ];
   return { items, nextCursor: filter === 'all' ? null : data.next[filter] };
 }
