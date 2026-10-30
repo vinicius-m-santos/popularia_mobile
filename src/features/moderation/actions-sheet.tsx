@@ -165,7 +165,7 @@ function SheetBody(props: BodyProps) {
                 return;
               }
               if (!savedPost) return;
-              void toggleSavedPost(savedPost, toast.show);
+              void toggleSavedPost(savedPost, toast.show, me.id);
             }}
           />
         ) : null}

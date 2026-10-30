@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
+import { useAccount } from '@/features/account/account-context';
+import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { ApiError, describeError } from '@/lib/errors';
 import type { Comuna } from '@/types/models';
@@ -29,6 +31,7 @@ function membershipErrorMessage(error: unknown, joining: boolean): string {
  */
 export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewerIsMember'>) {
   const { membershipOf, toggle, setOn } = useInteractions();
+  const { account } = useAccount();
   const toast = useToast();
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
@@ -44,8 +47,10 @@ export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewer
     const joining = !joined;
     setPending(true);
     try {
-      if (joining) await joinComuna(comuna.id);
-      else await leaveComuna(comuna.id);
+      if (joining) {
+        await joinComuna(comuna.id);
+        acknowledgeGamification(account?.id, toast.show);
+      } else await leaveComuna(comuna.id);
       setOn('joinedComunas', [comuna.id], joining);
       toast.show(joining ? `Você entrou em ${comuna.name}.` : `Você saiu de ${comuna.name}.`);
     } catch (error) {

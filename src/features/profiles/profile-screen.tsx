@@ -39,6 +39,7 @@ import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
+import { ProfileProgress } from '@/features/gamification/progress-screen';
 import { LibraryPane } from '@/features/library/library-screen';
 
 import { ProfilePhoto } from './profile-photo';
@@ -223,6 +224,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                 <AppText variant="caption" style={styles.handle}>
                   @{user.handle}
                 </AppText>
+                {isMe ? <ProfileProgress /> : null}
                 {isMe ? (
                   <Pressable
                     accessibilityRole="button"

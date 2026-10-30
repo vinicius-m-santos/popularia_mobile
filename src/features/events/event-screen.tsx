@@ -9,6 +9,8 @@ import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
+import { useAccount } from '@/features/account/account-context';
+import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { openDestination } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
@@ -37,6 +39,7 @@ export default function EventScreen() {
     retry: false,
   }, queryClient);
   const toast = useToast();
+  const { account } = useAccount();
   const nav = useNav();
   const alive = useRef(true);
   const [pending, setPending] = useState(false);
@@ -50,6 +53,9 @@ export default function EventScreen() {
     if (!current || pending) return;
     setPending(true);
     void setAttendance(current, status)
+      .then((result) => {
+        if (result === 'applied' && status !== 'not_going') acknowledgeGamification(account?.id, toast.show);
+      })
       .catch((error: unknown) => { if (alive.current) toast.show(describeError(error)); })
       .finally(() => { if (alive.current) setPending(false); });
   };

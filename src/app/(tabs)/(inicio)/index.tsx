@@ -13,6 +13,7 @@ import { getFeed, isFeedTabAvailable } from '@/features/feed/api';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { FeedHeader } from '@/features/feed/components/feed-header';
 import { WelcomeBanner } from '@/features/feed/components/welcome-banner';
+import { HomeProgress } from '@/features/gamification/progress-screen';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { PostCard } from '@/features/posts/components/post-card';
 import { describeError } from '@/lib/errors';
@@ -80,7 +81,7 @@ export default function FeedScreen() {
     keyExtractor={(item) => item.id}
     renderItem={({ item, index }) => <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />}
     getItemType={(item) => `${item.poll ? 'poll' : 'text'}:${item.attachment?.type ?? (item.document ? 'document' : 'plain')}`}
-    ListHeaderComponent={<><WelcomeBanner /><ComposerPrompt /></>}
+    ListHeaderComponent={<><WelcomeBanner /><HomeProgress /><ComposerPrompt /></>}
     emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
     emptyMessage={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).message}
     contentContainerStyle={styles.list}

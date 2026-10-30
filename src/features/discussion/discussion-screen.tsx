@@ -13,6 +13,7 @@ import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { createComment, getComments, setCommentSupport } from '@/features/discussion/api';
+import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { CommentComposer, type ComposerNotice } from '@/features/discussion/components/comment-composer';
 import { CommentRow } from '@/features/discussion/components/comment-row';
 import { PostDetail } from '@/features/discussion/components/post-detail';
@@ -167,6 +168,7 @@ export default function DiscussionScreen() {
       noteCommentCount(id, commentCountOf(id, post.commentCount) + 1);
       afterSend();
       toast.show(replyTo ? 'Resposta publicada.' : 'Comentário publicado.');
+      acknowledgeGamification(account?.id, toast.show);
       return true;
     } catch (error) {
       if (error instanceof ApiError) {

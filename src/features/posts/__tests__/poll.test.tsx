@@ -11,6 +11,8 @@ import type { FeedItem } from '@/types/models';
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
 jest.mock('@/features/posts/api', () => ({ voteOnPoll: jest.fn() }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ account: { id: 'conta-1' } }), useMe: () => ({ id: 'conta-1' }) }));
+jest.mock('@/features/gamification/feedback', () => ({ acknowledgeGamification: jest.fn() }));
 
 function poll(question: string, labels: string[], votedIndex: number | null = null): PostPoll {
   const counts = labels.map((_, index) => (votedIndex === index ? 1 : 0));

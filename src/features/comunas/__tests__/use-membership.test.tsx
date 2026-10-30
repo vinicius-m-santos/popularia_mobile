@@ -13,6 +13,8 @@ jest.mock('../api', () => ({ joinComuna: jest.fn(), leaveComuna: jest.fn() }));
 
 const mockShow = jest.fn();
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockShow }) }));
+jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ account: { id: 'conta-1' } }), useMe: () => ({ id: 'conta-1' }) }));
+jest.mock('@/features/gamification/feedback', () => ({ acknowledgeGamification: jest.fn() }));
 
 const join = jest.mocked(joinComuna);
 const leave = jest.mocked(leaveComuna);

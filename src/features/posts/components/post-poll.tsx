@@ -5,6 +5,8 @@ import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
+import { useAccount } from '@/features/account/account-context';
+import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { voteOnPoll } from '@/features/posts/api';
 import { applyPollVote, patchCachedPoll, pollsMatch, restorePostCaches, snapshotPostCaches, type PostPoll } from '@/features/posts/poll';
@@ -38,6 +40,7 @@ export function PostPollBlock({ postId, poll }: PostPollProps) {
 
 function PollCard({ postId, poll }: PostPollProps) {
   const toast = useToast();
+  const { account } = useAccount();
   const [override, setOverride] = useState<PostPoll | null>(null);
   if (override && pollsMatch(override, poll)) setOverride(null);
   const shown = override && !pollsMatch(override, poll) ? override : poll;
@@ -59,6 +62,7 @@ function PollCard({ postId, poll }: PostPollProps) {
       if (!item.poll) return;
       setOverride(item.poll);
       patchCachedPoll(postId, item.poll);
+      acknowledgeGamification(account?.id, toast.show);
     }, (error: unknown) => {
       restorePostCaches(snapshots);
       setOverride(null);

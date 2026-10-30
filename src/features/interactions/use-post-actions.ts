@@ -18,6 +18,7 @@ import { useInteractions, withLocal } from './interactions-context';
  */
 export function usePostActions(post: FeedItem) {
   const { isOn, toggle, localCommentsFor, commentCountOf } = useInteractions();
+  const { account } = useAccount();
   const toast = useToast();
   rememberPost(post);
   useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
@@ -44,7 +45,7 @@ export function usePostActions(post: FeedItem) {
         if (toggle('savedPosts', post.id)) toast.show('Salvo neste aparelho até fechar o app.');
         return Promise.resolve(false);
       }
-      return toggleSavedPost(post, toast.show);
+      return toggleSavedPost(post, toast.show, account?.id);
     },
   };
 }

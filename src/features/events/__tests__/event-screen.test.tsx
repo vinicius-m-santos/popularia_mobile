@@ -19,6 +19,8 @@ jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockToast }) }
 jest.mock('@/features/links/share', () => ({ shareDestination: jest.fn() }));
 jest.mock('@/features/links/destinations', () => ({ openDestination: jest.fn() }));
 jest.mock('../api', () => ({ getEvent: jest.fn(), putAttendance: jest.fn(), cancelEvent: jest.fn() }));
+jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ account: { id: 'conta-1' } }), useMe: () => ({ id: 'conta-1' }) }));
+jest.mock('@/features/gamification/feedback', () => ({ acknowledgeGamification: jest.fn() }));
 
 const mockToast = jest.fn();
 const mockOpenProfile = jest.fn();

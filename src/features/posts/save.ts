@@ -1,5 +1,6 @@
 import type { QueryKey } from '@tanstack/react-query';
 
+import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { setPostSaved } from '@/features/posts/api';
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
@@ -162,7 +163,7 @@ function apply(post: FeedItem, saved: boolean) {
  * Um toque por publicação por vez. O segundo toque enquanto o primeiro viaja é ignorado,
  * para uma resposta antiga não desfazer o estado que a pessoa está vendo.
  */
-export async function toggleSavedPost(post: FeedItem, notify: (message: string) => void): Promise<boolean> {
+export async function toggleSavedPost(post: FeedItem, notify: (message: string) => void, accountId?: string): Promise<boolean> {
   if (!lock(post.id)) return false;
   const previous = readSaved(post.id, post.viewer?.saved);
   const next = !previous;
@@ -170,6 +171,7 @@ export async function toggleSavedPost(post: FeedItem, notify: (message: string) 
   apply(post, next);
   try {
     await setPostSaved(post.id, next);
+    if (next) acknowledgeGamification(accountId, notify);
     return true;
   } catch {
     restore(snapshots);
