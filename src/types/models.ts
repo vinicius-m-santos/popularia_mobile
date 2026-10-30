@@ -284,6 +284,7 @@ export type Profile = {
 };
 
 export type NotificationKind =
+  | 'post_removed' | 'comment_removed'
   | 'comment_support' | 'square_reply'
   | 'follow' | 'comment' | 'reply' | 'mention_post' | 'mention_comment'
   | 'join_requested' | 'join_approved' | 'join_rejected'
@@ -291,7 +292,7 @@ export type NotificationKind =
   | 'event_rescheduled' | 'event_place_changed' | 'event_link_changed' | 'event_updated' | 'event_cancelled' | 'event_reminder';
 
 /** Destino ao tocar no aviso. */
-export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests' | 'square' | 'event'; id: string };
+export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests' | 'square' | 'event' | 'notice'; id: string };
 
 export type AppNotification = {
   id: string;

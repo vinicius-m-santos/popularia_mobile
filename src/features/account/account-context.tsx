@@ -381,8 +381,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(
     async (everywhere = false) => {
-      if (!DEMO_MODE) await accountApi.logout(everywhere);
-      resetToSignedOut();
+      try {
+        if (!DEMO_MODE) await accountApi.logout(everywhere);
+      } finally {
+        // A API já apaga os tokens no finally; erro de revogação não pode deixar
+        // a árvore autenticada e os dados da pessoa anterior na tela.
+        resetToSignedOut();
+      }
     },
     [resetToSignedOut],
   );

@@ -3,7 +3,7 @@ import { API_BASE_URL } from '@/constants/config';
 import { hrefComuna, hrefHashtag, hrefPost, hrefProfile, type TabBase } from '@/lib/routes';
 
 export type ShareDestination = { kind: 'post' | 'profile' | 'comuna' | 'document' | 'event' | 'hashtag'; id: string };
-export type Destination = ShareDestination | { kind: 'square' | 'join_requests'; id: string };
+export type Destination = ShareDestination | { kind: 'square' | 'join_requests' | 'notice'; id: string };
 export const PUBLIC_LINK_ORIGIN = (process.env.EXPO_PUBLIC_LINK_ORIGIN || API_BASE_URL?.replace(/\/api\/v1$/, '') || 'http://localhost:8080').replace(/\/+$/, '');
 const prefixes = { post: 'p', profile: 'u', comuna: 'c', document: 'd', event: 'e', hashtag: 't' } as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +37,7 @@ export function parsePopulariaUrl(value: string): ShareDestination | null {
 
 export function destinationHref(target: Destination, base: TabBase = ''): Href {
   switch (target.kind) {
+    case 'notice': return '/avisos';
     case 'post': return hrefPost(base, target.id);
     case 'hashtag': return hrefHashtag(target.id);
     case 'profile': return hrefProfile(base, target.id);

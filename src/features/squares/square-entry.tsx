@@ -40,7 +40,7 @@ function SquareBanner({ presence, status = 'active', canRead = true, onPress }: 
   const presenceLabel = !canRead ? 'Comuna privada' : closed ? 'Praça encerrada · somente leitura' : null;
   return <View style={styles.root}>
     <View style={styles.banner}>
-      <Image source={require('@/assets/squares/square-entry-banner.png')} resizeMode="cover" style={styles.bannerImage} accessible={false} />
+      <Image fadeDuration={0} source={require('@/assets/squares/square-entry-banner.png')} resizeMode="cover" style={styles.bannerImage} accessible={false} />
       <View style={styles.copy}>
         <View style={styles.kicker}><View style={styles.kickerMark} /><AppText variant="label" style={styles.kickerLabel}>Praça</AppText></View>
         <AppText accessibilityRole="header" style={styles.title}>A CONVERSA DA{'\n'}SUA COMUNA.</AppText>

@@ -46,6 +46,19 @@ let refreshing: { generation: number; promise: Promise<string | null> } | null =
 /** Muda a cada login/logout: uma renovação iniciada antes não pode ressuscitar a sessão encerrada. */
 let sessionGeneration = 0;
 let sessionEndedListener: (() => void) | null = null;
+// O Keychain é assíncrono: preserva a ordem entre refresh, logout e outro login.
+let storageWrite: Promise<void> = Promise.resolve();
+function persistSession(write: () => Promise<void>): Promise<void> {
+  const pending = storageWrite.then(write, write);
+  storageWrite = pending.catch(() => undefined);
+  return pending;
+}
+
+function assertSession(generation: number): void {
+  if (generation !== sessionGeneration) {
+    throw new ApiError(401, '/errors/session-changed', 'A sessão mudou. Tente novamente na conta atual.');
+  }
+}
 
 /** Chamado quando a sessão termina sem a pessoa pedir (refresh recusado, conta suspensa). */
 export function onSessionEnded(listener: (() => void) | null): void {
@@ -56,7 +69,7 @@ export async function startSession(tokens: TokensDto): Promise<void> {
   queryClient.clear();
   sessionGeneration += 1;
   storeTokens(tokens);
-  await saveRefreshToken(tokens.refreshToken);
+  await persistSession(() => saveRefreshToken(tokens.refreshToken));
 }
 
 function storeTokens(tokens: TokensDto): void {
@@ -73,7 +86,7 @@ export async function clearSession(): Promise<void> {
   accessToken = null;
   sessionId = null;
   accessTokenExpiresAt = 0;
-  await deleteRefreshToken();
+  await persistSession(deleteRefreshToken);
 }
 
 export async function hasStoredSession(): Promise<boolean> {
@@ -91,19 +104,21 @@ export function refreshSession(): Promise<string | null> {
   const promise = (async () => {
     try {
       const refreshToken = await readRefreshToken();
-      if (!refreshToken) return null;
+      if (!refreshToken || generation !== sessionGeneration) return null;
       const response = await send('/auth/refresh', { method: 'POST', body: { refreshToken } }, null);
       // A pessoa saiu (ou entrou em outra conta) enquanto renovávamos: descarta a resposta.
       if (generation !== sessionGeneration) return null;
       if (response.status === 401 || response.status === 403) {
-        await clearSession();
+        const cleared = clearSession();
         sessionEndedListener?.();
+        await cleared;
         return null;
       }
       const tokens = await parse<TokensDto>(response);
       if (generation !== sessionGeneration) return null;
       storeTokens(tokens);
-      await saveRefreshToken(tokens.refreshToken);
+      await persistSession(() => saveRefreshToken(tokens.refreshToken));
+      if (generation !== sessionGeneration) return null;
       return tokens.accessToken;
     } finally {
       // Só limpa se ainda for a renovação desta sessão (outra pode ter começado depois de um novo login).
@@ -115,7 +130,10 @@ export function refreshSession(): Promise<string | null> {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  return parse<T>(await apiResponse(path, options));
+  const generation = sessionGeneration;
+  const result = await parse<T>(await apiResponse(path, options));
+  if (options.auth) assertSession(generation);
+  return result;
 }
 
 /** Transporte binário/multipart com a mesma sessão e refresh das chamadas JSON. */
@@ -127,21 +145,28 @@ export async function apiResponse(path: string, options: RequestOptions = {}): P
     return response;
   }
 
+  const generation = sessionGeneration;
   let token = accessToken && Date.now() < accessTokenExpiresAt ? accessToken : await refreshSession();
+  assertSession(generation);
   if (!token) throw new ApiError(401, '/errors/unauthorized', 'Sua sessão terminou. Entre novamente.');
 
   let response = await send(path, options, token);
+  assertSession(generation);
   if (response.status === 401) {
     token = await refreshSession();
+    assertSession(generation);
     if (!token) throw new ApiError(401, '/errors/unauthorized', 'Sua sessão terminou. Entre novamente.');
     response = await send(path, options, token);
+    assertSession(generation);
   }
   if (response.status === 403) {
     const error = await toError(response);
+    assertSession(generation);
     // Conta suspensa: encerra a sessão local também.
     if (error.type === '/errors/account-inactive') {
-      await clearSession();
+      const cleared = clearSession();
       sessionEndedListener?.();
+      await cleared;
     }
     throw error;
   }

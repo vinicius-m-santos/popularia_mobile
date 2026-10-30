@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AppState } from 'react-native';
 import { useVideoPlayer } from 'expo-video';
 import { PostAttachment } from '../post-attachment';
 import type { PostMediaDto } from '../../post-media';
@@ -10,14 +11,31 @@ jest.mock('expo-router', () => {
 });
 jest.mock('expo', () => ({ ...jest.requireActual<typeof import('expo')>('expo'), useEvent: () => ({ status: 'ready' }), useEventListener: () => {} }));
 const mockPause = jest.fn();
+const mockPlay = jest.fn();
+const mockPlayer = { status: 'ready', pause: mockPause, play: mockPlay };
 jest.mock('expo-video', () => ({
-  useVideoPlayer: jest.fn(() => ({ status: 'ready', pause: mockPause })),
+  useVideoPlayer: jest.fn(() => mockPlayer),
   VideoView: jest.requireActual<typeof import('react-native')>('react-native').View,
 }));
 const video: PostMediaDto = { id: 'v1', type: 'video', url: 'https://example.test/v.mp4', width: 720, height: 1280, durationMs: 15000, mimeType: 'video/mp4', byteSize: 1000 };
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.mocked(AppState.addEventListener).mockImplementation(() => ({ remove: jest.fn() }));
+});
 
 describe('vídeo em listas', () => {
+  it('pausa em background e remove o listener ao desmontar', async () => {
+    const listener = jest.mocked(AppState.addEventListener);
+    const view = await render(<PostAttachment media={video} />);
+    await fireEvent.press(screen.getByRole('button'));
+    const index = listener.mock.calls.findIndex(([event]) => event === 'change');
+    const subscription = listener.mock.results[index].value as ReturnType<typeof AppState.addEventListener>;
+    const remove = jest.spyOn(subscription, 'remove');
+    await act(() => listener.mock.calls[index][1]('background'));
+    expect(mockPause).toHaveBeenCalledTimes(1);
+    await view.unmount();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
   it('não inicializa player até a intenção de reprodução', async () => {
     await render(<PostAttachment media={video} />);
     expect(useVideoPlayer).not.toHaveBeenCalled();

@@ -27,7 +27,7 @@ export function FeedHeader({ tab, onTabChange }: FeedHeaderProps) {
     <View style={styles.header}>
       <View style={styles.top}>
         <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel="Popularia">
-            <Image source={require('@/assets/branding/popularia-symbol.png')} style={styles.logo} accessible={false} />
+            <Image fadeDuration={0} source={require('@/assets/branding/popularia-symbol.png')} style={styles.logo} accessible={false} />
           <AppText style={styles.wordmark} maxFontSizeMultiplier={1.2}>
             POPULARIA
           </AppText>

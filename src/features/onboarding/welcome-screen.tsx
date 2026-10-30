@@ -47,7 +47,7 @@ export default function WelcomeScreen() {
         bounces={false}>
         <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel="Popularia">
           <View style={styles.logo}>
-            <Image source={require('@/assets/branding/popularia-symbol.png')} style={styles.symbol} accessible={false} />
+            <Image fadeDuration={0} source={require('@/assets/branding/popularia-symbol.png')} style={styles.symbol} accessible={false} />
           </View>
           <AppText style={styles.wordmark} color={Colors.paper} maxFontSizeMultiplier={1.2}>
             POPULARIA

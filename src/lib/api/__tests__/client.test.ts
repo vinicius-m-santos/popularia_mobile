@@ -72,6 +72,47 @@ afterEach(() => {
 });
 
 describe('apiRequest com auth', () => {
+  it('preserva a última identidade quando gravação do Keychain cruza logout e novo login', async () => {
+    let finish!: () => void;
+    const slowWrite = new Promise<void>((resolve) => { finish = resolve; });
+    jest.mocked(saveRefreshToken).mockImplementationOnce(async (token) => {
+      await slowWrite;
+      mockStored = token;
+    });
+    const first = startSession(tokens(1));
+    await Promise.resolve();
+    const logout = clearSession();
+    const second = startSession(tokens(2));
+    finish();
+    await Promise.all([first, logout, second]);
+    expect(mockStored).toBe('refresh-2');
+  });
+  it.each([200, 401, 403])('descarta resposta %i da conta anterior sem repetir ação ou encerrar a conta nova', async (status) => {
+    await startSession(tokens(1));
+    let answer!: (response: Response) => void;
+    route(() => new Promise<Response>((resolve) => { answer = resolve; }));
+    const pending = apiRequest('/posts', { auth: true, method: 'POST', body: { body: 'Conta A' } });
+    const rejected = expect(pending).rejects.toMatchObject({ type: '/errors/session-changed' });
+    await startSession(tokens(2));
+    answer(json(status, status === 200 ? { private: 'A' } : { type: '/errors/account-inactive' }));
+    await rejected;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockStored).toBe('refresh-2');
+  });
+
+  it('descarta JSON que termina de ser lido depois de logout', async () => {
+    await startSession(tokens(1));
+    let finish!: (body: unknown) => void;
+    const response = json(200, {});
+    response.json = () => new Promise((resolve) => { finish = resolve; });
+    route(() => response);
+    const pending = apiRequest('/me', { auth: true });
+    const rejected = expect(pending).rejects.toMatchObject({ type: '/errors/session-changed' });
+    while (!finish) await Promise.resolve();
+    await clearSession();
+    finish({ private: 'A' });
+    await rejected;
+  });
   it('anexa o access token da sessão', async () => {
     await startSession(tokens(1));
     route(() => json(200, { ok: true }));

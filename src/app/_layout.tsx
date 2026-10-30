@@ -14,7 +14,7 @@ import { useFonts } from 'expo-font';
 import { router, Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -29,6 +29,7 @@ import { ModerationProvider } from '@/features/moderation/moderation-context';
 import { PushRuntime } from '@/features/notifications/push-runtime';
 import { NotificationsProvider } from '@/features/notifications/notifications-context';
 import { initSentry } from '@/lib/monitoring';
+import { warmCreationAssets } from '@/features/media/creation-assets';
 
 // Inicializa o Sentry o mais cedo possível (antes de qualquer render).
 initSentry();
@@ -56,6 +57,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
+  useEffect(() => { void warmCreationAssets(); }, []);
   useEffect(() => {
     const listener = AppState.addEventListener('change', (state) => {
       if (state === 'active') void queryClient.refetchQueries({ type: 'active', stale: true }, { cancelRefetch: false });
@@ -92,22 +94,26 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
       <InteractionsProvider>
         <AccountProvider>
-          <NotificationsProvider>
-            <ModerationProvider>
-              <ToastProvider>
-                <ActionsSheetProvider>
-                  <StatusBar style="dark" />
-                  <RootStack />
-                  <PushRuntime />
-                </ActionsSheetProvider>
-              </ToastProvider>
-            </ModerationProvider>
-          </NotificationsProvider>
+          <AccountSurfaces>
+            <StatusBar style="dark" />
+            <RootStack />
+            <PushRuntime />
+          </AccountSurfaces>
         </AccountProvider>
       </InteractionsProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
+}
+
+/** Filas, ações abertas e avisos locais nunca sobrevivem à troca de identidade. */
+function AccountSurfaces({ children }: { children: ReactNode }) {
+  const { account, status } = useAccount();
+  return <NotificationsProvider key={`${status}:${account?.id ?? 'anon'}`}>
+    <ModerationProvider><ToastProvider><ActionsSheetProvider>
+      {children}
+    </ActionsSheetProvider></ToastProvider></ModerationProvider>
+  </NotificationsProvider>;
 }
 
 /**

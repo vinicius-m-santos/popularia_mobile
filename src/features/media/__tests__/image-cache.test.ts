@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem, Profile } from '@/types/models';
 
 import { publishAvatar, publishCover } from '../image-cache';
+
+afterEach(() => queryClient.clear());
 
 const author = { id: 'user-1', name: 'Ana', handle: 'ana', initials: 'AN', tone: 'red' as const, avatarUrl: 'https://cdn/old.jpg' };
 

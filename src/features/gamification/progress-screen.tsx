@@ -31,6 +31,7 @@ export function ProgressBody({ state }: { state: GamificationState }) {
       <View style={styles.block}>
         <AppText variant="label">{streakLabel(state.streak)}</AppText>
         <AppText variant="caption">Dias seguidos com uma participação. Abrir o app não conta.</AppText>
+        <AppText variant="caption">O dia vira à meia-noite no horário de Brasília, para todas as pessoas.</AppText>
       </View>
       <View style={styles.block}>
         <AppText variant="label">Missões de hoje</AppText>

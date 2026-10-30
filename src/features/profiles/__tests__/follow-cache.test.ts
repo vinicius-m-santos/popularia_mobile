@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { queryClient } from '@/lib/query/client';
 import type { Profile } from '@/types/models';
@@ -14,6 +14,7 @@ const profile = (id: string, followerCount: number, followingCount: number): Pro
 });
 
 beforeEach(() => { queryClient.clear(); });
+afterEach(() => { queryClient.clear(); });
 
 describe('cache de follow', () => {
   it('atualiza contadores do perfil e a relação na lista, e desfaz no rollback', () => {

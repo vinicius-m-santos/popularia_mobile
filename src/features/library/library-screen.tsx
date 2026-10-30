@@ -156,7 +156,7 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
               <AppText style={styles.editorialSubtitle}>Acervo público da comunidade.</AppText>
             </View>
             <View pointerEvents="none" style={styles.editorialIllustrationWrap}>
-              <Image
+              <Image fadeDuration={0}
                 source={require('@/assets/library/library-hero-illustration.png')}
                 resizeMode="contain"
                 style={styles.editorialIllustration}

@@ -75,7 +75,7 @@ function ConnectedSquares() {
                 Encontre, participe e organize atividades na{`\n`}sua <AppText style={[styles.heroSubtitle, styles.heroSubtitleAccent]}>comunidade.</AppText>
               </AppText>
             </View>
-            <Image
+            <Image fadeDuration={0}
               source={require('@/assets/squares/squares-hero-park-illustration.png')}
               resizeMode="contain"
               style={styles.heroIllustration}

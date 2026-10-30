@@ -9,8 +9,7 @@ import { queryClient } from '@/lib/query/client';
 import { getGamification } from '../api';
 import { DEMO_GAMIFICATION } from '../demo';
 import { acknowledgeGamification, missionFeedback } from '../feedback';
-import { HomeProgress, HomeProgressCard, ProfileProgressLink, ProgressBody } from '../progress-screen';
-import ProgressScreen from '../progress-screen';
+import ProgressScreen, { HomeProgress, HomeProgressCard, ProfileProgressLink, ProgressBody } from '../progress-screen';
 import { gamificationQueryKey, levelFraction, streakLabel, type GamificationState } from '../types';
 
 jest.mock('expo-router', () => ({

@@ -1,7 +1,8 @@
 import { router, useSegments } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Fragment, useRef, useState } from 'react';
-import { Image, type ImageSourcePropType, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { CreationIllustration, type CreationAsset } from '@/features/media/creation-assets';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
@@ -103,19 +104,19 @@ function CreateButton() {
               <AppText variant="display" accessibilityRole="header" style={styles.createTitle}>O que você{`\n`}quer criar?</AppText>
               <AppText variant="label" style={styles.createSubtitle}>Compartilhe ideias, organize conteúdos e fortaleça sua comuna.</AppText>
             </View>
-            <Image source={require('@/assets/create/create-hero-optimized.png')} resizeMode="contain" style={styles.createIntroArt} accessible={false} />
+            <CreationIllustration asset="hero" contentFit="contain" style={styles.createIntroArt} />
           </View>
         <CreateMenuItem
           title="Publicação"
           description="Compartilhe uma ideia, imagem ou enquete."
-          image={require('@/assets/create/create-publication-optimized.png')}
+          image="publication"
           onPress={() => navigateTo('/criar')}
         />
-        <CreateMenuItem title="Adicionar PDF" description="Guarde um PDF na sua biblioteca e escolha quem pode abrir." image={require('@/assets/create/create-pdf-optimized.png')} onPress={() => navigateTo('/biblioteca/enviar')} />
+        <CreateMenuItem title="Adicionar PDF" description="Guarde um PDF na sua biblioteca e escolha quem pode abrir." image="pdf" onPress={() => navigateTo('/biblioteca/enviar')} />
         <CreateMenuItem
           title="Comuna"
           description="Crie uma comunidade e reúna pessoas."
-          image={require('@/assets/create/create-comuna-optimized.png')}
+          image="comuna"
           onPress={() => navigateTo('/criar-comuna')}
         />
         </View>
@@ -127,7 +128,7 @@ function CreateButton() {
 type MenuItemProps = {
   title: string;
   description: string;
-  image: ImageSourcePropType;
+  image: CreationAsset;
   onPress: () => void;
 };
 
@@ -138,7 +139,7 @@ function CreateMenuItem({ title, description, image, onPress }: MenuItemProps) {
       accessibilityRole="button"
       accessibilityLabel={title}
       style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}>
-      <View style={styles.menuItemImageFrame}><Image source={image} resizeMode="cover" style={styles.menuItemImage} accessible={false} /></View>
+      <View style={styles.menuItemImageFrame}><CreationIllustration asset={image} contentFit="cover" style={styles.menuItemImage} /></View>
       <View style={styles.menuItemContent}>
         <AppText variant="heading" style={styles.menuItemTitle}>{title}</AppText>
         <AppText variant="label" style={styles.menuItemDescription}>{description}</AppText>

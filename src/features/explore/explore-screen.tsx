@@ -141,7 +141,7 @@ function DiscoveryHome({ data, topic, onSee, refreshing, onRefresh }: {
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustsScrollIndicatorInsets={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.red} />}>
       {!topic ? <Pressable accessibilityRole="link" accessibilityLabel="Abrir Biblioteca Pública" accessibilityHint="Vai para a Biblioteca Pública" onPress={() => router.push('/biblioteca')} style={({ pressed }) => [styles.libraryCard, pressed && styles.libraryCardPressed]}>
-        <Image source={require('@/assets/library/library-explore-banner.png')} resizeMode="cover" style={styles.libraryArt} accessible={false} />
+        <Image fadeDuration={0} source={require('@/assets/library/library-explore-banner.png')} resizeMode="cover" style={styles.libraryArt} accessible={false} />
         <View style={styles.libraryContent}>
           <View style={styles.libraryCardHead}>
             <View style={styles.libraryTitle}>

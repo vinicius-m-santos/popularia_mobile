@@ -104,7 +104,7 @@ export default function NotificationsScreen() {
     try {
       const current = await read(notification.id, isUnread(notification));
       if (!active.current) return;
-      if (navigate) {
+      if (navigate && current.target?.kind !== 'notice') {
         if (current.target) openNotificationTarget(current.target);
         else toast.show('Este conteúdo não está mais disponível.');
       }
@@ -240,6 +240,7 @@ function NotificationRow({ notification: n, unread, disabled, onOpen, onInteract
 }
 
 const BADGE_ICONS: Record<NotificationKind, IconName> = {
+  post_removed: 'shield', comment_removed: 'shield',
   comment_support: 'support',
   square_reply: 'comment',
   comment: 'comment',

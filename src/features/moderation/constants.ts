@@ -1,14 +1,3 @@
-/** Motivos de denúncia (design 2h). */
-export const REPORT_REASONS = [
-  'Discurso de ódio ou discriminação',
-  'Assédio ou ataque pessoal',
-  'Desinformação',
-  'Ameaça ou incitação à violência',
-  'Spam, golpe ou propaganda',
-  'Exposição de dados pessoais',
-  'Fere as regras da comuna',
-] as const;
-
 /** Motivos da denúncia de publicação, comentário, perfil e comuna. O código vai para a API. */
 export const CONTENT_REPORT_REASONS = [
   { code: 'harassment', label: 'Assédio ou intimidação' },
@@ -21,6 +10,9 @@ export const CONTENT_REPORT_REASONS = [
   { code: 'illegal', label: 'Conteúdo ilegal' },
   { code: 'other', label: 'Outro' },
 ] as const;
+
+/** Filas legadas recebem o rótulo; a escolha visual usa o mesmo catálogo. */
+export const REPORT_REASONS = CONTENT_REPORT_REASONS.map(({ label }) => label);
 
 export type ContentReportReasonCode = (typeof CONTENT_REPORT_REASONS)[number]['code'];
 

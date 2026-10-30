@@ -4,7 +4,7 @@ import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import type { VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector, useNativeGesture, type PanGesture } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/app-text';
@@ -57,15 +57,26 @@ function PostVideo({ media, uri, blockGesture }: { media: PostMediaDto; uri: str
 function LoadedPostVideo({ media, uri, videoModule, blockGesture }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); blockGesture?: PanGesture | null }) {
   const useVideoPlayer = videoModule.useVideoPlayer;
   const VideoView = videoModule.VideoView;
-  const player = useVideoPlayer({ uri, useCaching: false }, (instance) => { instance.play(); });
+  const player = useVideoPlayer({ uri, useCaching: false });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
     if (!isPlaying) return;
     if (activePlayer && activePlayer !== player) activePlayer.pause();
     activePlayer = player;
   });
-  useEffect(() => () => {
-    if (activePlayer === player) activePlayer = null;
+  useEffect(() => {
+    // A reprodução inicial pode emitir playingChange antes da inscrição do listener.
+    if (activePlayer && activePlayer !== player) activePlayer.pause();
+    activePlayer = player;
+    if (AppState.currentState === 'active') player.play();
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') player.pause();
+    });
+    return () => {
+      listener.remove();
+      if (activePlayer === player) activePlayer = null;
+      // useVideoPlayer libera o player no unmount.
+    };
   }, [player]);
   const video = <VideoView player={player} nativeControls contentFit="contain" style={StyleSheet.absoluteFill} accessibilityLabel={`Vídeo da publicação, ${durationLabel(media.durationMs)}`} />;
   return <View style={[styles.videoFrame, { aspectRatio: mediaRatio(media) }]}>

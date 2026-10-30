@@ -1,4 +1,4 @@
-import { createContext, use, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, use, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,32 +16,31 @@ const ToastContext = createContext<ToastValue | null>(null);
  * pelo leitor de tela (TalkBack/VoiceOver).
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [message, setMessage] = useState<string | null>(null);
+  const [messages, setMessages] = useState<string[]>([]);
+  const message = messages[0];
   const [opacity] = useState(() => new Animated.Value(0));
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const insets = useSafeAreaInsets();
 
-  const show = useCallback(
-    (next: string) => {
-      if (timer.current) clearTimeout(timer.current);
-      setMessage(next);
-      AccessibilityInfo.announceForAccessibility(next);
-      Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }).start();
-      timer.current = setTimeout(() => {
-        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() =>
-          setMessage(null),
-        );
-      }, DURATION_MS);
-    },
-    [opacity],
-  );
+  const show = useCallback((next: string) => {
+    setMessages((queue) => queue.includes(next) ? queue : [...queue, next]);
+  }, []);
 
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!message) return;
+    let disposed = false;
+    AccessibilityInfo.announceForAccessibility(message);
+    Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    const timer = setTimeout(() => {
+      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(({ finished }) => {
+        if (finished && !disposed) setMessages((queue) => queue.slice(1));
+      });
+    }, DURATION_MS);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+      opacity.stopAnimation();
+    };
+  }, [message, opacity]);
 
   return (
     <ToastContext value={{ show }}>
