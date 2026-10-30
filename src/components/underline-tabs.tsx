@@ -1,4 +1,5 @@
 import { GestureDetector, type NativeGesture } from 'react-native-gesture-handler';
+import { useEffect, useRef, type ComponentRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -26,8 +27,17 @@ export function UnderlineTabs<K extends string>({
   ruled = false,
   gesture,
 }: UnderlineTabsProps<K>) {
+  const scrollerRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const offsets = useRef<Partial<Record<K, number>>>({});
+  // A aba ativa pode mudar por gesto externo: traga a seleção para a área visível.
+  useEffect(() => {
+    const x = offsets.current[value];
+    if (x === undefined) return;
+    scrollerRef.current?.scrollTo({ x: Math.max(0, x - Spacing.five), animated: true });
+  }, [value]);
   const scroller = (
     <ScrollView
+      ref={scrollerRef}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
@@ -38,6 +48,7 @@ export function UnderlineTabs<K extends string>({
           <Pressable
             key={opt.key}
             onPress={() => onChange(opt.key)}
+            onLayout={(event) => { offsets.current[opt.key] = event.nativeEvent.layout.x; }}
             role="tab"
             accessibilityState={{ selected: active }}
             hitSlop={{ top: 4, bottom: 4 }}

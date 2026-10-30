@@ -9,9 +9,29 @@ import type { LibraryDocument } from './types';
 export const accessLabel = (document: LibraryDocument) => document.isPublic ? 'Público' : ({ private: 'Só você', followers: 'Seguidores', visitors: 'Aberto na comuna', members: 'Só membros', moderators: 'Só coordenação' }[document.access ?? 'private']);
 export const sizeLabel = (bytes: number | null) => bytes === null ? '' : bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 
-export function DocumentCard({ document, onPress, shared = false, appearance = 'default', hideCollection = false }: { document: LibraryDocument; onPress?: () => void; shared?: boolean; appearance?: 'default' | 'editorial' | 'collection'; hideCollection?: boolean }) {
+export function DocumentCard({ document, onPress, shared = false, appearance = 'default', hideCollection = false }: { document: LibraryDocument; onPress?: () => void; shared?: boolean; appearance?: 'default' | 'editorial' | 'collection' | 'public'; hideCollection?: boolean }) {
   const locked = document.state !== 'available';
   const handlePress = onPress ?? (() => router.push({ pathname: '/biblioteca/documento/[id]', params: { id: document.id } }));
+  // Variante restrita ao acervo público enquanto a direção visual é validada.
+  if (appearance === 'public') return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`${document.title ?? 'Documento indisponível'}, ${locked ? 'acesso restrito' : 'PDF'}`}
+    onPress={handlePress}
+    style={({ pressed }) => [styles.publicCard, pressed && styles.publicPressed]}>
+    <View style={styles.publicCardHeading}>
+      <View style={styles.publicDocumentMark}><Icon name="library" size={20} color={Colors.red} /></View>
+      <AppText variant="bodyStrong" style={styles.publicTitle} numberOfLines={3}>{document.title ?? 'Documento indisponível'}</AppText>
+      <Icon name="chevronRight" size={18} color={Colors.muted} />
+    </View>
+    {!locked ? <View style={styles.publicMetadata}>
+      {document.author ? <AppText variant="caption" numberOfLines={2}>Autoria: {document.author}</AppText> : null}
+      {document.origin?.name ? <AppText variant="caption" numberOfLines={2}>{document.origin.name}{!hideCollection && document.collection ? ` · ${document.collection.name}` : ''}</AppText> : !hideCollection && document.collection ? <AppText variant="caption">{document.collection.name}</AppText> : null}
+      <AppText variant="caption" style={styles.publicFileMeta}>{['PDF', document.pageCount ? `${document.pageCount} págs` : '', sizeLabel(document.byteSize)].filter(Boolean).join(' · ')}</AppText>
+    </View> : <View style={styles.publicMetadata}>
+      <AppText variant="label">Acesso restrito</AppText>
+      <AppText variant="caption">Ver uma publicação com este PDF não dá acesso ao arquivo.</AppText>
+    </View>}
+  </Pressable>;
   if (appearance === 'collection') return <Pressable accessibilityRole="button" accessibilityLabel={`${document.title ?? 'Documento indisponível'}${locked ? ', acesso restrito' : ', PDF'}`}
     onPress={handlePress} style={({ pressed }) => [styles.collectionCard, locked && styles.collectionLocked, pressed && styles.pressed]}>
     <View style={[styles.collectionCover, locked && styles.lockedCover]}>
@@ -69,6 +89,13 @@ export function DocumentCard({ document, onPress, shared = false, appearance = '
   </Pressable>;
 }
 const styles = StyleSheet.create({
+  publicCard: { padding: Spacing.four, gap: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper },
+  publicPressed: { backgroundColor: Colors.strawLight },
+  publicCardHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
+  publicDocumentMark: { paddingTop: 2 },
+  publicTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 22 },
+  publicMetadata: { gap: Spacing.one, paddingLeft: 28 },
+  publicFileMeta: { marginTop: Spacing.one },
   card: { borderWidth: 1.5, borderLeftWidth: 5, borderColor: Colors.red, backgroundColor: Colors.paper, borderRadius: Radius.xl, padding: Spacing.three, gap: Spacing.one, marginVertical: Spacing.one },
   locked: { borderColor: Colors.ink },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },

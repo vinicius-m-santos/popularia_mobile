@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Icon } from '@/components/icon';
+import { Kicker } from '@/components/kicker';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
@@ -76,6 +76,10 @@ function PollCard({ postId, poll }: PostPollProps) {
 
   return (
     <View style={styles.box}>
+      <View style={styles.header}>
+        <Kicker label="Enquete" />
+        {voted || shown.totalVotes > 0 ? <AppText variant="caption" color={Colors.inkSoft}>{plural(shown.totalVotes, 'voto', 'votos')}</AppText> : null}
+      </View>
       <AppText style={styles.question}>{shown.question}</AppText>
       <View style={styles.options}>
         {shown.options.map((option) => {
@@ -87,18 +91,17 @@ function PollCard({ postId, poll }: PostPollProps) {
               accessibilityRole="button"
               accessibilityLabel={voted ? `${option.label}, ${option.percent}%, ${plural(option.voteCount, 'voto', 'votos')}${selected ? ', seu voto' : ''}` : `Votar em ${option.label}`}
               accessibilityState={{ selected }}
-              style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}>
-              {voted && !selected ? <View pointerEvents="none" style={[styles.fill, { width: `${option.percent}%` }]} /> : null}
+              style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.optionPressed]}>
+              {voted ? <View pointerEvents="none" style={[styles.fill, { width: `${option.percent}%` }]} /> : null}
               <View style={styles.optionRow}>
-                {selected ? <Icon name="check" size={16} color={Colors.paper} /> : voted ? <View style={styles.checkSpacer} /> : null}
-                <AppText style={styles.optionLabel} color={selected ? Colors.paper : Colors.ink}>{option.label}</AppText>
-                {voted ? <AppText style={styles.percent} color={selected ? Colors.paper : Colors.ink}>{`${option.percent}%`}</AppText> : null}
+                {voted ? (selected ? <View style={styles.marker} /> : <View style={styles.markerSpacer} />) : null}
+                <AppText style={styles.optionLabel} color={Colors.ink}>{option.label}</AppText>
+                {voted ? <AppText style={styles.percent} color={selected ? Colors.ink : Colors.inkSoft}>{`${option.percent}%`}</AppText> : null}
               </View>
             </Pressable>
           );
         })}
       </View>
-      {voted ? <AppText variant="caption">{plural(shown.totalVotes, 'voto', 'votos')}</AppText> : null}
     </View>
   );
 }
@@ -107,9 +110,17 @@ const styles = StyleSheet.create({
   box: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    backgroundColor: Colors.paper,
+    // Palha identifica a área de votação, como os grupos de filtro; a borda define a peça
+    // contra o creme da tela, onde a diferença de preenchimento sozinha é sutil.
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    backgroundColor: Colors.strawLight,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   question: {
     fontFamily: Fonts.extrabold,
@@ -123,13 +134,13 @@ const styles = StyleSheet.create({
   option: {
     minHeight: 48,
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.ink,
     backgroundColor: Colors.paper,
     overflow: 'hidden',
   },
   optionSelected: {
-    backgroundColor: Colors.ink,
+    borderWidth: 1.5,
   },
   fill: {
     position: 'absolute',
@@ -145,8 +156,14 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingHorizontal: Spacing.three,
   },
-  checkSpacer: {
-    width: 16,
+  marker: {
+    width: 8,
+    height: 8,
+    backgroundColor: Colors.red,
+  },
+  markerSpacer: {
+    width: 8,
+    height: 8,
   },
   optionLabel: {
     flex: 1,
@@ -159,7 +176,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  pressed: {
-    opacity: 0.72,
+  optionPressed: {
+    backgroundColor: Colors.strawLight,
   },
 });

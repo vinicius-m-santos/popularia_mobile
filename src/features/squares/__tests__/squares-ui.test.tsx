@@ -56,7 +56,7 @@ describe('Praças no aplicativo', () => {
     expect(screen.getByText('Tecnologia')).toBeTruthy();
     expect(screen.getByText('Trabalho')).toBeTruthy();
     expect(screen.queryByText('Comunidade')).toBeNull();
-    await fireEvent.press(screen.getByText('→ Explorar comunas'));
+    await fireEvent.press(screen.getByText('Explorar comunas'));
     expect(router.navigate).toHaveBeenCalledWith('/explorar');
     await fireEvent.press(screen.getByLabelText('Entrar na Praça Trabalhadores de TI'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/praca/[id]', params: { id: 'square1' } });

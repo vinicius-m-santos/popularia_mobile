@@ -64,6 +64,33 @@ const ICONS = {
   shareNodes: { strokeWidth: 2.2, body: <><Circle cx={18} cy={5} r={2.2} /><Circle cx={6} cy={12} r={2.2} /><Circle cx={18} cy={19} r={2.2} /><Path d="m8 11 7.8-5M8 13l7.8 5" /></> },
   globe: { strokeWidth: 1.9, body: <><Circle cx={12} cy={12} r={9.5} /><Path d="M2.8 12h18.4M12 2.5c3 2.7 4.5 5.9 4.5 9.5S15 18.8 12 21.5M12 2.5C9 5.2 7.5 8.4 7.5 12S9 18.8 12 21.5" /></> },
   play: { strokeWidth: 0, solid: true, body: <Polygon points="8,5.5 19,12 8,18.5" /> },
+  replay: {
+    strokeWidth: 2.2,
+    body: (
+      <>
+        <Path d="M20.5 12a8.5 8.5 0 1 1-2.8-6.3" />
+        <Path d="M20.5 3.5V9h-5.5" />
+      </>
+    ),
+  },
+  soundOn: {
+    strokeWidth: 2,
+    body: (
+      <>
+        <Path d="M4 9.5h3.5L12 5.2v13.6L7.5 14.5H4z" />
+        <Path d="M15.5 9.2a4.4 4.4 0 0 1 0 5.6M18.2 6.4a8.4 8.4 0 0 1 0 11.2" />
+      </>
+    ),
+  },
+  soundOff: {
+    strokeWidth: 2,
+    body: (
+      <>
+        <Path d="M4 9.5h3.5L12 5.2v13.6L7.5 14.5H4z" />
+        <Path d="m15.6 9.6 4.8 4.8M20.4 9.6l-4.8 4.8" />
+      </>
+    ),
+  },
   close: { strokeWidth: 2.4, body: <Path d="M6 6l12 12M18 6 6 18" /> },
   back: { strokeWidth: 2.4, body: <Path d="M15 4.5 7.5 12l7.5 7.5" /> },
   more: {

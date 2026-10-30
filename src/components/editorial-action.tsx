@@ -6,6 +6,8 @@ import { Colors, Spacing } from '@/constants/theme';
 
 type EditorialActionProps = {
   label: string;
+  /** Variação de leitura para controles; o padrão editorial continua mono. */
+  labelVariant?: 'label' | 'button';
   icon: IconName;
   onPress: () => void;
   /** 'ghost': ação neutra como "Cancelar" — sem borda nem preenchimento, menor peso visual. */
@@ -19,7 +21,7 @@ type EditorialActionProps = {
 };
 
 /** Ação editorial padrão: retangular, com ícone de 22 px e rótulo mono. */
-export function EditorialAction({ label, icon, onPress, tone = 'paper', disabled = false, accessibilityLabel, iconPosition = 'leading', pinnedLeadingIcon = false, style }: EditorialActionProps) {
+export function EditorialAction({ label, labelVariant = 'label', icon, onPress, tone = 'paper', disabled = false, accessibilityLabel, iconPosition = 'leading', pinnedLeadingIcon = false, style }: EditorialActionProps) {
   const foreground = tone === 'red' ? Colors.paper : tone === 'ghost' ? Colors.inkSoft : Colors.ink;
   const iconNode = <Icon name={icon} size={22} color={foreground} />;
   const pinLeadingIcon = pinnedLeadingIcon && iconPosition === 'leading';
@@ -32,7 +34,7 @@ export function EditorialAction({ label, icon, onPress, tone = 'paper', disabled
     style={({ pressed }) => [styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, (pressed || disabled) && styles.pressed]}>
     {pinLeadingIcon ? <View style={styles.pinnedLeadingIcon}>{iconNode}</View> : null}
     {iconPosition === 'leading' && !pinLeadingIcon ? iconNode : null}
-    <AppText variant="label" color={foreground} numberOfLines={1}>{label}</AppText>
+    <AppText variant={labelVariant} color={foreground} numberOfLines={1}>{label}</AppText>
     {iconPosition === 'trailing' ? iconNode : null}
   </Pressable>;
 }

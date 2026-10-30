@@ -36,14 +36,21 @@ describe('bibliotecas reais', () => {
     expect(screen.getByText('Autoria: Coletivo Tarifa Zero')).toBeTruthy();
     expect(screen.queryByLabelText('Mais ações da biblioteca')).toBeNull();
     expect(screen.getByText('Criar coleção')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Título, autoria, coleção ou assunto')).toBeTruthy();
+    expect(screen.getByLabelText('Buscar na biblioteca')).toBeTruthy();
+    expect(screen.getByLabelText(`Abrir coleção ${collection.name}`)).toBeTruthy();
     await fireEvent.press(screen.getByRole('radio', { name: 'De pessoas' }));
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'people', scope: 'public' }), null));
     await fireEvent.changeText(screen.getByLabelText('Buscar na biblioteca'), 'organização');
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'organização' }), null));
-    await fireEvent.press(screen.getByLabelText('Assunto: Escolher assunto'));
+    await fireEvent.press(screen.getByLabelText('Assunto: Todos os assuntos'));
     await fireEvent.press(await screen.findByRole('radio', { name: 'Trabalho e direitos trabalhistas' }));
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ topic: 'trab' }), null));
+    expect(screen.queryByLabelText(`Abrir coleção ${collection.name}`)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Limpar filtros: Resultados' }));
+    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: '', topic: undefined, origin: 'all' }), null));
+    expect(screen.getByLabelText('Buscar na biblioteca').props.value).toBe('');
+    await fireEvent.press(screen.getByLabelText(`Abrir coleção ${collection.name}`));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca', params: expect.objectContaining({ collection: collection.id }) });
   });
   it('apresenta a coleção com identidade, ações e filtros próprios', async () => {
     const onEdit = jest.fn();

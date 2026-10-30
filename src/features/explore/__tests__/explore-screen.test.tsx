@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
@@ -69,11 +69,40 @@ beforeEach(() => {
   mockTopicId = 'tec';
 });
 
+// A busca permanece montada na descoberta; descarte também seus timers de cache ao encerrar.
+afterAll(() => { queryClient.clear(); });
+
 async function debounce() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
 }
 
 describe('Explorar', () => {
+  it('mantém todos os assuntos acessíveis sem alongar a entrada e abre o escolhido', async () => {
+    const topics = Array.from({ length: 8 }, (_, index) => ({ id: `topic-${index}` as typeof data.topics[number]['id'], label: `Assunto ${index}`, shortLabel: `Assunto ${index}` }));
+    getData.mockResolvedValue({ ...data, topics });
+    await render(<ExploreScreen />);
+    await screen.findByLabelText('Explorar Assunto 0');
+    expect(screen.queryByLabelText('Explorar Assunto 7')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ver todos: Assuntos' }));
+    await fireEvent.press(await screen.findByLabelText('Explorar Assunto 7'));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/explorar/assunto/[id]', params: { id: 'topic-7' } });
+    await waitFor(() => expect(screen.queryByText('Todos os assuntos')).toBeNull());
+  });
+
+  it('limita os destaques e dá acesso às demais publicações pela categoria', async () => {
+    const posts = Array.from({ length: 5 }, (_, index) => ({ ...post, id: `post-${index}`, text: `Discussão ${index}` }));
+    getData.mockResolvedValue({ ...data, posts });
+    search.mockResolvedValue({ items: posts.map((value) => ({ id: value.id, kind: 'posts', value })), nextCursor: null });
+    await render(<ExploreScreen />);
+    await screen.findByText('Discussão 0');
+    expect(screen.queryByText('Discussão 3')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ver todas: Discussões em destaque' }));
+    expect(await screen.findByText('Discussão 4')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Tudo' }));
+    expect(await screen.findByText('Discussões em destaque')).toBeTruthy();
+    expect(screen.queryByText('Discussão 4')).toBeNull();
+  });
+
   it('voltar de um detalhe preserva termo e filtro e revalida os resultados', async () => {
     await render(<ExploreScreen />);
     await fireEvent.changeText(await screen.findByLabelText('Buscar na Popularia'), 'Linux');

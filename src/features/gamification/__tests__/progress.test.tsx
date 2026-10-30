@@ -81,7 +81,7 @@ describe('progresso', () => {
   it('abre o progresso a partir do resumo e do perfil', async () => {
     const open = jest.fn();
     await render(<><HomeProgressCard state={sample} onPress={open} /><ProfileProgressLink level={2} streak={3} onPress={open} /></>);
-    await fireEvent.press(screen.getByLabelText('3 dias seguidos. Ver progresso'));
+    await fireEvent.press(screen.getByLabelText('3 dias seguidos, 1 de 3 missões hoje. Ver progresso'));
     await fireEvent.press(screen.getByLabelText('Nível 2, 3 dias seguidos. Ver progresso'));
     expect(open).toHaveBeenCalledTimes(2);
   });

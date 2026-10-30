@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { EventBar } from '@/features/events/chrome';
 
 import { levelFraction, streakLabel, type GamificationState } from './types';
@@ -82,21 +82,26 @@ export default function ProgressScreen() {
 }
 
 export function HomeProgressCard({ state, onPress }: { state: GamificationState; onPress: () => void }) {
+  const done = state.missions.filter((mission) => mission.completed).length;
+  const total = state.missions.length;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${streakLabel(state.streak)}. Ver progresso`}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-      <AppText variant="label">{streakLabel(state.streak)}</AppText>
-      <AppText variant="label" color={Colors.muted}>Missões de hoje</AppText>
-      {state.missions.map((mission) => (
-        <View key={mission.action} style={styles.row}>
-          <View style={[styles.mark, mission.completed && styles.markOn]} />
-          <AppText variant="caption" style={styles.mission}>{mission.label}</AppText>
+      accessibilityLabel={`${streakLabel(state.streak)}, ${done} de ${total} ${total === 1 ? 'missão' : 'missões'} hoje. Ver progresso`}
+      style={({ pressed }) => [styles.strip, pressed && styles.pressed]}>
+      <View style={styles.stripRow}>
+        <AppText variant="label">{streakLabel(state.streak)}</AppText>
+        <AppText variant="button">Ver progresso</AppText>
+      </View>
+      <View style={styles.stripStatus}>
+        <View style={styles.stripMarks}>
+          {state.missions.map((mission) => (
+            <View key={mission.action} style={[styles.stripMark, mission.completed && styles.stripMarkOn]} />
+          ))}
         </View>
-      ))}
-      <AppText variant="label" color={Colors.red}>Ver progresso</AppText>
+        <AppText variant="caption">{done} de {total} {total === 1 ? 'missão' : 'missões'} hoje</AppText>
+      </View>
     </Pressable>
   );
 }
@@ -105,7 +110,7 @@ export function HomeProgress() {
   const progress = useGamification();
   if (progress.isError) {
     return (
-      <Pressable onPress={() => { void progress.refetch(); }} accessibilityRole="button" style={styles.card}>
+      <Pressable onPress={() => { void progress.refetch(); }} accessibilityRole="button" style={styles.error}>
         <AppText variant="caption">Progresso indisponível. Toque para tentar de novo.</AppText>
       </Pressable>
     );
@@ -156,13 +161,29 @@ const styles = StyleSheet.create({
   markOn: { backgroundColor: Colors.ink },
   mission: { flex: 1 },
   achievement: { gap: 2 },
-  card: {
-    marginTop: Spacing.three,
+  // No feed, o progresso é uma faixa de status: sequência, missões e atalho, sem checklist.
+  strip: {
+    marginTop: Spacing.four,
     marginHorizontal: Spacing.five,
-    gap: Spacing.two,
+    gap: Spacing.one,
+    paddingVertical: Spacing.two,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  stripRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+  stripStatus: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  stripMarks: { flexDirection: 'row', gap: Spacing.one },
+  stripMark: { width: 8, height: 8, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: 'transparent' },
+  stripMarkOn: { backgroundColor: Colors.ink },
+  error: {
+    marginTop: Spacing.four,
+    marginHorizontal: Spacing.five,
     padding: Spacing.three,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.paper,
   },
   profile: { alignSelf: 'flex-start', minHeight: 28, justifyContent: 'center' },

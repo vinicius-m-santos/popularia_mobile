@@ -2,12 +2,13 @@ import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visi
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
+import { AppText } from '@/components/app-text';
 import { Screen } from '@/components/screen';
 import { PopulariaList } from '@/components/list/popularia-list';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { contentPolicy } from '@/lib/query/client';
 import { useToast } from '@/components/toast';
-import { Spacing } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
 import { getFeed, isFeedTabAvailable } from '@/features/feed/api';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
@@ -17,6 +18,7 @@ import { HomeProgress } from '@/features/gamification/progress-screen';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { PostCard } from '@/features/posts/components/post-card';
 import { describeError } from '@/lib/errors';
+import { dayKey, formatDayRule } from '@/lib/format';
 import type { FeedTab } from '@/types/models';
 
 const EMPTY_MESSAGES: Record<FeedTab, { title: string; message: string }> = {
@@ -73,13 +75,22 @@ export default function FeedScreen() {
   }, [refreshError, showToast]);
 
   const body = <PopulariaList
+    // Cada aba é uma lista própria: trocar de aba recomeça do topo, em vez de herdar a rolagem.
+    key={tab}
     state={feed}
     extraData={visibility.visibleIds}
     onViewableItemsChanged={visibility.onViewableItemsChanged}
     viewabilityConfig={mediaViewabilityConfig}
     data={feed.items}
     keyExtractor={(item) => item.id}
-    renderItem={({ item, index }) => <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />}
+    renderItem={({ item, index }) => {
+      const previous = index > 0 ? feed.items[index - 1] : null;
+      const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
+      return <>
+        {newDay ? <DayRule label={formatDayRule(item.createdAt)} /> : <View style={styles.separator} />}
+        <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} />
+      </>;
+    }}
     getItemType={(item) => `${item.poll ? 'poll' : 'text'}:${item.attachment?.type ?? (item.document ? 'document' : 'plain')}`}
     ListHeaderComponent={<><WelcomeBanner /><HomeProgress /><ComposerPrompt /></>}
     emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
@@ -95,14 +106,29 @@ export default function FeedScreen() {
   );
 }
 
+/** Abre o dia no feed como uma regra editorial: "Hoje", "Ontem", "7 nov". */
+function DayRule({ label }: { label: string }) {
+  return <View style={styles.dayRule} accessibilityRole="header">
+    <AppText variant="label">{label}</AppText>
+    <View style={styles.dayRuleLine} />
+  </View>;
+}
+
 const styles = StyleSheet.create({
   list: {
     paddingBottom: Spacing.seven,
   },
-  footer: {
-    paddingVertical: Spacing.five,
-  },
   swipeArea: {
     flex: 1,
   },
+  dayRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.one,
+  },
+  dayRuleLine: { flex: 1, height: 1, backgroundColor: Colors.inkSoft },
+  separator: { height: 1, backgroundColor: Colors.rule },
 });

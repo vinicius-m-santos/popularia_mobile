@@ -40,6 +40,26 @@ export function formatRelative(iso: string, now = Date.now()): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
+/** Chave do dia civil local, para agrupar publicações do feed. */
+export function dayKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/** Rótulo do grupo de publicações: "Hoje", "Ontem" ou "7 nov". */
+export function formatDayRule(iso: string, now = Date.now()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const today = new Date(now);
+  const startOf = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const days = Math.round((startOf(today) - startOf(d)) / 86_400_000);
+  if (days === 0) return 'Hoje';
+  if (days === 1) return 'Ontem';
+  const label = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return d.getFullYear() === today.getFullYear() ? label : `${label} ${d.getFullYear()}`;
+}
+
 /** Data completa da publicação: "Qui, 7 nov · 14:32". */
 export function formatStamp(iso: string): string {
   const d = new Date(iso);
