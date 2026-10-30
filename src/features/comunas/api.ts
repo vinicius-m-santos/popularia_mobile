@@ -135,6 +135,33 @@ export async function getComuna(id: string): Promise<ComunaDetails> {
   return mockDelay({ ...comuna, viewerIsMember, moderators, featuredMembers, members });
 }
 
+/** Publicações fixadas da comuna, no máximo 3, na ordem da moderação. Mesma publicação do feed. */
+export async function getPinnedPosts(id: string): Promise<FeedItem[]> {
+  const page = await apiRequest<PageDto<PostDto>>(`${slugPath(id)}/pinned-posts`, { auth: true });
+  return page.items.map(toFeedItem);
+}
+
+/** Fixa. A resposta é a lista atual. Já fixada: a posição não muda. */
+export async function pinComunaPost(id: string, postId: string): Promise<FeedItem[]> {
+  const page = await apiRequest<PageDto<PostDto>>(`${slugPath(id)}/pinned-posts/${encodeURIComponent(postId)}`, { method: 'PUT', auth: true });
+  return page.items.map(toFeedItem);
+}
+
+/** Desafixa. Idempotente, sem corpo. */
+export async function unpinComunaPost(id: string, postId: string): Promise<void> {
+  await apiRequest(`${slugPath(id)}/pinned-posts/${encodeURIComponent(postId)}`, { method: 'DELETE', auth: true });
+}
+
+/** Move um pin já existente. 1 é o primeiro. */
+export async function moveComunaPin(id: string, postId: string, position: number): Promise<FeedItem[]> {
+  const page = await apiRequest<PageDto<PostDto>>(`${slugPath(id)}/pinned-posts/${encodeURIComponent(postId)}/position`, {
+    method: 'PUT',
+    body: { position },
+    auth: true,
+  });
+  return page.items.map(toFeedItem);
+}
+
 /**
  * Publicações da comuna, da mais nova para a mais antiga. Comuna privada sem participação:
  * a API responde 403 /errors/comuna-private (a tela explica em vez de mostrar erro genérico).

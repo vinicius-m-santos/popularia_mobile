@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,14 +12,18 @@ import { useToast } from '@/components/toast';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { getComuna, getComunaPosts } from '@/features/comunas/api';
+import { getComuna, getComunaPosts, getPinnedPosts } from '@/features/comunas/api';
 import { ComunaHero } from '@/features/comunas/components/comuna-hero';
 import { MembersList, ServerMembersList } from '@/features/comunas/components/members-list';
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
+import { PinnedPosts } from '@/features/comunas/components/pinned-posts';
 import { RulesList } from '@/features/comunas/components/rules-list';
+import { movePinnedPost, pinnedPostsKey, useComunaPinPending } from '@/features/comunas/pins';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
 import { PostCard } from '@/features/posts/components/post-card';
+import { preparePost } from '@/features/posts/queries';
+import { rememberPost } from '@/features/posts/save';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { useAsyncData } from '@/hooks/use-async-data';
@@ -26,6 +31,8 @@ import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
+import { queryClient } from '@/lib/query/client';
+import { useNav } from '@/lib/routes';
 
 type ComunaTab = 'posts' | 'biblioteca' | 'regras' | 'membros';
 
@@ -51,9 +58,22 @@ export default function ComunaScreen() {
   const localPosts = useLocalFeedItems((p) => p.comunaId === id);
   const postItems = mergeById(localPosts, posts.items);
   const { show: showToast } = useToast();
+  const nav = useNav();
+  const { postsVersion, membershipOf, setOn } = useInteractions();
+  const viewerIsMember = membershipOf(id) ?? comuna.data?.viewerIsMember;
+  const privateOutside = !DEMO_MODE && comuna.data?.visibility === 'private' && !viewerIsMember;
+  const pins = useQuery({
+    queryKey: pinnedPostsKey(id),
+    queryFn: () => getPinnedPosts(id),
+    enabled: !DEMO_MODE && tab === 'posts' && !!comuna.data && !privateOutside,
+    staleTime: 15_000,
+  }, queryClient);
+  const pinPending = useComunaPinPending(id);
+  useEffect(() => {
+    for (const item of pins.data ?? []) rememberPost(item);
+  }, [pins.data]);
 
   // Depois de publicar (na API), recarrega as publicações para mostrar a nova.
-  const { postsVersion, membershipOf, setOn } = useInteractions();
   useEffect(() => {
     if (!DEMO_MODE && comuna.data) setOn('joinedComunas', [id], comuna.data.viewerIsMember ?? false);
   }, [comuna.data, id, setOn]);
@@ -72,7 +92,6 @@ export default function ComunaScreen() {
   // Ao voltar para a tela (por exemplo, da gestão), recarrega a comuna: papel e estado podem ter mudado.
   const focusedOnce = useRef(false);
   const reloadComuna = comuna.reload;
-  const viewerIsMember = membershipOf(id) ?? comuna.data?.viewerIsMember;
   const seenMembership = useRef(viewerIsMember);
   useEffect(() => {
     if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) refresh();
@@ -110,7 +129,6 @@ export default function ComunaScreen() {
   }
 
   const data = comuna.data;
-  const privateOutside = !DEMO_MODE && data.visibility === 'private' && !viewerIsMember;
 
   if (tab === 'biblioteca') return <View style={[styles.root, { paddingTop: insets.top }]}>
     <LibraryPane scope="comuna" comuna={id} canAdd={data.status !== 'archived' && (data.viewerRole === 'founder' || data.viewerRole === 'moderator')}
@@ -136,7 +154,22 @@ export default function ComunaScreen() {
             <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
           ) : tab === 'posts' ? (
             <>
-              {data.pinned ? <PinnedCard title={data.pinned.title} text={data.pinned.text} /> : null}
+              {DEMO_MODE && data.pinned ? <PinnedCard title={data.pinned.title} text={data.pinned.text} /> : null}
+              {!DEMO_MODE ? (
+                <PinnedPosts
+                  items={pins.data ?? []}
+                  status={pins.isError ? 'error' : pins.isPending ? 'loading' : 'success'}
+                  canReorder={data.status !== 'archived' && !!data.viewerPermissions?.canModerateContent}
+                  pending={pinPending}
+                  onRetry={() => { void pins.refetch(); }}
+                  onOpen={(postId) => {
+                    const item = (pins.data ?? []).find((pin) => pin.id === postId);
+                    if (item) preparePost(item);
+                    nav.openPost(postId);
+                  }}
+                  onMove={(postId, position) => { void movePinnedPost(id, postId, position, showToast); }}
+                />
+              ) : null}
               {posts.status === 'loading' ? <StateView kind="loading" message="Carregando publicações" /> : null}
               {posts.status === 'error' ? <PostsError error={posts.error} onRetry={posts.refresh} /> : null}
               {posts.status === 'success' && postItems.length === 0 ? (

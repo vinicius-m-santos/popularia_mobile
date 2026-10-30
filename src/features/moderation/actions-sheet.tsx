@@ -20,6 +20,7 @@ import { describeError } from '@/lib/errors';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { isPinLocked, pinPost, pinStoreVersion, readPinned, subscribePinStore, unpinPost } from '@/features/comunas/pins';
 import { knownPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
 import { openModeration, useNav } from '@/lib/routes';
@@ -122,6 +123,7 @@ function SheetBody(props: BodyProps) {
   const nav = useNav();
   const { isOn, toggle, setOn } = useInteractions();
   useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
+  useSyncExternalStore(subscribePinStore, pinStoreVersion, pinStoreVersion);
   const { submitReport } = useModeration();
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -139,6 +141,18 @@ function SheetBody(props: BodyProps) {
     const muted = isOn('mutedUsers', target.author.id);
     return (
       <View>
+        {target.kind === 'post' && !DEMO_MODE && savedPost?.viewer?.canPin ? (
+          <MenuItem
+            icon="pin"
+            label={readPinned(target.id, savedPost.viewer.pinned) ? 'Desafixar publicação' : 'Fixar publicação'}
+            onPress={() => {
+              if (isPinLocked(target.id)) return;
+              const pinnedNow = readPinned(target.id, savedPost.viewer?.pinned);
+              close();
+              void (pinnedNow ? unpinPost(savedPost, toast.show) : pinPost(savedPost, toast.show));
+            }}
+          />
+        ) : null}
         {target.kind === 'post' ? (
           <MenuItem
             icon="bookmark"

@@ -124,7 +124,7 @@ export type PostDto = {
   comuna: { id: string; slug: string; name: string; status: 'active' | 'archived' } | null;
   commentCount: number;
   /** Dicas para a interface, calculadas no servidor; a decisão que vale é a da API. */
-  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean; saved?: boolean };
+  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean; saved?: boolean; canPin?: boolean; pinned?: boolean };
   mentions?: MentionDto[];
   poll?: {
     id: string;
