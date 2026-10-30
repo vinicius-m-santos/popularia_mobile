@@ -1,14 +1,15 @@
 import { shareDestination } from '@/features/links/share';
 import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
 import { useQuery } from '@tanstack/react-query';
+import type { FlashListRef } from '@shopify/flash-list';
 import { PopulariaList } from '@/components/list/popularia-list';
 import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { accessDenied, contentPolicy, queryClient } from '@/lib/query/client';
 import { mergeById } from '@/lib/pagination';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Badge } from '@/components/badge';
@@ -20,7 +21,6 @@ import { Screen } from '@/components/screen';
 import { StatRow } from '@/components/stat-row';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
-import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
@@ -47,8 +47,15 @@ import { getProfile, getUserPostsPage, toProfile } from './api';
 import { FollowButton } from './components/follow-button';
 import { SocialCounts } from './components/social-counts';
 import { ProfileMediaGrid } from './components/profile-media-grid';
+import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from './profile-tab-swipe';
+import { profileTabOptions, type ProfileTabKey } from './profile-tabs';
 
-type ProfileTab = 'posts' | 'media' | 'episodios' | 'comunas' | 'biblioteca';
+type ProfileRow = { kind: 'identity'; id: string } | { kind: 'tabs'; id: string } | { kind: 'content'; id: string } | { kind: 'post'; id: string; item: FeedItem; index: number } | { kind: 'media'; id: string; items: FeedItem[] };
+
+function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
+  const mediaGesture = useProfileTabPanGesture();
+  return <PostCard {...props} mediaGesture={mediaGesture} />;
+}
 
 /**
  * Perfil pessoal (2i) na aba Perfil e perfil de outras pessoas (2j), inclusive
@@ -166,7 +173,28 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const { profile: account, replaceAvatarUrl } = useAccount();
   const { membershipOf } = useInteractions();
   const localPosts = useLocalFeedItems((p) => isMe && p.authorId === 'me');
-  const [tab, setTab] = useState<ProfileTab>('posts');
+  const [tab, setTab] = useState<ProfileTabKey>('posts');
+  const tabs = useMemo(() => profileTabOptions(Boolean(profile.creator)), [profile.creator]);
+  const tabKeys = useMemo(() => tabs.map((item) => item.key), [tabs]);
+  const scrollY = useRef(0);
+  const offsets = useRef<Partial<Record<ProfileTabKey, number>>>({});
+  const listRef = useRef<FlashListRef<ProfileRow>>(null);
+  const selectTab = useCallback((next: ProfileTabKey) => {
+    const current = tabs.some((item) => item.key === tab) ? tab : 'posts';
+    if (next === current) return;
+    offsets.current[current] = scrollY.current;
+    setTab(next);
+  }, [tab, tabs]);
+  const onListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollY.current = event.nativeEvent.contentOffset.y;
+  }, []);
+  const pageKey = tabs.some((item) => item.key === tab) ? tab : 'posts';
+  useLayoutEffect(() => {
+    if (pageKey === 'biblioteca') return;
+    const y = offsets.current[pageKey] ?? 0;
+    scrollY.current = y;
+    listRef.current?.scrollToOffset({ offset: y, animated: false });
+  }, [pageKey]);
 
   // No próprio perfil, nome, @, bio, cidade e comunas vêm do cadastro e do estado local.
   const user = isMe ? me : profile.user;
@@ -185,25 +213,11 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     [isMe, membershipOf, profile.comunaIds, allComunas],
   );
 
-  const tabs: TabOption<ProfileTab>[] = [
-    { key: 'posts', label: 'Publicações' },
-    { key: 'media', label: 'Mídia' },
-    ...(profile.creator ? [{ key: 'episodios' as const, label: 'Episódios' }] : []),
-    { key: 'comunas', label: 'Comunas' },
-    { key: 'biblioteca', label: 'Biblioteca pessoal' },
-  ];
-
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
 
-  if (tab === 'biblioteca') return <Screen>{header(user.handle, undefined, () => setTab('posts'))}
-    <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
-      header={<UnderlineTabs options={tabs} value={tab} onChange={setTab} />} />
-  </Screen>;
-
-  type Row = { kind: 'identity'; id: string } | { kind: 'tabs'; id: string } | { kind: 'content'; id: string } | { kind: 'post'; id: string; item: FeedItem; index: number } | { kind: 'media'; id: string; items: FeedItem[] };
-  const rows: Row[] = [{ kind: 'identity', id: 'identity' }, { kind: 'tabs', id: 'tabs' }, { kind: 'content', id: 'content' }];
-  if (tab === 'posts') postItems.forEach((item, index) => rows.push({ kind: 'post', id: item.id, item, index }));
-  if (tab === 'media') {
+  const rows: ProfileRow[] = [{ kind: 'identity', id: 'identity' }, { kind: 'tabs', id: 'tabs' }, { kind: 'content', id: 'content' }];
+  if (pageKey === 'posts') postItems.forEach((item, index) => rows.push({ kind: 'post', id: item.id, item, index }));
+  if (pageKey === 'media') {
     const media = postItems.filter((item) => item.attachment);
     for (let index = 0; index < media.length; index += 3) rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3) });
   }
@@ -272,18 +286,20 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
               </View>
             )}
 
-            {isMe && comunas.length > 0 ? <ComunasShortcut count={comunas.length} onPress={() => setTab('comunas')} /> : null}
+            {isMe && comunas.length > 0 ? <ComunasShortcut count={comunas.length} onPress={() => selectTab('comunas')} /> : null}
 
             {profile.creator ? <CollectiveSupport creatorName={profile.creator.mastheadTitle} /> : null}
           </View>
         </View>);
-  const tabBar = (<View style={styles.tabs}>
-          <View style={styles.column}>
-            <UnderlineTabs options={tabs} value={tab} onChange={setTab} height={46} />
-          </View>
-        </View>);
+  const tabBar = (
+    <View style={styles.tabs}>
+      <View style={styles.column}>
+        <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={46} />
+      </View>
+    </View>
+  );
   const content = (<View style={styles.column}>
-          {tab === 'posts' ? (
+          {pageKey === 'posts' ? (
             <>
               {isMe ? <ComposerPrompt placeholder="O que você quer compartilhar?" /> : null}
               {posts.status === 'loading' && postItems.length === 0 ? (
@@ -301,7 +317,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
             </>
           ) : null}
 
-          {tab === 'episodios' && profile.creator ? (
+          {pageKey === 'episodios' && profile.creator ? (
             <View style={styles.listPad}>
               {profile.creator.episodes.map((e) => (
                 <View key={e.number} style={styles.episode}>
@@ -327,7 +343,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
             </View>
           ) : null}
 
-          {tab === 'comunas' ? (
+          {pageKey === 'comunas' ? (
             <>
               <View style={styles.listPad}>
               {comunasState.status === 'loading' && !comunasState.data ? <StateView kind="loading" message="Carregando comunas" /> : null}
@@ -360,32 +376,49 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
             </>
           ) : null}
         </View>);
+  const page = pageKey === 'biblioteca' ? (
+    <ProfileSwipeContent>
+      <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
+        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} />} />
+    </ProfileSwipeContent>
+  ) : (
+    <PopulariaList<ProfileRow>
+      ref={listRef}
+      data={rows}
+      extraData={visibility.visibleIds}
+      onViewableItemsChanged={visibility.onViewableItemsChanged}
+      viewabilityConfig={mediaViewabilityConfig}
+      keyExtractor={(row) => row.id}
+      getItemType={(row) => row.kind === 'post' ? (row.item.poll ? 'post-poll' : 'post') : row.kind}
+      stickyHeaderIndices={[1]}
+      refreshing={refreshing} onRefresh={onRefresh}
+      onScroll={onListScroll}
+      scrollEventThrottle={16}
+      contentContainerStyle={styles.scroll}
+      onEndReached={pageKey === 'posts' && !posts.loadMoreError ? posts.loadMore : undefined}
+      renderItem={({ item }) => {
+        const node = item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
+          ? <View style={styles.column}><SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={item.index > 0} showMuted /></View>
+          : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} /></View>;
+        if (item.kind === 'identity' || item.kind === 'tabs') return node;
+        return <ProfileSwipeContent>{node}</ProfileSwipeContent>;
+      }}
+      ListFooterComponent={pageKey === 'posts' || pageKey === 'media' ? <ProfileSwipeContent><View style={styles.column}>
+        {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
+        {pageKey === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
+        {pageKey === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
+        {pageKey === 'media' && rows.length === 3 && posts.status === 'success' ? <AppText style={styles.emptyText} color={Colors.muted}>{posts.hasMore ? 'Nenhuma mídia nesta página. Carregue mais publicações para continuar.' : 'Nenhuma imagem ou vídeo publicado ainda.'}</AppText> : null}
+        {posts.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
+          : posts.hasMore ? <PillButton label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'} variant="outline" disabled={posts.loadingMore} onPress={posts.loadMore} /> : null}
+      </View></ProfileSwipeContent> : undefined}
+    />
+  );
   return (
     <Screen>
-      {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)))}
-      <PopulariaList<Row>
-        data={rows}
-        extraData={visibility.visibleIds}
-        onViewableItemsChanged={visibility.onViewableItemsChanged}
-        viewabilityConfig={mediaViewabilityConfig}
-        keyExtractor={(row) => row.id}
-        getItemType={(row) => row.kind === 'post' ? (row.item.poll ? 'post-poll' : 'post') : row.kind}
-        stickyHeaderIndices={[1]}
-        refreshing={refreshing} onRefresh={onRefresh}
-        contentContainerStyle={styles.scroll}
-        onEndReached={tab === 'posts' && !posts.loadMoreError ? posts.loadMore : undefined}
-        renderItem={({ item }) => item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
-          ? <View style={styles.column}><PostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={item.index > 0} showMuted /></View>
-          : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} /></View>}
-        ListFooterComponent={tab === 'posts' || tab === 'media' ? <View style={styles.column}>
-          {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
-          {tab === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
-          {tab === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
-          {tab === 'media' && rows.length === 3 && posts.status === 'success' ? <AppText style={styles.emptyText} color={Colors.muted}>{posts.hasMore ? 'Nenhuma mídia nesta página. Carregue mais publicações para continuar.' : 'Nenhuma imagem ou vídeo publicado ainda.'}</AppText> : null}
-          {posts.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
-            : posts.hasMore ? <PillButton label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'} variant="outline" disabled={posts.loadingMore} onPress={posts.loadMore} /> : null}
-        </View> : undefined}
-      />
+      {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)), pageKey === 'biblioteca' ? () => setTab('posts') : undefined)}
+      <ProfileTabSwipe tabs={tabKeys} active={pageKey} onChange={selectTab}>
+        {page}
+      </ProfileTabSwipe>
     </Screen>
   );
 }

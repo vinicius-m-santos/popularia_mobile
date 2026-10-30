@@ -3,8 +3,9 @@ import { Icon } from '@/components/icon';
 import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import type { VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { GestureDetector, useNativeGesture, type PanGesture } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Spacing } from '@/constants/theme';
@@ -16,14 +17,14 @@ function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
 }
 
-export function PostAttachment({ media, localUri, visible = true }: { media: PostMediaDto; localUri?: string; visible?: boolean }) {
+export function PostAttachment({ media, localUri, visible = true, blockGesture }: { media: PostMediaDto; localUri?: string; visible?: boolean; blockGesture?: PanGesture | null }) {
   const [requestedUri, setRequestedUri] = useState<string | null>(null);
   const uri = localUri ?? media.url;
   useFocusEffect(useCallback(() => () => setRequestedUri(null), []));
   // A intenção vale só para esta mídia enquanto permanece visível.
   if (requestedUri && (!visible || requestedUri !== uri)) setRequestedUri(null);
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
-  if (media.type === 'video') return visible && requestedUri === uri ? <PostVideo key={uri} media={media} uri={uri} /> : (
+  if (media.type === 'video') return visible && requestedUri === uri ? <PostVideo key={uri} media={media} uri={uri} blockGesture={blockGesture} /> : (
     <Pressable onPress={() => setRequestedUri(uri)} accessibilityRole="button" accessibilityLabel={`Reproduzir vídeo, ${durationLabel(media.durationMs)}`} style={[styles.videoFrame, styles.preview, { aspectRatio: mediaRatio(media) }]}>
       <Icon name="play" size={40} color={Colors.paper} />
       <View style={styles.duration}><AppText variant="label" color={Colors.paper}>{durationLabel(media.durationMs)}</AppText></View>
@@ -41,7 +42,7 @@ function PostImage({ media, uri }: { media: PostMediaDto; uri: string }) {
   </View>;
 }
 
-function PostVideo({ media, uri }: { media: PostMediaDto; uri: string }) {
+function PostVideo({ media, uri, blockGesture }: { media: PostMediaDto; uri: string; blockGesture?: PanGesture | null }) {
   let videoModule: typeof import('expo-video');
   try {
     // Evita derrubar a inicialização em development builds feitos antes da inclusão do módulo nativo.
@@ -50,10 +51,10 @@ function PostVideo({ media, uri }: { media: PostMediaDto; uri: string }) {
   } catch {
     return <View style={styles.error}><AppText variant="caption">Atualize o app para reproduzir este vídeo.</AppText></View>;
   }
-  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} />;
+  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} blockGesture={blockGesture} />;
 }
 
-function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video') }) {
+function LoadedPostVideo({ media, uri, videoModule, blockGesture }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); blockGesture?: PanGesture | null }) {
   const useVideoPlayer = videoModule.useVideoPlayer;
   const VideoView = videoModule.VideoView;
   const player = useVideoPlayer({ uri, useCaching: false }, (instance) => { instance.play(); });
@@ -66,12 +67,18 @@ function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri
   useEffect(() => () => {
     if (activePlayer === player) activePlayer = null;
   }, [player]);
+  const video = <VideoView player={player} nativeControls contentFit="contain" style={StyleSheet.absoluteFill} accessibilityLabel={`Vídeo da publicação, ${durationLabel(media.durationMs)}`} />;
   return <View style={[styles.videoFrame, { aspectRatio: mediaRatio(media) }]}>
-    <VideoView player={player} nativeControls contentFit="contain" style={StyleSheet.absoluteFill} accessibilityLabel={`Vídeo da publicação, ${durationLabel(media.durationMs)}`} />
+    {blockGesture ? <NativeMediaGesture blockGesture={blockGesture}>{video}</NativeMediaGesture> : video}
     {status === 'loading' ? <ActivityIndicator color={Colors.red} style={styles.center} /> : null}
     {status === 'error' ? <View style={[styles.center, styles.error]}><AppText variant="caption">Não foi possível carregar o vídeo.</AppText></View> : null}
     <View style={styles.duration}><AppText variant="label" color={Colors.paper}>{durationLabel(media.durationMs)}</AppText></View>
   </View>;
+}
+
+function NativeMediaGesture({ blockGesture, children }: { blockGesture: PanGesture; children: ReactElement }) {
+  const gesture = useNativeGesture({ block: blockGesture });
+  return <GestureDetector gesture={gesture}>{children}</GestureDetector>;
 }
 
 const styles = StyleSheet.create({

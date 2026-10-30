@@ -1,3 +1,4 @@
+import { GestureDetector, type NativeGesture } from 'react-native-gesture-handler';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -12,6 +13,8 @@ type UnderlineTabsProps<K extends string> = {
   height?: number;
   /** Linhas pretas em cima e embaixo (página da comuna). */
   ruled?: boolean;
+  /** Scroll horizontal das abas. Quando presente, não deixa um pan externo trocar de página. */
+  gesture?: NativeGesture | null;
 };
 
 /** Abas de texto com sublinhado vermelho na ativa ("Para você", "Regras"…). */
@@ -21,32 +24,36 @@ export function UnderlineTabs<K extends string>({
   onChange,
   height = 38,
   ruled = false,
+  gesture,
 }: UnderlineTabsProps<K>) {
+  const scroller = (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.row}
+      role="tablist">
+      {options.map((opt) => {
+        const active = opt.key === value;
+        return (
+          <Pressable
+            key={opt.key}
+            onPress={() => onChange(opt.key)}
+            role="tab"
+            accessibilityState={{ selected: active }}
+            hitSlop={{ top: 4, bottom: 4 }}
+            style={[styles.tab, { minHeight: Math.max(height, 44) }]}>
+            <AppText style={styles.label} color={active ? Colors.ink : Colors.muted}>
+              {opt.label}
+            </AppText>
+            <View style={[styles.underline, active && styles.underlineActive]} />
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
   return (
     <View style={[styles.bar, ruled && styles.ruled]}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}
-        role="tablist">
-        {options.map((opt) => {
-          const active = opt.key === value;
-          return (
-            <Pressable
-              key={opt.key}
-              onPress={() => onChange(opt.key)}
-              role="tab"
-              accessibilityState={{ selected: active }}
-              hitSlop={{ top: 4, bottom: 4 }}
-              style={[styles.tab, { minHeight: Math.max(height, 44) }]}>
-              <AppText style={styles.label} color={active ? Colors.ink : Colors.muted}>
-                {opt.label}
-              </AppText>
-              <View style={[styles.underline, active && styles.underlineActive]} />
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {gesture ? <GestureDetector gesture={gesture}>{scroller}</GestureDetector> : scroller}
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { preparePost } from '@/features/posts/queries';
 import { Pressable, StyleSheet, View } from 'react-native';
+import type { PanGesture } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
@@ -35,10 +36,12 @@ type PostCardProps = {
   showComuna?: boolean;
   /** No perfil de quem foi silenciado, as publicações continuam visíveis. */
   showMuted?: boolean;
+  /** Gesto externo que deve ceder aos controles nativos do vídeo. */
+  mediaGesture?: PanGesture | null;
 };
 
 /** Publicação no feed e na página da comuna (design 1a/1b). */
-export const PostCard = memo(function PostCard({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true }: PostCardProps) {
+export const PostCard = memo(function PostCard({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true, mediaGesture }: PostCardProps) {
   const { author, comuna, event, media, images, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();
@@ -86,7 +89,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         {images && images.length > 0 ? <PostImages images={images} /> : null}
       </Pressable>
 
-      {item.attachment ? <PostAttachment key={item.attachment.id} media={item.attachment} visible={mediaVisible} /> : null}
+      {item.attachment ? <PostAttachment key={item.attachment.id} media={item.attachment} visible={mediaVisible} blockGesture={mediaGesture} /> : null}
 
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
