@@ -3,21 +3,9 @@ import { Linking, Text, type GestureResponderEvent, type TextStyle } from 'react
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts } from '@/constants/theme';
-import { codePointRangeToUtf16 } from '@/features/mentions/text';
+import { tokenizePostText } from '@/features/hashtags/text';
 import { useNav } from '@/lib/routes';
 import type { ContentMention } from '@/types/models';
-
-const URL = /\b(?:https?:\/\/|www\.)[^\s<>]+/gi;
-const TRAILING = /[),.!?:;]+$/;
-
-type Mark = {
-  start: number;
-  end: number;
-  label: string;
-  mention?: ContentMention;
-  href?: string;
-  trailing?: string;
-};
 
 export function PostBody({
   text,
@@ -25,40 +13,22 @@ export function PostBody({
   style,
   numberOfLines,
   onMentionPress,
+  hashtagsEnabled = true,
 }: {
   text: string;
   mentions?: ContentMention[];
   style?: TextStyle;
   numberOfLines?: number;
   onMentionPress?: (userId: string) => void;
+  hashtagsEnabled?: boolean;
 }) {
   const nav = useNav();
   const openMention = (userId: string) => (onMentionPress ? onMentionPress(userId) : nav.openProfile(userId));
-  return <AppText style={style} numberOfLines={numberOfLines}>{renderPieces(text, mentions, openMention)}</AppText>;
+  return <AppText style={style} numberOfLines={numberOfLines}>{renderPieces(text, mentions, openMention, nav.openHashtag, hashtagsEnabled)}</AppText>;
 }
 
-function renderPieces(text: string, mentions: ContentMention[], openMention: (userId: string) => void): ReactNode[] {
-  const marks: Mark[] = [];
-  for (const mention of mentions) {
-    const range = codePointRangeToUtf16(text, mention.start, mention.end);
-    if (!range) continue;
-    const label = text.slice(range.start, range.end);
-    if (!label.startsWith('@')) continue;
-    if (marks.some((mark) => range.start < mark.end && range.end > mark.start)) continue;
-    marks.push({ start: range.start, end: range.end, label, mention });
-  }
-  for (const match of text.matchAll(new RegExp(URL.source, 'gi'))) {
-    const index = match.index ?? 0;
-    let label = match[0];
-    const trailing = label.match(TRAILING)?.[0] ?? '';
-    if (trailing) label = label.slice(0, -trailing.length);
-    const end = index + match[0].length;
-    if (marks.some((mark) => index < mark.end && end > mark.start)) continue;
-    const href = label.startsWith('www.') ? `https://${label}` : label;
-    marks.push({ start: index, end, label, href, trailing });
-  }
-  marks.sort((left, right) => left.start - right.start);
-
+function renderPieces(text: string, mentions: ContentMention[], openMention: (userId: string) => void, openHashtag: (slug: string) => void, hashtagsEnabled: boolean): ReactNode[] {
+  const marks = tokenizePostText(text, mentions, hashtagsEnabled);
   const children: ReactNode[] = [];
   let cursor = 0;
   for (const mark of marks) {
@@ -81,6 +51,11 @@ function renderPieces(text: string, mentions: ContentMention[], openMention: (us
           {mark.label}
         </Text>,
       );
+    } else if (mark.hashtag) {
+      children.push(<AppText key={`hashtag-${mark.start}`} accessibilityRole="link" accessibilityLabel={`Abrir tópico ${mark.label.slice(1)}`} style={linkStyle} onPress={(event: GestureResponderEvent) => {
+        event.stopPropagation();
+        openHashtag(mark.hashtag!);
+      }}>{mark.label}</AppText>);
     } else {
       children.push(
         <AppText
@@ -94,7 +69,6 @@ function renderPieces(text: string, mentions: ContentMention[], openMention: (us
           {mark.label}
         </AppText>,
       );
-      if (mark.trailing) children.push(mark.trailing);
     }
     cursor = mark.end;
   }

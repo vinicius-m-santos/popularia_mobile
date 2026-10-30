@@ -35,4 +35,32 @@ describe('links no corpo da publicação', () => {
     fireEvent.press(screen.getByRole('link'));
     expect(Linking.openURL).toHaveBeenCalledWith('https://www.popularia.com.br');
   });
+
+  it('abre hashtag Unicode no destino de tópico e conserva URL com fragmento', async () => {
+    const { router } = jest.requireMock<typeof import('expo-router')>('expo-router');
+    await render(<PostBody text={'Veja https://example.com/#tecnologia\n#SãoPaulo e (#política).'} />);
+    const links = screen.getAllByRole('link');
+    expect(links).toHaveLength(3);
+    await fireEvent.press(screen.getByRole('link', { name: 'Abrir tópico SãoPaulo' }));
+    expect(router.push as jest.Mock).toHaveBeenCalledWith('/topico/saopaulo');
+    await fireEvent.press(screen.getByRole('link', { name: 'Abrir tópico política' }));
+    expect(router.push as jest.Mock).toHaveBeenCalledWith('/topico/politica');
+    await fireEvent.press(links[0]);
+    expect(Linking.openURL).toHaveBeenCalledWith('https://example.com/#tecnologia');
+  });
+
+  it('mantém menção e hashtag como tokens distintos depois de emoji', async () => {
+    const onMentionPress = jest.fn();
+    await render(<PostBody text="😀 @ana falou de #trabalho" mentions={[{
+      userId: 'user-ana', handle: 'ana', displayName: 'Ana', avatarUrl: null, start: 2, end: 6,
+    }]} onMentionPress={onMentionPress} />);
+    expect(screen.getAllByRole('link')).toHaveLength(2);
+    await fireEvent.press(screen.getByRole('link', { name: 'Menção a Ana, @ana' }));
+    expect(onMentionPress).toHaveBeenCalledWith('user-ana');
+  });
+
+  it('não transforma hashtag de comentário em tópico', async () => {
+    await render(<PostBody text="Comentário com #trabalho" hashtagsEnabled={false} />);
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+  });
 });

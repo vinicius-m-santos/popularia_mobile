@@ -6,11 +6,13 @@
  */
 import { API_BASE_URL } from '@/constants/config';
 import { absoluteMediaUrl } from '@/features/media/media-url';
+import { tokenizePostText } from '@/features/hashtags/text';
 import { apiRequest } from '@/lib/api/client';
 import type { AuthorDto, MentionDto, PageDto, PostDto, SavedPostDto } from '@/lib/api/dto';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 import type { Page } from '@/lib/pagination';
+import { queryClient } from '@/lib/query/client';
 import type { ContentMention, FeedItem, Tone, TopicId, User } from '@/types/models';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
@@ -97,7 +99,13 @@ export async function createPost(input: { comunaServerId: string | null; text: s
     body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), ...(mentions ? { mentions } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
     auth: true,
   });
-  return toFeedItem(post);
+  const item = toFeedItem(post);
+  const slugs = new Set(tokenizePostText(item.text, item.mentions).flatMap((mark) => mark.hashtag ? [mark.hashtag] : []));
+  for (const slug of slugs) {
+    void queryClient.invalidateQueries({ queryKey: ['topic-posts', slug] });
+    void queryClient.invalidateQueries({ queryKey: ['topic', slug] });
+  }
+  return item;
 }
 
 /** PUT ou DELETE /posts/{id}/save. As duas respostas são vazias e podem repetir sem efeito. */

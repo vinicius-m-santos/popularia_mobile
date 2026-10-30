@@ -75,7 +75,7 @@ export const CommentRow = memo(function CommentRow({
             {time}
           </AppText>
         </View>
-        <PostBody text={comment.text} mentions={comment.mentions} style={styles.text} />
+        <PostBody text={comment.text} mentions={comment.mentions} hashtagsEnabled={false} style={styles.text} />
         <View style={styles.actions}>
           <Pressable
             onPress={() => onSupport(comment.id)}

@@ -169,6 +169,7 @@ function RootStack() {
         <Stack.Screen name="avisos" />
         <Stack.Screen name="biblioteca" />
         <Stack.Screen name="praca/[id]" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="topico/[slug]" />
         <Stack.Screen name="praca/figurinhas/[id]" />
         <Stack.Screen name="criar" />
         <Stack.Screen name="interesses" />

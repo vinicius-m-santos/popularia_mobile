@@ -20,6 +20,10 @@ export function hrefPost(base: TabBase, id: string): Href {
   return `${base}/post/${encodeURIComponent(id)}` as Href;
 }
 
+export function hrefHashtag(slug: string): Href {
+  return `/topico/${encodeURIComponent(slug)}` as Href;
+}
+
 /** Aba inicial da página da comuna. */
 export type ComunaTab = 'posts' | 'regras' | 'membros';
 
@@ -46,6 +50,7 @@ export function useNav() {
   return useMemo(
     () => ({
       openPost: (id: string) => router.push(hrefPost(base, id)),
+      openHashtag: (slug: string) => router.push(hrefHashtag(slug)),
       openComuna: (id: string, tab?: ComunaTab) => router.push(hrefComuna(base, id, tab)),
       openProfile: (id: string) =>
         id === 'me' ? router.navigate('/perfil') : router.push(hrefProfile(base, id)),

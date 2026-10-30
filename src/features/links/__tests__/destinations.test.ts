@@ -11,9 +11,9 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useSegments: () =
 const id = '019abcde-0000-7000-8000-000000000001';
 beforeEach(() => { takeIncomingDestination(); });
 describe('destinos e URLs canônicas', () => {
-  it.each([['post', 'p', id], ['profile', 'u', id], ['comuna', 'c', 'tarifa-zero'], ['document', 'd', id], ['event', 'e', id]] as const)('%s gera HTTPS e retorna ao mesmo destino', (kind, path, value) => {
+  it.each([['post', 'p', id], ['profile', 'u', id], ['comuna', 'c', 'tarifa-zero'], ['document', 'd', id], ['event', 'e', id], ['hashtag', 't', 'saopaulo'], ['hashtag', 't', '東京'], ['hashtag', 't', 'किताब']] as const)('%s gera HTTPS e retorna ao mesmo destino', (kind, path, value) => {
     const target = { kind, id: value };
-    expect(canonicalUrl(target)).toBe(`${PUBLIC_LINK_ORIGIN}/${path}/${value}`);
+    expect(canonicalUrl(target)).toBe(`${PUBLIC_LINK_ORIGIN}/${path}/${encodeURIComponent(value)}`);
     expect(parsePopulariaUrl(canonicalUrl(target))).toEqual(target);
     expect(parsePopulariaUrl(`populariamobile://${path}/${value}`)).toEqual(target);
   });
