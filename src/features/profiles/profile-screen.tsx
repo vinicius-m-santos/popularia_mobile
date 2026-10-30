@@ -45,7 +45,6 @@ import { LibraryPane } from '@/features/library/library-screen';
 import { ProfilePhoto } from './profile-photo';
 import { getProfile, getUserPostsPage, toProfile } from './api';
 import { FollowButton } from './components/follow-button';
-import { SocialCounts } from './components/social-counts';
 import { ProfileMediaGrid } from './components/profile-media-grid';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from './profile-tab-swipe';
 import { profileTabOptions, type ProfileTabKey } from './profile-tabs';
@@ -203,7 +202,12 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     ? [account.city.trim(), ...profile.meta.split(' · ').filter((part) => part.trim() && part.trim().toLowerCase() !== account.city.trim().toLowerCase())].filter(Boolean)
     : profile.meta.split(' · ').filter(Boolean);
   const postItems = useMemo(() => mergeById(localPosts, posts.items), [localPosts, posts.items]);
-  const stats = [{ value: `${postItems.length}${posts.hasMore ? '+' : ''}`, label: 'Publicações' }, ...profile.stats.filter((stat) => !['publicações', 'seguidores', 'seguindo'].includes(stat.label.toLowerCase()))];
+  const stats = [
+    { value: `${postItems.length}${posts.hasMore ? '+' : ''}`, label: 'Publicações' },
+    { value: formatPeople(profile.followerCount ?? 0), label: profile.followerCount === 1 ? 'Seguidor' : 'Seguidores', onPress: () => nav.openRelations('seguidores', isMe ? me.id : profile.user.id), accessibilityHint: 'Abre a lista de seguidores' },
+    { value: formatPeople(profile.followingCount ?? 0), label: 'Seguindo', onPress: () => nav.openRelations('seguindo', isMe ? me.id : profile.user.id), accessibilityHint: 'Abre a lista de quem este perfil segue' },
+    ...profile.stats.filter((stat) => !['publicações', 'seguidores', 'seguindo'].includes(stat.label.toLowerCase())),
+  ];
   // Própria conta: participação local ou, na API, a informada pelo servidor com cada comuna.
   const comunas = useMemo(
     () =>
@@ -261,12 +265,6 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                 </View>
               ))}
             </View>
-            <SocialCounts
-              followers={profile.followerCount ?? 0}
-              following={profile.followingCount ?? 0}
-              onFollowers={() => nav.openRelations('seguidores', isMe ? me.id : profile.user.id)}
-              onFollowing={() => nav.openRelations('seguindo', isMe ? me.id : profile.user.id)}
-            />
             <StatRow stats={stats} />
 
             {isMe ? <View style={styles.actions}>

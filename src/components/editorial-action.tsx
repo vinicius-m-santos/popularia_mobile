@@ -8,7 +8,8 @@ type EditorialActionProps = {
   label: string;
   icon: IconName;
   onPress: () => void;
-  tone?: 'paper' | 'red';
+  /** 'ghost': ação neutra como "Cancelar" — sem borda nem preenchimento, menor peso visual. */
+  tone?: 'paper' | 'red' | 'ghost';
   disabled?: boolean;
   accessibilityLabel?: string;
   iconPosition?: 'leading' | 'trailing';
@@ -19,7 +20,7 @@ type EditorialActionProps = {
 
 /** Ação editorial padrão: retangular, com ícone de 22 px e rótulo mono. */
 export function EditorialAction({ label, icon, onPress, tone = 'paper', disabled = false, accessibilityLabel, iconPosition = 'leading', pinnedLeadingIcon = false, style }: EditorialActionProps) {
-  const foreground = tone === 'red' ? Colors.paper : Colors.ink;
+  const foreground = tone === 'red' ? Colors.paper : tone === 'ghost' ? Colors.inkSoft : Colors.ink;
   const iconNode = <Icon name={icon} size={22} color={foreground} />;
   const pinLeadingIcon = pinnedLeadingIcon && iconPosition === 'leading';
   return <Pressable
@@ -28,7 +29,7 @@ export function EditorialAction({ label, icon, onPress, tone = 'paper', disabled
     accessibilityState={{ disabled }}
     disabled={disabled}
     onPress={onPress}
-    style={({ pressed }) => [styles.base, tone === 'red' && styles.red, style, (pressed || disabled) && styles.pressed]}>
+    style={({ pressed }) => [styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, (pressed || disabled) && styles.pressed]}>
     {pinLeadingIcon ? <View style={styles.pinnedLeadingIcon}>{iconNode}</View> : null}
     {iconPosition === 'leading' && !pinLeadingIcon ? iconNode : null}
     <AppText variant="label" color={foreground} numberOfLines={1}>{label}</AppText>
@@ -50,6 +51,10 @@ const styles = StyleSheet.create({
   },
   red: {
     backgroundColor: Colors.red,
+  },
+  ghost: {
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
   pinnedLeadingIcon: {
     position: 'absolute',

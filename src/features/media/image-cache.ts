@@ -69,3 +69,14 @@ export function publishCover(comuna: { id: string; serverId?: string }, coverUrl
     return { ...record, coverUrl };
   });
 }
+
+/** Atualiza a marca (imagem de perfil) nas comunas já presentes no cache, pelo slug e pelo UUID. */
+export function publishMark(comuna: { id: string; serverId?: string }, markUrl: string): void {
+  queryClient.setQueryData(['comuna-mark', comuna.id], markUrl);
+  patchQueries((record) => {
+    if (!isComuna(record) || record.markUrl === markUrl) return null;
+    const same = record.id === comuna.id || (comuna.serverId !== undefined && record.serverId === comuna.serverId);
+    if (!same) return null;
+    return { ...record, markUrl };
+  });
+}

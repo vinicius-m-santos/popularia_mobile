@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -11,11 +12,13 @@ type ComunaMarkProps = {
   size?: number;
   /** Selo inclinado com contorno e sombra, como nas capas dos cartões. */
   raised?: boolean;
+  /** Marca enviada pela comuna. Ausente, mostra as iniciais. */
+  imageUrl?: string | null;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Marca quadrada da comuna com as iniciais. Decorativa: o nome fica no texto ao lado. */
-export function ComunaMark({ initials, tone, size = 44, raised = false, style }: ComunaMarkProps) {
+/** Marca quadrada da comuna, com imagem enviada ou iniciais. Decorativa: o nome fica no texto ao lado. */
+export function ComunaMark({ initials, tone, size = 44, raised = false, imageUrl = null, style }: ComunaMarkProps) {
   const { bg, fg } = TONE_COLORS[tone];
   return (
     <View
@@ -34,6 +37,7 @@ export function ComunaMark({ initials, tone, size = 44, raised = false, style }:
         maxFontSizeMultiplier={1}>
         {initials}
       </AppText>
+      {imageUrl ? <Image source={{ uri: imageUrl }} contentFit="cover" cachePolicy="memory-disk" recyclingKey={imageUrl} style={StyleSheet.absoluteFill} /> : null}
     </View>
   );
 }

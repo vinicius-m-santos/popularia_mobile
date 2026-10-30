@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.two + 2,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     borderWidth: 1.5,
     borderColor: Colors.ink,
     backgroundColor: Colors.paper,

@@ -32,7 +32,7 @@ export function RecommendationCard({ comuna, topics, interests }: Recommendation
         <AppText style={styles.coverLabel} accessible={false}>
           capa: {comuna.coverAlt}
         </AppText>
-        <ComunaMark initials={comuna.initials} tone={comuna.tone} size={54} raised style={styles.wideMark} />
+        <ComunaMark initials={comuna.initials} tone={comuna.tone} size={54} raised imageUrl={comuna.markUrl} style={styles.wideMark} />
       </View>
       <View style={styles.wideBody}>
         <View style={styles.titleRow}>
@@ -83,7 +83,7 @@ export function CompactComunaCard({ comuna, onOpen }: CompactCardProps) {
         style={({ pressed }) => [styles.compactOpen, pressed && styles.pressed]}>
         <View style={styles.compactCover}>
           <StripedPlaceholder label={comuna.coverAlt} prefix="capa" showLabel={false} style={styles.coverFill} />
-          <ComunaMark initials={comuna.initials} tone={comuna.tone} size={44} raised style={styles.compactMark} />
+          <ComunaMark initials={comuna.initials} tone={comuna.tone} size={44} raised imageUrl={comuna.markUrl} style={styles.compactMark} />
         </View>
         <View style={styles.compactBody}>
           <AppText style={styles.compactName} numberOfLines={2}>

@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   },
   cta: {
     height: 54,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.red,
     flexDirection: 'row',
     alignItems: 'center',

@@ -13,7 +13,7 @@ import { pickProfileImage, type PickedImage } from './pick-image';
 type ImageChangeSheetProps = {
   visible: boolean;
   title: string;
-  kind: 'avatar' | 'cover';
+  kind: 'avatar' | 'cover' | 'mark';
   busy: boolean;
   onClose: () => void;
   onConfirm: (image: PickedImage) => void;
@@ -32,7 +32,7 @@ export function ImageChangeSheet({ visible, title, kind, busy, onClose, onConfir
     try {
       const image = await pickProfileImage(kind);
       if (!image) return;
-      if (kind === 'avatar') {
+      if (kind === 'avatar' || kind === 'mark') {
         setDraft(null);
         onConfirm(image);
         return;
@@ -51,7 +51,7 @@ export function ImageChangeSheet({ visible, title, kind, busy, onClose, onConfir
     </View> : null}
     {draft ? <EditorialAction label="Usar esta capa" icon="image" tone="red" disabled={busy} onPress={() => { const image = draft; setDraft(null); onConfirm(image); }} /> : null}
     <EditorialAction label={draft ? 'Escolher outra' : 'Escolher da galeria'} icon="image" disabled={busy} onPress={() => { void choose(); }} />
-    <EditorialAction label="Cancelar" icon="close" disabled={busy} onPress={close} />
+    <EditorialAction label="Cancelar" icon="close" tone="ghost" disabled={busy} onPress={close} />
   </BottomSheet>;
 }
 

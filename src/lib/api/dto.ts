@@ -54,6 +54,7 @@ export type ComunaDto = {
   memberCount: number;
   moderationNote: string;
   coverUrl?: string | null;
+  markUrl?: string | null;
   rules: { title: string; body: string }[];
   /** Null em comunas da equipe da plataforma. */
   owner: AuthorDto | null;

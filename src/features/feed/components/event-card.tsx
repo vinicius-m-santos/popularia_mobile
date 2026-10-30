@@ -1,21 +1,23 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Icon } from '@/components/icon';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useEventAttendance } from '@/features/interactions/use-post-actions';
 import { eventDateParts, formatCount } from '@/lib/format';
 import { useNav } from '@/lib/routes';
 import type { CommunityEvent, Tone } from '@/types/models';
 
-const CARD_COLORS: Record<Tone, { bg: string; fg: string; btnBg: string; btnFg: string }> = {
-  red: { bg: Colors.red, fg: Colors.paper, btnBg: Colors.paper, btnFg: Colors.ink },
-  black: { bg: Colors.ink, fg: Colors.cream, btnBg: Colors.red, btnFg: Colors.paper },
-  cream: { bg: Colors.straw, fg: Colors.ink, btnBg: Colors.ink, btnFg: Colors.cream },
+const CARD_COLORS: Record<Tone, { bg: string; fg: string; accent: string; btnBg: string; btnFg: string }> = {
+  red: { bg: Colors.red, fg: Colors.paper, accent: Colors.redPressed, btnBg: Colors.paper, btnFg: Colors.ink },
+  black: { bg: Colors.ink, fg: Colors.cream, accent: Colors.red, btnBg: Colors.red, btnFg: Colors.paper },
+  cream: { bg: Colors.straw, fg: Colors.ink, accent: Colors.strawDark, btnBg: Colors.ink, btnFg: Colors.cream },
 };
 
 export const EVENT_CARD_WIDTH = 232;
 
-/** Cartão de "Chamados da semana". Tocar abre a comuna; "Vou" marca presença local. */
+/** Cartão de "Chamados da semana", no padrão visual do cartão da Biblioteca (arte + conteúdo
+ * ancorado embaixo). Tocar abre a comuna; "Vou" marca presença local. */
 export function EventCard({ event }: { event: CommunityEvent }) {
   const c = CARD_COLORS[event.tone];
   const date = eventDateParts(event.startsAt);
@@ -24,18 +26,25 @@ export function EventCard({ event }: { event: CommunityEvent }) {
 
   return (
     <View style={[styles.card, { backgroundColor: c.bg }]}>
+      <View style={styles.art} pointerEvents="none">
+        <View style={[styles.planet, { backgroundColor: c.accent }]} />
+        <View style={styles.watermark}>
+          <Icon name="calendar" size={92} color={c.accent} />
+        </View>
+      </View>
       <Pressable
         onPress={() => nav.openComuna(event.comunaId)}
         accessibilityRole="button"
         accessibilityLabel={`${event.kind}: ${event.title}. ${date.weekday}, ${date.day} de ${date.month}, ${date.hour}. ${event.place}`}
-        accessibilityHint="Abre a página da comuna">
+        accessibilityHint="Abre a página da comuna"
+        style={styles.body}>
         <AppText style={styles.meta} color={c.fg}>
           {event.kind} · {date.weekday} {date.day} {date.month} · {date.hour}
         </AppText>
-        <AppText style={styles.title} color={c.fg}>
+        <AppText style={styles.title} color={c.fg} numberOfLines={2}>
           {event.title}
         </AppText>
-        <AppText style={styles.place} color={c.fg}>
+        <AppText style={styles.place} color={c.fg} numberOfLines={1}>
           {event.place}
         </AppText>
       </Pressable>
@@ -69,10 +78,34 @@ const styles = StyleSheet.create({
   card: {
     width: EVENT_CARD_WIDTH,
     minHeight: 148,
-    borderRadius: Radius.xl,
+    position: 'relative',
+    overflow: 'hidden',
     padding: 14,
     justifyContent: 'space-between',
     gap: Spacing.two + 2,
+  },
+  art: {
+    position: 'absolute',
+    inset: 0,
+  },
+  planet: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    right: -48,
+    top: -56,
+    opacity: 0.5,
+  },
+  watermark: {
+    position: 'absolute',
+    right: -14,
+    bottom: -16,
+    opacity: 0.35,
+    transform: [{ rotate: '-12deg' }],
+  },
+  body: {
+    gap: 0,
   },
   meta: {
     fontFamily: Fonts.monoSemibold,
@@ -107,7 +140,7 @@ const styles = StyleSheet.create({
   button: {
     minHeight: 34,
     paddingHorizontal: 14,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',

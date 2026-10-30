@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
   decision: {
     flex: 1,
     height: 42,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     borderWidth: 1.5,
     borderColor: Colors.ink,
     alignItems: 'center',

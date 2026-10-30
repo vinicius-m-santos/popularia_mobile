@@ -89,7 +89,7 @@ export function PillButton({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',

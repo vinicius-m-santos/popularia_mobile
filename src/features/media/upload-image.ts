@@ -41,3 +41,10 @@ export async function uploadCover(slug: string, image: PickedImage): Promise<str
   if (!url) throw new Error('Resposta sem capa.');
   return url;
 }
+
+export async function uploadMark(slug: string, image: PickedImage): Promise<string> {
+  const comuna = await uploadFile<ComunaDto>(`/comunas/${encodeURIComponent(slug)}/mark`, image);
+  const url = absoluteMediaUrl(comuna.markUrl);
+  if (!url) throw new Error('Resposta sem marca.');
+  return url;
+}

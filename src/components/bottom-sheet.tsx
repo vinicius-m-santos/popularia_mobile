@@ -79,8 +79,8 @@ export const PopulariaBottomSheet = BottomSheet;
 const styles = StyleSheet.create({
   overlay: { flex: 1 },
   background: { backgroundColor: Colors.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
-  content: { paddingHorizontal: Spacing.five },
-  list: { flex: 1, paddingHorizontal: Spacing.five },
+  content: { paddingHorizontal: Spacing.five, gap: Spacing.two },
+  list: { flex: 1, paddingHorizontal: Spacing.five, gap: Spacing.two },
   dragHeader: { minHeight: 48, paddingTop: 10, paddingBottom: Spacing.three, paddingHorizontal: Spacing.five, gap: Spacing.three },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.strawDark },
   title: { fontFamily: Fonts.condensed, fontSize: 32, lineHeight: 40, textTransform: 'uppercase', color: Colors.ink },

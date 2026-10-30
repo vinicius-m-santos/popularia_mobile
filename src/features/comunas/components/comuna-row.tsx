@@ -27,7 +27,7 @@ export function ComunaRow({ comuna, subtitle, description, onOpen, trailing }: C
         accessibilityLabel={`${comuna.name}, ${subtitle}`}
         accessibilityHint="Abre a comuna"
         style={({ pressed }) => [styles.open, pressed && styles.pressed]}>
-        <ComunaMark initials={comuna.initials} tone={comuna.tone} size={44} />
+        <ComunaMark initials={comuna.initials} tone={comuna.tone} size={44} imageUrl={comuna.markUrl} />
         <View style={styles.text}>
           <AppText style={styles.name} numberOfLines={1}>
             {comuna.name}

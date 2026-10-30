@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -12,6 +13,9 @@ import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
 import { BIO_MAX_LENGTH, useAccount } from '@/features/account/account-context';
+import { ImageChangeSheet } from '@/features/media/image-change-sheet';
+import type { PickedImage } from '@/features/media/pick-image';
+import { uploadAvatar } from '@/features/media/upload-image';
 import { ApiError, describeError } from '@/lib/errors';
 
 import { checkHandleAvailable } from './api';
@@ -39,12 +43,14 @@ type HandleCheck = { handle: string; available: boolean | null };
  * conta (com o e-mail e a senha da etapa 1) e entra nela; o @ é conferido no servidor.
  */
 export default function SetupScreen() {
-  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding } = useAccount();
+  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl } = useAccount();
   const isSocialOnboarding = account?.pendingOnboarding === true;
   const toast = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
+  const [avatarDraft, setAvatarDraft] = useState<PickedImage | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [check, setCheck] = useState<HandleCheck | null>(null);
   const [countries, setCountries] = useState<Country[]>(DEMO_MODE ? [{ code: 'BR', name: 'Brasil' }] : []);
@@ -95,6 +101,18 @@ export default function SetupScreen() {
     handleColor = Colors.red;
   }
 
+  // A conta só existe (e tem sessão) depois que completeSignupProfile/completeSocialOnboarding
+  // responde; é só então que dá para enviar a foto. Opcional: uma falha aqui não trava o cadastro.
+  const uploadDraftAvatar = async () => {
+    if (!avatarDraft) return;
+    try {
+      const url = await uploadAvatar(avatarDraft);
+      replaceAvatarUrl(url);
+    } catch (error) {
+      toast.show(describeError(error));
+    }
+  };
+
   const next = async () => {
     if (busyRef.current) return;
     if (nameMissing || handleShort || handleTaken || locationMissing) {
@@ -113,11 +131,13 @@ export default function SetupScreen() {
       if (isSocialOnboarding) {
         // Conta já existe (criada via social): só define handle/nome definitivos.
         await completeSocialOnboarding();
+        await uploadDraftAvatar();
         router.push('/boas-vindas/assuntos');
       } else {
         const alreadyVerified = account?.emailVerified ?? false;
         const registrationSendsCode = !account;
         await completeSignupProfile();
+        await uploadDraftAvatar();
         router.push(alreadyVerified ? '/boas-vindas/assuntos' : { pathname: '/boas-vindas/verificar', params: registrationSendsCode ? { sent: '1' } : {} });
       }
     } catch (error) {
@@ -148,20 +168,32 @@ export default function SetupScreen() {
 
           <View style={styles.photoRow}>
             <Pressable
-              onPress={() => toast.show('Foto de perfil chega numa próxima etapa.')}
+              onPress={() => setPhotoSheetOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel="Adicionar foto de perfil"
-              accessibilityHint="Ainda não disponível"
+              accessibilityLabel={avatarDraft ? 'Trocar foto de perfil' : 'Adicionar foto de perfil'}
+              accessibilityHint="Abre a escolha de uma foto"
               style={({ pressed }) => [styles.photo, pressed && styles.pressed]}>
-              <Icon name="camera" size={30} />
+              {avatarDraft ? (
+                <Image source={{ uri: avatarDraft.uri }} contentFit="cover" cachePolicy="memory-disk" style={styles.photoImage} />
+              ) : (
+                <Icon name="camera" size={30} />
+              )}
             </Pressable>
             <View style={styles.photoText}>
-              <AppText style={styles.photoTitle}>Adicionar foto</AppText>
+              <AppText style={styles.photoTitle}>{avatarDraft ? 'Trocar foto' : 'Adicionar foto'}</AppText>
               <AppText style={styles.photoSub} color={Colors.muted}>
                 Opcional. Um rosto ajuda a criar confiança nas comunas.
               </AppText>
             </View>
           </View>
+          <ImageChangeSheet
+            visible={photoSheetOpen}
+            title="Foto de perfil"
+            kind="avatar"
+            busy={false}
+            onClose={() => setPhotoSheetOpen(false)}
+            onConfirm={(image) => { setPhotoSheetOpen(false); setAvatarDraft(image); }}
+          />
 
           <TextField
             label="Nome"
@@ -251,6 +283,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
   },
   pressed: {
     opacity: 0.7,

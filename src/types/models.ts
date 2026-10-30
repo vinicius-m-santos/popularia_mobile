@@ -76,6 +76,8 @@ export type Comuna = {
   coverAlt: string;
   /** Capa enviada. Ausente, a comuna usa a arte padrão. */
   coverUrl?: string | null;
+  /** Marca (imagem de perfil) enviada. Ausente, a comuna mostra as iniciais. */
+  markUrl?: string | null;
   topics: TopicId[];
   stats: ComunaStat[];
   rules: ComunaRule[];

@@ -62,6 +62,7 @@ export function toComuna(dto: ComunaDto): Comuna {
     memberCount: dto.memberCount,
     coverAlt: `capa de ${dto.name}`,
     coverUrl: absoluteMediaUrl(dto.coverUrl),
+    markUrl: absoluteMediaUrl(dto.markUrl),
     // Os assuntos são os mesmos IDs de GET /topics.
     topics: dto.topics as TopicId[],
     primaryTopic: dto.primaryTopic ? { ...dto.primaryTopic, id: dto.primaryTopic.id as TopicId } : null,

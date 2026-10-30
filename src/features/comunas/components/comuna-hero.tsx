@@ -1,6 +1,7 @@
 import { shareDestination } from '@/features/links/share';
+import { Image } from 'expo-image';
 import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
@@ -16,6 +17,12 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { formatPeople } from '@/lib/format';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { comunaTarget } from '@/features/moderation/targets';
+import { ImageChangeSheet } from '@/features/media/image-change-sheet';
+import { publishMark } from '@/features/media/image-cache';
+import { tryLockImageUpload, unlockImageUpload } from '@/features/media/image-lock';
+import type { PickedImage } from '@/features/media/pick-image';
+import { uploadMark } from '@/features/media/upload-image';
+import { describeError } from '@/lib/errors';
 import { goBack, openManageComuna, openModeration } from '@/lib/routes';
 import type { ComunaDetails } from '@/types/models';
 
@@ -40,6 +47,31 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
   const perms = comuna.viewerPermissions;
   const manages = !DEMO_MODE && (comuna.viewerRole === 'founder' || comuna.viewerRole === 'moderator');
   const archived = comuna.status === 'archived';
+  const markEditable = !DEMO_MODE && !archived && !!perms?.canEditDetails;
+  const [markSheetOpen, setMarkSheetOpen] = useState(false);
+  const [markPreview, setMarkPreview] = useState<string | null>(null);
+  const [markUploading, setMarkUploading] = useState(false);
+  const markShown = markPreview ?? comuna.markUrl ?? null;
+
+  const sendMark = async (image: PickedImage) => {
+    const lock = `mark:${comuna.id}`;
+    if (!tryLockImageUpload(lock)) return;
+    setMarkPreview(image.uri);
+    setMarkUploading(true);
+    try {
+      const url = await uploadMark(comuna.id, image);
+      publishMark(comuna, url);
+      try { await Image.prefetch(url); } catch { /* a marca local continua até a URL nova entrar */ }
+      onChanged?.();
+      setMarkPreview(null);
+    } catch (error) {
+      setMarkPreview(null);
+      toast.show(describeError(error));
+    } finally {
+      setMarkUploading(false);
+      unlockImageUpload(lock);
+    }
+  };
   const membership = useComunaMembership(comuna);
   const { joined } = membership;
   // Comuna privada, na API, sem participação: a entrada é por pedido aprovado pela moderação.
@@ -107,11 +139,31 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
             />
           </View>
         </View>
-        <View style={styles.mark} accessible={false}>
-          <AppText style={styles.markText} color={Colors.paper} maxFontSizeMultiplier={1}>
-            {comuna.initials}
-          </AppText>
-        </View>
+        {markEditable ? (
+          <Pressable
+            style={styles.mark}
+            accessibilityRole="button"
+            accessibilityLabel={markUploading ? 'Enviando marca da comuna' : 'Alterar marca da comuna'}
+            accessibilityHint="Abre a escolha de uma nova imagem"
+            accessibilityState={{ busy: markUploading, disabled: markUploading }}
+            disabled={markUploading}
+            onPress={() => { if (!markUploading) setMarkSheetOpen(true); }}>
+            <AppText style={styles.markText} color={Colors.paper} maxFontSizeMultiplier={1}>
+              {comuna.initials}
+            </AppText>
+            {markShown ? <Image source={{ uri: markShown }} contentFit="cover" cachePolicy="memory-disk" recyclingKey={markShown} style={StyleSheet.absoluteFill} accessible={false} /> : null}
+            <View style={styles.markBadge} pointerEvents="none">
+              {markUploading ? <ActivityIndicator color={Colors.ink} size="small" /> : <Icon name="camera" size={14} color={Colors.ink} />}
+            </View>
+          </Pressable>
+        ) : (
+          <View style={styles.mark} accessible={false}>
+            <AppText style={styles.markText} color={Colors.paper} maxFontSizeMultiplier={1}>
+              {comuna.initials}
+            </AppText>
+            {markShown ? <Image source={{ uri: markShown }} contentFit="cover" cachePolicy="memory-disk" recyclingKey={markShown} style={StyleSheet.absoluteFill} accessible={false} /> : null}
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -258,6 +310,16 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
           />
         ) : null}
       </BottomSheet>
+      {markEditable ? (
+        <ImageChangeSheet
+          visible={markSheetOpen}
+          title="Marca da comuna"
+          kind="mark"
+          busy={markUploading}
+          onClose={() => setMarkSheetOpen(false)}
+          onConfirm={(image) => { setMarkSheetOpen(false); void sendMark(image); }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -353,6 +415,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.red,
     overflow: 'visible',
     transform: [{ rotate: '-4deg' }],
+  },
+  markBadge: {
+    position: 'absolute',
+    right: -8,
+    bottom: -8,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.paper,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
   },
   markText: {
     alignSelf: 'stretch',

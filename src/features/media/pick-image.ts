@@ -16,17 +16,18 @@ async function sizeOf(uri: string): Promise<number> {
 
 /**
  * Galeria, com o mesmo redimensionamento JPEG das imagens de publicação.
- * O avatar usa o corte nativo quadrado. A capa não: no iOS esse editor é sempre quadrado.
+ * Avatar e marca usam o corte nativo quadrado. A capa não: no iOS esse editor é sempre quadrado.
  */
-export async function pickProfileImage(kind: 'avatar' | 'cover'): Promise<PickedImage | null> {
+export async function pickProfileImage(kind: 'avatar' | 'cover' | 'mark'): Promise<PickedImage | null> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const ImagePicker = require('expo-image-picker') as typeof import('expo-image-picker');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ImageManipulator, SaveFormat } = require('expo-image-manipulator') as typeof import('expo-image-manipulator');
+  const square = kind === 'avatar' || kind === 'mark';
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    allowsEditing: kind === 'avatar',
-    aspect: kind === 'avatar' ? [1, 1] : undefined,
+    allowsEditing: square,
+    aspect: square ? [1, 1] : undefined,
     allowsMultipleSelection: false,
     base64: false,
     exif: false,
@@ -38,5 +39,6 @@ export async function pickProfileImage(kind: 'avatar' | 'cover'): Promise<Picked
   const normalized = await rendered.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });
   const size = await sizeOf(normalized.uri);
   if (size < 1 || size > IMAGE_MAX_BYTES) throw new ApiError(422, '/errors/post-media-size', 'A imagem precisa ter conteúdo e no máximo 10 MB.');
-  return { uri: normalized.uri, name: kind === 'avatar' ? 'perfil.jpg' : 'capa.jpg', mimeType: 'image/jpeg', size };
+  const name = kind === 'avatar' ? 'perfil.jpg' : kind === 'mark' ? 'marca.jpg' : 'capa.jpg';
+  return { uri: normalized.uri, name, mimeType: 'image/jpeg', size };
 }

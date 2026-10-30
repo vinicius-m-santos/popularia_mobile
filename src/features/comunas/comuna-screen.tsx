@@ -1,15 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EditorialAction } from '@/components/editorial-action';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
-import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
+import { type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { getComuna, getComunaPosts, getPinnedPosts } from '@/features/comunas/api';
@@ -21,6 +22,7 @@ import { RulesList } from '@/features/comunas/components/rules-list';
 import { movePinnedPost, pinnedPostsKey, useComunaPinPending } from '@/features/comunas/pins';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
+import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe } from '@/features/profiles/profile-tab-swipe';
 import { PostCard } from '@/features/posts/components/post-card';
 import { preparePost } from '@/features/posts/queries';
 import { rememberPost } from '@/features/posts/save';
@@ -43,6 +45,7 @@ const TABS: TabOption<ComunaTab>[] = [
   { key: 'regras', label: 'Regras' },
   { key: 'membros', label: 'Membros' },
 ];
+const TAB_KEYS = TABS.map((t) => t.key);
 
 /** Página da comuna (design 1b). */
 export default function ComunaScreen() {
@@ -131,13 +134,27 @@ export default function ComunaScreen() {
 
   const data = comuna.data;
 
-  if (tab === 'biblioteca') return <View style={[styles.root, { paddingTop: insets.top }]}>
-    <LibraryPane scope="comuna" comuna={id} canAdd={data.status !== 'archived' && (data.viewerRole === 'founder' || data.viewerRole === 'moderator')}
-      header={<View style={{ backgroundColor: Colors.cream }}><ComunaHero comuna={data} onChanged={comuna.reload} /><UnderlineTabs options={TABS} value={tab} onChange={setTab} height={46} /></View>} />
-  </View>;
+  if (tab === 'biblioteca') {
+    const canAddDocument = data.status !== 'archived' && (data.viewerRole === 'founder' || data.viewerRole === 'moderator');
+    return <ProfileTabSwipe tabs={TAB_KEYS} active={tab} onChange={setTab}>
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <ProfileSwipeContent>
+          <LibraryPane scope="comuna" comuna={id} canAdd={canAddDocument} profileContext
+            header={<View style={{ backgroundColor: Colors.cream }}>
+              <ComunaHero comuna={data} onChanged={comuna.reload} />
+              <ProfileTabs options={TABS} value={tab} onChange={setTab} height={46} />
+              {canAddDocument ? <View style={styles.libraryActions}>
+                <EditorialAction label="Adicionar PDF à biblioteca" icon="plus" tone="red" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { comuna: id } })} />
+              </View> : null}
+            </View>} />
+        </ProfileSwipeContent>
+      </View>
+    </ProfileTabSwipe>;
+  }
 
   return (
     // Faixa escura atrás da barra de status; o conteúdo rola abaixo dela.
+    <ProfileTabSwipe tabs={TAB_KEYS} active={tab} onChange={setTab}>
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} style={styles.scrollView} contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
@@ -146,10 +163,10 @@ export default function ComunaScreen() {
         </View>
         <View style={styles.tabs}>
           <View style={styles.column}>
-            <UnderlineTabs options={TABS} value={tab} onChange={setTab} height={46} />
+            <ProfileTabs options={TABS} value={tab} onChange={setTab} height={46} />
           </View>
         </View>
-        <View style={styles.column}>
+        <ProfileSwipeContent><View style={styles.column}>
           {tab === 'posts' ? <SquareEntry key={`${id}-${data.viewerRole}-${data.status}`} slug={id} /> : null}
           {tab === 'posts' && privateOutside ? (
             <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
@@ -203,9 +220,10 @@ export default function ComunaScreen() {
               <ServerMembersList comuna={data} />
             )
           ) : null}
-        </View>
+        </View></ProfileSwipeContent>
       </ScrollView>
     </View>
+    </ProfileTabSwipe>
   );
 }
 
@@ -218,6 +236,10 @@ function PostsError({ error, onRetry }: { error: Error | null; onRetry: () => vo
 }
 
 const styles = StyleSheet.create({
+  libraryActions: {
+    paddingHorizontal: Spacing.five,
+    paddingBottom: Spacing.three,
+  },
   more: {
     alignSelf: 'center',
     marginVertical: Spacing.five,

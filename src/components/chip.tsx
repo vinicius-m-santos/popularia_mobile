@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   chip: {
     height: 36,
     paddingHorizontal: 14,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     borderWidth: 1.5,
     borderColor: Colors.ink,
     justifyContent: 'center',

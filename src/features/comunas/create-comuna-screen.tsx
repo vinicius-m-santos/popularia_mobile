@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   create: {
     height: 42,
     paddingHorizontal: Spacing.five,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.red,
     alignItems: 'center',
     justifyContent: 'center',

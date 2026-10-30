@@ -46,7 +46,7 @@ export function JoinButton({ comuna, short = false, height = 38, style }: JoinBu
 const styles = StyleSheet.create({
   button: {
     paddingHorizontal: 14,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',

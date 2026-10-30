@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   button: {
     minHeight: MinTouchTarget,
     paddingHorizontal: Spacing.six,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.ink,
     alignItems: 'center',
     justifyContent: 'center',

@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 7,
     paddingHorizontal: Spacing.three,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.ink,
   },
   reasonChipText: {
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
   },
   dark: {
     height: 54,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.ink,
     alignItems: 'center',
     justifyContent: 'center',

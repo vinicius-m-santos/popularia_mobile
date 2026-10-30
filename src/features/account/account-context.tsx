@@ -500,7 +500,8 @@ export function useMe(): User {
     const handle = account?.handle ?? (DEMO_MODE ? profile.handle || base?.handle || '' : '');
     return {
       id: account?.id ?? currentUser.id,
-      tone: account ? (['red', 'black', 'cream'] as const)[Math.abs([...account.id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 0)) % 3] : base?.tone ?? 'red',
+      // Sem foto, o avatar da própria conta é sempre vermelho Popularia — não sorteia tom.
+      tone: 'red',
       name,
       handle,
       initials: initialsOf(name),

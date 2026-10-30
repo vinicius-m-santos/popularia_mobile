@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 56,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
