@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/branding/android-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.popularia.mobile"
+      "package": "com.popularia.mobile",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "single",
