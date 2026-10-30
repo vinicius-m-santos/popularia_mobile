@@ -9,7 +9,22 @@ export const REPORT_REASONS = [
   'Fere as regras da comuna',
 ] as const;
 
-export const DETAILS_MAX_LENGTH = 500;
+/** Motivos da denúncia de publicação, comentário, perfil e comuna. O código vai para a API. */
+export const CONTENT_REPORT_REASONS = [
+  { code: 'harassment', label: 'Assédio ou intimidação' },
+  { code: 'hate', label: 'Discurso de ódio ou preconceito' },
+  { code: 'threat', label: 'Ameaça ou violência' },
+  { code: 'spam', label: 'Spam' },
+  { code: 'fraud', label: 'Golpe ou fraude' },
+  { code: 'sexual', label: 'Conteúdo sexual impróprio' },
+  { code: 'doxxing', label: 'Exposição de dados pessoais' },
+  { code: 'illegal', label: 'Conteúdo ilegal' },
+  { code: 'other', label: 'Outro' },
+] as const;
+
+export type ContentReportReasonCode = (typeof CONTENT_REPORT_REASONS)[number]['code'];
+
+export const DETAILS_MAX_LENGTH = 800;
 
 export type RestrictionId = 'mute' | 'suspend' | 'ban';
 

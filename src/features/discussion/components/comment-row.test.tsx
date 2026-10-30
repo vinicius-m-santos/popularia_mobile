@@ -36,6 +36,19 @@ describe('ações de comentário e resposta', () => {
     expect(onSupport).toHaveBeenCalledWith('reply-1');
   });
 
+  it('mantém as respostas quando o comentário pai foi removido pela moderação', async () => {
+    const removed = comment('comment-1', null);
+    removed.status = 'removed';
+    removed.text = 'Comentário removido pela moderação.';
+    await render(
+      <CommentRow row={{ comment: removed, depth: 0, replyCount: 2, collapsed: false }} authorLabel={null}
+        supported={false} supportCount={0} onSupport={jest.fn()} onToggleCollapse={jest.fn()} onMore={jest.fn()} />,
+    );
+    expect(screen.getByText('Comentário removido pela moderação.')).toBeTruthy();
+    expect(screen.getByText('Ocultar')).toBeTruthy();
+    expect(screen.queryByLabelText('Mais opções do comentário de Camila')).toBeNull();
+  });
+
   it('remove o avatar do campo fixo de comentário sem alterar o envio', async () => {
     const onSend = jest.fn<(text: string, mentions: ContentMention[]) => Promise<boolean>>().mockResolvedValue(true);
     await render(<CommentComposer replyingTo={null} onCancelReply={jest.fn()} onSend={onSend} />);

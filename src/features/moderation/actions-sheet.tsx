@@ -10,7 +10,7 @@ import * as Clipboard from 'expo-clipboard';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
-import { CheckboxMark, RadioMark } from '@/components/choice-marks';
+import { RadioMark } from '@/components/choice-marks';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { useToast } from '@/components/toast';
@@ -23,17 +23,17 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { isPinLocked, pinPost, pinStoreVersion, readPinned, subscribePinStore, unpinPost } from '@/features/comunas/pins';
 import { knownPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
-import { openModeration, useNav } from '@/lib/routes';
+import { openModeration } from '@/lib/routes';
 import type { ReportTarget } from '@/types/models';
 
-import { DETAILS_MAX_LENGTH, REPORT_REASONS } from './constants';
+import { CONTENT_REPORT_REASONS, DETAILS_MAX_LENGTH } from './constants';
 import { useModeration } from './moderation-context';
 
 type Step = 'menu' | 'reason' | 'details' | 'done';
 
 type ActionsSheetValue = {
-  /** Abre o menu "⋯" do conteúdo. */
-  open: (target: ReportTarget) => void;
+  /** Abre o menu "⋯" do conteúdo. `reason` pula o menu e começa na escolha do motivo. */
+  open: (target: ReportTarget, start?: 'menu' | 'reason') => void;
 };
 
 const ActionsSheetContext = createContext<ActionsSheetValue | null>(null);
@@ -42,21 +42,22 @@ const TITLES: Record<ReportTarget['kind'], string> = {
   post: 'Denunciar publicação',
   comment: 'Denunciar comentário',
   profile: 'Denunciar perfil',
+  comuna: 'Denunciar comuna',
 };
 
 export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<ReportTarget | null>(null);
   const [step, setStep] = useState<Step>('menu');
-  const [reason, setReason] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [details, setDetails] = useState('');
   const [block, setBlock] = useState(false);
   const [result, setResult] = useState<{ protocol: string; inMyQueue: boolean } | null>(null);
   const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
 
-  const open = useCallback((next: ReportTarget) => {
+  const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu') => {
     setTarget(next);
-    setStep('menu');
-    setReason('');
+    setStep(start);
+    setReasonCode('');
     setDetails('');
     setBlock(false);
     setResult(null);
@@ -74,8 +75,8 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
             target={target}
             step={step}
             setStep={setStep}
-            reason={reason}
-            setReason={setReason}
+            reasonCode={reasonCode}
+            setReasonCode={setReasonCode}
             details={details}
             setDetails={setDetails}
             block={block}
@@ -102,8 +103,8 @@ type BodyProps = {
   target: ReportTarget;
   step: Step;
   setStep: (s: Step) => void;
-  reason: string;
-  setReason: (r: string) => void;
+  reasonCode: string;
+  setReasonCode: (code: string) => void;
   details: string;
   setDetails: (d: string) => void;
   block: boolean;
@@ -116,11 +117,10 @@ type BodyProps = {
 };
 
 function SheetBody(props: BodyProps) {
-  const { target, step, setStep, reason, setReason, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close } =
+  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close } =
     props;
   const toast = useToast();
   const me = useMe();
-  const nav = useNav();
   const { isOn, toggle, setOn } = useInteractions();
   useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
   useSyncExternalStore(subscribePinStore, pinStoreVersion, pinStoreVersion);
@@ -134,6 +134,16 @@ function SheetBody(props: BodyProps) {
   const comuna = findComuna(target.comunaId);
   const comunaName = comuna ? `c/ ${comuna.name}` : 'Popularia';
   const title = TITLES[target.kind];
+  const reasonLabel = CONTENT_REPORT_REASONS.find((item) => item.code === reasonCode)?.label ?? '';
+  const reviews = target.kind === 'profile' || target.kind === 'comuna' || !target.comunaId ? 'a equipe do Popularia' : `a moderação de ${comunaName}`;
+
+  if (step === 'menu' && target.kind === 'comuna') {
+    return (
+      <View>
+        {!isMine ? <MenuItem icon="flag" label={title} danger last onPress={() => setStep('reason')} /> : null}
+      </View>
+    );
+  }
 
   if (step === 'menu') {
     const savedPost = knownPost(target.id);
@@ -219,21 +229,22 @@ function SheetBody(props: BodyProps) {
           {title}
         </AppText>
         <AppText style={styles.lead} color={Colors.inkSoft}>
-          Qual é o problema? Escolha o motivo principal.
+          Por que você está denunciando isso?
         </AppText>
-        <View>
-          {REPORT_REASONS.map((r) => (
+        <View accessibilityRole="radiogroup">
+          {CONTENT_REPORT_REASONS.map((item) => (
             <Pressable
-              key={r}
+              key={item.code}
               onPress={() => {
-                setReason(r);
+                setReasonCode(item.code);
                 setStep('details');
               }}
-              role="radio"
-              accessibilityState={{ checked: reason === r }}
+              accessibilityRole="radio"
+              accessibilityLabel={item.label}
+              accessibilityState={{ checked: reasonCode === item.code, selected: reasonCode === item.code }}
               style={({ pressed }) => [styles.reason, pressed && styles.pressed]}>
-              <RadioMark selected={reason === r} />
-              <AppText style={styles.reasonLabel}>{r}</AppText>
+              <RadioMark selected={reasonCode === item.code} />
+              <AppText style={styles.reasonLabel}>{item.label}</AppText>
               <Icon name="chevronRight" size={16} color={Colors.muted} />
             </Pressable>
           ))}
@@ -247,12 +258,7 @@ function SheetBody(props: BodyProps) {
       if (sending.current) return;
       sending.current = true; setBusy(true);
       try {
-        const res = await submitReport({ target, reason, details });
-        if (block) {
-          if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' });
-          setBlocked(handle, true);
-          setOn('mutedUsers', [target.author.id], true);
-        }
+        const res = await submitReport({ target, reasonCode, reasonLabel, details });
         setResult(res); setStep('done');
       } catch (e) { toast.show(describeError(e)); }
       finally { sending.current = false; setBusy(false); }
@@ -278,43 +284,46 @@ function SheetBody(props: BodyProps) {
         <View style={styles.reasonChip}>
           <Icon name="flag" size={14} color={Colors.cream} />
           <AppText style={styles.reasonChipText} color={Colors.cream}>
-            {reason}
+            {reasonLabel}
           </AppText>
         </View>
         <View style={styles.field}>
-          <AppText style={styles.fieldLabel}>
-            Detalhes{' '}
-            <AppText style={styles.fieldLabelSoft} color={Colors.muted}>
-              (opcional)
-            </AppText>
-          </AppText>
+          <AppText style={styles.fieldLabel}>Conte mais, se quiser</AppText>
           <PopulariaBottomSheetTextInput
             value={details}
             onChangeText={setDetails}
             maxLength={DETAILS_MAX_LENGTH}
             multiline
             textAlignVertical="top"
-            placeholder="Conte o que aconteceu, se quiser. Isso ajuda a moderação a decidir."
+            placeholder="Ex.: o que aconteceu e onde"
             placeholderTextColor={Colors.placeholder}
-            accessibilityLabel="Detalhes da denúncia, opcional"
+            accessibilityLabel="Conte mais, se quiser"
             style={styles.textarea}
           />
         </View>
-        <Pressable
-          onPress={() => setBlock(!block)}
-          role="checkbox"
-          accessibilityState={{ checked: block }}
-          style={styles.check}>
-          <CheckboxMark checked={block} />
-          <AppText style={styles.checkLabel}>Bloquear @{handle} também</AppText>
-        </Pressable>
         <AppText style={styles.note} color={Colors.muted}>
-          A denúncia vai para a moderação de {comunaName}. Quem publicou não sabe quem denunciou.
+          A denúncia vai para {reviews}. Quem foi denunciado não fica sabendo quem denunciou.
         </AppText>
         <DarkButton label={busy ? "Enviando…" : "Enviar denúncia"} onPress={submit} />
       </View>
     );
   }
+
+  const blockPerson = async () => {
+    if (sending.current || target.kind === 'comuna') return;
+    sending.current = true;
+    try {
+      if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' });
+      setBlocked(handle, true);
+      setOn('mutedUsers', [target.author.id], true);
+      setBlock(true);
+      toast.show(`@${handle} bloqueado.`);
+    } catch (e) {
+      toast.show(describeError(e));
+    } finally {
+      sending.current = false;
+    }
+  };
 
   return (
     <View style={styles.done} accessibilityLiveRegion="polite">
@@ -322,33 +331,29 @@ function SheetBody(props: BodyProps) {
         <Icon name="check" size={32} color={Colors.cream} />
       </View>
       <AppText style={styles.doneTitle} accessibilityRole="header">
-        Denúncia registrada
+        Denúncia enviada
       </AppText>
       <AppText style={styles.doneText} color={Colors.inkSoft}>
-        {!DEMO_MODE ? 'Denúncia enviada à equipe do Popularia. Para acompanhamento, informe o identificador abaixo ao suporte.' : result?.inMyQueue
-          ? `Você modera ${comunaName}, então ela já está na sua fila de moderação.`
-          : `Nesta versão a denúncia fica só neste aparelho. Com o servidor, a moderação de ${comunaName} analisa em até 24 horas e você recebe um aviso com a decisão.`}
-        {block ? ` @${handle} foi bloqueado${DEMO_MODE ? ' neste aparelho' : ' no serviço'}.` : ''}
+        {DEMO_MODE
+          ? (result?.inMyQueue
+            ? `Você modera ${comunaName}, então ela já está na sua fila de moderação.`
+            : 'Nesta demonstração a denúncia fica só neste aparelho.')
+          : 'Vamos analisar o conteúdo.'}
+        {block ? ` @${handle} foi bloqueado.` : ''}
       </AppText>
-      <AppText style={styles.protocol} color={Colors.muted}>
-        Protocolo {result?.protocol} · {reason}
-      </AppText>
+      {target.kind !== 'comuna' && !blocked && !block ? (
+        <AppText style={styles.doneText} color={Colors.inkSoft}>Você também pode bloquear esta pessoa.</AppText>
+      ) : null}
       <DarkButton label="Entendi" onPress={close} stretch />
-      {result?.inMyQueue && comuna ? (
+      {target.kind !== 'comuna' && !blocked && !block ? (
+        <TextLink label={`Bloquear @${handle}`} onPress={() => { void blockPerson(); }} />
+      ) : null}
+      {DEMO_MODE && result?.inMyQueue && comuna ? (
         <TextLink
           label="Abrir fila de moderação"
           onPress={() => {
             close();
             openModeration(comuna.id);
-          }}
-        />
-      ) : null}
-      {comuna ? (
-        <TextLink
-          label="Ver regras da comuna"
-          onPress={() => {
-            close();
-            nav.openComuna(comuna.id, 'regras');
           }}
         />
       ) : null}

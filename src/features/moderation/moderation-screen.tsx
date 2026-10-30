@@ -29,6 +29,7 @@ import type { ModerationReport } from '@/types/models';
 import { LibraryReportQueue } from '@/features/library/report-queue';
 
 import { DarkButton } from './actions-sheet';
+import { ContentReportQueue } from './content-queue';
 import { NotModeratorError } from './api';
 import { RESTRICTIONS, type RestrictionId } from './constants';
 import { useModeration, type Decision } from './moderation-context';
@@ -58,6 +59,8 @@ function ConnectedModerationScreen() {
   return <Screen edges={['top', 'left', 'right', 'bottom']}>
     <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><AppText variant="heading">Moderação</AppText></View>
     {reports.status === 'loading' ? <StateView kind="loading" message="Carregando denúncias" /> : reports.status === 'error' ? <StateView kind="error" message={describeError(reports.error)} onRetry={reports.refresh} /> : <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.queue}>
+      {typeof id === 'string' ? <ContentReportQueue slug={id} heading="Publicações e comentários" /> : null}
+      <AppText variant="label" color={Colors.muted}>Praça</AppText>
       {reports.items.map((r) => {
         const m = r.message;
         if (!m?.author || m.status !== 'published') return <View key={r.id}><AppText variant="caption">Conteúdo indisponível.</AppText><PillButton label="Encerrar denúncia" disabled={busy} variant="outline" onPress={() => { void resolve(r.id, 'dismissed'); }} /></View>;

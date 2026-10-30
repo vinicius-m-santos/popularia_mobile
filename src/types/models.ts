@@ -311,7 +311,7 @@ export type ExploreFilter = 'tudo' | 'comunas' | 'pessoas' | 'assuntos' | 'posts
 
 /** O que pode ser denunciado pelo menu "⋯". */
 export type ReportTarget = {
-  kind: 'post' | 'comment' | 'profile';
+  kind: 'post' | 'comment' | 'profile' | 'comuna';
   id: string;
   /** Quem publicou o conteúdo (ou o dono do perfil). */
   author: User;

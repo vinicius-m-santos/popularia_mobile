@@ -60,6 +60,11 @@ export function openModeration(comunaId: string) {
   router.push({ pathname: '/moderacao/[id]', params: { id: comunaId } });
 }
 
+/** Fila global. O servidor recusa quem não é moderação da plataforma. */
+export function openPlatformModeration() {
+  router.push('/moderacao-plataforma' as Href);
+}
+
 /** Gestão de uma comuna (proprietário e moderação). Fora das abas, como a moderação. */
 export function openManageComuna(comunaId: string) {
   router.push({ pathname: '/gerir-comuna/[id]', params: { id: comunaId } });

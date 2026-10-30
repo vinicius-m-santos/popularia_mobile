@@ -174,6 +174,7 @@ function RootStack() {
         <Stack.Screen name="interesses" />
         <Stack.Screen name="progresso" />
         <Stack.Screen name="moderacao/[id]" />
+        <Stack.Screen name="moderacao-plataforma" />
         <Stack.Screen name="criar-comuna" />
         <Stack.Screen name="gerir-comuna/[id]" />
         <Stack.Screen name="evento/[id]/index" />

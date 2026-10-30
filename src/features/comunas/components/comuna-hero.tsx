@@ -14,6 +14,8 @@ import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { formatPeople } from '@/lib/format';
+import { useActionsSheet } from '@/features/moderation/actions-sheet';
+import { comunaTarget } from '@/features/moderation/targets';
 import { goBack, openManageComuna, openModeration } from '@/lib/routes';
 import type { ComunaDetails } from '@/types/models';
 
@@ -27,6 +29,7 @@ const COVER_HEIGHT = 218;
 /** Capa, identidade, números e ações da comuna (design 1b). `onChanged` recarrega a comuna. */
 export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onChanged?: () => void }) {
   const toast = useToast();
+  const sheet = useActionsSheet();
   const { isOn, toggle } = useInteractions();
   const me = useMe();
   const [pending, setPending] = useState(false);
@@ -232,6 +235,16 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
           setMenuVisible(false);
           void shareDestination({ kind: 'comuna', id: comuna.handle }).catch(() => toast.show('Não conseguimos compartilhar esta comuna.'));
         }} />
+        {comuna.viewerRole !== 'founder' ? (
+          <EditorialAction
+            label="Denunciar comuna"
+            icon="flag"
+            onPress={() => {
+              setMenuVisible(false);
+              sheet.open(comunaTarget(comuna), 'reason');
+            }}
+          />
+        ) : null}
         {manages ? (
           <EditorialAction
             label="Gerenciar comuna"

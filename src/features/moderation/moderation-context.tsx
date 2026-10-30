@@ -8,14 +8,15 @@
 import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { DEMO_MODE } from '@/constants/config';
-import { apiRequest } from '@/lib/api/client';
 import { findComuna } from '@/features/lookup';
 import { currentUser } from '@/mocks/users';
 import type { ModerationLogEntry, ModerationReport, ReportTarget } from '@/types/models';
 
+import { sendContentReport } from './content-reports';
+
 export type Decision = { label: string; reason: string; authorName: string };
 
-type SubmitInput = { target: ReportTarget; reason: string; details: string };
+type SubmitInput = { target: ReportTarget; reasonCode: string; reasonLabel: string; details: string };
 
 type ModerationValue = {
   /** Denúncias enviadas neste aparelho que caem numa fila que a pessoa modera. */
@@ -42,10 +43,10 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [localLog, setLocalLog] = useState<ModerationLogEntry[]>([]);
 
-  const submitReport = useCallback(async ({ target, reason, details }: SubmitInput) => {
+  const submitReport = useCallback(async ({ target, reasonCode, reasonLabel, details }: SubmitInput) => {
     if (!DEMO_MODE) {
-      await apiRequest('/reports', { auth: true, method: 'POST', body: { targetType: target.kind, targetId: target.id, reason: [reason, details.trim()].filter(Boolean).join(' · ').slice(0, 500) } });
-      return { protocol: target.id, inMyQueue: false };
+      await sendContentReport({ targetType: target.kind, targetId: target.id, reasonCode, description: details });
+      return { protocol: '', inMyQueue: false };
     }
     counter += 1;
     const protocol = `PA-${20930 + counter}`;
@@ -55,7 +56,7 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
       const report: ModerationReport = {
         id: `local-report-${counter}`,
         comunaId: comuna.id,
-        reason,
+        reason: reasonLabel,
         reportCount: 1,
         author: target.author,
         where: target.where,

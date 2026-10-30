@@ -1,4 +1,4 @@
-import type { CommentWithAuthor, FeedItem, ReportTarget, User } from '@/types/models';
+import type { CommentWithAuthor, ComunaDetails, FeedItem, ReportTarget, User } from '@/types/models';
 
 /** Até onde o trecho do conteúdo aparece para a moderação. */
 const EXCERPT_LENGTH = 180;
@@ -39,4 +39,24 @@ export function commentTarget(comment: CommentWithAuthor, post: FeedItem): Repor
 
 export function profileTarget(user: User, bio: string): ReportTarget {
   return { kind: 'profile', id: user.id, author: user, comunaId: null, excerpt: excerpt(bio), where: 'Perfil' };
+}
+
+/** Denúncia da comuna inteira. Cai na plataforma, nunca na fila dos próprios moderadores. */
+export function comunaTarget(comuna: ComunaDetails): ReportTarget {
+  const author = comuna.owner ?? {
+    id: comuna.serverId ?? comuna.id,
+    name: comuna.name,
+    handle: comuna.handle,
+    initials: comuna.initials,
+    tone: comuna.tone,
+  };
+  return {
+    kind: 'comuna',
+    id: comuna.serverId ?? comuna.id,
+    author,
+    comunaId: null,
+    excerpt: excerpt(comuna.description),
+    where: `Comuna c/${comuna.handle}`,
+    isOwn: comuna.viewerRole === 'founder',
+  };
 }
