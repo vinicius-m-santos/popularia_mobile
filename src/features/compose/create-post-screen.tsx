@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -32,9 +33,13 @@ import { POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, poll
 import { PostCard } from '@/features/posts/components/post-card';
 import { PostAttachment } from '@/features/posts/components/post-attachment';
 import { durationLabel, pickPostImage, pickPostVideo, uploadPostMedia, type LocalPostMedia } from '@/features/posts/post-media';
+import { listEvents } from '@/features/events/api';
+import { formatPoster } from '@/features/events/format';
+import { comunaEventsKey, type ComunaEvent } from '@/features/events/types';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { ApiError, describeError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
+import { queryClient } from '@/lib/query/client';
 import type { Comuna, FeedItem, TopicId } from '@/types/models';
 
 const MAX_LENGTH = 1000;
@@ -48,6 +53,7 @@ type Destination = { kind: 'perfil' } | { kind: 'comuna'; comuna: Comuna };
 function publishErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.type === '/errors/not-a-member') return 'Entre na comuna para publicar nela.';
+    if (error.type === '/errors/event-link') return error.title;
     if (error.violations.body) return error.violations.body;
     if (error.violations.comunaId) return error.violations.comunaId;
     const pollViolation = Object.entries(error.violations).find(([path]) => path.startsWith('poll'));
@@ -96,6 +102,8 @@ export default function CreatePostScreen() {
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const optionSeq = useRef(2);
   const [topic, setTopic] = useState<TopicId | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<ComunaEvent | null>(null);
+  const [pickingEvent, setPickingEvent] = useState(false);
   const [preview, setPreview] = useState(false);
   const [picking, setPicking] = useState(false);
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -115,6 +123,18 @@ export default function CreatePostScreen() {
     const comuna = joined.find((c) => c.id === chosenId) ?? joined[0];
     return comuna ? { kind: 'comuna', comuna } : { kind: 'perfil' };
   }, [chosenId, joined]);
+
+  const comunaSlugForEvents = !DEMO_MODE && pickingEvent && destination.kind === 'comuna' ? destination.comuna.id : null;
+  const eventsQuery = useQuery({
+    queryKey: comunaEventsKey(comunaSlugForEvents ?? '', 'upcoming'),
+    queryFn: ({ signal }) => listEvents(comunaSlugForEvents!, 'upcoming', null, 20, signal),
+    enabled: comunaSlugForEvents !== null,
+  }, queryClient);
+
+  // Derive effective event: only valid when destination matches the event's commune.
+  const effectiveEvent = selectedEvent && destination.kind === 'comuna' && selectedEvent.comuna.slug === destination.comuna.id
+    ? selectedEvent
+    : null;
 
   const composed = draft.compose();
   const trimmed = composed.body;
@@ -199,6 +219,7 @@ export default function CreatePostScreen() {
         ...(mediaId ? { mediaId } : {}),
         ...(destination.kind === 'perfil' && topic ? { topic } : {}),
         ...(poll ? { poll: { question: poll.question.trim(), options: poll.options.map((option) => ({ label: option.label.trim() })) } } : {}),
+        ...(effectiveEvent ? { eventId: effectiveEvent.id } : {}),
       });
     } catch (error) {
       publishingRef.current = false;
@@ -256,6 +277,18 @@ export default function CreatePostScreen() {
     author: me,
     comuna: destination.kind === 'comuna' ? destination.comuna : null,
     event: null,
+    linkedEvent: effectiveEvent ? {
+      id: effectiveEvent.id,
+      title: effectiveEvent.title,
+      format: effectiveEvent.format,
+      status: effectiveEvent.status,
+      startsAt: effectiveEvent.startsAt,
+      timeZone: effectiveEvent.timeZone,
+      placeName: effectiveEvent.placeName,
+      goingCount: effectiveEvent.goingCount,
+      maybeCount: effectiveEvent.maybeCount,
+      past: effectiveEvent.past,
+    } : null,
     topCommentAuthor: null,
     poll: poll ? draftToPoll(poll) : null,
   };
@@ -406,12 +439,15 @@ export default function CreatePostScreen() {
 
           <View>
             <AppText variant="label" style={styles.sectionLabel}>
-              Adicionar mídia (opcional)
+              Adicionar (opcional)
             </AppText>
             <View style={styles.mediaGrid}>
               <MediaButton icon="document" label="PDF" caption="Até 25 MB" onPress={() => { setPdfMode(true); setMedia(null); }} />
               <MediaButton icon="image" label="Imagem" caption="Até 10 MB" onPress={() => selectMedia('image')} />
               <MediaButton icon="camera" label="Vídeo" caption="Até 100 MB · 30 s" onPress={() => selectMedia('video')} />
+              {destination.kind === 'comuna' && !DEMO_MODE ? (
+                <MediaButton icon="calendar" label="Evento" caption="Da comuna" onPress={() => setPickingEvent(true)} />
+              ) : null}
             </View>
           </View>
 
@@ -434,6 +470,18 @@ export default function CreatePostScreen() {
             <EditorialAction label="Remover enquete" icon="trash" onPress={() => setPoll(null)} />
           </View> : null}
 
+          {effectiveEvent ? <View style={styles.pdfSection}>
+            <AppText variant="label" style={styles.sectionLabel}>Evento vinculado</AppText>
+            <View style={styles.eventPreview} accessible accessibilityLabel={`Evento selecionado: ${effectiveEvent.title}`}>
+              <AppText style={styles.eventTitle}>{effectiveEvent.title}</AppText>
+              <AppText variant="caption" color={Colors.muted}>
+                {(() => { const w = formatPoster(effectiveEvent.startsAt, effectiveEvent.timeZone); return `${w.day} ${w.month} · ${w.time}${effectiveEvent.placeName ? ` · ${effectiveEvent.placeName}` : ''}`; })()}
+              </AppText>
+            </View>
+            <EditorialAction label="Trocar evento" icon="edit" onPress={() => setPickingEvent(true)} />
+            <EditorialAction label="Remover evento da publicação" icon="trash" onPress={() => setSelectedEvent(null)} />
+          </View> : null}
+
           {pdfMode ? <View style={styles.pdfSection}>
             <AppText variant="label" style={styles.sectionLabel}>PDF anexado</AppText>
             {attachmentError ? <AppText color={Colors.error}>{attachmentError}</AppText> : null}
@@ -454,6 +502,39 @@ export default function CreatePostScreen() {
       <BottomSheet scrollable={false} virtualized visible={pickingDocument} onClose={() => setPickingDocument(false)} title="Sua biblioteca">
         <View style={{ height: 480, flexShrink: 1 }}><LibraryPane scope="personal" owner={me.id} onSelect={(attachment) => { setDocument(attachment); setPdfMode(true); setMedia(null); setPickingDocument(false); }} /></View>
       </BottomSheet>
+      <BottomSheet visible={pickingEvent} onClose={() => setPickingEvent(false)} title="Vincular evento">
+        {eventsQuery.isPending ? (
+          <ActivityIndicator color={Colors.red} style={styles.sheetNote} accessibilityLabel="Carregando eventos" />
+        ) : eventsQuery.isError ? (
+          <Pressable onPress={() => { void eventsQuery.refetch(); }} accessibilityRole="button" style={styles.sheetNote}>
+            <AppText variant="caption">Não foi possível carregar os eventos. <AppText style={styles.findMoreLabel} color={Colors.red}>Tentar de novo</AppText></AppText>
+          </Pressable>
+        ) : eventsQuery.data && eventsQuery.data.items.length > 0 ? (
+          eventsQuery.data.items
+            .filter((e) => e.status === 'scheduled')
+            .map((e) => {
+              const w = formatPoster(e.startsAt, e.timeZone);
+              return (
+                <Pressable
+                  key={e.id}
+                  onPress={() => { setSelectedEvent(e); setPickingEvent(false); }}
+                  role="radio"
+                  accessibilityState={{ checked: effectiveEvent?.id === e.id }}
+                  accessibilityLabel={`${e.title}, ${w.day} ${w.month}, ${w.time}`}
+                  style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
+                  <View style={styles.optionText}>
+                    <AppText style={styles.optionName} numberOfLines={1}>{e.title}</AppText>
+                    <AppText style={styles.destSub} color={Colors.muted}>{w.day} {w.month} · {w.time}</AppText>
+                  </View>
+                  {effectiveEvent?.id === e.id ? <Icon name="check" size={20} color={Colors.red} /> : null}
+                </Pressable>
+              );
+            })
+        ) : (
+          <AppText variant="caption" style={styles.sheetNote}>Nenhum evento disponível para vincular.</AppText>
+        )}
+      </BottomSheet>
+
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Publicar em">
         <DestinationOption
           selected={destination.kind === 'perfil'}
@@ -781,6 +862,18 @@ const styles = StyleSheet.create({
   },
   pdfSection: {
     gap: Spacing.three,
+  },
+  eventPreview: {
+    padding: Spacing.three,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    backgroundColor: Colors.paper,
+    gap: Spacing.one,
+  },
+  eventTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 15.5,
+    lineHeight: 20,
   },
   pollOption: {
     flexDirection: 'row',

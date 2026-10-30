@@ -16,6 +16,7 @@ import { goBack } from '@/lib/routes';
 
 import { createEvent, getEvent, updateEvent } from './api';
 import { EventBar } from './chrome';
+import { DatePickerField, pickerDateToWallStrings, wallStringsToPickerDate } from './date-picker-field';
 import { draftError, draftToInput } from './draft';
 import { deviceTimeZone, wallFromIso } from './format';
 import { storeEvent } from './rsvp';
@@ -61,6 +62,8 @@ export default function EventFormScreen() {
 
 function EventFields({ initial, editing, id, slug }: { initial: EventDraft; editing: boolean; id?: string; slug?: string }) {
   const [draft, setDraft] = useState(initial);
+  const [startDate, setStartDate] = useState<Date | null>(() => wallStringsToPickerDate(initial.date, initial.time));
+  const [endDate, setEndDate] = useState<Date | null>(() => wallStringsToPickerDate(initial.endDate, initial.endTime));
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const toast = useToast();
@@ -68,6 +71,35 @@ function EventFields({ initial, editing, id, slug }: { initial: EventDraft; edit
   const set = (patch: Partial<EventDraft>) => setDraft((current) => ({ ...current, ...patch }));
   const needsPlace = draft.format !== 'online';
   const needsUrl = draft.format !== 'in_person';
+
+  const handleStartChange = (date: Date) => {
+    const { dateStr, timeStr } = pickerDateToWallStrings(date);
+    set({ date: dateStr, time: timeStr });
+    setStartDate(date);
+    // If end date exists and is no longer after start, push it forward keeping the same duration.
+    if (endDate) {
+      const prevStart = startDate;
+      if (endDate.getTime() <= date.getTime()) {
+        const durationMs = prevStart ? endDate.getTime() - prevStart.getTime() : 2 * 60 * 60 * 1000;
+        const safeMs = Math.max(durationMs, 30 * 60 * 1000);
+        const newEnd = new Date(date.getTime() + safeMs);
+        const { dateStr: eds, timeStr: ets } = pickerDateToWallStrings(newEnd);
+        set({ endDate: eds, endTime: ets });
+        setEndDate(newEnd);
+      }
+    }
+  };
+
+  const handleEndChange = (date: Date) => {
+    const { dateStr, timeStr } = pickerDateToWallStrings(date);
+    set({ endDate: dateStr, endTime: timeStr });
+    setEndDate(date);
+  };
+
+  const clearEnd = () => {
+    set({ endDate: '', endTime: '' });
+    setEndDate(null);
+  };
 
   const submit = () => {
     const message = draftError(draft, !editing);
@@ -81,6 +113,8 @@ function EventFields({ initial, editing, id, slug }: { initial: EventDraft; edit
       .catch((failure: unknown) => setError(describeError(failure)))
       .finally(() => setPending(false));
   };
+
+  const minStartDate = !editing ? new Date() : undefined;
 
   return <Screen>
     <EventBar title={editing ? 'Editar' : 'Nova atividade'} />
@@ -103,13 +137,22 @@ function EventFields({ initial, editing, id, slug }: { initial: EventDraft; edit
         <TextField appearance="editorial" label="Link" placeholder="Ex.: https://meet.example.org/sala" value={draft.onlineUrl} onChangeText={(onlineUrl) => set({ onlineUrl })} maxLength={500} autoCapitalize="none" autoCorrect={false} keyboardType="url" />
       ) : null}
       <View style={styles.when}>
-        <View style={styles.whenField}><TextField appearance="editorial" label="Data" placeholder="Ex.: 05/11/2026" value={draft.date} onChangeText={(date) => set({ date })} /></View>
-        <View style={styles.whenField}><TextField appearance="editorial" label="Hora" placeholder="Ex.: 19:00" value={draft.time} onChangeText={(time) => set({ time })} /></View>
+        <View style={styles.whenField}>
+          <DatePickerField label="Data" mode="date" value={startDate} onChange={handleStartChange} minimumDate={minStartDate} disabled={pending} />
+        </View>
+        <View style={styles.whenField}>
+          <DatePickerField label="Hora" mode="time" value={startDate} onChange={handleStartChange} disabled={pending} />
+        </View>
       </View>
       <View style={styles.when}>
-        <View style={styles.whenField}><TextField appearance="editorial" label="Término" labelAside="opcional" placeholder="Ex.: 05/11/2026" value={draft.endDate} onChangeText={(endDate) => set({ endDate })} /></View>
-        <View style={styles.whenField}><TextField appearance="editorial" label="Hora final" labelAside="opcional" placeholder="Ex.: 21:00" value={draft.endTime} onChangeText={(endTime) => set({ endTime })} /></View>
+        <View style={styles.whenField}>
+          <DatePickerField label="Término" labelAside="opcional" mode="date" value={endDate} onChange={handleEndChange} minimumDate={startDate ?? undefined} disabled={pending} />
+        </View>
+        <View style={styles.whenField}>
+          <DatePickerField label="Hora final" labelAside="opcional" mode="time" value={endDate} onChange={handleEndChange} disabled={pending} />
+        </View>
       </View>
+      {endDate ? <EditorialAction label="Remover horário de término" icon="close" onPress={clearEnd} /> : null}
       {error ? <AppText color={Colors.red} accessibilityLiveRegion="polite">{error}</AppText> : null}
       <EditorialAction label={editing ? 'Salvar evento' : 'Marcar evento'} icon="check" tone="red" onPress={submit} disabled={pending || !draft.timeZone} />
     </ScrollView>

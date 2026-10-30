@@ -92,11 +92,11 @@ export async function getPost(id: string, signal?: AbortSignal): Promise<FeedIte
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[] } | null; mentions?: ContentMention[] }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[] } | null; mentions?: ContentMention[]; eventId?: string | null }): Promise<FeedItem> {
   const mentions = mentionRefs(input.mentions);
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), ...(mentions ? { mentions } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), ...(mentions ? { mentions } : {}), ...(input.eventId ? { eventId: input.eventId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
     auth: true,
   });
   const item = toFeedItem(post);

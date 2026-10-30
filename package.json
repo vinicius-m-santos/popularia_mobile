@@ -9,6 +9,7 @@
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
     "@expo/vector-icons": "^15.0.2",
     "@gorhom/bottom-sheet": "^5.2.14",
+    "@react-native-community/datetimepicker": "9.2.1",
     "@react-native-google-signin/google-signin": "^14.0.2",
     "@sentry/react-native": "~8.28.0",
     "@shopify/flash-list": "2.3.2",
