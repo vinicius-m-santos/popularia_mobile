@@ -2,10 +2,10 @@ import { router, type Href } from 'expo-router';
 import { API_BASE_URL } from '@/constants/config';
 import { hrefComuna, hrefPost, hrefProfile, type TabBase } from '@/lib/routes';
 
-export type ShareDestination = { kind: 'post' | 'profile' | 'comuna' | 'document'; id: string };
+export type ShareDestination = { kind: 'post' | 'profile' | 'comuna' | 'document' | 'event'; id: string };
 export type Destination = ShareDestination | { kind: 'square' | 'join_requests'; id: string };
 export const PUBLIC_LINK_ORIGIN = (process.env.EXPO_PUBLIC_LINK_ORIGIN || API_BASE_URL?.replace(/\/api\/v1$/, '') || 'http://localhost:8080').replace(/\/+$/, '');
-const prefixes = { post: 'p', profile: 'u', comuna: 'c', document: 'd' } as const;
+const prefixes = { post: 'p', profile: 'u', comuna: 'c', document: 'd', event: 'e' } as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function validDestination(target: ShareDestination): boolean {
@@ -26,7 +26,7 @@ export function parsePopulariaUrl(value: string): ShareDestination | null {
     if (url.origin !== origin.origin || url.username || url.password || url.hash) return null;
     if ([...url.searchParams.keys()].some((key) => !/^utm_(source|medium|campaign|term|content)$/.test(key) && !['fbclid', 'gclid', 'igshid', 's'].includes(key))) return null;
     if (!scheme && url.protocol !== 'https:' && !(origin.protocol === 'http:' && __DEV__)) return null;
-    const match = /^\/(p|u|c|d)\/([^/]+)$/.exec(url.pathname);
+    const match = /^\/(p|u|c|d|e)\/([^/]+)$/.exec(url.pathname);
     if (!match) return null;
     const kind = (Object.keys(prefixes) as (keyof typeof prefixes)[]).find((key) => prefixes[key] === match[1])!;
     const target = { kind, id: decodeURIComponent(match[2]).toLowerCase() };
@@ -40,6 +40,7 @@ export function destinationHref(target: Destination, base: TabBase = ''): Href {
     case 'profile': return hrefProfile(base, target.id);
     case 'comuna': return hrefComuna(base, target.id);
     case 'document': return { pathname: '/biblioteca/documento/[id]', params: { id: target.id } };
+    case 'event': return { pathname: '/evento/[id]', params: { id: target.id } };
     case 'square': return { pathname: '/praca/[id]', params: { id: target.id } };
     case 'join_requests': return { pathname: '/gerir-comuna/[id]', params: { id: target.id, aba: 'pedidos' } };
   }

@@ -56,6 +56,7 @@ const permissions = {
   canArchive: true,
   canDelete: true,
   canTransferOwnership: true,
+  canManageEvents: true,
 };
 
 const comunaDto: ComunaDto = {

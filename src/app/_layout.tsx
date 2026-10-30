@@ -175,6 +175,11 @@ function RootStack() {
         <Stack.Screen name="moderacao/[id]" />
         <Stack.Screen name="criar-comuna" />
         <Stack.Screen name="gerir-comuna/[id]" />
+        <Stack.Screen name="evento/[id]/index" />
+        <Stack.Screen name="evento/[id]/participantes" />
+        <Stack.Screen name="evento/[id]/editar" />
+        <Stack.Screen name="eventos/[slug]/index" />
+        <Stack.Screen name="eventos/[slug]/novo" />
         <Stack.Screen name="conta" />
         <Stack.Screen name="verificar-email" />
       </Stack.Protected>

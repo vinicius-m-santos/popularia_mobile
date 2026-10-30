@@ -76,6 +76,7 @@ const permissions = {
   canArchive: true,
   canDelete: true,
   canTransferOwnership: true,
+  canManageEvents: true,
 };
 
 function comuna(patch: Partial<ComunaDetails> = {}): ComunaDetails {

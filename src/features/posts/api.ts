@@ -71,6 +71,7 @@ export function toFeedItem(post: PostDto): FeedItem {
     author: toUser(post.author),
     comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name, status: post.comuna.status } : null,
     event: null,
+    linkedEvent: post.event ?? null,
     topCommentAuthor: null,
   };
 }

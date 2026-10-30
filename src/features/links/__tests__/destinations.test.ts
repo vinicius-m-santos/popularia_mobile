@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useSegments: () =
 const id = '019abcde-0000-7000-8000-000000000001';
 beforeEach(() => { takeIncomingDestination(); });
 describe('destinos e URLs canônicas', () => {
-  it.each([['post', 'p', id], ['profile', 'u', id], ['comuna', 'c', 'tarifa-zero'], ['document', 'd', id]] as const)('%s gera HTTPS e retorna ao mesmo destino', (kind, path, value) => {
+  it.each([['post', 'p', id], ['profile', 'u', id], ['comuna', 'c', 'tarifa-zero'], ['document', 'd', id], ['event', 'e', id]] as const)('%s gera HTTPS e retorna ao mesmo destino', (kind, path, value) => {
     const target = { kind, id: value };
     expect(canonicalUrl(target)).toBe(`${PUBLIC_LINK_ORIGIN}/${path}/${value}`);
     expect(parsePopulariaUrl(canonicalUrl(target))).toEqual(target);
@@ -37,6 +37,8 @@ describe('destinos e URLs canônicas', () => {
     expect(notificationHref({ kind: 'profile', id })).toBe(`/avisos/pessoa/${id}`);
     expect(notificationHref({ kind: 'comuna', id: 'tarifa' })).toBe('/avisos/comuna/tarifa');
     expect(destinationHref({ kind: 'document', id })).toEqual({ pathname: '/biblioteca/documento/[id]', params: { id } });
+    expect(destinationHref({ kind: 'event', id })).toEqual({ pathname: '/evento/[id]', params: { id } });
+    expect(notificationHref({ kind: 'event', id })).toEqual({ pathname: '/evento/[id]', params: { id } });
     expect(notificationHref({ kind: 'square', id })).toEqual({ pathname: '/praca/[id]', params: { id } });
     expect(notificationHref({ kind: 'join_requests', id: 'tarifa' })).toEqual({ pathname: '/gerir-comuna/[id]', params: { id: 'tarifa', aba: 'pedidos' } });
   });

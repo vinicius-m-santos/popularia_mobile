@@ -49,6 +49,7 @@ const noPermissions = {
   canArchive: false,
   canDelete: false,
   canTransferOwnership: false,
+  canManageEvents: false,
 };
 
 const comunaDto: ComunaDto = {

@@ -37,7 +37,7 @@ const FILTERS: { key: NotificationFilter; label: string }[] = [
 const MATCHES: Record<NotificationFilter, (kind: NotificationKind) => boolean> = {
   tudo: () => true,
   conversas: (k) => k === 'reply' || k === 'comment' || k === 'square_reply' || k === 'mention_post' || k === 'mention_comment',
-  comunas: (k) => k.startsWith('join_') || k.startsWith('ownership_'),
+  comunas: (k) => k.startsWith('join_') || k.startsWith('ownership_') || k.startsWith('event_'),
 };
 
 /** Existing Avisos design, backed by a paginated server history. */
@@ -249,6 +249,7 @@ const BADGE_ICONS: Record<NotificationKind, IconName> = {
   follow: 'plus',
   join_requested: 'support', join_approved: 'check', join_rejected: 'close',
   ownership_proposed: 'shield', ownership_accepted: 'shield', ownership_declined: 'shield', ownership_cancelled: 'shield',
+  event_rescheduled: 'pin', event_place_changed: 'pin', event_link_changed: 'pin', event_updated: 'pin', event_cancelled: 'pin', event_reminder: 'bell',
 };
 
 /** Selo no canto do avatar com o tipo do aviso. */

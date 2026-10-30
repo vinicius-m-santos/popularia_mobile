@@ -15,6 +15,7 @@ import { formatCount, formatRelative } from '@/lib/format';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
+import { LinkedEventCallout } from '@/features/events/linked-event';
 import { DocumentCard } from '@/features/library/document-card';
 
 import { AuthorLine } from './author-line';
@@ -90,6 +91,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
       {item.poll ? <PostPollBlock postId={item.id} poll={item.poll} /> : null}
+      {item.linkedEvent ? <LinkedEventCallout event={item.linkedEvent} /> : null}
       {event ? <EventBox event={event} /> : null}
       {media ? (
         <Pressable onPress={open} accessibilityHint="Abre a discussão">

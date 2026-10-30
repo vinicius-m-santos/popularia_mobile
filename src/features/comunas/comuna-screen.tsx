@@ -25,6 +25,7 @@ import { PostCard } from '@/features/posts/components/post-card';
 import { preparePost } from '@/features/posts/queries';
 import { rememberPost } from '@/features/posts/save';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
+import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
@@ -154,6 +155,7 @@ export default function ComunaScreen() {
             <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
           ) : tab === 'posts' ? (
             <>
+              {!DEMO_MODE ? <NextEvent slug={id} /> : null}
               {DEMO_MODE && data.pinned ? <PinnedCard title={data.pinned.title} text={data.pinned.text} /> : null}
               {!DEMO_MODE ? (
                 <PinnedPosts

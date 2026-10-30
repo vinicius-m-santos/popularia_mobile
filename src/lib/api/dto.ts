@@ -30,6 +30,7 @@ export type ComunaPermissionsDto = {
   canArchive: boolean;
   canDelete: boolean;
   canTransferOwnership: boolean;
+  canManageEvents: boolean;
 };
 
 /** Pessoa numa comuna (lista de membros e moderação). `founder` é quem é proprietário. */
@@ -132,6 +133,19 @@ export type PostDto = {
     totalVotes: number;
     votedOptionId: string | null;
     options: { id: string; label: string; voteCount: number; percent: number; selected: boolean }[];
+  } | null;
+  /** Atividade da mesma comuna, quando a publicação aponta para uma. */
+  event?: {
+    id: string;
+    title: string;
+    format: 'in_person' | 'online' | 'hybrid';
+    status: 'scheduled' | 'cancelled';
+    startsAt: string;
+    timeZone: string;
+    placeName: string | null;
+    goingCount: number;
+    maybeCount: number;
+    past: boolean;
   } | null;
 };
 

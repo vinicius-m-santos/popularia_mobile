@@ -155,10 +155,25 @@ export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: bo
 export type ComunaRef = Pick<Comuna, 'id' | 'name' | 'status'>;
 
 /** Post com as entidades relacionadas já resolvidas, pronto para exibição. */
+/** Resumo de uma atividade citada por uma publicação da mesma comuna. */
+export type LinkedEvent = {
+  id: string;
+  title: string;
+  format: 'in_person' | 'online' | 'hybrid';
+  status: 'scheduled' | 'cancelled';
+  startsAt: string;
+  timeZone: string;
+  placeName: string | null;
+  goingCount: number;
+  maybeCount: number;
+  past: boolean;
+};
+
 export type FeedItem = Post & {
   author: User;
   comuna: ComunaRef | null;
   event: CommunityEvent | null;
+  linkedEvent?: LinkedEvent | null;
   topCommentAuthor: User | null;
 };
 
@@ -204,6 +219,7 @@ export type ComunaPermissions = {
   canArchive: boolean;
   canDelete: boolean;
   canTransferOwnership: boolean;
+  canManageEvents: boolean;
 };
 
 /** Pessoa da comuna com papel, na gestão (só na API). */
@@ -271,10 +287,11 @@ export type NotificationKind =
   | 'comment_support' | 'square_reply'
   | 'follow' | 'comment' | 'reply' | 'mention_post' | 'mention_comment'
   | 'join_requested' | 'join_approved' | 'join_rejected'
-  | 'ownership_proposed' | 'ownership_accepted' | 'ownership_declined' | 'ownership_cancelled';
+  | 'ownership_proposed' | 'ownership_accepted' | 'ownership_declined' | 'ownership_cancelled'
+  | 'event_rescheduled' | 'event_place_changed' | 'event_link_changed' | 'event_updated' | 'event_cancelled' | 'event_reminder';
 
 /** Destino ao tocar no aviso. */
-export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests' | 'square'; id: string };
+export type NotificationTarget = { kind: 'post' | 'comuna' | 'profile' | 'join_requests' | 'square' | 'event'; id: string };
 
 export type AppNotification = {
   id: string;

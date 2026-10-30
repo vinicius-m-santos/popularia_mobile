@@ -16,7 +16,7 @@ module.exports = ({ config }) => {
   const linkUrl = new URL(linkOrigin);
   if (linkUrl.username || linkUrl.password || linkUrl.search || linkUrl.hash || linkUrl.pathname !== '/') throw new Error('Origem de links inválida.');
   if (profile && profile !== 'development' && (linkUrl.protocol !== 'https:' || linkOrigin !== api.replace(/\/api\/v1$/, ''))) throw new Error('Origem de links deve corresponder ao host HTTPS da API neste ambiente.');
-  const linkPaths = ['/p/', '/u/', '/c/', '/d/'];
+  const linkPaths = ['/p/', '/u/', '/c/', '/d/', '/e/'];
   const iosClient = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const iosUrlScheme = iosClient ? `com.googleusercontent.apps.${iosClient.replace(/\.apps\.googleusercontent\.com$/, '')}` : null;
   return {
