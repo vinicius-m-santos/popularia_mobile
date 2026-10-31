@@ -53,7 +53,7 @@ export function ComunaCover({ comuna, canEdit }: ComunaCoverProps) {
     ? <Image source={{ uri: shown }} contentFit="cover" cachePolicy="memory-disk" recyclingKey={shown} style={StyleSheet.absoluteFill} accessibilityLabel="" />
     : <RasterImage fadeDuration={0} source={require('@/assets/comunas/comuna-hero-people.png')} resizeMode="cover" style={styles.art} accessible={false} />;
   const badge = canEdit ? <View style={styles.badge} pointerEvents="none">
-    {uploading ? <ActivityIndicator color={Colors.ink} size="small" /> : <Icon name="camera" size={16} color={Colors.ink} />}
+    {uploading ? <ActivityIndicator color={Colors.red} size="small" /> : <Icon name="camera" size={17} color={Colors.red} />}
   </View> : null;
 
   if (!canEdit) {

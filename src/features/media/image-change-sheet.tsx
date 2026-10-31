@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { EditorialAction } from '@/components/editorial-action';
 import { useToast } from '@/components/toast';
-import { Colors } from '@/constants/theme';
+import { Colors, Radius } from '@/constants/theme';
 import { describeError } from '@/lib/errors';
 
 import { pickProfileImage, type PickedImage } from './pick-image';
@@ -49,13 +49,15 @@ export function ImageChangeSheet({ visible, title, kind, busy, onClose, onConfir
     {draft ? <View style={styles.preview} accessible accessibilityRole="image" accessibilityLabel="Pré-visualização da capa">
       <Image source={{ uri: draft.uri }} contentFit="cover" cachePolicy="memory-disk" style={StyleSheet.absoluteFill} />
     </View> : null}
-    {draft ? <EditorialAction label="Usar esta capa" icon="image" tone="red" disabled={busy} onPress={() => { const image = draft; setDraft(null); onConfirm(image); }} /> : null}
-    <EditorialAction label={draft ? 'Escolher outra' : 'Escolher da galeria'} icon="image" disabled={busy} onPress={() => { void choose(); }} />
-    <EditorialAction label="Cancelar" icon="close" tone="ghost" disabled={busy} onPress={close} />
+    {draft ? <EditorialAction label="Usar esta capa" icon="image" tone="red" disabled={busy} onPress={() => { const image = draft; setDraft(null); onConfirm(image); }} style={styles.primary} /> : null}
+    <EditorialAction label={draft ? 'Escolher outra' : 'Escolher da galeria'} icon="image" tone={draft ? 'paper' : 'red'} disabled={busy} onPress={() => { void choose(); }} style={draft ? styles.secondary : styles.primary} />
+    <EditorialAction label="Cancelar" icon="close" tone="paper" disabled={busy} onPress={close} style={styles.secondary} />
   </BottomSheet>;
 }
 
 const styles = StyleSheet.create({
   // A capa da comuna é uma faixa de altura fixa, preenchida com cover. O preview repete isso, sem corte quadrado.
   preview: { height: 180, width: '100%', overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.cream },
+  primary: { borderRadius: Radius.sm },
+  secondary: { borderRadius: Radius.sm, borderWidth: 1 },
 });

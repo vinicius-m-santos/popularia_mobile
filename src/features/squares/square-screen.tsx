@@ -6,13 +6,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
-import { BottomSheet, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
-import { Icon } from '@/components/icon';
+import { BottomSheet } from '@/components/bottom-sheet';
+import { RadioMark } from '@/components/choice-marks';
+import { EditorialAction } from '@/components/editorial-action';
+import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
+import { SectionHeading } from '@/components/section-heading';
 import { StateView } from '@/components/state-view';
+import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
@@ -22,7 +26,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { REPORT_REASONS } from '@/features/moderation/constants';
 import type { AuthorDto } from '@/lib/api/dto';
 import { describeError } from '@/lib/errors';
-import { initialsOf } from '@/lib/format';
+import { dayKey, formatDayRule, initialsOf } from '@/lib/format';
 import { goBack, openModeration, useNav } from '@/lib/routes';
 
 import * as api from './api';
@@ -130,51 +134,102 @@ function Conversation({ id }: { id: string }) {
   };
   const freshAction = actions ? chat.messages.find((m) => m.id === actions.id) ?? actions : null;
   const pickerMessage = picker ? chat.messages.find((m) => m.id === picker.messageId && m.status === 'published') ?? null : null;
-  const locked = s && !s.viewer.canRead;
+  const locked = !!s && !s.viewer.canRead;
   const joinLabel = busy ? 'Aguarde…' : s?.viewer.joinRequest === 'pending' ? 'Solicitação pendente' : locked ? 'Solicitar entrada' : 'Participar';
   const notice = s?.status === 'closed' ? 'Praça encerrada · somente leitura' : s?.viewer.isMember && !s.viewer.canWrite ? (account && !account.emailVerified ? 'Confirme seu e-mail para conversar na Praça.' : 'A conversa está disponível somente para leitura.') : 'Participe da comuna para conversar na Praça';
 
   return <Screen backgroundColor={Colors.ink}>
-    <KeyboardView style={styles.flex}>
-      <View style={styles.header}>
-        <IconButton icon="back" color={Colors.cream} accessibilityLabel="Voltar" onPress={goBack} />
-        <View style={styles.heading}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Ver comuna" onPress={() => { if (s?.comuna) nav.openComuna(s.comuna.slug); }}><AppText variant="bodyStrong" color={Colors.cream} style={styles.title} numberOfLines={2}>{s?.title ?? 'Praça'}</AppText></Pressable>
-          <Pressable onPress={() => openSheet('presence')} disabled={!s?.viewer.canRead || s.status !== 'active'} accessibilityRole="button" accessibilityLabel="Pessoas na Praça" style={styles.presence}>
-            <AppText variant="caption" color={Colors.onInkMuted}>Praça · {locked ? 'Comuna privada' : s?.status === 'closed' ? 'Fechada' : <AppText variant="caption" color={Colors.red}>● {s?.presence ?? 0} pessoas na praça</AppText>}</AppText>
-          </Pressable>
+    <KeyboardView style={styles.screen}>
+      <SquareHeader
+        square={s}
+        locked={locked}
+        onComuna={() => { if (s?.comuna) nav.openComuna(s.comuna.slug); }}
+        onPresence={() => openSheet('presence')}
+        onManage={() => openSheet('manage')}
+      />
+      {!s ? (
+        <View style={styles.stateWrap}>
+          <StateView kind={chat.loading ? 'loading' : 'error'} message={chat.loading ? 'Carregando Praça' : chat.error ?? 'Não foi possível abrir a Praça.'} onRetry={() => { void chat.reload(); }} />
         </View>
-        {s?.viewer.canRead ? <IconButton icon="more" color={Colors.cream} accessibilityLabel="Opções da Praça" onPress={() => openSheet('manage')} /> : null}
-      </View>
-      {!s ? <StateView kind={chat.loading ? 'loading' : 'error'} message={chat.loading ? 'Carregando Praça' : chat.error ?? 'Não foi possível abrir a Praça.'} onRetry={() => { void chat.reload(); }} /> : locked ? <View style={styles.locked}>
-        <AppText variant="heading" style={styles.center}>Esta Praça pertence a uma comuna privada</AppText>
-        <AppText style={styles.center}>Participe da comuna para acessar as conversas.</AppText>
-        <PillButton label={joinLabel} disabled={busy || s.viewer.joinRequest === 'pending'} onPress={join} variant="dark" />
-      </View> : <>
-        {chat.syncError ? <Pressable onPress={() => { void chat.reload(); }} accessibilityRole="button" style={styles.sync}><AppText variant="caption" color={Colors.red}>{chat.syncError} Toque para tentar novamente.</AppText></Pressable> : null}
-        {/* Older pages append at the visual top in this inverted list; native anchoring can shift its initial offset. */}
+      ) : locked ? (
+        <View style={styles.locked}>
+          <SectionHeading appearance="editorial" label="Comuna privada" />
+          <AppText variant="heading" style={styles.center}>Esta Praça pertence a uma comuna privada</AppText>
+          <AppText style={styles.center}>Participe da comuna para acessar as conversas.</AppText>
+          <EditorialAction
+            label={joinLabel}
+            icon="plus"
+            labelVariant="button"
+            tone="red"
+            disabled={busy || s.viewer.joinRequest === 'pending'}
+            onPress={join}
+            style={styles.lockedAction}
+          />
+        </View>
+      ) : <>
+        {chat.syncError ? (
+          <Pressable onPress={() => { void chat.reload(); }} accessibilityRole="button" style={styles.sync}>
+            <AppText variant="caption" color={Colors.red}>Sem atualização da conversa.</AppText>
+            <AppText variant="label">Tentar de novo</AppText>
+          </Pressable>
+        ) : null}
+        {/* Páginas antigas entram no topo visual desta lista invertida. */}
         <FlatList
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
           automaticallyAdjustsScrollIndicatorInsets={false}
-          ref={list} data={chat.messages} inverted keyExtractor={(m) => m.id}
-          renderItem={({ item }) => <MessageRow message={item} separator={chat.separatorId === item.id} onOpenPicker={openPicker} onReply={onReply} onReact={chat.react} onOriginal={original} />}
-          initialNumToRender={20} maxToRenderPerBatch={12} windowSize={9}
-          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+          ref={list}
+          data={chat.messages}
+          inverted
+          keyExtractor={(m) => m.id}
+          renderItem={({ item, index }) => {
+            const older = chat.messages[index + 1];
+            const newDay = !chat.separatorId && (!older || dayKey(older.createdAt) !== dayKey(item.createdAt));
+            return <>
+              <MessageRow
+                message={item}
+                separator={chat.separatorId === item.id}
+                inverted
+                onOpenPicker={openPicker}
+                onReply={onReply}
+                onReact={chat.react}
+                onOriginal={original}
+              />
+              {newDay ? <ChatDayRule label={formatDayRule(item.createdAt)} /> : null}
+            </>;
+          }}
+          initialNumToRender={20}
+          maxToRenderPerBatch={12}
+          windowSize={9}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           contentContainerStyle={styles.messages}
-          onScroll={(event) => { const bottom = event.nativeEvent.contentOffset.y < 80; atBottom.current = bottom; chat.onBottom(bottom); }} scrollEventThrottle={100}
+          onScroll={(event) => { const bottom = event.nativeEvent.contentOffset.y < 80; atBottom.current = bottom; chat.onBottom(bottom); }}
+          scrollEventThrottle={100}
           onScrollBeginDrag={() => setPicker(null)}
-          onEndReached={() => { if (!chat.loading) void chat.loadOlder(); }} onEndReachedThreshold={0.25}
+          onEndReached={() => { if (!chat.loading) void chat.loadOlder(); }}
+          onEndReachedThreshold={0.25}
           onScrollToIndexFailed={() => toast.show('Role um pouco mais para encontrar a mensagem original.')}
-          ListEmptyComponent={<View>{chat.loading ? <StateView kind="loading" message="Carregando conversa" /> : chat.error ? <StateView kind="error" message={chat.error} onRetry={() => { void chat.reload(); }} /> : <StateView kind="empty" title="Onde a comunidade se encontra" message="Abra a conversa com a primeira mensagem." />}</View>}
-          ListFooterComponent={<View>{chat.olderError ? <StateView kind="error" message="Não conseguimos carregar mensagens anteriores." onRetry={() => { void chat.loadOlder(); }} /> : chat.nextCursor ? <PillButton label={chat.loadingOlder ? 'Carregando anteriores…' : 'Mensagens anteriores'} variant="outline" disabled={chat.loadingOlder} onPress={() => { void chat.loadOlder(); }} style={styles.older} /> : null}</View>}
+          ListEmptyComponent={<View style={styles.emptyWrap}>{chat.loading ? <StateView kind="loading" message="Carregando conversa" /> : chat.error ? <StateView kind="error" message={chat.error} onRetry={() => { void chat.reload(); }} /> : <StateView kind="empty" title="Onde a comunidade se encontra" message="Abra a conversa com a primeira mensagem." />}</View>}
+          ListFooterComponent={<View style={styles.olderWrap}>{chat.olderError ? <StateView kind="error" message="Não conseguimos carregar mensagens anteriores." onRetry={() => { void chat.loadOlder(); }} /> : chat.nextCursor ? <PillButton label={chat.loadingOlder ? 'Carregando anteriores…' : 'Mensagens anteriores'} variant="outline" disabled={chat.loadingOlder} onPress={() => { void chat.loadOlder(); }} style={styles.older} /> : null}</View>}
         />
-        {chat.newCount > 0 || chat.hasRecentGap ? <PillButton label={chat.newCount > 0 ? `↓ ${chat.newCount} novas mensagens` : '↓ Ir às recentes'} variant="dark" size="sm" style={styles.new} onPress={() => { void chat.jumpRecent().then(() => list.current?.scrollToOffset({ offset: 0, animated: true })); }} /> : null}
-        {s.viewer.canWrite ? <SquareComposer inputRef={input} reply={reply} onCancel={() => setReplyId(null)} sending={chat.sending} onSend={send} onStickers={() => openSheet('stickers')} /> : <View style={[styles.notice, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          <AppText variant="caption" style={styles.center}>{notice}</AppText>
-          {s.status === 'active' && !s.viewer.isMember ? <PillButton label={joinLabel} onPress={join} disabled={busy} variant="dark" /> : account && !account.emailVerified && s.status === 'active' ? <PillButton label="Confirmar e-mail" onPress={() => router.push('/verificar-email')} /> : null}
-        </View>}
+        {chat.newCount > 0 || chat.hasRecentGap ? (
+          <PillButton label={chat.newCount > 0 ? `↓ ${chat.newCount} novas mensagens` : '↓ Ir às recentes'} variant="dark" size="sm" style={styles.new} onPress={() => { void chat.jumpRecent().then(() => list.current?.scrollToOffset({ offset: 0, animated: true })); }} />
+        ) : null}
+        {s.viewer.canWrite ? (
+          <SquareComposer inputRef={input} reply={reply} onCancel={() => setReplyId(null)} sending={chat.sending} onSend={send} onStickers={() => openSheet('stickers')} />
+        ) : (
+          <View style={[styles.notice, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]}>
+            <AppText variant="caption" style={styles.center}>{notice}</AppText>
+            {s.status === 'active' && !s.viewer.isMember ? (
+              <EditorialAction label={joinLabel} icon="plus" labelVariant="button" tone="red" onPress={join} disabled={busy} style={styles.noticeAction} />
+            ) : account && !account.emailVerified && s.status === 'active' ? (
+              <EditorialAction label="Confirmar e-mail" icon="check" labelVariant="button" tone="red" onPress={() => router.push('/verificar-email')} style={styles.noticeAction} />
+            ) : null}
+          </View>
+        )}
       </>}
+
       <ReactionPicker
         message={pickerMessage}
         anchor={picker?.anchor ?? null}
@@ -183,39 +238,183 @@ function Conversation({ id }: { id: string }) {
         onReact={(message, emoji) => { void chat.react(message, emoji); setPicker(null); }}
         onMore={(message) => { setPicker(null); onActions(message); }}
       />
+
       <BottomSheet visible={sheet === 'presence' && !!s?.viewer.canRead} onClose={() => setSheet(null)} title="Na Praça agora">
         <AppText variant="caption">Presença recente, aproximada.</AppText>
-        {people.length ? people.map((p) => <View key={p.id} style={styles.person}><Avatar initials={initialsOf(p.displayName)} tone="red" size={34} userId={p.id} imageUrl={absoluteMediaUrl(p.avatarUrl)} /><View style={styles.flex}><AppText variant="bodyStrong">{p.displayName}</AppText><AppText variant="caption">@{p.handle}</AppText></View></View>) : <AppText>Ninguém por aqui no momento.</AppText>}
+        {people.length ? people.map((p, index) => (
+          <View key={p.id} style={[styles.person, index > 0 && styles.personRule]}>
+            <Avatar initials={initialsOf(p.displayName)} tone="red" size={36} userId={p.id} imageUrl={absoluteMediaUrl(p.avatarUrl)} />
+            <View style={styles.flex}>
+              <AppText variant="bodyStrong">{p.displayName}</AppText>
+              <AppText variant="caption">@{p.handle}</AppText>
+            </View>
+          </View>
+        )) : <AppText variant="caption">Ninguém por aqui no momento.</AppText>}
       </BottomSheet>
+
       <BottomSheet visible={sheet === 'stickers' && !!s?.viewer.canWrite} onClose={() => setSheet(null)} title="Figurinhas">
-        <View style={styles.tabs}>{packs.map((p) => <PillButton key={p.id} label={p.scope === 'popularia' ? 'Popularia' : 'Da comuna'} variant={p.id === packId ? 'dark' : 'outline'} onPress={() => setPackId(p.id)} />)}</View>
-        <View style={styles.grid}>{packs.find((p) => p.id === packId)?.stickers.map((sticker) => <Pressable key={sticker.id} accessibilityRole="button" accessibilityLabel={`Enviar figurinha ${sticker.label}`} disabled={busy || chat.sending} onPress={() => sendSticker(sticker)}><StickerTile sticker={sticker} small /></Pressable>)}</View>
+        <View style={styles.packTabs}>
+          {packs.map((p) => {
+            const selected = p.id === packId;
+            return (
+              <Pressable
+                key={p.id}
+                onPress={() => setPackId(p.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={p.scope === 'popularia' ? 'Pacote Popularia' : 'Pacote da comuna'}
+                style={[styles.packTab, selected && styles.packTabOn]}>
+                <AppText variant="label" color={selected ? Colors.paper : Colors.ink}>{p.scope === 'popularia' ? 'Popularia' : 'Da comuna'}</AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.stickerGrid}>
+          {packs.find((p) => p.id === packId)?.stickers.map((sticker) => (
+            <Pressable key={sticker.id} accessibilityRole="button" accessibilityLabel={`Enviar figurinha ${sticker.label}`} disabled={busy || chat.sending} onPress={() => sendSticker(sticker)}>
+              <StickerTile sticker={sticker} small />
+            </Pressable>
+          ))}
+        </View>
         {!packs.find((p) => p.id === packId)?.stickers.length ? <AppText variant="caption">Este pacote ainda não tem figurinhas.</AppText> : null}
       </BottomSheet>
+
       <BottomSheet visible={sheet === 'manage' && !!s?.viewer.canRead} onClose={() => setSheet(null)} title="Praça">
         <View style={styles.menu}>
-          <AppText>A conversa coletiva de {s?.comuna?.name}.</AppText>
-          <PillButton label="Ver comuna" variant="outline" onPress={() => { setSheet(null); if (s?.comuna) nav.openComuna(s.comuna.slug); }} />
+          <AppText variant="caption">A conversa coletiva de {s?.comuna?.name}.</AppText>
+          <SheetAction icon="globe" label="Ver comuna" onPress={() => { setSheet(null); if (s?.comuna) nav.openComuna(s.comuna.slug); }} />
           {s?.viewer.canManage ? <>
-            <PillButton label="Figurinhas da comuna" variant="outline" onPress={() => { setSheet(null); router.push({ pathname: '/praca/figurinhas/[id]', params: { id } }); }} />
-            <PillButton label="Fila de denúncias" variant="outline" onPress={() => { setSheet(null); if (s.comuna) openModeration(s.comuna.slug); }} />
+            <SheetAction icon="sticker" label="Figurinhas da comuna" onPress={() => { setSheet(null); router.push({ pathname: '/praca/figurinhas/[id]', params: { id } }); }} />
+            <SheetAction icon="shield" label="Fila de denúncias" tone="red" onPress={() => { setSheet(null); if (s.comuna) openModeration(s.comuna.slug); }} />
           </> : null}
         </View>
       </BottomSheet>
+
       <BottomSheet visible={!!freshAction && !!s?.viewer.canRead} onClose={() => { setActionsId(null); setForm(null); }} title={form === 'report' ? 'Denunciar mensagem' : form === 'remove' ? 'Remover mensagem' : 'Mensagem'}>
-        {form ? <View style={styles.menu}>
-          {form === 'report' ? REPORT_REASONS.map((label) => <PillButton key={label} label={label} variant={reason === label ? 'dark' : 'outline'} onPress={() => setReason(label)} />) : null}
-          <PopulariaBottomSheetTextInput value={reason} onChangeText={setReason} maxLength={500} multiline accessibilityLabel="Motivo" placeholder="Motivo" style={styles.reason} />
-          <PillButton label={busy ? 'Enviando…' : 'Confirmar'} disabled={busy || reason.trim().length < 3} onPress={submitAction} variant="dark" />
-        </View> : freshAction ? <View style={styles.menu}>
-          {freshAction.viewer.canReply ? <PillButton label="Responder" variant="outline" onPress={() => { setActionsId(null); onReply(freshAction); }} /> : null}
-          {freshAction.viewer.canDelete ? <PillButton label="Excluir mensagem" variant="dark" disabled={busy} onPress={() => { void perform(async () => { await api.deleteMessage(id, freshAction.id); setActionsId(null); await chat.reload(); }); }} /> : null}
-          {freshAction.viewer.canReport ? <PillButton label="Denunciar" variant="outline" onPress={() => setForm('report')} /> : null}
-          {freshAction.viewer.canRemove ? <PillButton label="Remover mensagem" variant="dark" onPress={() => setForm('remove')} /> : null}
-        </View> : null}
+        {form ? (
+          <View style={styles.menu}>
+            {form === 'report' ? <>
+              <AppText variant="caption">Escolha o motivo que melhor descreve o problema.</AppText>
+              <View style={styles.reasons}>
+                {REPORT_REASONS.map((label) => {
+                  const selected = reason === label;
+                  return (
+                    <Pressable
+                      key={label}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      accessibilityLabel={label}
+                      onPress={() => setReason(label)}
+                      style={[styles.reasonRow, selected && styles.reasonRowOn]}>
+                      <RadioMark selected={selected} />
+                      <AppText style={styles.reasonLabel}>{label}</AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </> : <AppText variant="caption">Explique o motivo para a moderação da comuna.</AppText>}
+            <TextField
+              appearance="editorial"
+              label={form === 'report' ? 'Motivo' : 'Motivo da remoção'}
+              placeholder={form === 'report' ? 'Ex.: ataque pessoal' : 'Ex.: conteúdo fora das regras'}
+              value={reason}
+              onChangeText={setReason}
+              maxLength={500}
+              multiline
+            />
+            <EditorialAction
+              label={busy ? 'Enviando…' : form === 'report' ? 'Enviar denúncia' : 'Remover mensagem'}
+              icon={form === 'report' ? 'flag' : 'shield'}
+              labelVariant="button"
+              tone="red"
+              disabled={busy || reason.trim().length < 3}
+              onPress={submitAction}
+              style={styles.sheetAction}
+            />
+            <EditorialAction label="Cancelar" icon="close" labelVariant="button" tone="paper" onPress={() => { setForm(null); setReason(''); }} style={styles.sheetSecondary} />
+          </View>
+        ) : freshAction ? (
+          <View style={styles.menu}>
+            {freshAction.viewer.canReply ? <SheetAction icon="reply" label="Responder" onPress={() => { setActionsId(null); onReply(freshAction); }} /> : null}
+            {freshAction.viewer.canDelete ? <SheetAction icon="trash" label="Excluir mensagem" tone="red" disabled={busy} onPress={() => { void perform(async () => { await api.deleteMessage(id, freshAction.id); setActionsId(null); await chat.reload(); }); }} /> : null}
+            {freshAction.viewer.canReport ? <SheetAction icon="flag" label="Denunciar" onPress={() => setForm('report')} /> : null}
+            {freshAction.viewer.canRemove ? <SheetAction icon="shield" label="Remover mensagem" tone="red" onPress={() => setForm('remove')} /> : null}
+          </View>
+        ) : null}
       </BottomSheet>
     </KeyboardView>
   </Screen>;
+}
+
+function SquareHeader({ square, locked, onComuna, onPresence, onManage }: {
+  square: api.Square | null;
+  locked: boolean;
+  onComuna: () => void;
+  onPresence: () => void;
+  onManage: () => void;
+}) {
+  const presence = square?.presence ?? 0;
+  const active = square?.status === 'active';
+  const presenceText = locked
+    ? 'Comuna privada'
+    : square?.status === 'closed'
+      ? 'Somente leitura · encerrada'
+      : presence > 0
+        ? `${presence} ${presence === 1 ? 'pessoa' : 'pessoas'} na praça`
+        : 'Ninguém na praça agora';
+
+  return <View style={styles.header}>
+    <IconButton icon="back" color={Colors.cream} accessibilityLabel="Voltar" onPress={goBack} />
+    <View style={styles.headerDivider} />
+    <View style={styles.headerText}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ver comuna" onPress={onComuna} disabled={!square?.comuna} style={styles.titlePress}>
+        <AppText style={styles.headerTitle} color={Colors.cream} numberOfLines={1}>{square?.title ?? 'Praça'}</AppText>
+      </Pressable>
+      <Pressable
+        onPress={onPresence}
+        disabled={!square?.viewer.canRead || !active}
+        accessibilityRole="button"
+        accessibilityLabel={`Pessoas na Praça. ${presenceText}`}
+        hitSlop={{ top: 6, bottom: 6 }}
+        style={styles.presence}>
+        {active && presence > 0 ? <View style={styles.liveDot} /> : null}
+        <AppText style={styles.presenceText} color={Colors.onInkMuted}>{presenceText}</AppText>
+      </Pressable>
+    </View>
+    {square?.viewer.canRead ? <IconButton icon="more" color={Colors.cream} accessibilityLabel="Opções da Praça" onPress={onManage} /> : <View style={styles.headerSpacer} />}
+  </View>;
+}
+
+function ChatDayRule({ label }: { label: string }) {
+  return <View style={styles.dayRule} accessibilityRole="header">
+    <AppText variant="label">{label}</AppText>
+    <View style={styles.dayRuleLine} />
+  </View>;
+}
+
+/** Ação de folha com ícone colorido: cor no ícone e superfície discreta. */
+function SheetAction({ icon, label, tone = 'ink', disabled = false, onPress }: {
+  icon: IconName;
+  label: string;
+  tone?: 'ink' | 'red';
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.sheetRow, pressed && styles.sheetRowPressed, disabled && styles.sheetRowDisabled]}>
+      <View style={[styles.sheetIcon, tone === 'red' ? styles.sheetIconRed : styles.sheetIconInk]}>
+        <Icon name={icon} size={19} color={tone === 'red' ? Colors.red : Colors.ink} />
+      </View>
+      <AppText style={styles.sheetLabel}>{label}</AppText>
+      <Icon name="chevronRight" size={18} color={Colors.muted} />
+    </Pressable>
+  );
 }
 
 function ReactionPicker({ message, anchor, insets, onClose, onReact, onMore }: {
@@ -251,13 +450,239 @@ function ReactionPicker({ message, anchor, insets, onClose, onReact, onMore }: {
     </View>
   </Modal>;
 }
+
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.cream }, header: { backgroundColor: Colors.ink, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 10 }, heading: { flex: 1, minWidth: 0 }, title: { textTransform: 'uppercase', letterSpacing: 0.7 }, presence: { paddingTop: 5, paddingBottom: 3, minHeight: 30 }, messages: { paddingVertical: 10 }, locked: { flex: 1, justifyContent: 'center', padding: 30, gap: 20 }, center: { textAlign: 'center' }, notice: { borderTopWidth: 1, borderColor: Colors.rule, backgroundColor: Colors.strawLight, padding: 16, alignItems: 'center', gap: 12 }, sync: { padding: 10, backgroundColor: Colors.paper }, new: { alignSelf: 'center', marginVertical: 8 }, older: { alignSelf: 'center', margin: 16 }, menu: { gap: 12, paddingBottom: 8 }, person: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 }, tabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', paddingBottom: 16 }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 }, reason: { minHeight: 88, maxHeight: 160, padding: 12, borderWidth: 1, borderColor: Colors.rule, borderRadius: 10, color: Colors.ink, fontFamily: Fonts.regular, lineHeight: 22, fontSize: 15, textAlignVertical: 'top' },
+  screen: {
+    flex: 1,
+    backgroundColor: Colors.cream,
+  },
+  header: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
+    paddingVertical: Spacing.one,
+    backgroundColor: Colors.ink,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.inkRule,
+  },
+  headerDivider: {
+    width: 1.5,
+    height: 28,
+    backgroundColor: Colors.cream,
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  titlePress: {
+    minHeight: 22,
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontFamily: Fonts.monoSemibold,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  presence: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  presenceText: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.red,
+  },
+  headerSpacer: { width: 44 },
+  stateWrap: { flex: 1 },
+  locked: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: Spacing.six,
+    gap: Spacing.four,
+  },
+  lockedAction: {
+    alignSelf: 'stretch',
+    borderRadius: Radius.sm,
+  },
+  center: { textAlign: 'center' },
+  sync: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.two,
+    backgroundColor: Colors.paper,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.rule,
+  },
+  messages: { paddingVertical: Spacing.two },
+  emptyWrap: { minHeight: 280 },
+  olderWrap: { paddingVertical: Spacing.three },
+  older: { alignSelf: 'center' },
+  new: { alignSelf: 'center', marginVertical: Spacing.two },
+  notice: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.ink,
+    backgroundColor: Colors.strawLight,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.three,
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  noticeAction: {
+    alignSelf: 'stretch',
+    borderRadius: Radius.sm,
+  },
+  menu: { gap: Spacing.two, paddingBottom: Spacing.one },
+  sheetAction: { borderRadius: Radius.sm },
+  sheetSecondary: { borderRadius: Radius.sm, borderWidth: 1 },
+  sheetRow: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.two + 2,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.paper,
+  },
+  sheetRowPressed: {
+    backgroundColor: Colors.strawLight,
+  },
+  sheetRowDisabled: {
+    opacity: 0.55,
+  },
+  sheetIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetIconInk: {
+    backgroundColor: Colors.strawLight,
+  },
+  sheetIconRed: {
+    backgroundColor: Colors.redSoft,
+  },
+  sheetLabel: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.extrabold,
+    fontSize: 14.5,
+    lineHeight: 19,
+  },
+  person: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.two + 2,
+  },
+  personRule: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.rule,
+  },
+  flex: { flex: 1, minWidth: 0 },
+  packTabs: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
+    paddingBottom: Spacing.three,
+  },
+  packTab: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.paper,
+  },
+  packTabOn: {
+    backgroundColor: Colors.ink,
+    borderColor: Colors.ink,
+  },
+  stickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  reasons: { gap: Spacing.one },
+  reasonRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    borderWidth: 1,
+    borderColor: Colors.rule,
+  },
+  reasonRowOn: {
+    borderColor: Colors.ink,
+    backgroundColor: Colors.strawLight,
+  },
+  reasonLabel: {
+    flex: 1,
+    fontSize: 14.5,
+    lineHeight: 20,
+  },
+  dayRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.one,
+  },
+  dayRuleLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.rule,
+  },
   pickerOverlay: { flex: 1 },
   pickerBounds: { position: 'absolute' },
-  pickerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, backgroundColor: Colors.paper, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.pill, boxShadow: '0 5px 16px rgba(0,0,0,0.18)' },
+  pickerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.one,
+    backgroundColor: Colors.paper,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    borderRadius: Radius.sm,
+    boxShadow: '0 5px 16px rgba(0,0,0,0.18)',
+  },
   pickerMeasuring: { opacity: 0 },
-  pickerEmoji: { width: 40, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  pickerEmojiText: { fontSize: 22, lineHeight: 30 },
-  pickerMore: { width: 44, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  pickerEmoji: {
+    width: 40,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerEmojiText: {
+    fontSize: 22,
+    lineHeight: 30,
+  },
+  pickerMore: {
+    width: 44,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

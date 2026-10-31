@@ -5,7 +5,7 @@ import ReanimatedSwipeable, { SwipeDirection, type SwipeableMethods } from 'reac
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { absoluteMediaUrl } from '@/features/media/media-url';
 import { initialsOf } from '@/lib/format';
 
@@ -15,13 +15,13 @@ import { StickerTile } from './sticker-tile';
 export const QUICK_REACTIONS = ['❤️', '✊', '😂', '😮', '😢'];
 export type MessageAnchor = { x: number; y: number; width: number; height: number };
 type Props = {
-  message: SquareMessage; separator: boolean;
+  message: SquareMessage; separator: boolean; /** Lista invertida: o separador é renderizado depois para aparecer acima. */ inverted?: boolean;
   onOpenPicker: (m: SquareMessage, anchor: MessageAnchor) => void; onReply: (m: SquareMessage) => void;
   onReact: (m: SquareMessage, emoji: string) => void;
   onOriginal: (id: string) => void;
 };
 
-export const MessageRow = memo(function MessageRow({ message: m, separator, onOpenPicker, onReply, onReact, onOriginal }: Props) {
+export const MessageRow = memo(function MessageRow({ message: m, separator, inverted = false, onOpenPicker, onReply, onReact, onOriginal }: Props) {
   const swipeable = useRef<SwipeableMethods>(null);
   const row = useRef<ComponentRef<typeof View>>(null);
 
@@ -43,7 +43,7 @@ export const MessageRow = memo(function MessageRow({ message: m, separator, onOp
     accessibilityActions={canAct ? [...(m.viewer.canReply ? [{ name: 'reply', label: 'Responder' }] : []), { name: 'options', label: 'Reações e opções' }] : []}
     onAccessibilityAction={(event) => event.nativeEvent.actionName === 'reply' ? onReply(m) : openPicker()}
     style={[styles.row, m.viewer.isAuthor && styles.mine]}>
-    <Avatar initials={initialsOf(m.author.displayName)} tone={m.viewer.isAuthor ? 'black' : 'red'} size={34} userId={m.author.id} imageUrl={absoluteMediaUrl(m.author.avatarUrl)} />
+    <Avatar initials={initialsOf(m.author.displayName)} tone={m.viewer.isAuthor ? 'black' : 'red'} size={36} userId={m.author.id} imageUrl={absoluteMediaUrl(m.author.avatarUrl)} />
     <View style={styles.content}>
       <View style={styles.meta}>
         <AppText variant="bodyStrong">{m.author.displayName}</AppText>
@@ -65,8 +65,10 @@ export const MessageRow = memo(function MessageRow({ message: m, separator, onOp
     </View>
   </Pressable>;
 
+  const separatorRule = separator ? <View style={styles.separator}><View style={styles.line} /><AppText variant="label" color={Colors.red}>Novas mensagens</AppText><View style={styles.line} /></View> : null;
+
   return <View>
-    {separator ? <View style={styles.separator}><View style={styles.line} /><AppText variant="label" color={Colors.red}>Novas mensagens</AppText><View style={styles.line} /></View> : null}
+    {!inverted ? separatorRule : null}
     <ReanimatedSwipeable
       ref={swipeable}
       enabled={!deleted && !m.pending && m.viewer.canReply}
@@ -80,16 +82,107 @@ export const MessageRow = memo(function MessageRow({ message: m, separator, onOp
       }}>
       {content}
     </ReanimatedSwipeable>
+    {inverted ? separatorRule : null}
   </View>;
 });
 const styles = StyleSheet.create({
-  replyAction: { width: 72, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', gap: 10, paddingHorizontal: Spacing.five, paddingVertical: 12, borderLeftWidth: 2, borderLeftColor: 'transparent' },
-  mine: { backgroundColor: Colors.strawLight, borderLeftColor: Colors.red }, content: { flex: 1, minWidth: 0, gap: 6 },
-  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 5 }, body: { fontSize: 14.5, lineHeight: 22 },
-  deletedBody: { fontSize: 14.5, lineHeight: 22, fontStyle: 'italic', color: Colors.muted },
-  reply: { paddingVertical: 5, paddingHorizontal: 10, borderLeftWidth: 2.5, borderLeftColor: Colors.red, backgroundColor: Colors.highlight, borderRadius: 4 },
-  reactions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }, reaction: { minHeight: 44, paddingHorizontal: 9, justifyContent: 'center', backgroundColor: Colors.paper, borderWidth: 1, borderColor: Colors.rule, borderRadius: 18 }, reacted: { borderColor: Colors.red, backgroundColor: Colors.redSoft },
-  addReaction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  removed: { paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }, separator: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 18 }, line: { flex: 1, height: 1, backgroundColor: Colors.redSoft },
+  replyAction: {
+    width: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.redSoft,
+    borderRightWidth: 1,
+    borderRightColor: Colors.rule,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: Spacing.two + 2,
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.three,
+    borderLeftWidth: 2,
+    borderLeftColor: 'transparent',
+  },
+  mine: {
+    backgroundColor: Colors.strawLight,
+    borderLeftColor: Colors.red,
+  },
+  content: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.one + 2,
+  },
+  meta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    columnGap: 5,
+  },
+  body: {
+    fontSize: 15.5,
+    lineHeight: 22,
+  },
+  deletedBody: {
+    fontSize: 15.5,
+    lineHeight: 22,
+    fontStyle: 'italic',
+    color: Colors.muted,
+  },
+  reply: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two + 2,
+    borderWidth: 1,
+    borderLeftWidth: 2,
+    borderColor: Colors.rule,
+    borderLeftColor: Colors.red,
+    backgroundColor: Colors.paper,
+    borderRadius: Radius.sm,
+  },
+  reactions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 2,
+  },
+  reaction: {
+    minHeight: 44,
+    paddingHorizontal: 9,
+    justifyContent: 'center',
+    backgroundColor: Colors.paper,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    borderRadius: Radius.sm,
+  },
+  reacted: {
+    borderColor: Colors.red,
+    backgroundColor: Colors.redSoft,
+  },
+  addReaction: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.rule,
+    borderRadius: Radius.sm,
+  },
+  removed: {
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.three,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.rule,
+  },
+  separator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.three,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.redSoft,
+  },
 });

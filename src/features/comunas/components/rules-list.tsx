@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 import type { ComunaRule, User } from '@/types/models';
 
 type RulesListProps = {
@@ -36,7 +36,7 @@ export function RulesList({ rules, moderationNote, moderators }: RulesListProps)
 
       <View style={styles.modBox}>
         <View style={styles.modHeader}>
-          <Icon name="shield" size={22} color={Colors.red} />
+          <View style={styles.modIcon}><Icon name="shield" size={19} color={Colors.red} /></View>
           <AppText variant="heading" style={styles.modTitle} accessibilityRole="header">
             Moderação
           </AppText>
@@ -93,9 +93,8 @@ const styles = StyleSheet.create({
   },
   modBox: {
     marginTop: Spacing.five,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
     padding: 14,
     gap: Spacing.three,
     backgroundColor: Colors.paper,
@@ -103,7 +102,14 @@ const styles = StyleSheet.create({
   modHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.two + 2,
+  },
+  modIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.redSoft,
   },
   modTitle: {
     fontSize: 19,

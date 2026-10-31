@@ -9,6 +9,7 @@ import { shareDestination } from '@/features/links/share';
 import * as Clipboard from 'expo-clipboard';
 
 import { AppText } from '@/components/app-text';
+import { EditorialAction } from '@/components/editorial-action';
 import { BottomSheet, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { RadioMark } from '@/components/choice-marks';
 import { Icon, type IconName } from '@/components/icon';
@@ -304,7 +305,8 @@ function SheetBody(props: BodyProps) {
         <AppText style={styles.note} color={Colors.muted}>
           A denúncia vai para {reviews}. Quem foi denunciado não fica sabendo quem denunciou.
         </AppText>
-        <DarkButton label={busy ? "Enviando…" : "Enviar denúncia"} onPress={submit} />
+        <EditorialAction label={busy ? 'Enviando…' : 'Enviar denúncia'} icon="flag" labelVariant="button" tone="red" disabled={busy} onPress={submit} style={styles.primaryAction} />
+        <EditorialAction label="Cancelar" icon="close" labelVariant="button" tone="paper" onPress={close} style={styles.secondaryAction} />
       </View>
     );
   }
@@ -488,6 +490,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 15.5,
     lineHeight: 20,
+  },
+  primaryAction: {
+    borderRadius: Radius.sm,
+  },
+  secondaryAction: {
+    borderRadius: Radius.sm,
+    borderWidth: 1,
   },
   reasonChip: {
     alignSelf: 'flex-start',

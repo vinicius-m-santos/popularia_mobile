@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Kicker } from '@/components/kicker';
+import { SectionHeading } from '@/components/section-heading';
 import { Colors, Spacing } from '@/constants/theme';
 import type { FeedItem } from '@/types/models';
 
@@ -34,9 +34,7 @@ export function PinnedPosts({ items, status = 'success', canReorder = false, pen
   if (status === 'error' && items.length === 0) {
     return (
       <View style={styles.section}>
-        <View accessibilityRole="header">
-          <Kicker label="Fixados" />
-        </View>
+        <SectionHeading appearance="editorial" label="Fixados" />
         <Pressable accessibilityRole="button" accessibilityLabel="Não conseguimos carregar as publicações fixadas. Tentar de novo" onPress={onRetry} style={styles.errorRow}>
           <AppText variant="caption">Não conseguimos carregar as publicações fixadas.</AppText>
         </Pressable>
@@ -48,10 +46,8 @@ export function PinnedPosts({ items, status = 'success', canReorder = false, pen
   const reorder = canReorder && items.length > 1 && onMove;
   return (
     <View style={styles.section}>
-      <View accessibilityRole="header">
-        <Kicker label="Fixados" />
-      </View>
-      <View accessibilityRole="list">
+      <SectionHeading appearance="editorial" label="Fixados" />
+      <View style={styles.list} accessibilityRole="list">
         {items.map((item, index) => {
           const label = indexLabel(index);
           const summary = excerpt(item);
@@ -111,24 +107,28 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
     gap: Spacing.three,
   },
+  list: {
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    backgroundColor: Colors.paper,
+  },
   entry: {
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
     backgroundColor: Colors.paper,
   },
   entryRule: {
-    marginTop: Spacing.two,
+    borderTopWidth: 1,
+    borderTopColor: Colors.rule,
   },
   meta: {
-    minHeight: 44,
+    minHeight: 40,
     paddingLeft: Spacing.three,
     paddingRight: Spacing.two,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
-    borderBottomWidth: 1.5,
-    borderBottomColor: Colors.ink,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.rule,
   },
   moves: {
     flexDirection: 'row',
@@ -150,8 +150,8 @@ const styles = StyleSheet.create({
   errorRow: {
     minHeight: 44,
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
     backgroundColor: Colors.paper,
     paddingHorizontal: Spacing.three,
   },

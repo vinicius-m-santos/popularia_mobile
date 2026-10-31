@@ -2,9 +2,11 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
+import { SectionHeading } from '@/components/section-heading';
 import { StateView } from '@/components/state-view';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { EventBar } from '@/features/events/chrome';
 
 import { levelFraction, streakLabel, type GamificationState } from './types';
@@ -17,8 +19,14 @@ export function ProgressBody({ state }: { state: GamificationState }) {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.block}>
-        <AppText variant="label">Nível {state.level}</AppText>
+      <View style={styles.hero}>
+        <View style={styles.heroRow}>
+          <View style={styles.heroCopy}>
+            <AppText variant="label">Nível {state.level}</AppText>
+            <AppText variant="caption">{state.xp} XP no total</AppText>
+          </View>
+          <AppText style={styles.heroPercent}>{Math.round(fraction * 100)}%</AppText>
+        </View>
         <View
           style={styles.track}
           accessibilityRole="progressbar"
@@ -26,32 +34,40 @@ export function ProgressBody({ state }: { state: GamificationState }) {
           <View style={[styles.fill, { width: `${Math.round(fraction * 100)}%` }]} />
         </View>
         <AppText variant="caption">{into} de {span} para o próximo nível</AppText>
-        <AppText variant="caption">{state.xp} no total</AppText>
       </View>
+
       <View style={styles.block}>
-        <AppText variant="label">{streakLabel(state.streak)}</AppText>
+        <SectionHeading appearance="editorial" label="Sequência" />
+        <AppText style={styles.blockTitle}>{streakLabel(state.streak)}</AppText>
         <AppText variant="caption">Dias seguidos com uma participação. Abrir o app não conta.</AppText>
         <AppText variant="caption">O dia vira à meia-noite no horário de Brasília, para todas as pessoas.</AppText>
       </View>
+
       <View style={styles.block}>
-        <AppText variant="label">Missões de hoje</AppText>
+        <SectionHeading appearance="editorial" label="Missões de hoje" />
         {state.missions.length === 0 ? (
           <AppText variant="caption">Nada disponível para hoje.</AppText>
         ) : state.missions.map((mission) => (
           <View key={mission.action} style={styles.row}>
-            <View style={[styles.mark, mission.completed && styles.markOn]} />
+            <View style={[styles.mark, mission.completed && styles.markOn]}>
+              {mission.completed ? <Icon name="check" size={11} color={Colors.cream} /> : null}
+            </View>
             <AppText style={styles.mission}>{mission.label}</AppText>
           </View>
         ))}
       </View>
+
       <View style={styles.block}>
-        <AppText variant="label">Conquistas</AppText>
+        <SectionHeading appearance="editorial" label="Conquistas" />
         {state.achievements.map((achievement) => (
           <View key={achievement.code} style={styles.achievement}>
-            <AppText style={styles.mission} color={achievement.unlocked ? Colors.ink : Colors.muted}>
-              {achievement.title}
-            </AppText>
-            <AppText variant="caption">{achievement.unlocked ? achievement.detail : 'Ainda não'}</AppText>
+            <View style={[styles.achievementMark, achievement.unlocked && styles.achievementMarkOn]} />
+            <View style={styles.achievementCopy}>
+              <AppText style={styles.mission} color={achievement.unlocked ? Colors.ink : Colors.muted}>
+                {achievement.title}
+              </AppText>
+              <AppText variant="caption">{achievement.unlocked ? achievement.detail : 'Ainda não'}</AppText>
+            </View>
           </View>
         ))}
       </View>
@@ -127,7 +143,11 @@ export function ProfileProgressLink({ level, streak, onPress }: { level: number;
       accessibilityRole="button"
       accessibilityLabel={`Nível ${level}, ${streakLabel(streak)}. Ver progresso`}
       style={({ pressed }) => [styles.profile, pressed && styles.pressed]}>
-      <AppText variant="label">Nível {level} · {streakLabel(streak)}</AppText>
+      <View style={styles.profileCopy}>
+        <AppText variant="label">Nível {level} · {streakLabel(streak)}</AppText>
+        <AppText variant="caption">Ver progresso</AppText>
+      </View>
+      <Icon name="chevronRight" size={18} color={Colors.muted} />
     </Pressable>
   );
 }
@@ -146,21 +166,76 @@ export function ProfileProgress() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.eight },
+  content: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    paddingBottom: Spacing.eight,
+  },
+  hero: {
+    gap: Spacing.three,
+    marginHorizontal: Spacing.five,
+    marginTop: Spacing.four,
+    padding: Spacing.four,
+    borderWidth: 1,
+    borderColor: Colors.ink,
+    backgroundColor: Colors.paper,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  heroCopy: { gap: Spacing.one },
+  heroPercent: {
+    fontFamily: Fonts.anton,
+    fontSize: 46,
+    lineHeight: 48,
+    letterSpacing: -0.6,
+    color: Colors.ink,
+  },
   block: {
-    gap: Spacing.two,
+    gap: Spacing.three,
     paddingHorizontal: Spacing.five,
     paddingVertical: Spacing.four,
-    borderBottomWidth: 1.5,
+    borderBottomWidth: 1,
     borderBottomColor: Colors.rule,
+  },
+  blockTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 16,
+    lineHeight: 22,
   },
   track: { height: 8, backgroundColor: Colors.straw, overflow: 'hidden' },
   fill: { height: 8, backgroundColor: Colors.ink },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 28 },
-  mark: { width: 10, height: 10, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two + 2, minHeight: 36 },
+  mark: {
+    width: 14,
+    height: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    backgroundColor: Colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   markOn: { backgroundColor: Colors.ink },
   mission: { flex: 1 },
-  achievement: { gap: 2 },
+  achievement: {
+    flexDirection: 'row',
+    gap: Spacing.two + 2,
+    paddingVertical: Spacing.two,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.rule,
+  },
+  achievementMark: {
+    width: 8,
+    height: 8,
+    marginTop: 7,
+    backgroundColor: Colors.rule,
+  },
+  achievementMarkOn: { backgroundColor: Colors.red },
+  achievementCopy: { flex: 1, gap: 2 },
   // No feed, o progresso é uma faixa de status: sequência, missões e atalho, sem checklist.
   strip: {
     marginTop: Spacing.four,
@@ -186,6 +261,17 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     backgroundColor: Colors.paper,
   },
-  profile: { alignSelf: 'flex-start', minHeight: 28, justifyContent: 'center' },
+  profile: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderTopWidth: 1,
+    borderTopColor: Colors.rule,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.rule,
+  },
+  profileCopy: { flex: 1, gap: 2 },
   pressed: { opacity: 0.7 },
 });
