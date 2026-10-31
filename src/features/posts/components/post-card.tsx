@@ -192,7 +192,6 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
           active={actions.echoed}
           label="Ecoar"
           onPress={actions.toggleEcho}
-          ghost
         />
         <View style={styles.spacer} />
         <IconButton
@@ -200,9 +199,10 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
           accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
           selected={actions.saved}
           filled={actions.saved}
+          color={actions.saved ? Colors.red : Colors.ink}
           size={20}
           onPress={actions.toggleSave}
-          style={styles.save}
+          style={styles.saveChip}
         />
       </View>
     </View>
@@ -218,7 +218,7 @@ type ActionChipProps = {
   active?: boolean;
 };
 
-function ActionChip({ icon, count, label, onPress, active, ghost = false }: ActionChipProps & { ghost?: boolean }) {
+function ActionChip({ icon, count, label, onPress, active }: ActionChipProps) {
   const color = active ? Colors.red : Colors.ink;
   return (
     <Pressable
@@ -226,10 +226,10 @@ function ActionChip({ icon, count, label, onPress, active, ghost = false }: Acti
       accessibilityRole="button"
       accessibilityLabel={`${label}${count > 0 ? `, ${formatCount(count)}` : ''}`}
       accessibilityState={active === undefined ? undefined : { selected: active }}
-      style={({ pressed }) => [ghost ? styles.ghostAction : styles.chip, pressed && styles.pressed]}>
-      <Icon name={icon} size={ghost ? 21 : 18} color={color} filled={icon === 'support' && active} />
+      style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
+      <Icon name={icon} size={18} color={color} filled={icon === 'support' && active} />
       {count > 0 ? (
-        <AppText style={ghost ? styles.ghostCount : styles.chipCount} color={color}>
+        <AppText style={styles.chipCount} color={color}>
           {formatCount(count)}
         </AppText>
       ) : null}
@@ -343,26 +343,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 17,
   },
-  ghostAction: {
-    minHeight: 44,
-    minWidth: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  ghostCount: {
-    fontFamily: Fonts.monoSemibold,
-    fontSize: 12,
-    lineHeight: 15,
-  },
   pressed: {
     opacity: 0.6,
   },
   spacer: {
     flex: 1,
   },
-  save: {
-    marginRight: -12,
+  saveChip: {
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.paper,
   },
 });
