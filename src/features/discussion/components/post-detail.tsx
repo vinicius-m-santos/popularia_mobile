@@ -10,6 +10,8 @@ import { usePostActions } from '@/features/interactions/use-post-actions';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
 import { FollowButton } from '@/features/profiles/components/follow-button';
+import { shareDestination } from '@/features/links/share';
+import { useToast } from '@/components/toast';
 import { AuthorLine } from '@/features/posts/components/author-line';
 import { EventBox } from '@/features/posts/components/event-box';
 import { MediaBox } from '@/features/posts/components/media-box';
@@ -31,7 +33,9 @@ type PostDetailProps = {
 /** Publicação aberta em destaque, ações e o cabeçalho dos comentários (design 1c). */
 export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
   const actions = usePostActions(post);
+  const toast = useToast();
   const sheet = useActionsSheet();
+  const share = () => { shareDestination({ kind: 'post', id: post.id }).catch(() => toast.show('Este conteúdo ainda não possui um link público.')); };
 
   return (
     <View>
@@ -41,6 +45,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
           avatarSize={44}
           trailing={<View style={styles.authorActions}>
             {post.viewer?.isAuthor ? null : <FollowButton user={post.author} />}
+            <IconButton icon="share" size={20} accessibilityLabel="Compartilhar publicação" onPress={share} />
             <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={() => sheet.open(postTarget(post))} />
           </View>}
         />
