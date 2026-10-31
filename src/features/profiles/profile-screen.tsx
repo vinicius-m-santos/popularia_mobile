@@ -54,7 +54,7 @@ type ProfileRow =
   | { kind: 'tabs'; id: string }
   | { kind: 'content'; id: string }
   | { kind: 'post'; id: string; item: FeedItem; index: number; dayLabel?: string }
-  | { kind: 'media'; id: string; items: FeedItem[] };
+  | { kind: 'media'; id: string; items: FeedItem[]; counts?: { total: number; photos: number; videos: number } };
 
 function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
   const mediaGesture = useProfileTabPanGesture();
@@ -235,7 +235,11 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   });
   if (pageKey === 'media') {
     const media = postItems.filter((item) => item.attachment);
-    for (let index = 0; index < media.length; index += 3) rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3) });
+    const photos = media.filter((item) => item.attachment?.type === 'image').length;
+    const counts = media.length > 0 ? { total: media.length, photos, videos: media.length - photos } : undefined;
+    for (let index = 0; index < media.length; index += 3) {
+      rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3), ...(index === 0 && counts ? { counts } : {}) });
+    }
   }
   const identity = (<View style={styles.column}>
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
@@ -438,7 +442,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
               {item.dayLabel ? <ProfileDayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
               <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted />
             </View>
-          : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} /></View>;
+          : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} counts={item.counts} /></View>;
         if (item.kind === 'identity' || item.kind === 'tabs') return node;
         return <ProfileSwipeContent>{node}</ProfileSwipeContent>;
       }}
