@@ -222,7 +222,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 0,
-    backgroundColor: Colors.paper,
     overflow: 'hidden',
   },
   createIntroArtImage: {
