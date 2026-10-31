@@ -110,6 +110,17 @@ describe('publicações', () => {
     });
   });
 
+  it('leva o comentário em destaque com a autoria', () => {
+    const item = toFeedItem({
+      ...postDto,
+      topComment: { id: 'comentario-1', body: 'Polvilho azedo, não o doce.', supportCount: 4, author: { id: 'rafa', handle: 'rafa', displayName: 'Rafa' } },
+    });
+    expect(item.topComment).toEqual({ authorId: 'rafa', text: 'Polvilho azedo, não o doce.' });
+    expect(item.topCommentAuthor).toMatchObject({ id: 'rafa', name: 'Rafa', handle: 'rafa' });
+    expect(toFeedItem(postDto).topComment).toBeUndefined();
+    expect(toFeedItem(postDto).topCommentAuthor).toBeNull();
+  });
+
   it('cria mandando só o texto e a comuna (nunca autoria ou contagens)', async () => {
     api.mockResolvedValue(postDto);
     await createPost({ comunaServerId: comunaDto.id, text: 'Olá', mentions: [] });

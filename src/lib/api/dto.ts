@@ -127,6 +127,13 @@ export type PostDto = {
   author: AuthorDto;
   comuna: { id: string; slug: string; name: string; status: 'active' | 'archived' } | null;
   commentCount: number;
+  /** Comentário de topo mais apoiado; o cartão usa o trecho e a autoria na citação. */
+  topComment?: {
+    id: string;
+    body: string;
+    supportCount: number;
+    author: AuthorDto;
+  } | null;
   /** Apoios e ecos persistidos, com a marca de quem está vendo. */
   supportCount?: number;
   echoCount?: number;

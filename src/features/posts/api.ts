@@ -55,6 +55,7 @@ export function toUser(author: AuthorDto): User {
 /** Publicação da API → item exibível. Apoios e ecos ainda não existem na API (ficam em 0). */
 export function toFeedItem(post: PostDto): FeedItem {
   const media = post.media ? { ...post.media, url: post.media.url?.startsWith('/') ? `${API_BASE_URL.replace(/\/api\/v1$/, '')}${post.media.url}` : post.media.url } : null;
+  const top = post.topComment ?? null;
   return {
     id: post.id,
     document: post.document ?? null,
@@ -75,7 +76,8 @@ export function toFeedItem(post: PostDto): FeedItem {
     comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name, status: post.comuna.status } : null,
     event: null,
     linkedEvent: post.event ?? null,
-    topCommentAuthor: null,
+    topComment: top ? { authorId: top.author.id, text: top.body } : undefined,
+    topCommentAuthor: top ? toUser(top.author) : null,
   };
 }
 
