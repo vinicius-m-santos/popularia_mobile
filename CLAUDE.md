@@ -248,9 +248,13 @@ Referência: `src/features/posts/components/post-attachment.tsx` e `photo-viewer
   é escolha da sessão e vale para o próximo vídeo, como nos apps de vídeo.
 - O primeiro quadro vira pôster (`generateThumbnailsAsync`) e cobre o vídeo quando ele sai da tela.
   Antes disso, listra escura: o vazio do vídeo usa a mesma linguagem da foto.
-- Os controles são nossos, não os nativos: tocar pausa, segurar acelera em 2×, o som fica no canto
-  inferior direito e o fim mostra “Ver de novo” sobre um véu. O chrome nativo cobre o quadro, não
-  aceita estilo e não convive com esses gestos.
+- Os controles são nossos, não os nativos: segurar acelera em 2×, o som fica no canto inferior
+  direito e o fim mostra “Ver de novo” sobre um véu. O chrome nativo cobre o quadro, não aceita
+  estilo e não convive com esses gestos.
+- **Tocar no vídeo abre em tela cheia — não pausa.** A tela cheia traz o quadro inteiro, as ações do
+  post na coluna da direita (apoiar, comentar, ecoar, salvar), autor e contexto embaixo, e arrastar
+  para baixo devolve ao feed. Pausar e retomar acontecem lá dentro.
+- O chip de tempo conta **regressivo**: mostra o que falta para acabar, não a duração do arquivo.
 
 ## Cards sociais e linhas de pessoas
 
@@ -283,6 +287,9 @@ Referência: `src/features/posts/components/post-attachment.tsx` e `photo-viewer
   padding. Empilhar metadado sob uma marca de 44 abre faixa vazia sob o título e embaixo da marca.
 - Não repita o título na linha de apoio. Se a origem tem o mesmo nome, omita a linha: texto
   idêntico ao título lê como defeito de renderização, não como informação.
+- Anexo de PDF em publicação é **referência**, não capa: ícone pequeno, título até três linhas,
+  autoria, origem e formato nos metadados, sem bloco decorativo nem repetição de “PDF”. O selo de
+  acesso só aparece quando o documento não é público.
 - Uma única coleção, sem próximas páginas, ocupa toda a largura disponível. Várias coleções podem
   aparecer em faixa horizontal, deixando perceptível a continuação. Uma única caixa estreita com
   espaço sobrando à direita parece um layout incompleto.

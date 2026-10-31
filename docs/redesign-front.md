@@ -44,6 +44,31 @@ fechada antes de espalhar.
 2. **Second**: chrome do perfil (cabeçalho, abas, ações) → grade de mídia → relações e seguidores →
    `conta` e `interesses` → chat da Praça (lista, mensagem, compositor, figurinhas).
 
+## Status por frente
+
+Atualizado em 31/10/2026.
+
+| Área | Dono | Estado |
+| --- | --- | --- |
+| Início: dia, progresso, composer, enquete, foto, vídeo (com tela cheia e contagem regressiva) | main | concluído |
+| Início: card de PDF dentro da publicação | main | concluído |
+| Biblioteca: leitor de documento | main | concluído |
+| Biblioteca: envio de PDF (etapas, progresso, conclusão, limite de comunas) | main | concluído |
+| Criação de publicação (composer) | main | **não iniciado** — próxima frente |
+| Perfil e telas dele | popularia-second | em andamento |
+| Chat da Praça | popularia-second | na fila |
+
+### Contrato conferido com o backend (leitura de `popularia_backend`)
+
+- `POST /library/documents` recebe `metadata` (JSON) + `file`; `DocumentInput` aceita `title`, `author`,
+  `clearAuthor`, `description`, `collectionId`, `topic`, `clearTopic`, `access`, `isPublic`,
+  `clientId`, `sharedWith` — e **recusa campo extra** (`allow_extra_attributes: false`).
+- Assuntos (`Topic`) e acessos (`LibraryAccess`) batem valor por valor entre app e servidor.
+- `sharedWith` é uma lista de **slugs** de comuna, com teto de 20 no servidor. A tela de envio
+  agora respeita o mesmo teto e explica o limite; antes deixava selecionar quantas quisesse e o
+  envio falharia.
+- `clientId` é idempotente no servidor: repetir o envio com o mesmo id retoma o mesmo arquivo.
+
 ## Propriedade da base
 
 As duas frentes podem **ler** tudo. Só a `main` escreve em:
