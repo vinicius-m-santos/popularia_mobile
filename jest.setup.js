@@ -19,7 +19,47 @@ jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
   return { __esModule: true, default: Swipeable, SwipeDirection: { LEFT: 'left', RIGHT: 'right' } };
 });
 
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// Mock manual: o mock oficial carrega a implementação nativa de `react-native-worklets`, que
+// não existe no Jest. Aqui só o que as telas usam vira no-op determinístico.
+jest.mock('react-native-reanimated', () => {
+  const { View, Text, ScrollView } = require('react-native');
+  const createAnimatedComponent = (component) => component;
+  const Animated = { View, Text, ScrollView, createAnimatedComponent };
+  // FadeIn.duration(220).reduceMotion(...) — qualquer cadeia devolve a si mesma.
+  const chain = new Proxy(function chainable() {}, { get: () => chain, apply: () => chain });
+  const identity = (value) => value;
+  return {
+    __esModule: true,
+    default: Animated,
+    View,
+    Text,
+    ScrollView,
+    FadeIn: chain,
+    FadeInDown: chain,
+    FadeInUp: chain,
+    FadeOut: chain,
+    FadeOutDown: chain,
+    createAnimatedComponent,
+    ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
+    useSharedValue: (value) => ({ value }),
+    useAnimatedStyle: () => ({}),
+    useAnimatedProps: () => ({}),
+    useDerivedValue: (factory) => ({ value: typeof factory === 'function' ? factory() : undefined }),
+    useAnimatedRef: () => ({ current: null }),
+    withTiming: identity,
+    withSpring: identity,
+    withDelay: (_delay, value) => value,
+    withSequence: (...values) => values[values.length - 1],
+    withRepeat: identity,
+    cancelAnimation: () => {},
+    runOnJS: identity,
+    runOnUI: identity,
+    clamp: (value, min, max) => Math.min(Math.max(value, min), max),
+    interpolate: identity,
+    Extrapolation: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
+    Easing: { linear: identity, ease: identity, out: (fn) => fn, inOut: (fn) => fn, bezier: () => identity },
+  };
+});
 
 // Mantém a lista real, simulando apenas medidas que exigem layout nativo.
 jest.mock('@shopify/flash-list/dist/recyclerview/utils/measureLayout', () => ({

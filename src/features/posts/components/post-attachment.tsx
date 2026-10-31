@@ -9,10 +9,11 @@ import type { PanGesture } from 'react-native-gesture-handler';
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { StripedPlaceholder } from '@/components/striped-placeholder';
-import { Colors, Radius, Spacing } from '@/constants/theme';
-import { durationLabel, type PostMediaDto } from '@/features/posts/post-media';
+import { Colors, Spacing } from '@/constants/theme';
+import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
 
 import { PhotoViewer } from './photo-viewer';
+import { VideoViewer, type VideoChrome } from './video-viewer';
 
 /* O player do expo-video é um objeto imperativo: `muted`, `playbackRate` e `currentTime` são
    propriedades nativas, mudadas fora do estado do React de propósito. A análise de imutabilidade
@@ -29,17 +30,19 @@ function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
 }
 
-export function PostAttachment({ media, localUri, visible = true }: {
+export function PostAttachment({ media, localUri, visible = true, chrome }: {
   media: PostMediaDto;
   localUri?: string;
   visible?: boolean;
+  /** Autoria, contexto e ações para a tela cheia do vídeo. */
+  chrome?: VideoChrome;
   /** Mantido por compatibilidade: sem controles nativos, o vídeo não precisa bloquear gestos. */
   blockGesture?: PanGesture | null;
 }) {
   const uri = localUri ?? media.url;
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
   if (media.type === 'video') return visible
-    ? <PostVideo key={uri} media={media} uri={uri} />
+    ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} />
     : <VideoPoster media={media} />;
   return <PostPhoto key={uri} media={media} uri={uri} />;
 }
@@ -88,7 +91,7 @@ function VideoPoster({ media }: { media: PostMediaDto }) {
   </View>;
 }
 
-function PostVideo({ media, uri }: { media: PostMediaDto; uri: string }) {
+function PostVideo({ media, uri, chrome }: { media: PostMediaDto; uri: string; chrome?: VideoChrome }) {
   let videoModule: typeof import('expo-video');
   try {
     // Evita derrubar a inicialização em development builds feitos antes da inclusão do módulo nativo.
@@ -97,10 +100,10 @@ function PostVideo({ media, uri }: { media: PostMediaDto; uri: string }) {
   } catch {
     return <View style={styles.error}><AppText variant="caption">Atualize o app para reproduzir este vídeo.</AppText></View>;
   }
-  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} />;
+  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} chrome={chrome} />;
 }
 
-function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video') }) {
+function LoadedPostVideo({ media, uri, videoModule, chrome }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); chrome?: VideoChrome }) {
   const useVideoPlayer = videoModule.useVideoPlayer;
   const VideoView = videoModule.VideoView;
   const player = useVideoPlayer({ uri, useCaching: false }, (instance) => {
@@ -113,6 +116,8 @@ function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri
   const [ended, setEnded] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [poster, setPoster] = useState<SharedRefType<'image'> | null>(() => posterCache.get(media.id) ?? null);
+  const [position, setPosition] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   // Um toque que veio de um "segurar para acelerar" não deve pausar o vídeo.
   const heldAt = useRef(0);
 
@@ -129,12 +134,20 @@ function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri
     setPlaying(false);
   });
 
+  // Contador regressivo: o texto do chip acompanha a reprodução, não o arquivo.
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => setPosition(currentTime));
+
   useEffect(() => {
     player.muted = muted;
     if (muted) { soundEnabled = false; } else { soundEnabled = true; }
   }, [muted, player]);
 
   useEffect(() => { player.playbackRate = speed; }, [player, speed]);
+
+  useEffect(() => {
+    player.timeUpdateEventInterval = 0.5;
+    return () => { player.timeUpdateEventInterval = 0; };
+  }, [player]);
 
   useEffect(() => {
     if (activePlayer && activePlayer !== player) activePlayer.pause();
@@ -175,30 +188,32 @@ function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri
 
   const frameRatio = { aspectRatio: mediaRatio(media) };
   const label = `Vídeo da publicação, ${durationLabel(media.durationMs)}`;
+  const totalMs = player.duration > 0 ? player.duration * 1000 : (media.durationMs ?? 0);
+  const countdown = totalMs > 0 ? remainingLabel(totalMs - position * 1000) : durationLabel(media.durationMs);
 
   return <View style={[styles.videoFrame, frameRatio]}>
     {poster ? <Image source={poster} contentFit="cover" style={StyleSheet.absoluteFill} accessible={false} /> : null}
     {status === 'loading' && !poster ? <View style={styles.skeleton} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <StripedPlaceholder label="Vídeo da publicação" showLabel={false} variant="dark" style={styles.skeletonFill} />
     </View> : null}
-    <VideoView player={player} nativeControls={false} contentFit="cover" pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityLabel={label} />
+    {expanded ? null : <VideoView player={player} nativeControls={false} contentFit="cover" pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityLabel={label} />}
     <Pressable
-      onPress={() => { if (Date.now() - heldAt.current < 350) return; toggle(); }}
+      onPress={() => {
+        if (Date.now() - heldAt.current < 350) return;
+        // Parado, o toque é "tocar": pausado retoma, encerrado repete. Só quem está
+        // rodando abre a tela cheia — assim sair da tela cheia pausado continua natural.
+        if (!player.playing) { toggle(); return; }
+        setExpanded(true);
+      }}
       onLongPress={() => { heldAt.current = Date.now(); setSpeed(2); }}
       delayLongPress={220}
       onPressOut={() => setSpeed(1)}
       accessibilityRole="button"
-      accessibilityLabel={ended ? `${label}. Ver de novo` : playing ? `${label}. Pausar` : `${label}. Reproduzir`}
+      accessibilityLabel={ended ? `${label}. Ver de novo` : playing ? `${label}. Abrir em tela cheia` : `${label}. Reproduzir`}
+      accessibilityHint={playing ? 'Abre o vídeo com as ações da publicação' : undefined}
       style={styles.videoTap}>
-      {ended ? (
-        <View style={styles.endedDim}>
-          <View style={styles.replay}>
-            <Icon name="replay" size={20} color={Colors.ink} />
-            <AppText variant="button">Ver de novo</AppText>
-          </View>
-        </View>
-      ) : !playing && status !== 'loading' ? (
-        <Icon name="play" size={44} color={Colors.paper} />
+      {!playing && !expanded && status !== 'loading' ? (
+        <View style={styles.playBadge}><Icon name="play" size={30} color={Colors.paper} /></View>
       ) : null}
     </Pressable>
     {speed === 2 ? (
@@ -207,8 +222,20 @@ function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri
       </View>
     ) : null}
     <View style={styles.duration} pointerEvents="none">
-      <AppText variant="label" color={Colors.paper}>{durationLabel(media.durationMs)}</AppText>
+      <AppText variant="label" color={Colors.paper}>{countdown}</AppText>
     </View>
+    {ended && !expanded ? (
+      <Pressable
+        onPress={toggle}
+        accessibilityRole="button"
+        accessibilityLabel="Ver de novo"
+        style={styles.endedDim}>
+        <View style={styles.replay}>
+          <Icon name="replay" size={20} color={Colors.ink} />
+          <AppText variant="button">Ver de novo</AppText>
+        </View>
+      </Pressable>
+    ) : null}
     <Pressable
       onPress={() => setMuted(!muted)}
       accessibilityRole="button"
@@ -219,6 +246,22 @@ function LoadedPostVideo({ media, uri, videoModule }: { media: PostMediaDto; uri
       <Icon name={muted ? 'soundOff' : 'soundOn'} size={20} color={Colors.paper} />
     </Pressable>
     {status === 'error' ? <View style={[StyleSheet.absoluteFill, styles.error]}><AppText variant="caption">Não foi possível carregar o vídeo.</AppText></View> : null}
+    <VideoViewer
+      visible={expanded}
+      player={player}
+      VideoView={VideoView}
+      label={label}
+      remaining={countdown}
+      playing={playing}
+      ended={ended}
+      muted={muted}
+      chrome={chrome ? { ...chrome, onComment: () => { setExpanded(false); chrome.onComment(); } } : undefined}
+      onClose={() => setExpanded(false)}
+      onTogglePlay={toggle}
+      onToggleMute={() => setMuted(!muted)}
+      onHoldStart={() => setSpeed(2)}
+      onHoldEnd={() => setSpeed(1)}
+    />
   </View>;
 }
 
@@ -235,6 +278,7 @@ const styles = StyleSheet.create({
   speed: { position: 'absolute', left: 8, top: 8, backgroundColor: 'rgba(0,0,0,0.72)', paddingHorizontal: 7, paddingVertical: 4 },
   sound: { position: 'absolute', right: 10, bottom: 10, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.62)' },
   soundPressed: { opacity: 0.6 },
+  playBadge: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 31, backgroundColor: 'rgba(22,18,15,0.55)' },
   endedDim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(22,18,15,0.55)' },
-  replay: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+  replay: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, backgroundColor: Colors.paper },
 });

@@ -99,3 +99,9 @@ export function durationLabel(durationMs: number | null): string {
   const seconds = Math.ceil(durationMs / 1000);
   return `0:${String(seconds).padStart(2, '0')}`;
 }
+
+/** Tempo restante no mesmo formato do rótulo de duração: "-0:12". */
+export function remainingLabel(remainingMs: number): string {
+  const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  return `-0:${String(seconds).padStart(2, '0')}`;
+}

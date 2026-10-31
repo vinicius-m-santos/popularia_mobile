@@ -7,6 +7,7 @@ import type { PostMediaDto } from '../../post-media';
 
 // O visualizador de foto carrega reanimated: fora do escopo deste teste, que é só vídeo.
 jest.mock('../photo-viewer', () => ({ PhotoViewer: () => null }));
+jest.mock('../video-viewer', () => ({ VideoViewer: () => null }));
 
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');

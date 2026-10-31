@@ -89,7 +89,26 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         {images && images.length > 0 ? <PostImages images={images} /> : null}
       </Pressable>
 
-      {item.attachment ? <PostAttachment key={item.attachment.id} media={item.attachment} visible={mediaVisible} blockGesture={mediaGesture} /> : null}
+      {item.attachment ? <PostAttachment
+        key={item.attachment.id}
+        media={item.attachment}
+        visible={mediaVisible}
+        chrome={{
+          author: item.author,
+          comuna: item.comuna,
+          text: item.text,
+          supportCount: actions.supportCount,
+          supported: actions.supported,
+          onSupport: actions.toggleSupport,
+          commentCount: actions.commentCount,
+          onComment: open,
+          echoCount: actions.echoCount,
+          echoed: actions.echoed,
+          onEcho: actions.toggleEcho,
+          saved: actions.saved,
+          onSave: actions.toggleSave,
+        }}
+      /> : null}
 
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator } from 'expo-image-manipulator';
 
-import { pickPostImage, pickPostVideo } from '../post-media';
+import { durationLabel, pickPostImage, pickPostVideo, remainingLabel } from '../post-media';
 
 const mockSaveAsync = jest.fn<(options?: unknown) => Promise<{ uri: string; width: number; height: number }>>();
 const mockRenderAsync = jest.fn(() => Promise.resolve({ saveAsync: mockSaveAsync }));
@@ -33,6 +33,14 @@ describe('seleção de mídia da publicação', () => {
     await expect(pickPostVideo()).resolves.toMatchObject({ durationMs: 30_000 });
     jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({ canceled: false, assets: [{ assetId: null, uri: 'file:///video.mp4', width: 720, height: 1280, type: 'video', duration: 30_001, fileSize: 1000, fileName: 'video.mp4', mimeType: 'video/mp4' }] });
     await expect(pickPostVideo()).rejects.toThrow('30 segundos');
+  });
+
+  it('conta o tempo restante no mesmo formato da duração', () => {
+    expect(durationLabel(15_000)).toBe('0:15');
+    expect(remainingLabel(15_000)).toBe('-0:15');
+    expect(remainingLabel(12_200)).toBe('-0:13');
+    expect(remainingLabel(0)).toBe('-0:00');
+    expect(remainingLabel(-500)).toBe('-0:00');
   });
 
   it('recusa vídeo acima de 100 MB', async () => {
