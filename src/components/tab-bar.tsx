@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   createSubtitle: {
-    maxWidth: 235,
+    maxWidth: 190,
     color: Colors.inkSoft,
     fontSize: 13,
     lineHeight: 18,

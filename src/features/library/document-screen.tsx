@@ -98,7 +98,7 @@ export default function DocumentScreen() {
           <FactRow label="Biblioteca" value={d.origin?.name ?? 'Biblioteca de origem'} />
           {d.topic ? <FactRow label="Assunto" value={topicGroups.data?.flatMap((group) => group.topics).find((topic) => topic.id === d.topic)?.label ?? 'Assunto do documento'} /> : null}
           {d.createdAt ? <FactRow label="Adicionado em" value={new Date(d.createdAt).toLocaleDateString('pt-BR')} /> : null}
-          {d.responsible?.name ? <FactRow label="Disponibilizado por" value={d.responsible.name} /> : null}
+          {d.responsible?.name ? <FactRow label="Responsável" value={d.responsible.name} /> : null}
         </View>
         {d.collection ? <Pressable accessibilityRole="button" accessibilityLabel={`Abrir coleção ${d.collection.name}`} onPress={() => router.push({ pathname: '/biblioteca', params: { collection: d.collection!.id, scope: d.viewer.canEdit ? d.origin?.kind === 'comuna' ? 'comuna' : 'personal' : 'public', ...(d.origin?.slug ? { comuna: d.origin.slug } : {}), ...(d.origin?.kind === 'personal' ? { owner: d.origin.id } : {}) } })} style={({ pressed }) => [styles.collection, pressed && styles.pressed]}>
           <View style={styles.collectionIcon}><Icon name="folder" size={20} color={Colors.ink} /></View>
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   description: { fontSize: 15.5, lineHeight: 22 },
   facts: { borderTopWidth: 1, borderTopColor: Colors.rule },
   factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.three, paddingVertical: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
-  factLabel: { width: 112, paddingTop: 3 },
+  factLabel: { width: 140, paddingTop: 3 },
   factValue: { flex: 1, minWidth: 0, fontSize: 15.5, lineHeight: 22 },
   collection: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper, padding: Spacing.three },
   collectionIcon: { width: 24, alignItems: 'center' },
@@ -182,8 +182,8 @@ const styles = StyleSheet.create({
   publishAction: { flex: 1.65 },
   saveAction: { flex: 1 },
   section: { gap: Spacing.three },
-  availabilityRow: { gap: 2, paddingVertical: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
-  availabilityCopy: { minWidth: 0 },
+  availabilityRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+  availabilityCopy: { flex: 1, minWidth: 0, gap: 2 },
   pressed: { opacity: 0.66 },
   sheetActions: { gap: Spacing.two },
 });
