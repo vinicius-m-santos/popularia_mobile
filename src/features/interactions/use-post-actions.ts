@@ -5,6 +5,8 @@ import { DEMO_MODE } from '@/constants/config';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { getFollowing, setFollowing, type FollowState } from '@/features/profiles/api';
 import { isFollowLocked, lockFollow, patchFollowCaches, readRequested, restoreFollowCaches, setRequestedFlag, snapshotFollowCaches, subscribeFollowStore, unlockFollow, followStoreVersion, type FollowFlags } from '@/features/profiles/follow-cache';
+import { lockReaction, patchReactionCaches, reactionsVersion, readReaction, restoreReactionCaches, snapshotReactionCaches, subscribeReactions, unlockReaction, writeReaction, type Reaction, type ReactionKind } from '@/features/posts/reactions';
+import { setPostEcho, setPostSupport } from '@/features/posts/api';
 import { rememberPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
 import type { CommunityEvent, FeedItem } from '@/types/models';
 
@@ -22,23 +24,60 @@ export function usePostActions(post: FeedItem) {
   const toast = useToast();
   rememberPost(post);
   useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
+  useSyncExternalStore(subscribeReactions, reactionsVersion, reactionsVersion);
 
-  const supported = isOn('supportedPosts', post.id);
-  const echoed = isOn('echoedPosts', post.id);
+  const localSupport = isOn('supportedPosts', post.id);
+  const localEcho = isOn('echoedPosts', post.id);
+  const serverSupport: Reaction = { count: post.supportCount, mine: !!post.viewer?.supported };
+  const serverEcho: Reaction = { count: post.echoCount, mine: !!post.viewer?.echoed };
+  // No modo demonstração não existe servidor: a contagem nasce do estado local.
+  const support: Reaction = DEMO_MODE ? { count: withLocal(post.supportCount, localSupport), mine: localSupport } : readReaction(post.id, 'support', serverSupport);
+  const echo: Reaction = DEMO_MODE ? { count: withLocal(post.echoCount, localEcho), mine: localEcho } : readReaction(post.id, 'echo', serverEcho);
   const saved = DEMO_MODE ? isOn('savedPosts', post.id) : readSaved(post.id, post.viewer?.saved);
 
+  /** Otimista, com trava: o toque pinta na hora e o servidor confirma logo depois. */
+  const flip = async (kind: ReactionKind, current: Reaction) => {
+    if (!lockReaction(post.id, kind)) return;
+    const next: Reaction = { count: Math.max(0, current.count + (current.mine ? -1 : 1)), mine: !current.mine };
+    const snapshots = snapshotReactionCaches(post.id);
+    writeReaction(post.id, kind, next);
+    patchReactionCaches(post.id, kind, next);
+    try {
+      const item = kind === 'support' ? await setPostSupport(post.id, next.mine) : await setPostEcho(post.id, next.mine);
+      const confirmed: Reaction = kind === 'support'
+        ? { count: item.supportCount, mine: !!item.viewer?.supported }
+        : { count: item.echoCount, mine: !!item.viewer?.echoed };
+      writeReaction(post.id, kind, confirmed);
+      patchReactionCaches(post.id, kind, confirmed);
+    } catch {
+      // Sem rede, a tela volta ao que era e a pessoa pode tentar de novo.
+      restoreReactionCaches(snapshots);
+      writeReaction(post.id, kind, current);
+      toast.show(kind === 'support' ? 'Não conseguimos registrar seu apoio. Tente de novo.' : 'Não conseguimos ecoar. Tente de novo.');
+    } finally {
+      unlockReaction(post.id, kind);
+    }
+  };
+
   return {
-    supported,
-    echoed,
+    supported: support.mine,
+    echoed: echo.mine,
     saved,
-    supportCount: withLocal(post.supportCount, supported),
-    echoCount: withLocal(post.echoCount, echoed),
+    supportCount: support.count,
+    echoCount: echo.count,
     commentCount: DEMO_MODE
       ? post.commentCount + localCommentsFor(post.id).length
       : commentCountOf(post.id, post.commentCount),
-    toggleSupport: () => toggle('supportedPosts', post.id),
+    toggleSupport: () => {
+      if (DEMO_MODE) { toggle('supportedPosts', post.id); return Promise.resolve(); }
+      return flip('support', support);
+    },
     toggleEcho: () => {
-      if (toggle('echoedPosts', post.id)) toast.show('Eco marcado. No protótipo, nada é compartilhado.');
+      if (DEMO_MODE) {
+        if (toggle('echoedPosts', post.id)) toast.show('Eco marcado neste aparelho até fechar o app.');
+        return Promise.resolve();
+      }
+      return flip('echo', echo);
     },
     toggleSave: () => {
       if (DEMO_MODE) {

@@ -64,9 +64,9 @@ export function toFeedItem(post: PostDto): FeedItem {
     comunaId: post.comuna?.slug ?? null,
     createdAt: post.createdAt,
     text: post.body,
-    supportCount: 0,
+    supportCount: post.supportCount ?? 0,
     commentCount: post.commentCount,
-    echoCount: 0,
+    echoCount: post.echoCount ?? 0,
     viewer: post.viewer,
     poll: post.poll ?? null,
     mentions: toContentMentions(post.mentions),
@@ -111,6 +111,18 @@ export async function createPost(input: { comunaServerId: string | null; text: s
 /** PUT ou DELETE /posts/{id}/save. As duas respostas são vazias e podem repetir sem efeito. */
 export function setPostSaved(id: string, saved: boolean): Promise<void> {
   return apiRequest<void>(`/posts/${encodeURIComponent(id)}/save`, { method: saved ? 'PUT' : 'DELETE', auth: true });
+}
+
+/** PUT ou DELETE /posts/{id}/support. A resposta já traz a publicação com o apoio atualizado. */
+export async function setPostSupport(id: string, active: boolean): Promise<FeedItem> {
+  const post = await apiRequest<PostDto>(`/posts/${encodeURIComponent(id)}/support`, { method: active ? 'PUT' : 'DELETE', auth: true });
+  return toFeedItem(post);
+}
+
+/** PUT ou DELETE /posts/{id}/echo. Idempotente no servidor; a resposta é a publicação atualizada. */
+export async function setPostEcho(id: string, active: boolean): Promise<FeedItem> {
+  const post = await apiRequest<PostDto>(`/posts/${encodeURIComponent(id)}/echo`, { method: active ? 'PUT' : 'DELETE', auth: true });
+  return toFeedItem(post);
 }
 
 /** GET /me/saved-posts. A ordem é a data em que foi salvo; o cartão continua sendo a publicação. */

@@ -125,8 +125,11 @@ export type PostDto = {
   author: AuthorDto;
   comuna: { id: string; slug: string; name: string; status: 'active' | 'archived' } | null;
   commentCount: number;
+  /** Apoios e ecos persistidos, com a marca de quem está vendo. */
+  supportCount?: number;
+  echoCount?: number;
   /** Dicas para a interface, calculadas no servidor; a decisão que vale é a da API. */
-  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean; saved?: boolean; canPin?: boolean; pinned?: boolean };
+  viewer: { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove: boolean; saved?: boolean; canPin?: boolean; pinned?: boolean; supported?: boolean; echoed?: boolean };
   mentions?: MentionDto[];
   poll?: {
     id: string;

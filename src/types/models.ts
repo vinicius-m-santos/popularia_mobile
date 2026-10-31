@@ -151,7 +151,7 @@ export type Post = {
   mentions?: ContentMention[];
 };
 
-export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean; saved?: boolean; canPin?: boolean; pinned?: boolean };
+export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean; saved?: boolean; canPin?: boolean; pinned?: boolean; supported?: boolean; echoed?: boolean };
 
 /** Comuna citada numa publicação (a API manda só o essencial). */
 export type ComunaRef = Pick<Comuna, 'id' | 'name' | 'status'>;
