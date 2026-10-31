@@ -5,7 +5,7 @@ import { Keyboard, Modal, StyleSheet, useWindowDimensions, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 
 export { BottomSheetFlatList as PopulariaBottomSheetFlatList, BottomSheetScrollView as PopulariaBottomSheetScrollView, BottomSheetTextInput as PopulariaBottomSheetTextInput } from '@gorhom/bottom-sheet';
 export const InsideBottomSheet = createContext(false);
@@ -19,10 +19,17 @@ type BottomSheetProps = {
   /** Conteúdo com BottomSheetFlatList: não envolver em outro scrollable. */
   virtualized?: boolean;
   dismissible?: boolean;
+  /**
+   * Variante visual explícita. `creation` é o menu central de criação: superfície
+   * creme, cantos de 12 com fio de tinta no topo, alça de tinta 48 × 5 e conteúdo
+   * sem padding lateral (as ilustrações encostam na borda).
+   */
+  appearance?: 'paper' | 'creation';
 };
 
 /** Aparência Popularia, física e arbitragem entre scroll/teclado delegadas ao Gorhom. */
-export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true, appearance = 'paper' }: BottomSheetProps) {
+  const creation = appearance === 'creation';
   const sheet = useRef<GorhomBottomSheet>(null);
   const [mounted, setMounted] = useState(visible);
   const insets = useSafeAreaInsets();
@@ -40,14 +47,17 @@ export function BottomSheet({ visible, onClose, title, children, scrollable = tr
     appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.55}
     pressBehavior={dismissible ? 'close' : 'none'} accessibilityRole="button" accessibilityLabel="Fechar" accessibilityHint="Fecha esta folha" />,
   [dismissible]);
-  const handle = useCallback(() => <View style={styles.dragHeader} testID="bottom-sheet-drag-header"
+  const handle = useCallback(() => <View style={[styles.dragHeader, creation && styles.creationDragHeader]} testID="bottom-sheet-drag-header"
     accessible accessibilityRole="adjustable" accessibilityLabel={title ?? 'Opções'} accessibilityHint="Arraste para baixo para fechar"
     accessibilityActions={[{ name: 'escape', label: 'Fechar' }, { name: 'decrement', label: 'Fechar' }]}
     onAccessibilityAction={close} onAccessibilityEscape={close}>
-    <View style={styles.handle} />
+    <View style={[styles.handle, creation && styles.creationHandle]} />
     {title ? <AppText style={styles.title} accessibilityRole="header">{title}</AppText> : null}
-  </View>, [title, close]);
+  </View>, [title, close, creation]);
   const paddingBottom = Math.max(insets.bottom, Spacing.four) + Spacing.four;
+  // O Gorhom compõe o contentContainerStyle com dois argumentos; um array de três quebra.
+  const contentStyle = StyleSheet.flatten([styles.content, creation ? styles.creationContent : null, { paddingBottom }]);
+  const backgroundStyle = StyleSheet.flatten([styles.background, creation ? styles.creationBackground : null]);
   if (!mounted) return null;
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
     <GestureHandlerRootView style={styles.overlay}>
@@ -63,12 +73,12 @@ export function BottomSheet({ visible, onClose, title, children, scrollable = tr
     keyboardBehavior="interactive" keyboardBlurBehavior="restore"
     enableBlurKeyboardOnGesture android_keyboardInputMode="adjustResize"
     backdropComponent={backdrop} handleComponent={handle}
-    backgroundStyle={styles.background}
+    backgroundStyle={backgroundStyle}
     style={{ marginHorizontal: Math.max(0, (width - MaxContentWidth) / 2) }}>
     <InsideBottomSheet.Provider value>
       {virtualized ? <View style={[styles.list, { paddingBottom }]}>{children}</View>
-        : scrollable ? <BottomSheetScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom }]}>{children}</BottomSheetScrollView>
-          : <BottomSheetView style={[styles.content, { paddingBottom }]}>{children}</BottomSheetView>}
+        : scrollable ? <BottomSheetScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={contentStyle}>{children}</BottomSheetScrollView>
+          : <BottomSheetView style={contentStyle}>{children}</BottomSheetView>}
     </InsideBottomSheet.Provider>
   </GorhomBottomSheet>
     </GestureHandlerRootView>
@@ -79,9 +89,19 @@ export const PopulariaBottomSheet = BottomSheet;
 const styles = StyleSheet.create({
   overlay: { flex: 1 },
   background: { backgroundColor: Colors.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  creationBackground: {
+    backgroundColor: Colors.cream,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    borderTopWidth: 2,
+    borderTopColor: Colors.ink,
+  },
   content: { paddingHorizontal: Spacing.five, gap: Spacing.two },
+  creationContent: { paddingHorizontal: 0, gap: 0 },
   list: { flex: 1, paddingHorizontal: Spacing.five, gap: Spacing.two },
   dragHeader: { minHeight: 48, paddingTop: 10, paddingBottom: Spacing.three, paddingHorizontal: Spacing.five, gap: Spacing.three },
+  creationDragHeader: { minHeight: 15, paddingTop: 10, paddingBottom: 0, paddingHorizontal: 0, gap: 0 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.strawDark },
+  creationHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: Colors.ink },
   title: { fontFamily: Fonts.condensed, fontSize: 32, lineHeight: 40, textTransform: 'uppercase', color: Colors.ink },
 });
