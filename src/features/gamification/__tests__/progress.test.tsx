@@ -81,6 +81,8 @@ describe('progresso', () => {
   it('abre o progresso a partir do resumo e do perfil', async () => {
     const open = jest.fn();
     await render(<><HomeProgressCard state={sample} onPress={open} /><ProfileProgressLink level={2} streak={3} fraction={0.4} onPress={open} /></>);
+    expect(screen.getByText('1/3')).toBeTruthy();
+    expect(screen.getByText('Participe de uma enquete')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('3 dias seguidos, 1 de 3 missões hoje. Ver progresso'));
     await fireEvent.press(screen.getByLabelText('Nível 2, 3 dias seguidos, 40% para o próximo nível. Ver progresso'));
     expect(open).toHaveBeenCalledTimes(2);
@@ -109,7 +111,7 @@ describe('progresso', () => {
     await render(host(<HomeProgress />));
     expect(await screen.findByText('Progresso indisponível. Toque para tentar de novo.')).toBeTruthy();
     await fireEvent.press(screen.getByText('Progresso indisponível. Toque para tentar de novo.'));
-    expect(await screen.findByText('Ver progresso')).toBeTruthy();
+    expect(await screen.findByLabelText('3 dias seguidos, 1 de 3 missões hoje. Ver progresso')).toBeTruthy();
   });
 });
 

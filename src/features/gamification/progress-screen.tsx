@@ -9,7 +9,7 @@ import { StateView } from '@/components/state-view';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { EventBar } from '@/features/events/chrome';
 
-import { levelFraction, streakLabel, type GamificationState } from './types';
+import { levelFraction, streakLabel, type GamificationMission, type GamificationState } from './types';
 import { useGamification } from './use-gamification';
 
 export function ProgressBody({ state }: { state: GamificationState }) {
@@ -97,28 +97,43 @@ export default function ProgressScreen() {
   );
 }
 
+function MissionRow({ mission, divider }: { mission: GamificationMission; divider: boolean }) {
+  return (
+    <View style={[styles.missionRow, divider && styles.missionRowDivider]}>
+      <View style={[styles.missionCheck, mission.completed && styles.missionCheckOn]}>
+        {mission.completed ? <Icon name="check" size={12} color={Colors.cream} /> : null}
+      </View>
+      <AppText style={[styles.missionLabel, mission.completed && styles.missionLabelDone]}>
+        {mission.label}
+      </AppText>
+    </View>
+  );
+}
+
 export function HomeProgressCard({ state, onPress }: { state: GamificationState; onPress: () => void }) {
   const done = state.missions.filter((mission) => mission.completed).length;
   const total = state.missions.length;
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${streakLabel(state.streak)}, ${done} de ${total} ${total === 1 ? 'missão' : 'missões'} hoje. Ver progresso`}
-      style={({ pressed }) => [styles.strip, pressed && styles.pressed]}>
-      <View style={styles.stripRow}>
-        <AppText variant="label">{streakLabel(state.streak)}</AppText>
-        <AppText variant="button">Ver progresso</AppText>
-      </View>
-      <View style={styles.stripStatus}>
-        <View style={styles.stripMarks}>
-          {state.missions.map((mission) => (
-            <View key={mission.action} style={[styles.stripMark, mission.completed && styles.stripMarkOn]} />
-          ))}
+    <View style={styles.progressShadow}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityHint="Abre o progresso"
+        accessibilityLabel={`${streakLabel(state.streak)}, ${done} de ${total} ${total === 1 ? 'missão' : 'missões'} hoje. Ver progresso`}
+        style={({ pressed }) => [styles.progressCard, pressed && styles.pressed]}>
+        <View style={styles.progressHead}>
+          <View style={styles.progressMark} accessible={false} importantForAccessibility="no-hide-descendants">
+            <View style={styles.progressSlash} />
+            <View style={styles.progressSlash} />
+          </View>
+          <AppText style={styles.progressStreak}>{streakLabel(state.streak)}</AppText>
+          <AppText style={styles.progressFraction} color={Colors.red}>{done}/{total}</AppText>
         </View>
-        <AppText variant="caption">{done} de {total} {total === 1 ? 'missão' : 'missões'} hoje</AppText>
-      </View>
-    </Pressable>
+        {state.missions.map((mission, index) => (
+          <MissionRow key={mission.action} mission={mission} divider={index < state.missions.length - 1} />
+        ))}
+      </Pressable>
+    </View>
   );
 }
 
@@ -240,20 +255,98 @@ const styles = StyleSheet.create({
   },
   achievementMarkOn: { backgroundColor: Colors.red },
   achievementCopy: { flex: 1, gap: 2 },
-  // No feed, o progresso é uma faixa de status: sequência, missões e atalho, sem checklist.
-  strip: {
+  // No feed, a sequência e as missões do dia viram um cartão de status, como no mock.
+  progressShadow: {
     marginTop: Spacing.four,
-    marginHorizontal: Spacing.five,
-    gap: Spacing.one,
+    marginHorizontal: Spacing.four,
+    borderRadius: Radius.md,
+    shadowColor: Colors.ink,
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  progressCard: {
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.paper,
+    overflow: 'hidden',
+  },
+  progressHead: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    minHeight: 44,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.ink,
+  },
+  progressMark: {
+    width: 18,
+    height: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  progressSlash: {
+    width: 4,
+    height: 17,
+    backgroundColor: Colors.ink,
+    transform: [{ rotate: '15deg' }],
+  },
+  progressStreak: {
+    flex: 1,
+    fontFamily: Fonts.monoSemibold,
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  progressFraction: {
+    fontFamily: Fonts.anton,
+    fontSize: 22,
+    lineHeight: 24,
+  },
+  missionRow: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  missionRowDivider: {
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.ink,
+    borderStyle: 'dashed',
+  },
+  missionCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: Radius.sm,
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    backgroundColor: Colors.paper,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  stripRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
-  stripStatus: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  stripMarks: { flexDirection: 'row', gap: Spacing.one },
-  stripMark: { width: 8, height: 8, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: 'transparent' },
-  stripMarkOn: { backgroundColor: Colors.ink },
+  missionCheckOn: {
+    backgroundColor: Colors.ink,
+  },
+  missionLabel: {
+    flex: 1,
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: Colors.ink,
+  },
+  missionLabelDone: {
+    fontFamily: Fonts.regular,
+    color: Colors.muted,
+    textDecorationLine: 'line-through',
+  },
   error: {
     marginTop: Spacing.four,
     marginHorizontal: Spacing.five,
