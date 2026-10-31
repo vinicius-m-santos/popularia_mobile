@@ -30,7 +30,7 @@ function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
 }
 
-export function PostAttachment({ media, localUri, visible = true, chrome }: {
+export function PostAttachment({ media, localUri, visible = true, chrome, appearance = 'feed' }: {
   media: PostMediaDto;
   localUri?: string;
   visible?: boolean;
@@ -38,20 +38,23 @@ export function PostAttachment({ media, localUri, visible = true, chrome }: {
   chrome?: VideoChrome;
   /** Mantido por compatibilidade: sem controles nativos, o vídeo não precisa bloquear gestos. */
   blockGesture?: PanGesture | null;
+  /** No perfil a mídia é emoldurada como um quadro, em vez de sangrar no cartão. */
+  appearance?: 'feed' | 'profile';
 }) {
   const uri = localUri ?? media.url;
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
+  const framed = appearance === 'profile';
   if (media.type === 'video') return visible
-    ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} />
-    : <VideoPoster media={media} />;
-  return <PostPhoto key={uri} media={media} uri={uri} />;
+    ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} framed={framed} />
+    : <VideoPoster media={media} framed={framed} />;
+  return <PostPhoto key={uri} media={media} uri={uri} framed={framed} />;
 }
 
 /**
  * Foto do feed: quadro próprio com corte deliberado e tela cheia ao tocar.
  * Enquanto carrega, mostra a listra da casa; o corte nunca deixa faixa morta.
  */
-function PostPhoto({ media, uri }: { media: PostMediaDto; uri: string }) {
+function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: string; framed?: boolean }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [open, setOpen] = useState(false);
   return <>
@@ -59,7 +62,7 @@ function PostPhoto({ media, uri }: { media: PostMediaDto; uri: string }) {
       onPress={() => setOpen(true)}
       accessibilityRole="button"
       accessibilityLabel="Abrir foto em tela cheia"
-      style={({ pressed }) => [styles.photoFrame, { aspectRatio: mediaRatio(media) }, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.photoFrame, framed && styles.framed, { aspectRatio: mediaRatio(media) }, pressed && styles.pressed]}>
       {status === 'loading' ? <View style={styles.skeleton} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <StripedPlaceholder label="Foto da publicação" showLabel={false} style={styles.skeletonFill} />
       </View> : null}
@@ -81,9 +84,9 @@ function PostPhoto({ media, uri }: { media: PostMediaDto; uri: string }) {
 }
 
 /** Fora da tela o vídeo não carrega: fica o primeiro quadro já gerado, ou a listra escura. */
-function VideoPoster({ media }: { media: PostMediaDto }) {
+function VideoPoster({ media, framed = false }: { media: PostMediaDto; framed?: boolean }) {
   const poster = posterCache.get(media.id) ?? null;
-  return <View style={[styles.videoFrame, { aspectRatio: mediaRatio(media) }]}>
+  return <View style={[styles.videoFrame, framed && styles.framed, { aspectRatio: mediaRatio(media) }]}>
     {poster
       ? <Image source={poster} contentFit="cover" style={StyleSheet.absoluteFill} accessible={false} />
       : <StripedPlaceholder label="Vídeo da publicação" showLabel={false} style={styles.skeletonFill} />}
@@ -91,7 +94,7 @@ function VideoPoster({ media }: { media: PostMediaDto }) {
   </View>;
 }
 
-function PostVideo({ media, uri, chrome }: { media: PostMediaDto; uri: string; chrome?: VideoChrome }) {
+function PostVideo({ media, uri, chrome, framed = false }: { media: PostMediaDto; uri: string; chrome?: VideoChrome; framed?: boolean }) {
   let videoModule: typeof import('expo-video');
   try {
     // Evita derrubar a inicialização em development builds feitos antes da inclusão do módulo nativo.
@@ -100,10 +103,10 @@ function PostVideo({ media, uri, chrome }: { media: PostMediaDto; uri: string; c
   } catch {
     return <View style={styles.error}><AppText variant="caption">Atualize o app para reproduzir este vídeo.</AppText></View>;
   }
-  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} chrome={chrome} />;
+  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} chrome={chrome} framed={framed} />;
 }
 
-function LoadedPostVideo({ media, uri, videoModule, chrome }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); chrome?: VideoChrome }) {
+function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); chrome?: VideoChrome; framed?: boolean }) {
   const useVideoPlayer = videoModule.useVideoPlayer;
   const VideoView = videoModule.VideoView;
   const player = useVideoPlayer({ uri, useCaching: false }, (instance) => {
@@ -191,7 +194,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome }: { media: PostMedia
   const totalMs = player.duration > 0 ? player.duration * 1000 : (media.durationMs ?? 0);
   const countdown = totalMs > 0 ? remainingLabel(totalMs - position * 1000) : durationLabel(media.durationMs);
 
-  return <View style={[styles.videoFrame, frameRatio]}>
+  return <View style={[styles.videoFrame, framed && styles.framed, frameRatio]}>
     {poster ? <Image source={poster} contentFit="cover" style={StyleSheet.absoluteFill} accessible={false} /> : null}
     {status === 'loading' && !poster ? <View style={styles.skeleton} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <StripedPlaceholder label="Vídeo da publicação" showLabel={false} variant="dark" style={styles.skeletonFill} />
@@ -267,6 +270,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome }: { media: PostMedia
 
 const styles = StyleSheet.create({
   photoFrame: { width: '100%', minHeight: 180, maxHeight: 520, backgroundColor: Colors.ink, overflow: 'hidden' },
+  framed: { borderRadius: 4, borderWidth: 2, borderColor: Colors.ink },
   skeleton: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   skeletonFill: { flex: 1, borderRadius: 0 },
   photoError: { alignItems: 'center', justifyContent: 'center', padding: Spacing.three, backgroundColor: Colors.straw },

@@ -328,7 +328,11 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const content = (<View style={styles.column}>
           {pageKey === 'posts' ? (
             <>
-              {isMe ? <ComposerPrompt placeholder="O que você quer compartilhar?" /> : null}
+              {isMe ? (
+                <View style={styles.composerSlot}>
+                  <ComposerPrompt appearance="profile" placeholder="O que você quer compartilhar?" />
+                </View>
+              ) : null}
               {posts.status === 'loading' && postItems.length === 0 ? (
                 <PopulariaListSkeleton />
               ) : null}
@@ -438,7 +442,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         const node = item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
           ? <View style={styles.column}>
               {item.dayLabel ? <ProfileDayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
-              <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted />
+              <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted appearance="profile" />
             </View>
           : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} counts={item.counts} /></View>;
         if (item.kind === 'identity' || item.kind === 'tabs') return node;
@@ -499,7 +503,9 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: Profil
 function ProfileDayRule({ label }: { label: string }) {
   return (
     <View style={styles.dayRule} accessibilityRole="header">
-      <AppText variant="label">{label}</AppText>
+      <View style={styles.dayChip}>
+        <AppText style={styles.dayChipLabel} color={Colors.cream}>{label}</AppText>
+      </View>
       <View style={styles.dayRuleLine} />
     </View>
   );
@@ -884,18 +890,35 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: Colors.ink,
   },
+  composerSlot: {
+    paddingHorizontal: 16,
+    paddingTop: 18,
+  },
   dayRule: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.five,
-    paddingTop: 14,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 26,
     paddingBottom: 0,
+  },
+  dayChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 3,
+    backgroundColor: Colors.ink,
+  },
+  dayChipLabel: {
+    fontFamily: Fonts.monoSemibold,
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 1.44,
+    textTransform: 'uppercase',
   },
   dayRuleLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: Colors.inkSoft,
+    height: 2,
+    backgroundColor: Colors.ink,
   },
   postRule: {
     height: 1,

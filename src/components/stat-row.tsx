@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 30,
   },
-  valueProfile: { fontSize: 38, lineHeight: 38 },
+  valueProfile: { fontFamily: Fonts.anton, fontSize: 38, lineHeight: 44 },
   label: {
     fontFamily: Fonts.mono,
     fontSize: 10,
