@@ -1,6 +1,6 @@
 import { GestureDetector, type NativeGesture } from 'react-native-gesture-handler';
 import { useEffect, useRef, type ComponentRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
@@ -16,6 +16,11 @@ type UnderlineTabsProps<K extends string> = {
   ruled?: boolean;
   /** Scroll horizontal das abas. Quando presente, não deixa um pan externo trocar de página. */
   gesture?: NativeGesture | null;
+  /** Ajuste tipográfico local, sem mexer no padrão das outras telas. */
+  labelStyle?: StyleProp<TextStyle>;
+  /** Aba ativa em extrabold, como no perfil. */
+  activeWeight?: boolean;
+  underlineHeight?: number;
 };
 
 /** Abas de texto com sublinhado vermelho na ativa ("Para você", "Regras"…). */
@@ -26,6 +31,9 @@ export function UnderlineTabs<K extends string>({
   height = 38,
   ruled = false,
   gesture,
+  labelStyle,
+  activeWeight = false,
+  underlineHeight = 3,
 }: UnderlineTabsProps<K>) {
   const scrollerRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const offsets = useRef<Partial<Record<K, number>>>({});
@@ -53,10 +61,10 @@ export function UnderlineTabs<K extends string>({
             accessibilityState={{ selected: active }}
             hitSlop={{ top: 4, bottom: 4 }}
             style={[styles.tab, { minHeight: Math.max(height, 44) }]}>
-            <AppText style={styles.label} color={active ? Colors.ink : Colors.muted}>
+            <AppText style={[styles.label, labelStyle, activeWeight && active && styles.labelActive]} color={active ? Colors.ink : Colors.muted}>
               {opt.label}
             </AppText>
-            <View style={[styles.underline, active && styles.underlineActive]} />
+            <View style={[styles.underline, { height: underlineHeight }, active && styles.underlineActive]} />
           </Pressable>
         );
       })}
@@ -90,12 +98,12 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     lineHeight: 19,
   },
+  labelActive: { fontFamily: Fonts.extrabold },
   underline: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 3,
   },
   underlineActive: {
     backgroundColor: Colors.red,

@@ -136,18 +136,21 @@ export function HomeProgress() {
   return <HomeProgressCard state={progress.data} onPress={() => router.push('/progresso')} />;
 }
 
-export function ProfileProgressLink({ level, streak, onPress }: { level: number; streak: number; onPress: () => void }) {
+export function ProfileProgressLink({ level, streak, fraction, onPress }: { level: number; streak: number; fraction: number; onPress: () => void }) {
+  const percent = Math.max(4, Math.min(100, Math.round(fraction * 100)));
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Nível ${level}, ${streakLabel(streak)}. Ver progresso`}
+      accessibilityLabel={`Nível ${level}, ${streakLabel(streak)}, ${percent}% para o próximo nível. Ver progresso`}
       style={({ pressed }) => [styles.profile, pressed && styles.pressed]}>
       <View style={styles.profileCopy}>
-        <AppText variant="label">Nível {level} · {streakLabel(streak)}</AppText>
-        <AppText variant="caption">Ver progresso</AppText>
+        <AppText variant="label" style={styles.profileLabel}>Nível {level} · {streakLabel(streak)}</AppText>
+        <View style={styles.profileTrack}>
+          <View style={[styles.profileFill, { width: `${percent}%` }]} />
+        </View>
       </View>
-      <Icon name="chevronRight" size={18} color={Colors.muted} />
+      <Icon name="chevronRight" size={18} color={Colors.ink} />
     </Pressable>
   );
 }
@@ -160,6 +163,7 @@ export function ProfileProgress() {
     <ProfileProgressLink
       level={progress.data.level}
       streak={progress.data.streak}
+      fraction={levelFraction(progress.data)}
       onPress={() => router.push('/progresso')}
     />
   );
@@ -262,16 +266,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.paper,
   },
   profile: {
-    minHeight: 44,
+    minHeight: 57,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderTopWidth: 1,
-    borderTopColor: Colors.rule,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.rule,
+    gap: 12,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    borderRadius: 6,
+    backgroundColor: Colors.paper,
   },
-  profileCopy: { flex: 1, gap: 2 },
+  profileCopy: { flex: 1, minWidth: 0, gap: 6 },
+  profileLabel: { fontSize: 12, lineHeight: 15, letterSpacing: 0.96 },
+  profileTrack: {
+    height: 8,
+    borderRadius: 3,
+    backgroundColor: Colors.strawLight,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  profileFill: { height: 4, backgroundColor: Colors.red },
   pressed: { opacity: 0.7 },
 });

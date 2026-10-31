@@ -2,10 +2,10 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { Avatar } from '@/components/avatar';
+import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { useToast } from '@/components/toast';
-import { Colors } from '@/constants/theme';
+import { Colors, Fonts } from '@/constants/theme';
 import { ImageChangeSheet } from '@/features/media/image-change-sheet';
 import { publishAvatar } from '@/features/media/image-cache';
 import { tryLockImageUpload, unlockImageUpload } from '@/features/media/image-lock';
@@ -48,10 +48,16 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
     }
   };
 
-  const photo = <View style={styles.ring}>
-    <Avatar initials={user.initials} tone={user.tone} size={80} userId={user.id} imageUrl={shown} />
+  const photo = <View style={styles.wrap}>
+    {/* Sombra deslocada de 3 px, como no desenho aprovado. */}
+    <View pointerEvents="none" style={styles.offset} />
+    <View style={styles.tile}>
+      {shown
+        ? <Image source={{ uri: shown }} contentFit="cover" cachePolicy="memory-disk" style={StyleSheet.absoluteFill} />
+        : <AppText style={styles.initials} color={Colors.cream} maxFontSizeMultiplier={1}>{user.initials}</AppText>}
+    </View>
     {editable ? <View style={styles.badge} pointerEvents="none">
-      {uploading ? <ActivityIndicator color={Colors.paper} size="small" /> : <Icon name="camera" size={16} color={Colors.paper} />}
+      {uploading ? <ActivityIndicator color={Colors.paper} size="small" /> : <Icon name="camera" size={18} color={Colors.paper} />}
     </View> : null}
   </View>;
 
@@ -73,10 +79,18 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
 }
 
 const styles = StyleSheet.create({
-  ring: { padding: 3, borderRadius: 50, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.cream },
+  wrap: { width: 96, height: 96 },
+  offset: { position: 'absolute', left: 3, top: 3, width: 96, height: 96, borderRadius: 6, backgroundColor: Colors.red },
+  tile: {
+    width: 96, height: 96, borderRadius: 6, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.ink, borderWidth: 2, borderColor: Colors.ink,
+  },
+  initials: { fontFamily: Fonts.anton, fontSize: 40, lineHeight: 44 },
   badge: {
-    position: 'absolute', right: -3, bottom: -3, width: 30, height: 30,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.red, borderWidth: 1.5, borderColor: Colors.ink,
+    position: 'absolute', right: -12, bottom: -12, width: 40, height: 40, borderRadius: 6,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.red, borderWidth: 2, borderColor: Colors.ink,
   },
   pressed: { opacity: 0.92 },
 });

@@ -1,5 +1,5 @@
 import { createContext, use, useCallback, useEffect, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture, type PanGesture } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withTiming, runOnJS, type SharedValue } from 'react-native-reanimated';
 
@@ -95,17 +95,20 @@ export function ProfileSwipeContent({ children }: { children: ReactNode }) {
 }
 
 /** Abas do perfil: o toque troca a página e o scroll dos rótulos não vira swipe. */
-export function ProfileTabs<K extends string>({ options, value, onChange, height }: {
+export function ProfileTabs<K extends string>({ options, value, onChange, height, labelStyle, activeWeight, underlineHeight }: {
   options: TabOption<K>[];
   value: K;
   onChange: (key: K) => void;
   height?: number;
+  labelStyle?: StyleProp<TextStyle>;
+  activeWeight?: boolean;
+  underlineHeight?: number;
 }) {
   // Cada barra cria a própria instância: compartilhar um gesto entre dois
   // GestureDetectors dispara o erro do Gesture Handler na navegação.
   const pan = use(PanGestureContext);
   const gesture = useNativeGesture(pan ? { block: pan } : {});
-  return <UnderlineTabs options={options} value={value} onChange={onChange} height={height} gesture={gesture} />;
+  return <UnderlineTabs options={options} value={value} onChange={onChange} height={height} gesture={gesture} labelStyle={labelStyle} activeWeight={activeWeight} underlineHeight={underlineHeight} />;
 }
 
 const styles = StyleSheet.create({

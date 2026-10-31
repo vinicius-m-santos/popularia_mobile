@@ -7,19 +7,22 @@ type Stat = { value: string; label: string; onPress?: () => void; accessibilityH
 
 type StatRowProps = {
   stats: Stat[];
+  /** Perfil usa números maiores e fio de 2; a comuna mantém o padrão. */
+  appearance?: 'default' | 'profile';
 };
 
 /** Números em destaque entre duas linhas de tinta (perfil e comuna). Alguns números, como
  * seguidores e seguindo, podem ser tocados para abrir a respectiva lista. */
-export function StatRow({ stats }: StatRowProps) {
+export function StatRow({ stats, appearance = 'default' }: StatRowProps) {
+  const profile = appearance === 'profile';
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, profile && styles.rowProfile]}>
       {stats.map((s, i) => {
         const content = <>
-          <AppText style={styles.value} maxFontSizeMultiplier={1.3}>
+          <AppText style={[styles.value, profile && styles.valueProfile]} maxFontSizeMultiplier={1.3}>
             {s.value}
           </AppText>
-          <AppText style={styles.label} color={Colors.muted} numberOfLines={1}>
+          <AppText style={[styles.label, profile && styles.labelProfile]} color={Colors.muted} numberOfLines={1}>
             {s.label}
           </AppText>
         </>;
@@ -30,13 +33,13 @@ export function StatRow({ stats }: StatRowProps) {
             accessibilityRole="button"
             accessibilityLabel={`${s.value} ${s.label}`}
             accessibilityHint={s.accessibilityHint}
-            style={({ pressed }) => [styles.cell, i > 0 && styles.divider, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.cell, profile && styles.cellProfile, i > 0 && styles.divider, i > 0 && profile && styles.dividerProfile, pressed && styles.pressed]}>
             {content}
           </Pressable>
         ) : (
           <View
             key={s.label}
-            style={[styles.cell, i > 0 && styles.divider]}
+            style={[styles.cell, profile && styles.cellProfile, i > 0 && styles.divider, i > 0 && profile && styles.dividerProfile]}
             accessible
             accessibilityLabel={`${s.value} ${s.label}`}>
             {content}
@@ -63,6 +66,9 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.rule,
     paddingLeft: Spacing.three,
   },
+  rowProfile: { borderTopWidth: 2, borderBottomWidth: 2 },
+  cellProfile: { paddingVertical: 12 },
+  dividerProfile: { paddingLeft: 14 },
   pressed: {
     opacity: 0.7,
   },
@@ -71,6 +77,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 30,
   },
+  valueProfile: { fontSize: 38, lineHeight: 38 },
   label: {
     fontFamily: Fonts.mono,
     fontSize: 10,
@@ -79,4 +86,5 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: 3,
   },
+  labelProfile: { fontSize: 11, lineHeight: 14, letterSpacing: 0.88 },
 });

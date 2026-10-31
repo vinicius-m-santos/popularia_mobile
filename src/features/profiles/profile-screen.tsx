@@ -273,30 +273,28 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
               <View style={styles.metaList}>
                 {metaLines.map((line, index) => (
                   <View key={line} style={styles.metaRow}>
-                    <Icon name={index === 0 ? 'pin' : 'calendar'} size={18} color={Colors.muted} />
+                    <Icon name={index === 0 ? 'pin' : 'calendar'} size={14} color={Colors.muted} />
                     <AppText style={styles.meta} color={Colors.muted}>{line}</AppText>
                   </View>
                 ))}
               </View>
             ) : null}
-            <StatRow stats={stats} />
+            {isMe ? <ProfileEditButton onPress={() => router.push('/conta/meus-dados' as never)} /> : null}
+            <StatRow stats={stats} appearance="profile" />
             {isMe ? <ProfileProgress /> : null}
 
             {isMe ? (
-              <View style={[styles.actionPair, stackActions && styles.actionStack]}>
+              <View style={styles.shortcutCard}>
                 <ProfileShortcut
                   label="Itens salvos"
                   icon="bookmark"
-                  tone="ink"
                   onPress={() => router.push({ pathname: '/biblioteca', params: { scope: 'personal', section: 'salvos' } })}
-                  style={[styles.action, stackActions && styles.actionStackItem]}
                 />
+                <View style={styles.shortcutRule} />
                 <ProfileShortcut
                   label="Meus interesses"
                   icon="heart"
-                  tone="red"
                   onPress={() => router.push('/interesses')}
-                  style={[styles.action, stackActions && styles.actionStackItem]}
                 />
               </View>
             ) : (
@@ -323,7 +321,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const tabBar = (
     <View style={styles.tabs}>
       <View style={styles.column}>
-        <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={44} />
+        <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={64} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />
       </View>
     </View>
   );
@@ -419,7 +417,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const page = pageKey === 'biblioteca' ? (
     <ProfileSwipeContent>
       <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
-        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={44} />} />
+        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={64} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />} />
     </ProfileSwipeContent>
   ) : (
     <PopulariaList<ProfileRow>
@@ -485,7 +483,6 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: Profil
       </AppText>
       {isMe ? (
         <View style={styles.barActions}>
-          <IconButton icon="edit" accessibilityLabel="Editar perfil" onPress={() => router.push('/conta/meus-dados' as never)} />
           <IconButton icon="shareNodes" accessibilityLabel="Compartilhar perfil" onPress={() => onShare?.()} />
           <IconButton icon="settings" accessibilityLabel="Conta e sessões" onPress={() => router.push('/conta')} />
         </View>
@@ -509,23 +506,32 @@ function ProfileDayRule({ label }: { label: string }) {
 }
 
 /** Atalho do perfil com ícone colorido: diferença sem pesar como ação principal. */
-function ProfileShortcut({ label, icon, tone, onPress, style }: {
-  label: string;
-  icon: IconName;
-  tone: 'ink' | 'red';
-  onPress: () => void;
-  style?: ComponentProps<typeof View>['style'];
-}) {
+function ProfileShortcut({ label, icon, onPress }: { label: string; icon: IconName; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed, style]}>
-      <View style={[styles.shortcutMark, tone === 'red' ? styles.shortcutMarkRed : styles.shortcutMarkInk]}>
+      style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed]}>
+      <View style={styles.shortcutMark}>
         <Icon name={icon} size={18} color={Colors.red} />
       </View>
       <AppText style={styles.shortcutLabel}>{label}</AppText>
+      <Icon name="chevronRight" size={18} color={Colors.ink} />
+    </Pressable>
+  );
+}
+
+/** Ação principal do perfil próprio, no desenho aprovado: papel, fio de 2 e raio 6. */
+function ProfileEditButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Editar perfil"
+      onPress={onPress}
+      style={({ pressed }) => [styles.editButton, pressed && styles.editButtonPressed]}>
+      <Icon name="edit" size={18} color={Colors.ink} />
+      <AppText style={styles.editButtonLabel}>Editar perfil</AppText>
     </Pressable>
   );
 }
@@ -602,7 +608,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     paddingHorizontal: Spacing.one,
-    borderBottomWidth: 1.5,
+    borderBottomWidth: 2,
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
@@ -670,15 +676,15 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.inkRule,
   },
   identityBlock: {
-    paddingTop: Spacing.three,
-    paddingHorizontal: Spacing.five,
-    paddingBottom: 14,
+    paddingTop: 22,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
     gap: 12,
   },
   identity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
   },
   names: {
     flex: 1,
@@ -690,22 +696,22 @@ const styles = StyleSheet.create({
   },
   name: {
     fontFamily: Fonts.anton,
-    fontSize: 42,
+    fontSize: 46,
     lineHeight: 46,
     letterSpacing: -0.4,
     textTransform: 'uppercase',
     paddingTop: 2,
   },
   handle: {
-    fontSize: 13.5,
+    fontSize: 14,
     lineHeight: 18,
-    letterSpacing: 0.4,
+    letterSpacing: 0.84,
     textTransform: 'none',
-    marginTop: 6,
+    marginTop: 4,
   },
   bio: {
-    fontSize: 15.5,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 24,
   },
   privateNote: {
     flexDirection: 'row',
@@ -722,19 +728,19 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   meta: {
-    fontFamily: Fonts.mono,
-    fontSize: 10.5,
-    lineHeight: 14,
-    letterSpacing: 0.6,
+    fontFamily: Fonts.monoSemibold,
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 0.72,
     textTransform: 'uppercase',
   },
   metaList: {
-    gap: Spacing.two,
+    gap: 8,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: 5,
   },
   actions: {
     flexDirection: 'row',
@@ -759,37 +765,55 @@ const styles = StyleSheet.create({
   secondaryAction: {
     borderWidth: 1,
   },
+  shortcutCard: {
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    borderRadius: 6,
+    backgroundColor: Colors.paper,
+  },
+  shortcutRule: { height: 1, backgroundColor: Colors.rule },
   shortcut: {
-    minHeight: 50,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two + 2,
-    paddingHorizontal: Spacing.two + 2,
-    borderWidth: 1,
-    borderColor: Colors.ink,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.paper,
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   shortcutPressed: {
     backgroundColor: Colors.strawLight,
   },
   shortcutMark: {
-    width: 30,
-    height: 30,
+    width: 34,
+    height: 34,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  shortcutMarkInk: {
     backgroundColor: Colors.strawLight,
-  },
-  shortcutMarkRed: {
-    backgroundColor: Colors.redSoft,
   },
   shortcutLabel: {
     flex: 1,
     minWidth: 0,
     fontFamily: Fonts.extrabold,
-    fontSize: 13.5,
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  editButton: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 2,
+    borderColor: Colors.ink,
+    borderRadius: 6,
+    backgroundColor: Colors.paper,
+  },
+  editButtonPressed: { backgroundColor: Colors.strawLight },
+  editButtonLabel: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 15,
     lineHeight: 18,
   },
   support: {
@@ -848,13 +872,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  tabLabel: {
+    fontSize: 17,
+    lineHeight: 22,
+  },
   tabs: {
-    minHeight: 46,
+    minHeight: 66,
     justifyContent: 'center',
     backgroundColor: Colors.cream,
-    borderTopWidth: 1,
-    borderTopColor: Colors.rule,
-    borderBottomWidth: 1.5,
+    marginTop: 14,
+    borderBottomWidth: 2,
     borderBottomColor: Colors.ink,
   },
   dayRule: {
