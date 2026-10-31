@@ -156,9 +156,10 @@ export default function NotificationsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <View style={styles.titleRow}>
+        <View style={styles.bar}>
           <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-          <AppText variant="heading" accessibilityRole="header" style={styles.title}>Avisos</AppText>
+          <View style={styles.barDivider} />
+          <AppText variant="label" accessibilityRole="header" style={styles.barTitle}>Avisos</AppText>
           <Pressable
             onPress={markAllRead}
             disabled={busy || unreadCount === 0}
@@ -266,18 +267,18 @@ function KindBadge({ kind }: { kind: NotificationKind }) {
 const styles = StyleSheet.create({
   header: {
     paddingTop: Spacing.one,
-    paddingHorizontal: Spacing.five,
     borderBottomWidth: 1.5,
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
-  title: { position: 'absolute', left: 88, right: 88, textAlign: 'center', textTransform: 'uppercase' },
-  titleRow: {
+  bar: {
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
   },
+  barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink, marginRight: Spacing.two },
+  barTitle: { flex: 1, fontSize: 12.5 },
   readAll: {
     marginLeft: 'auto',
     minHeight: 44,
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   filters: {
-    marginHorizontal: -Spacing.five,
+    paddingHorizontal: Spacing.five,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.three,
   },
