@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { avatarPalette } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts } from '@/constants/theme';
@@ -27,6 +28,7 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const shown = preview ?? user.avatarUrl ?? null;
+  const palette = avatarPalette(user.id, user.tone);
   const lock = `avatar:${user.id}`;
 
   const send = async (image: PickedImage) => {
@@ -49,12 +51,12 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
   };
 
   const photo = <View style={styles.wrap}>
-    {/* Sombra deslocada de 3 px, como no desenho aprovado. */}
-    <View pointerEvents="none" style={styles.offset} />
-    <View style={styles.tile}>
+    {/* Sombra deslocada de 3 px, como no desenho aprovado. Em fundo vermelho, a sombra vira tinta. */}
+    <View pointerEvents="none" style={[styles.offset, !shown && palette.bg === Colors.red && styles.offsetInk]} />
+    <View style={[styles.tile, { backgroundColor: palette.bg }]}>
       {shown
         ? <Image source={{ uri: shown }} contentFit="cover" cachePolicy="memory-disk" style={StyleSheet.absoluteFill} />
-        : <AppText style={styles.initials} color={Colors.cream} maxFontSizeMultiplier={1}>{user.initials}</AppText>}
+        : <AppText style={styles.initials} color={palette.fg} maxFontSizeMultiplier={1}>{user.initials}</AppText>}
     </View>
     {editable ? <View style={styles.badge} pointerEvents="none">
       {uploading ? <ActivityIndicator color={Colors.paper} size="small" /> : <Icon name="camera" size={18} color={Colors.paper} />}
@@ -81,6 +83,7 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
 const styles = StyleSheet.create({
   wrap: { width: 96, height: 96 },
   offset: { position: 'absolute', left: 3, top: 3, width: 96, height: 96, borderRadius: 6, backgroundColor: Colors.red },
+  offsetInk: { backgroundColor: Colors.ink },
   tile: {
     width: 96, height: 96, borderRadius: 6, overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center',

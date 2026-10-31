@@ -8,12 +8,52 @@ import { Colors, Fonts } from '@/constants/theme';
 import { queryClient } from '@/lib/query/client';
 import type { Tone } from '@/types/models';
 
+export type AvatarColor = { bg: string; fg: string };
+
 /** Cores por tom, como no design. Sem foto, o avatar continua com as iniciais. */
-export const TONE_COLORS: Record<Tone, { bg: string; fg: string }> = {
+export const TONE_COLORS: Record<Tone, AvatarColor> = {
   red: { bg: Colors.red, fg: Colors.paper },
   black: { bg: Colors.ink, fg: Colors.cream },
   cream: { bg: Colors.straw, fg: Colors.ink },
 };
+
+/**
+ * Identidade de quem não tem foto. São 14 fundos estáveis: o hash do ID escolhe a cor,
+ * então a mesma pessoa aparece sempre com a mesma cor no feed, nos comentários e no perfil.
+ * A paleta é editorial (tinta, tijolo, oliva, mostarda) e não substitui as cores das comunas.
+ */
+export const AVATAR_COLORS: AvatarColor[] = [
+  TONE_COLORS.red,
+  TONE_COLORS.black,
+  TONE_COLORS.cream,
+  { bg: '#E0B23C', fg: Colors.ink }, // mostarda
+  { bg: '#7C8B4F', fg: Colors.paper }, // oliva
+  { bg: '#2F6F6B', fg: Colors.paper }, // verde-água
+  { bg: '#B5533C', fg: Colors.paper }, // tijolo
+  { bg: '#4A5A6A', fg: Colors.paper }, // ardósia
+  { bg: '#6B4A63', fg: Colors.paper }, // ameixa
+  { bg: '#A65B2A', fg: Colors.paper }, // ferrugem
+  { bg: '#A8B89A', fg: Colors.ink }, // sálvia
+  { bg: '#44618C', fg: Colors.paper }, // jeans
+  { bg: '#C98A8A', fg: Colors.ink }, // rosa
+  { bg: '#5C6B45', fg: Colors.paper }, // musgo
+];
+
+/** Hash FNV-1a: espalha os IDs pela paleta, mas devolve sempre a mesma cor para a mesma pessoa. */
+export function avatarColorFor(id: string | null | undefined): AvatarColor | null {
+  if (!id) return null;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length] ?? TONE_COLORS.cream;
+}
+
+/** Cor de identidade da pessoa; sem ID, cai no tom editorial do modelo. */
+export function avatarPalette(id: string | null | undefined, tone: Tone): AvatarColor {
+  return avatarColorFor(id) ?? TONE_COLORS[tone];
+}
 
 type AvatarProps = {
   initials: string;
@@ -48,7 +88,7 @@ function useAvatarUrl(userId: string | undefined, imageUrl: string | null | unde
 
 /** Avatar com foto ou iniciais. É decorativo: o nome fica no texto ao lado. */
 export function Avatar({ initials, tone, size = 40, ring = false, shape = 'circle', outline = false, font = 'condensed', imageUrl = null, userId }: AvatarProps) {
-  const { bg, fg } = TONE_COLORS[tone];
+  const { bg, fg } = avatarPalette(userId, tone);
   const resolved = useAvatarUrl(userId, imageUrl);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const showImage = !!resolved && failedUrl !== resolved;
@@ -91,7 +131,7 @@ export function AvatarStack({ people, size = 30 }: AvatarStackProps) {
     <View style={styles.stack} accessible={false} importantForAccessibility="no-hide-descendants">
       {people.map((p) => (
         <View key={p.id} style={styles.stackItem}>
-          <Avatar initials={p.initials} tone={p.tone} size={size} ring />
+          <Avatar initials={p.initials} tone={p.tone} size={size} ring userId={p.id} />
         </View>
       ))}
     </View>
