@@ -73,6 +73,10 @@ iOS não tem push.
 
 - Dois campos obrigatórios ganharam placeholder que faltava (descrição da comuna, nome de usuário
   do setup). Os campos de perfil ficaram para a frente do Perfil, que tem outro dono.
+- **Avisos** tinha cabeçalho próprio (título Anton centralizado); passou ao chrome interno
+  documentado: voltar, divisória 1.5×28, rótulo mono e ação "Ler todas" à direita.
+- **Smoke test dos endpoints novos** contra o backend rodando: `PUT|DELETE /posts/{id}/support` e
+  `PUT /posts/{id}/echo` respondem 401 (rota existe, exige login) e `/health` responde 200.
 - Suíte completa: **426 testes passando, 1 falhando** — `src/features/profiles/__tests__/follow.test.tsx`.
   Confirmei que **já falhava antes deste trabalho** (rodei o teste com o meu diff em stash, no HEAD).
   Fica pendente de decisão: é a única vermelha do projeto.
@@ -111,4 +115,5 @@ a10b2be docs(main): media and gesture rules, front status
 b66a97b feat(main): persist post support and echo with optimistic updates
 44cd8ec feat(main): share post from the detail header
 7d77e3d feat(main): add missing field placeholders in settings and setup
+bc36c56 feat(main): notifications screen uses the shared inner-page chrome
 ```
