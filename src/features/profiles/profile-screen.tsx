@@ -9,12 +9,12 @@ import { accessDenied, contentPolicy, queryClient } from '@/lib/query/client';
 import { mergeById } from '@/lib/pagination';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Badge } from '@/components/badge';
 import { EditorialAction } from '@/components/editorial-action';
-import { Icon } from '@/components/icon';
+import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -34,7 +34,7 @@ import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { useAsyncData, type AsyncData } from '@/hooks/use-async-data';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { NotFoundError } from '@/lib/errors';
-import { formatPeople } from '@/lib/format';
+import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, CreatorInfo, FeedItem, Profile } from '@/types/models';
 
@@ -49,7 +49,12 @@ import { ProfileMediaGrid } from './components/profile-media-grid';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from './profile-tab-swipe';
 import { profileTabOptions, type ProfileTabKey } from './profile-tabs';
 
-type ProfileRow = { kind: 'identity'; id: string } | { kind: 'tabs'; id: string } | { kind: 'content'; id: string } | { kind: 'post'; id: string; item: FeedItem; index: number } | { kind: 'media'; id: string; items: FeedItem[] };
+type ProfileRow =
+  | { kind: 'identity'; id: string }
+  | { kind: 'tabs'; id: string }
+  | { kind: 'content'; id: string }
+  | { kind: 'post'; id: string; item: FeedItem; index: number; dayLabel?: string }
+  | { kind: 'media'; id: string; items: FeedItem[] };
 
 function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
   const mediaGesture = useProfileTabPanGesture();
@@ -171,6 +176,9 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const me = useMe();
   const { profile: account, replaceAvatarUrl } = useAccount();
   const { membershipOf } = useInteractions();
+  const { width, fontScale } = useWindowDimensions();
+  // Em telas estreitas ou com fonte ampliada, as ações irmãs viram uma coluna.
+  const stackActions = width < 340 || fontScale > 1.2;
   const localPosts = useLocalFeedItems((p) => isMe && p.authorId === 'me');
   const [tab, setTab] = useState<ProfileTabKey>('posts');
   const tabs = useMemo(() => profileTabOptions(Boolean(profile.creator)), [profile.creator]);
@@ -220,7 +228,11 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
 
   const rows: ProfileRow[] = [{ kind: 'identity', id: 'identity' }, { kind: 'tabs', id: 'tabs' }, { kind: 'content', id: 'content' }];
-  if (pageKey === 'posts') postItems.forEach((item, index) => rows.push({ kind: 'post', id: item.id, item, index }));
+  if (pageKey === 'posts') postItems.forEach((item, index) => {
+    const previous = index > 0 ? postItems[index - 1] : null;
+    const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
+    rows.push({ kind: 'post', id: item.id, item, index, ...(newDay ? { dayLabel: formatDayRule(item.createdAt) } : {}) });
+  });
   if (pageKey === 'media') {
     const media = postItems.filter((item) => item.attachment);
     for (let index = 0; index < media.length; index += 3) rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3) });
@@ -236,55 +248,70 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                     <Badge label={user.badge} tone="red" />
                   </View>
                 ) : null}
-                <AppText style={styles.name} accessibilityRole="header">
+                <AppText style={styles.name} accessibilityRole="header" numberOfLines={3}>
                   {user.name}
                 </AppText>
-                <AppText variant="caption" style={styles.handle}>
+                <AppText variant="label" style={styles.handle}>
                   @{user.handle}
                 </AppText>
-                {isMe ? <ProfileProgress /> : null}
-                {isMe ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Editar perfil"
-                    onPress={() => router.push('/conta/meus-dados' as never)}
-                    style={({ pressed }) => [styles.editAction, pressed && styles.pressed]}>
-                    <Icon name="edit" size={18} color={Colors.ink} />
-                    <AppText style={styles.editLabel}>Editar perfil</AppText>
-                  </Pressable>
-                ) : null}
               </View>
             </View>
-            {profile.isPrivate ? <AppText variant="caption">Perfil privado · Novos seguidores precisam de aprovação. Cada PDF mantém o acesso escolhido.</AppText> : null}
-            <AppText style={styles.bio}>{bio}</AppText>
-            <View style={styles.metaList}>
-              {metaLines.map((line, index) => (
-                <View key={line} style={styles.metaRow}>
-                  <Icon name={index === 0 ? 'pin' : 'calendar'} size={21} color={Colors.ink} />
-                  <AppText style={styles.meta} color={Colors.muted}>{line}</AppText>
-                </View>
-              ))}
-            </View>
+            {profile.isPrivate ? (
+              <View style={styles.privateNote}>
+                <Icon name="shield" size={18} color={Colors.red} />
+                <AppText variant="caption" style={styles.privateText}>
+                  Perfil privado · Novos seguidores precisam de aprovação. Cada PDF mantém o acesso escolhido.
+                </AppText>
+              </View>
+            ) : null}
+            {bio ? <AppText style={styles.bio}>{bio}</AppText> : null}
+            {metaLines.length > 0 ? (
+              <View style={styles.metaList}>
+                {metaLines.map((line, index) => (
+                  <View key={line} style={styles.metaRow}>
+                    <Icon name={index === 0 ? 'pin' : 'calendar'} size={18} color={Colors.muted} />
+                    <AppText style={styles.meta} color={Colors.muted}>{line}</AppText>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <StatRow stats={stats} />
+            {isMe ? <ProfileProgress /> : null}
 
-            {isMe ? <View style={styles.actions}>
-              <EditorialAction label="Itens salvos" icon="bookmark" iconPosition="trailing" onPress={() => router.push({ pathname: '/biblioteca', params: { scope: 'personal', section: 'salvos' } })} style={styles.action} />
-              <EditorialAction label="Meus interesses" icon="heart" iconPosition="trailing" onPress={() => router.push('/interesses')} style={styles.action} />
-            </View> : (
-              <View style={styles.actions}>
-                <FollowButton user={{ ...user, isPrivate: profile.isPrivate, viewerFollowing: profile.user.viewerFollowing, viewerRequested: profile.user.viewerRequested }} size="lg" display style={styles.action} />
-                <PillButton
+            {isMe ? (
+              <View style={[styles.actionPair, stackActions && styles.actionStack]}>
+                <ProfileShortcut
+                  label="Itens salvos"
+                  icon="bookmark"
+                  tone="ink"
+                  onPress={() => router.push({ pathname: '/biblioteca', params: { scope: 'personal', section: 'salvos' } })}
+                  style={[styles.action, stackActions && styles.actionStackItem]}
+                />
+                <ProfileShortcut
+                  label="Meus interesses"
+                  icon="heart"
+                  tone="red"
+                  onPress={() => router.push('/interesses')}
+                  style={[styles.action, stackActions && styles.actionStackItem]}
+                />
+              </View>
+            ) : (
+              <View style={[styles.actions, stackActions && styles.actionStack]}>
+                <FollowButton
+                  user={{ ...user, isPrivate: profile.isPrivate, viewerFollowing: profile.user.viewerFollowing, viewerRequested: profile.user.viewerRequested }}
+                  appearance="editorial"
+                  style={[styles.action, stackActions && styles.actionStackItem]}
+                />
+                <EditorialAction
                   label="Mensagem"
+                  icon="comment"
+                  labelVariant="button"
                   onPress={soon('Mensagens')}
-                  variant="outline"
-                  size="lg"
-                  display
-                  style={styles.action}
+                  style={[styles.action, styles.secondaryAction, stackActions && styles.actionStackItem]}
                 />
               </View>
             )}
 
-            {isMe && comunas.length > 0 ? <ComunasShortcut count={comunas.length} onPress={() => selectTab('comunas')} /> : null}
 
             {profile.creator ? <CollectiveSupport creatorName={profile.creator.mastheadTitle} /> : null}
           </View>
@@ -292,7 +319,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const tabBar = (
     <View style={styles.tabs}>
       <View style={styles.column}>
-        <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={46} />
+        <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={44} />
       </View>
     </View>
   );
@@ -307,9 +334,10 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                 <StateView kind="error" message="Não conseguimos carregar as publicações." onRetry={posts.refresh} />
               ) : null}
               {posts.status === 'success' && postItems.length === 0 ? (
-                <AppText style={styles.emptyText} color={Colors.muted}>
-                  Nenhuma publicação ainda.
-                </AppText>
+                <View style={styles.emptyState}>
+                  <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma publicação ainda.</AppText>
+                  <AppText variant="caption" style={styles.emptyCaption}>Puxe a conversa, camarada: a primeira ideia pode ser sua.</AppText>
+                </View>
               ) : null}
 
             </>
@@ -347,9 +375,19 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
               {comunasState.status === 'loading' && !comunasState.data ? <StateView kind="loading" message="Carregando comunas" /> : null}
               {comunasState.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar as comunas." onRetry={comunasState.reload} /> : null}
               {comunasState.status === 'success' && comunas.length === 0 ? (
-                <AppText style={styles.emptyRow} color={Colors.muted}>
-                  Ainda não participa de nenhuma comuna.
-                </AppText>
+                <View style={styles.emptyState}>
+                  <AppText style={styles.emptyTitle} color={Colors.muted}>Ainda não participa de nenhuma comuna.</AppText>
+                  <AppText variant="caption" style={styles.emptyCaption}>Bora encontrar a sua comunidade?</AppText>
+                  {isMe ? (
+                    <EditorialAction
+                      label="Explorar comunas"
+                      icon="globe"
+                      labelVariant="button"
+                      onPress={() => router.navigate('/explorar')}
+                      style={styles.emptyAction}
+                    />
+                  ) : null}
+                </View>
               ) : null}
               {comunas.map((c) => (
                 <ComunaRow
@@ -377,7 +415,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const page = pageKey === 'biblioteca' ? (
     <ProfileSwipeContent>
       <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
-        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} />} />
+        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={44} />} />
     </ProfileSwipeContent>
   ) : (
     <PopulariaList<ProfileRow>
@@ -396,7 +434,10 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       onEndReached={pageKey === 'posts' && !posts.loadMoreError ? posts.loadMore : undefined}
       renderItem={({ item }) => {
         const node = item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
-          ? <View style={styles.column}><SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={item.index > 0} showMuted /></View>
+          ? <View style={styles.column}>
+              {item.dayLabel ? <ProfileDayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
+              <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted />
+            </View>
           : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} /></View>;
         if (item.kind === 'identity' || item.kind === 'tabs') return node;
         return <ProfileSwipeContent>{node}</ProfileSwipeContent>;
@@ -405,7 +446,14 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
         {pageKey === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
         {pageKey === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
-        {pageKey === 'media' && rows.length === 3 && posts.status === 'success' ? <AppText style={styles.emptyText} color={Colors.muted}>{posts.hasMore ? 'Nenhuma mídia nesta página. Carregue mais publicações para continuar.' : 'Nenhuma imagem ou vídeo publicado ainda.'}</AppText> : null}
+        {pageKey === 'media' && rows.length === 3 && posts.status === 'success' ? (
+          posts.hasMore ? <AppText style={styles.emptyText} color={Colors.muted}>Nenhuma mídia nesta página. Carregue mais publicações para continuar.</AppText> : (
+            <View style={styles.emptyState}>
+              <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma imagem ou vídeo publicado ainda.</AppText>
+              <AppText variant="caption" style={styles.emptyCaption}>Quando você publicar uma foto ou vídeo, ele aparece aqui.</AppText>
+            </View>
+          )
+        ) : null}
         {posts.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
           : posts.hasMore ? <PillButton label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'} variant="outline" disabled={posts.loadingMore} onPress={posts.loadMore} /> : null}
       </View></ProfileSwipeContent> : undefined}
@@ -427,11 +475,13 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: Profil
   return (
     <View style={styles.bar}>
       {canGoBack ? <IconButton icon="back" accessibilityLabel="Voltar" onPress={onBack ?? goBack} /> : <View style={styles.barSpacer} />}
-      <AppText style={styles.barHandle} numberOfLines={1} accessibilityRole="header">
-        {handle ? `@${handle}` : ''}
+      {canGoBack ? <View style={styles.barDivider} /> : null}
+      <AppText variant="label" style={styles.barHandle} numberOfLines={1} accessibilityRole="header">
+        {handle ? `@${handle}` : 'Perfil'}
       </AppText>
       {isMe ? (
         <View style={styles.barActions}>
+          <IconButton icon="edit" accessibilityLabel="Editar perfil" onPress={() => router.push('/conta/meus-dados' as never)} />
           <IconButton icon="shareNodes" accessibilityLabel="Compartilhar perfil" onPress={() => onShare?.()} />
           <IconButton icon="settings" accessibilityLabel="Conta e sessões" onPress={() => router.push('/conta')} />
         </View>
@@ -444,19 +494,34 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: Profil
   );
 }
 
-function ComunasShortcut({ count, onPress }: { count: number; onPress: () => void }) {
+/** Abre o dia no perfil como a mesma regra editorial do feed. */
+function ProfileDayRule({ label }: { label: string }) {
+  return (
+    <View style={styles.dayRule} accessibilityRole="header">
+      <AppText variant="label">{label}</AppText>
+      <View style={styles.dayRuleLine} />
+    </View>
+  );
+}
+
+/** Atalho do perfil com ícone colorido: diferença sem pesar como ação principal. */
+function ProfileShortcut({ label, icon, tone, onPress, style }: {
+  label: string;
+  icon: IconName;
+  tone: 'ink' | 'red';
+  onPress: () => void;
+  style?: ComponentProps<typeof View>['style'];
+}) {
   return (
     <Pressable
-      onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Minhas comunas, ${count} ${count === 1 ? 'comuna' : 'comunas'}`}
-      style={({ pressed }) => [styles.comunasShortcut, pressed && styles.pressed]}>
-      <Icon name="shield" size={28} color={Colors.red} />
-      <View style={styles.modText}>
-        <AppText style={styles.modTitle} color={Colors.cream}>Minhas comunas</AppText>
-        <AppText style={styles.modSub} color={Colors.onInkMuted}>{count} comunas · Membro e moderação</AppText>
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed, style]}>
+      <View style={[styles.shortcutMark, tone === 'red' ? styles.shortcutMarkRed : styles.shortcutMarkInk]}>
+        <Icon name={icon} size={18} color={Colors.red} />
       </View>
-      <Icon name="chevronRight" size={22} color={Colors.cream} />
+      <AppText style={styles.shortcutLabel}>{label}</AppText>
     </Pressable>
   );
 }
@@ -528,31 +593,37 @@ function RoleTag({ label }: { label: string }) {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 52,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
     borderBottomWidth: 1.5,
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
+  barDivider: {
+    width: 1.5,
+    height: 28,
+    backgroundColor: Colors.ink,
+  },
   barSpacer: {
-    width: 10,
+    width: 44,
   },
   barSpacerRight: {
     width: 44,
   },
   barHandle: {
     flex: 1,
-    fontFamily: Fonts.monoSemibold,
     fontSize: 12.5,
-    lineHeight: 16,
+    lineHeight: 18,
+    letterSpacing: 0.4,
+    textTransform: 'none',
   },
   barActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: -Spacing.two,
+    marginRight: -Spacing.one,
   },
   scroll: {
     paddingBottom: Spacing.seven,
@@ -595,31 +666,15 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.inkRule,
   },
   identityBlock: {
-    paddingTop: Spacing.five,
+    paddingTop: Spacing.three,
     paddingHorizontal: Spacing.five,
-    paddingBottom: Spacing.four,
-    gap: 14,
+    paddingBottom: 14,
+    gap: 12,
   },
   identity: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-  },
-  editAction: {
-    alignSelf: 'flex-start',
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-    paddingVertical: Spacing.one,
-    paddingRight: Spacing.three,
-  },
-  editLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 12.5,
-    lineHeight: 16,
-    textDecorationLine: 'underline',
   },
   names: {
     flex: 1,
@@ -630,18 +685,37 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   name: {
-    fontFamily: Fonts.condensed,
-    fontSize: 18,
-    lineHeight: 20,
+    fontFamily: Fonts.anton,
+    fontSize: 42,
+    lineHeight: 46,
+    letterSpacing: -0.4,
     textTransform: 'uppercase',
+    paddingTop: 2,
   },
   handle: {
     fontSize: 13.5,
-    marginTop: 4,
+    lineHeight: 18,
+    letterSpacing: 0.4,
+    textTransform: 'none',
+    marginTop: 6,
   },
   bio: {
-    fontSize: 15,
+    fontSize: 15.5,
     lineHeight: 22,
+  },
+  privateNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.red,
+    backgroundColor: Colors.strawLight,
+  },
+  privateText: {
+    flex: 1,
+    lineHeight: 18,
   },
   meta: {
     fontFamily: Fonts.mono,
@@ -662,50 +736,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
   },
+  actionPair: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  actionStack: {
+    flexDirection: 'column',
+  },
+  actionStackItem: {
+    flex: 0,
+    width: '100%',
+  },
   action: {
     flex: 1,
-    minHeight: 58,
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.three,
+    minHeight: 50,
+    borderRadius: Radius.sm,
   },
-  comunasShortcut: {
+  secondaryAction: {
+    borderWidth: 1,
+  },
+  shortcut: {
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    backgroundColor: Colors.ink,
+    gap: Spacing.two + 2,
+    paddingHorizontal: Spacing.two + 2,
+    borderWidth: 1,
+    borderColor: Colors.ink,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.paper,
   },
-  modShortcut: {
-    flexDirection: 'row',
+  shortcutPressed: {
+    backgroundColor: Colors.strawLight,
+  },
+  shortcutMark: {
+    width: 30,
+    height: 30,
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: 14,
-    borderRadius: Radius.xl,
-    backgroundColor: Colors.ink,
+    justifyContent: 'center',
   },
-  pressed: {
-    opacity: 0.8,
+  shortcutMarkInk: {
+    backgroundColor: Colors.strawLight,
   },
-  modText: {
+  shortcutMarkRed: {
+    backgroundColor: Colors.redSoft,
+  },
+  shortcutLabel: {
     flex: 1,
     minWidth: 0,
-  },
-  modTitle: {
     fontFamily: Fonts.extrabold,
-    fontSize: 14.5,
-    lineHeight: 19,
-  },
-  modSub: {
-    fontSize: 13,
+    fontSize: 13.5,
     lineHeight: 18,
-    marginTop: 2,
   },
   support: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.ink,
-    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
     padding: Spacing.four,
     gap: Spacing.three,
     backgroundColor: Colors.paper,
@@ -723,8 +808,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   supportText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 14.5,
+    lineHeight: 21,
   },
   tiers: {
     flexDirection: 'row',
@@ -732,9 +817,8 @@ const styles = StyleSheet.create({
   },
   tier: {
     flex: 1,
-    borderWidth: 1.5,
-    borderColor: Colors.strawDark,
-    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.rule,
     padding: Spacing.two + 2,
   },
   tierValue: {
@@ -761,25 +845,59 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   tabs: {
+    minHeight: 46,
+    justifyContent: 'center',
     backgroundColor: Colors.cream,
-    borderTopWidth: 1.5,
+    borderTopWidth: 1,
+    borderTopColor: Colors.rule,
     borderBottomWidth: 1.5,
-    borderColor: Colors.ink,
+    borderBottomColor: Colors.ink,
+  },
+  dayRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.five,
+    paddingTop: 14,
+    paddingBottom: 0,
+  },
+  dayRuleLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.inkSoft,
+  },
+  postRule: {
+    height: 1,
+    backgroundColor: Colors.rule,
   },
   emptyText: {
     paddingHorizontal: Spacing.five,
     paddingVertical: Spacing.six,
-    fontSize: 14.5,
+    fontSize: 15,
     textAlign: 'center',
   },
   listPad: {
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.one,
   },
-  emptyRow: {
+  emptyState: {
     paddingVertical: Spacing.five,
-    fontSize: 14.5,
+    gap: Spacing.three,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
+  },
+  emptyCaption: {
+    textAlign: 'center',
+    maxWidth: 340,
+  },
+  emptyAction: {
+    alignSelf: 'stretch',
+    borderRadius: Radius.sm,
+    borderWidth: 1,
   },
   episode: {
     flexDirection: 'row',

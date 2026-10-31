@@ -1,17 +1,17 @@
-import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { IconButton } from '@/components/icon-button';
+import { EditorialAction } from '@/components/editorial-action';
 import { KeyboardView } from '@/components/keyboard-view';
-import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
+import { SectionHeading } from '@/components/section-heading';
 import { SelectField } from '@/components/select-field';
 import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { EventBar } from '@/features/events/chrome';
 import { BrazilLocationFields } from '@/features/locations/brazil-location-fields';
 import { getCountries, type Country } from '@/features/locations/api';
 import { describeError } from '@/lib/errors';
@@ -112,23 +112,43 @@ export function ProfileEditorScreen() {
 
   return <Screen edges={['top', 'left', 'right']}>
     <KeyboardView style={styles.flex}>
-      <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar e descartar alterações" onPress={() => router.back()} /><AppText style={styles.title}>Meus dados</AppText></View>
+      <EventBar title="Meus dados" />
       <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
-        <AppText color={Colors.muted}>O e-mail é usado para entrar e não pode ser alterado por aqui.</AppText>
-        <TextField label="E-mail" value={account?.email ?? 'Modo demonstração'} editable={false} />
-        <TextField label="Nome" value={draft.name} onChangeText={(name) => patchDraft({ name })} maxLength={50} />
-        <TextField label="Nome de usuário" prefix="@" value={draft.handle} onChangeText={(handle) => patchDraft({ handle: handle.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20) })} autoCapitalize="none" autoCorrect={false} hint={handleHint} hintColor={handleHintColor} />
-        <SelectField label="País" value={draft.countryCode} placeholder="Selecione o país" loading={!DEMO_MODE && countries.length === 0 && !countryError} error={countryError || undefined} options={countryOptions} onChange={(countryCode) => {
-          const country = countries.find((item) => item.code === countryCode);
-          patchDraft({ countryCode, country: country?.name ?? '', ...(countryCode === 'BR' ? {} : { city: '', state: '', stateIbgeCode: '', municipalityIbgeCode: '' }) });
-        }} />
-        {draft.countryCode === 'BR' ? <BrazilLocationFields stateId={draft.stateIbgeCode} municipalityId={draft.municipalityIbgeCode} city={draft.city} state={draft.state} onChange={patchDraft} /> : null}
-        <TextField label="Bio" labelAside={`${draft.bio.length}/${BIO_MAX_LENGTH}`} value={draft.bio} onChangeText={(bio) => patchDraft({ bio })} multiline maxLength={BIO_MAX_LENGTH} />
-        <AppText variant="heading">Senha</AppText>
-        <AppText color={Colors.muted}>{account?.hasPassword === false ? 'Sua conta usa Google ou Apple; crie uma senha pelo fluxo de recuperação.' : 'Para trocar a senha, informe a senha atual.'}</AppText>
-        <TextField label="Senha atual" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoComplete="current-password" textContentType="password" hint={passwordMissingCurrent ? 'Informe a senha atual.' : undefined} hintColor={Colors.red} />
-        <TextField label="Nova senha" value={newPassword} onChangeText={setNewPassword} secureTextEntry autoComplete="new-password" textContentType="newPassword" hint={passwordError || (newPassword ? 'Senha válida.' : `Mínimo de ${PASSWORD_MIN_LENGTH} caracteres.`)} hintColor={passwordError ? Colors.red : Colors.muted} />
-        <PillButton label={busy ? 'Salvando…' : 'Salvar alterações'} onPress={save} disabled={!canSave} size="lg" display />
+        <AppText variant="caption">O e-mail é usado para entrar e não pode ser alterado por aqui.</AppText>
+
+        <View style={styles.section}>
+          <SectionHeading appearance="editorial" label="Identidade" />
+          <TextField appearance="editorial" label="E-mail" value={account?.email ?? 'Modo demonstração'} editable={false} />
+          <TextField appearance="editorial" label="Nome" placeholder="Ex.: Camila Rocha" value={draft.name} onChangeText={(name) => patchDraft({ name })} maxLength={50} />
+          <TextField appearance="editorial" label="Nome de usuário" prefix="@" placeholder="Ex.: camilarocha" value={draft.handle} onChangeText={(handle) => patchDraft({ handle: handle.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20) })} autoCapitalize="none" autoCorrect={false} hint={handleHint} hintColor={handleHintColor} />
+          <TextField appearance="editorial" label="Bio" labelAside={`${draft.bio.length}/${BIO_MAX_LENGTH}`} placeholder="Ex.: Professora, escrevo sobre educação pública." value={draft.bio} onChangeText={(bio) => patchDraft({ bio })} multiline maxLength={BIO_MAX_LENGTH} />
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeading appearance="editorial" label="Localização" />
+          <SelectField appearance="editorial" label="País" value={draft.countryCode} placeholder="Selecione o país" loading={!DEMO_MODE && countries.length === 0 && !countryError} error={countryError || undefined} options={countryOptions} onChange={(countryCode) => {
+            const country = countries.find((item) => item.code === countryCode);
+            patchDraft({ countryCode, country: country?.name ?? '', ...(countryCode === 'BR' ? {} : { city: '', state: '', stateIbgeCode: '', municipalityIbgeCode: '' }) });
+          }} />
+          {draft.countryCode === 'BR' ? <BrazilLocationFields appearance="editorial" stateId={draft.stateIbgeCode} municipalityId={draft.municipalityIbgeCode} city={draft.city} state={draft.state} onChange={patchDraft} /> : null}
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeading appearance="editorial" label="Senha" />
+          <AppText variant="caption">{account?.hasPassword === false ? 'Sua conta usa Google ou Apple; crie uma senha pelo fluxo de recuperação.' : 'Para trocar a senha, informe a senha atual.'}</AppText>
+          <TextField appearance="editorial" label="Senha atual" placeholder="Digite sua senha atual" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoComplete="current-password" textContentType="password" hint={passwordMissingCurrent ? 'Informe a senha atual.' : undefined} hintColor={Colors.red} />
+          <TextField appearance="editorial" label="Nova senha" placeholder={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres`} value={newPassword} onChangeText={setNewPassword} secureTextEntry autoComplete="new-password" textContentType="newPassword" hint={passwordError || (newPassword ? 'Senha válida.' : `Mínimo de ${PASSWORD_MIN_LENGTH} caracteres.`)} hintColor={passwordError ? Colors.red : Colors.muted} />
+        </View>
+
+        <EditorialAction
+          label={busy ? 'Salvando…' : 'Salvar alterações'}
+          icon="check"
+          labelVariant="button"
+          tone="red"
+          disabled={!canSave}
+          onPress={save}
+          style={styles.save}
+        />
       </ScrollView>
     </KeyboardView>
   </Screen>;
@@ -136,7 +156,18 @@ export function ProfileEditorScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  bar: { height: 56, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.two, borderBottomWidth: 1.5, borderBottomColor: Colors.ink },
-  title: { fontFamily: Fonts.condensed, fontSize: 21, textTransform: 'uppercase' },
-  content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', padding: Spacing.five, paddingBottom: Spacing.seven, gap: Spacing.four },
+  content: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    padding: Spacing.five,
+    paddingBottom: Spacing.seven,
+    gap: Spacing.five,
+  },
+  section: {
+    gap: Spacing.three,
+  },
+  save: {
+    borderRadius: Radius.sm,
+  },
 });

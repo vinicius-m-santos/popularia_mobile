@@ -6,12 +6,11 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-nat
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { EditorialAction } from '@/components/editorial-action';
-import { Icon } from '@/components/icon';
+import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
-import { PillButton } from '@/components/pill-button';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { formatPeople } from '@/lib/format';
@@ -31,10 +30,11 @@ import { cancelJoinRequest, requestToJoin, respondToTransfer, roleLabel } from '
 import { comunaErrorMessage } from '../errors';
 import { useComunaMembership } from '../use-membership';
 
-const COVER_HEIGHT = 218;
+const COVER_HEIGHT = 160;
+const MARK_SIZE = 88;
 
 /** Capa, identidade, números e ações da comuna (design 1b). `onChanged` recarrega a comuna. */
-export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onChanged?: () => void }) {
+export function ComunaHero({ comuna, onChanged, postCountLabel = '0' }: { comuna: ComunaDetails; onChanged?: () => void; postCountLabel?: string }) {
   const toast = useToast();
   const sheet = useActionsSheet();
   const { isOn, toggle } = useInteractions();
@@ -121,21 +121,58 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
     toast.show(on ? 'Avisos ligados nesta simulação. Nada será enviado.' : 'Avisos desta comuna desligados.');
   };
 
+  const joinDisabled = archived && !joined ? true : requestsEntry ? pending : membership.pending || (archived && !joined);
+  const joinLabel = archived && !joined
+    ? 'Comuna arquivada'
+    : requestsEntry
+      ? pending ? 'Enviando…' : requested ? 'Pedido enviado · retirar' : 'Pedir para entrar'
+      : membership.pending
+        ? joined ? 'Saindo…' : 'Entrando…'
+        : joined ? 'Participando' : 'Participar da comuna';
+  const joinTone: 'paper' | 'red' = archived && !joined ? 'paper' : requestsEntry ? requested ? 'paper' : 'red' : joined ? 'paper' : 'red';
+  const miniJoinLabel = archived && !joined
+    ? 'Arquivada'
+    : requestsEntry
+      ? pending ? 'Enviando…' : requested ? 'Pedido enviado' : 'Pedir entrada'
+      : membership.pending
+        ? 'Aguarde…'
+        : joined ? 'Participando' : 'Participar';
+  const onJoin = () => {
+    if (archived && !joined) return;
+    if (requestsEntry) { void onRequest(); return; }
+    if (!joined || !perms || DEMO_MODE) { void membership.toggleJoin(); return; }
+    Alert.alert(
+      'Sair da comuna?',
+      `Você deixa de participar de c/${comuna.handle}.${comuna.visibility === 'private' ? ' Como ela é privada, você perde o acesso às publicações e precisará pedir para entrar de novo.' : ''} A comuna continua existindo.`,
+      [
+        { text: 'Ficar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => membership.toggleJoin().then(() => onChanged?.()) },
+      ],
+    );
+  };
+
   return (
     <View>
       <View style={styles.coverFrame}>
         <View style={styles.cover}>
           <ComunaCover comuna={comuna} canEdit={!DEMO_MODE && !archived && !!perms?.canEditDetails} />
           <View style={styles.coverButtons}>
-            <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} background={Colors.paper} bordered style={styles.coverButton} />
-            <IconButton
-              icon="more"
-              size={20}
-              accessibilityLabel="Mais opções da comuna"
-              onPress={() => setMenuVisible(true)}
-              background={Colors.paper}
-              bordered
-              style={styles.coverButton}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
+              onPress={goBack}
+              hitSlop={4}
+              style={({ pressed }) => [styles.coverBack, pressed && styles.pressed]}>
+              <View style={styles.coverBackIcon}><Icon name="back" size={29} color={Colors.ink} /></View>
+              <View style={styles.coverBackIcon}><Icon name="back" size={24} color={Colors.paper} /></View>
+            </Pressable>
+            <MiniJoin
+              label={miniJoinLabel}
+              tone={joinTone}
+              disabled={joinDisabled}
+              onPress={onJoin}
+              accessibilityLabel={joinLabel}
+              accessibilityHint={joined ? 'Toque para sair da comuna' : undefined}
             />
           </View>
         </View>
@@ -153,7 +190,7 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
             </AppText>
             {markShown ? <Image source={{ uri: markShown }} contentFit="cover" cachePolicy="memory-disk" recyclingKey={markShown} style={StyleSheet.absoluteFill} accessible={false} /> : null}
             <View style={styles.markBadge} pointerEvents="none">
-              {markUploading ? <ActivityIndicator color={Colors.ink} size="small" /> : <Icon name="camera" size={14} color={Colors.ink} />}
+              {markUploading ? <ActivityIndicator color={Colors.paper} size="small" /> : <Icon name="camera" size={15} color={Colors.paper} />}
             </View>
           </Pressable>
         ) : (
@@ -166,108 +203,64 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
         )}
       </View>
 
+      <View style={styles.topActions}>
+        <IconButton icon="more" size={20} accessibilityLabel="Mais opções da comuna" onPress={() => setMenuVisible(true)} color={Colors.ink} />
+      </View>
+
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          <View style={styles.titleCopy}>
-            <AppText accessibilityRole="header" style={styles.title}>
-              {comuna.name}
-            </AppText>
-            <AppText style={styles.meta} color={Colors.inkSoft}>
-              c/{comuna.handle} · {comuna.place} · desde {comuna.foundedYear}
-            </AppText>
-          </View>
+          <AppText accessibilityRole="header" style={styles.title}>{comuna.name}</AppText>
+          <AppText style={styles.meta} color={Colors.inkSoft}>
+            c/{comuna.handle} · {comuna.place} · desde {comuna.foundedYear}
+          </AppText>
+        </View>
+
+        <View style={styles.chips}>
+          {!DEMO_MODE && comuna.viewerRole ? (
+            <View style={[styles.roleChip, comuna.viewerRole === 'founder' && styles.roleChipRed]}>
+              <AppText variant="label" color={Colors.paper}>{roleLabel(comuna.viewerRole)}</AppText>
+            </View>
+          ) : null}
+          {comuna.primaryTopic ? (
+            <View style={styles.topicChip}>
+              <View style={styles.topicMark} />
+              <AppText variant="label">{comuna.primaryTopic.shortLabel}</AppText>
+            </View>
+          ) : null}
         </View>
 
         {archived ? (
           <View style={styles.archived} accessibilityRole="summary">
-            <AppText style={styles.archivedTitle} color={Colors.cream}>
-              Comuna arquivada
-            </AppText>
+            <AppText style={styles.archivedTitle} color={Colors.cream}>Comuna arquivada</AppText>
             <AppText style={styles.archivedText} color={Colors.onInkSoft}>
               O histórico continua para leitura de quem participa. Não há novas publicações, comentários nem membros.
             </AppText>
           </View>
         ) : null}
 
-        {!DEMO_MODE && comuna.viewerRole ? (
-          <View style={styles.roleLine}>
-            <AppText style={styles.roleLabel}>Seu papel:</AppText>
-            <AppText style={styles.roleValue}>{roleLabel(comuna.viewerRole)}</AppText>
-          </View>
-        ) : null}
-
-        {comuna.primaryTopic ? <AppText variant="label" style={styles.topic}>Assunto · {comuna.primaryTopic.shortLabel}</AppText> : null}
-
         <AppText style={styles.description}>{comuna.description}</AppText>
 
-        <View style={styles.summaryDivider} />
-        <View style={styles.memberStat} accessible accessibilityLabel={`${formatPeople(memberCount)} membros`}>
-          <AppText style={styles.statValue} maxFontSizeMultiplier={1.3}>{formatPeople(memberCount)}</AppText>
-          <AppText style={styles.statLabel}>Membros</AppText>
+        <View style={styles.stats}>
+          <ComunaStat value={formatPeople(memberCount)} label={memberCount === 1 ? 'Membro' : 'Membros'} />
+          <ComunaStat value={postCountLabel} label="Publicações" divider />
+          <ComunaStat value={String(comuna.rules.length)} label="Regras" divider />
         </View>
 
         {incoming ? (
           <View style={styles.offer}>
+            <View style={styles.offerHead}>
+              <View style={styles.offerMark}><Icon name="shield" size={17} color={Colors.red} /></View>
+              <AppText style={styles.offerTitle}>Uma comuna para você</AppText>
+            </View>
             <AppText style={styles.offerText}>
               {incoming.from.name} quer passar a comuna para você. Até você aceitar, nada muda.
             </AppText>
             <View style={styles.offerActions}>
-              <PillButton label="Recusar" onPress={() => onTransfer(false)} disabled={pending} variant="outline" size="sm" />
-              <PillButton label="Aceitar a comuna" onPress={() => onTransfer(true)} disabled={pending} size="sm" />
+              <EditorialAction label="Recusar" icon="close" labelVariant="button" onPress={() => onTransfer(false)} disabled={pending} style={[styles.offerAction, styles.secondaryAction]} />
+              <EditorialAction label="Aceitar a comuna" icon="check" labelVariant="button" tone="red" onPress={() => onTransfer(true)} disabled={pending} style={styles.offerAction} />
             </View>
           </View>
         ) : null}
-
-        <View style={styles.actions}>
-          {
-          archived && !joined ? (
-            <PillButton label="Comuna arquivada" onPress={() => {}} disabled variant="outline" size="lg" display style={styles.join} />
-          ) : requestsEntry ? (
-            <PillButton
-              label={pending ? 'Enviando…' : requested ? 'Pedido enviado · retirar' : 'Pedir para entrar'}
-              onPress={onRequest}
-              disabled={pending}
-              variant={requested ? 'outline' : 'primary'}
-              size="lg"
-              display
-              accessibilityHint={requested ? 'Retira o pedido de entrada' : 'A moderação da comuna aprova ou recusa'}
-              style={styles.join}
-            />
-          ) : (
-            <PillButton
-              label={membership.pending ? (joined ? 'Saindo…' : 'Entrando…') : joined ? 'Participando' : 'Participar da comuna'}
-              icon={joined && !membership.pending ? 'check' : undefined}
-              onPress={() => {
-                if (!joined || !perms || DEMO_MODE) return membership.toggleJoin();
-                Alert.alert(
-                  'Sair da comuna?',
-                  `Você deixa de participar de c/${comuna.handle}.${comuna.visibility === 'private' ? ' Como ela é privada, você perde o acesso às publicações e precisará pedir para entrar de novo.' : ''} A comuna continua existindo.`,
-                  [
-                    { text: 'Ficar', style: 'cancel' },
-                    { text: 'Sair', style: 'destructive', onPress: () => membership.toggleJoin().then(() => onChanged?.()) },
-                  ],
-                );
-              }}
-              disabled={membership.pending || (archived && !joined)}
-              variant={joined ? 'outline' : 'primary'}
-              size="lg"
-              display
-              selected={joined}
-              accessibilityHint={joined ? 'Toque para sair da comuna' : undefined}
-              style={styles.join}
-            />
-          )}
-          <IconButton
-            icon="bell"
-            accessibilityLabel={notify ? 'Desligar avisos da comuna' : 'Ligar avisos da comuna'}
-            selected={notify}
-            onPress={onNotify}
-            color={notify ? Colors.paper : Colors.ink}
-            background={notify ? Colors.ink : Colors.paper}
-            bordered
-            style={styles.notify}
-          />
-        </View>
 
         {moderates ? (
           <Pressable
@@ -275,22 +268,34 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
             accessibilityRole="button"
             style={({ pressed }) => [styles.modTools, pressed && styles.pressed]}>
             <Icon name="shield" size={20} color={Colors.red} />
-            <AppText style={styles.modLabel} color={Colors.cream}>
-              Ferramentas de moderação
-            </AppText>
+            <AppText style={styles.modLabel} color={Colors.cream}>Ferramentas de moderação</AppText>
             <Icon name="chevronRight" size={18} color={Colors.cream} />
           </Pressable>
         ) : null}
       </View>
+
       <BottomSheet visible={menuVisible} onClose={() => setMenuVisible(false)} title="Opções da comuna" scrollable={false}>
-        <EditorialAction label="Compartilhar comuna" icon="shareNodes" onPress={() => {
-          setMenuVisible(false);
-          void shareDestination({ kind: 'comuna', id: comuna.handle }).catch(() => toast.show('Não conseguimos compartilhar esta comuna.'));
-        }} />
+        <ComunaMenuAction
+          icon="bell"
+          label="Avisos da comuna"
+          tone={notify ? 'red' : 'ink'}
+          detail={notify ? 'Ligados' : 'Desligados'}
+          selected={notify}
+          onPress={onNotify}
+        />
+        <ComunaMenuAction
+          icon="shareNodes"
+          label="Compartilhar comuna"
+          onPress={() => {
+            setMenuVisible(false);
+            void shareDestination({ kind: 'comuna', id: comuna.handle }).catch(() => toast.show('Não conseguimos compartilhar esta comuna.'));
+          }}
+        />
         {comuna.viewerRole !== 'founder' ? (
-          <EditorialAction
-            label="Denunciar comuna"
+          <ComunaMenuAction
             icon="flag"
+            tone="red"
+            label="Denunciar comuna"
             onPress={() => {
               setMenuVisible(false);
               sheet.open(comunaTarget(comuna), 'reason');
@@ -307,6 +312,7 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
               setMenuVisible(false);
               openManageComuna(comuna.id);
             }}
+            style={styles.manageAction}
           />
         ) : null}
       </BottomSheet>
@@ -324,10 +330,68 @@ export function ComunaHero({ comuna, onChanged }: { comuna: ComunaDetails; onCha
   );
 }
 
+function MiniJoin({ label, tone, disabled, onPress, accessibilityLabel, accessibilityHint }: {
+  label: string;
+  tone: 'paper' | 'red';
+  disabled?: boolean;
+  onPress: () => void;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.miniJoin, tone === 'red' ? styles.miniJoinRed : styles.miniJoinPaper, pressed && styles.miniJoinPressed, disabled && styles.miniJoinDisabled]}>
+      <AppText style={styles.miniJoinLabel} color={tone === 'red' ? Colors.paper : Colors.ink} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+function ComunaStat({ value, label, divider = false }: { value: string; label: string; divider?: boolean }) {
+  return (
+    <View style={[styles.statCell, divider && styles.statDivider]} accessible accessibilityLabel={`${value} ${label}`}>
+      <AppText style={styles.statValue} maxFontSizeMultiplier={1.3}>{value}</AppText>
+      <AppText style={styles.statLabel}>{label}</AppText>
+    </View>
+  );
+}
+
+function ComunaMenuAction({ icon, label, tone = 'ink', detail, selected = false, onPress }: {
+  icon: IconName;
+  label: string;
+  tone?: 'ink' | 'red';
+  detail?: string;
+  selected?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}>
+      <View style={[styles.menuIcon, tone === 'red' ? styles.menuIconRed : styles.menuIconInk]}>
+        <Icon name={icon} size={19} color={tone === 'red' ? Colors.red : Colors.ink} />
+      </View>
+      <AppText style={styles.menuLabel}>{label}</AppText>
+      {detail ? <AppText variant="label" color={selected ? Colors.red : Colors.muted}>{detail}</AppText> : <Icon name="chevronRight" size={18} color={Colors.muted} />}
+    </Pressable>
+  );
+}
+
+
 const styles = StyleSheet.create({
   archived: {
     backgroundColor: Colors.ink,
-    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.red,
     padding: Spacing.three,
     gap: 2,
   },
@@ -341,26 +405,74 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 18,
   },
-  roleLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.three },
-  roleLabel: { fontFamily: Fonts.mono, fontSize: 12, lineHeight: 17, letterSpacing: 0.8, textTransform: 'uppercase' },
-  roleValue: { fontFamily: Fonts.monoSemibold, fontSize: 13, lineHeight: 18, letterSpacing: 0.5, textTransform: 'uppercase' },
-  topic: { color: Colors.red, fontSize: 13, letterSpacing: 0.7 },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  roleChip: {
+    minHeight: 24,
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+    backgroundColor: Colors.ink,
+  },
+  roleChipRed: {
+    backgroundColor: Colors.red,
+  },
+  topicChip: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: Spacing.two,
+    backgroundColor: Colors.strawLight,
+  },
+  topicMark: {
+    width: 7,
+    height: 7,
+    backgroundColor: Colors.red,
+  },
   offer: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.red,
-    borderRadius: 12,
     backgroundColor: Colors.paper,
   },
+  offerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  offerMark: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.redSoft,
+  },
+  offerTitle: {
+    flex: 1,
+    fontFamily: Fonts.extrabold,
+    fontSize: 14.5,
+    lineHeight: 19,
+  },
   offerText: {
-    fontSize: 14,
+    fontSize: 14.5,
     lineHeight: 20,
   },
   offerActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     gap: Spacing.two,
+  },
+  offerAction: {
+    flex: 1,
+    borderRadius: Radius.sm,
+  },
+  secondaryAction: {
+    borderRadius: Radius.sm,
+    borderWidth: 1,
   },
   modTools: {
     minHeight: 46,
@@ -368,7 +480,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two + 2,
     paddingHorizontal: 14,
-    borderRadius: 12,
     backgroundColor: Colors.ink,
   },
   modLabel: {
@@ -394,20 +505,71 @@ const styles = StyleSheet.create({
     left: Spacing.three,
     right: Spacing.three,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  coverButton: { width: 50, height: 50, borderRadius: 0 },
+  coverBack: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coverBackIcon: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topActions: {
+    position: 'absolute',
+    top: COVER_HEIGHT + Spacing.two,
+    right: Spacing.five,
+    zIndex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one + 2,
+  },
+  miniJoin: {
+    maxWidth: 150,
+    minHeight: 30,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    borderRadius: Radius.sm,
+  },
+  miniJoinRed: {
+    backgroundColor: Colors.red,
+  },
+  miniJoinPaper: {
+    backgroundColor: Colors.paper,
+  },
+  miniJoinPressed: {
+    opacity: 0.75,
+  },
+  miniJoinDisabled: {
+    opacity: 0.6,
+  },
+  miniJoinLabel: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 11.5,
+    lineHeight: 14,
+  },
   content: {
     paddingHorizontal: Spacing.five,
+    paddingTop: 48,
     paddingBottom: Spacing.four,
-    gap: Spacing.four,
+    gap: 10,
   },
   mark: {
     position: 'absolute',
     left: Spacing.five,
-    bottom: -54,
-    width: 108,
-    height: 108,
+    bottom: -44,
+    width: MARK_SIZE,
+    height: MARK_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
@@ -420,37 +582,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -8,
     bottom: -8,
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.paper,
+    backgroundColor: Colors.red,
     borderWidth: 1.5,
     borderColor: Colors.ink,
   },
   markText: {
     alignSelf: 'stretch',
     fontFamily: Fonts.anton,
-    fontSize: 62,
-    // A Anton extrapola a métrica nominal no iOS; esta caixa evita recorte no topo.
-    lineHeight: 84,
+    fontSize: 50,
+    lineHeight: 68,
     letterSpacing: -1,
     textAlign: 'center',
     textAlignVertical: 'center',
-    // Compensação óptica mínima, sem deslocar o centro da caixa de texto.
     transform: [{ translateY: 1 }],
   },
   titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     gap: Spacing.two,
-    paddingTop: 64,
   },
-  titleCopy: { flex: 1, minWidth: 0 },
   title: { fontFamily: Fonts.anton, fontSize: 52, lineHeight: 62, letterSpacing: -1.1, textTransform: 'uppercase' },
   meta: {
-    marginTop: Spacing.two,
     fontFamily: Fonts.mono,
     fontSize: 11.5,
     lineHeight: 17,
@@ -461,38 +615,69 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 27,
   },
-  summaryDivider: { height: 1.5, backgroundColor: Colors.ink, marginTop: Spacing.one },
-  memberStat: { gap: 2 },
+  stats: {
+    flexDirection: 'row',
+    borderTopWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: Colors.ink,
+    marginTop: Spacing.one,
+  },
+  statCell: {
+    flex: 1,
+    paddingVertical: 6,
+  },
+  statDivider: {
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.rule,
+    paddingLeft: Spacing.three,
+  },
   statValue: {
     fontFamily: Fonts.anton,
-    fontSize: 48,
-    // Contadores também usam Anton: não compactar a entrelinha, ou o topo dos algarismos corta.
-    lineHeight: 58,
+    fontSize: 42,
+    lineHeight: 50,
     letterSpacing: -0.6,
   },
   statLabel: {
     fontFamily: Fonts.mono,
-    fontSize: 13,
-    lineHeight: 17,
-    letterSpacing: 1,
+    fontSize: 10.5,
+    lineHeight: 14,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  actions: {
+  manageAction: {
+    borderRadius: Radius.sm,
+  },
+  menuAction: {
+    minHeight: 54,
     flexDirection: 'row',
-    gap: Spacing.two,
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.two + 2,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.paper,
   },
-  join: {
+  menuActionPressed: {
+    backgroundColor: Colors.strawLight,
+  },
+  menuIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuIconInk: {
+    backgroundColor: Colors.strawLight,
+  },
+  menuIconRed: {
+    backgroundColor: Colors.redSoft,
+  },
+  menuLabel: {
     flex: 1,
-  },
-  notify: {
-    width: 56,
-    height: 56,
-    borderRadius: 0,
-    borderWidth: 1.5,
-  },
-  menuEmpty: {
-    paddingBottom: Spacing.two,
-    fontSize: 15,
-    lineHeight: 21,
+    minWidth: 0,
+    fontFamily: Fonts.extrabold,
+    fontSize: 14.5,
+    lineHeight: 19,
   },
 });

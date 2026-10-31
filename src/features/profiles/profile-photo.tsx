@@ -51,7 +51,7 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
   const photo = <View style={styles.ring}>
     <Avatar initials={user.initials} tone={user.tone} size={80} userId={user.id} imageUrl={shown} />
     {editable ? <View style={styles.badge} pointerEvents="none">
-      {uploading ? <ActivityIndicator color={Colors.ink} size="small" /> : <Icon name="camera" size={14} color={Colors.ink} />}
+      {uploading ? <ActivityIndicator color={Colors.paper} size="small" /> : <Icon name="camera" size={16} color={Colors.paper} />}
     </View> : null}
   </View>;
 
@@ -75,8 +75,8 @@ export function ProfilePhoto({ user, editable, onUploaded }: ProfilePhotoProps) 
 const styles = StyleSheet.create({
   ring: { padding: 3, borderRadius: 50, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.cream },
   badge: {
-    position: 'absolute', right: -2, bottom: -2, width: 28, height: 28,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.paper, borderWidth: 1.5, borderColor: Colors.ink,
+    position: 'absolute', right: -3, bottom: -3, width: 30, height: 30,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.red, borderWidth: 1.5, borderColor: Colors.ink,
   },
   pressed: { opacity: 0.92 },
 });

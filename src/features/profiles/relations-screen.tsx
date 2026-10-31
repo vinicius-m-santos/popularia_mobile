@@ -2,24 +2,23 @@ import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { AppText } from '@/components/app-text';
-import { IconButton } from '@/components/icon-button';
 import { PopulariaList } from '@/components/list/popularia-list';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
-import { Colors, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
+import { EventBar } from '@/features/events/chrome';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { ApiError } from '@/lib/errors';
 import { contentPolicy } from '@/lib/query/client';
-import { goBack, useNav, type RelationKind } from '@/lib/routes';
+import { useNav, type RelationKind } from '@/lib/routes';
 import type { User } from '@/types/models';
 
 import { getRelationPage } from './api';
 import { PersonRow } from './components/person-row';
 
-const COPY: Record<RelationKind, { title: string; empty: string }> = {
-  seguidores: { title: 'Seguidores', empty: 'Ninguém segue este perfil ainda.' },
-  seguindo: { title: 'Seguindo', empty: 'Este perfil ainda não segue ninguém.' },
+const COPY: Record<RelationKind, { title: string; emptyTitle: string; empty: string }> = {
+  seguidores: { title: 'Seguidores', emptyTitle: 'Ninguém por aqui', empty: 'Ninguém segue este perfil ainda.' },
+  seguindo: { title: 'Seguindo', emptyTitle: 'Lista vazia', empty: 'Este perfil ainda não segue ninguém.' },
 };
 
 /** Lista paginada de seguidores ou de seguindo, na pilha da aba atual. */
@@ -39,12 +38,7 @@ export default function RelationsScreen() {
 
   return (
     <Screen>
-      <View style={styles.bar}>
-        <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-        <View style={styles.divider} />
-        <AppText variant="label" style={styles.title}>{copy.title}</AppText>
-        <View style={styles.spacer} />
-      </View>
+      <EventBar title={copy.title} />
       {privateList ? (
         <StateView kind="empty" title="Lista privada" message="Só a própria pessoa e seguidores aprovados veem seguidores e seguindo deste perfil." />
       ) : (
@@ -57,7 +51,7 @@ export default function RelationsScreen() {
               <PersonRow user={item} subtitle={`@${item.handle}`} onOpen={() => nav.openProfile(item.id)} />
             </View>
           )}
-          emptyTitle={copy.title}
+          emptyTitle={copy.emptyTitle}
           emptyMessage={copy.empty}
           contentContainerStyle={styles.list}
         />
@@ -67,28 +61,6 @@ export default function RelationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.one,
-    gap: Spacing.two,
-    backgroundColor: Colors.cream,
-    borderBottomWidth: 1.5,
-    borderBottomColor: Colors.ink,
-  },
-  divider: {
-    width: 1.5,
-    height: 28,
-    backgroundColor: Colors.ink,
-  },
-  title: {
-    flex: 1,
-    fontSize: 12.5,
-  },
-  spacer: {
-    width: 44,
-  },
   list: {
     paddingHorizontal: Spacing.five,
     paddingBottom: Spacing.seven,

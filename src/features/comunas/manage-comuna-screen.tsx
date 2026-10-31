@@ -8,7 +8,8 @@ import { KeyboardView } from '@/components/keyboard-view';
 import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
 import { BottomSheet } from '@/components/bottom-sheet';
-import { Icon } from '@/components/icon';
+import { EditorialAction } from '@/components/editorial-action';
+import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Kicker } from '@/components/kicker';
 import { PillButton } from '@/components/pill-button';
@@ -151,6 +152,12 @@ const ACTION_LABELS: Record<MemberAction, string> = {
   transfer: 'Passar a comuna para esta pessoa',
   remove: 'Remover da comuna',
 };
+const ACTION_ICONS: Record<MemberAction, IconName> = {
+  appoint: 'shield',
+  dismiss: 'user',
+  transfer: 'shareNodes',
+  remove: 'trash',
+};
 
 function MembersTab({ comuna, onChanged }: TabProps) {
   const toast = useToast();
@@ -265,12 +272,17 @@ function MembersTab({ comuna, onChanged }: TabProps) {
                 disabled={busy}
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.sheetOption, pressed && styles.pressed]}>
+                <View style={[styles.sheetIcon, action === 'remove' && styles.sheetIconRed]}>
+                  <Icon name={ACTION_ICONS[action]} size={19} color={action === 'remove' ? Colors.red : Colors.ink} />
+                </View>
                 <AppText style={styles.sheetLabel} color={action === 'remove' ? Colors.red : Colors.ink}>
                   {ACTION_LABELS[action]}
                 </AppText>
+                <Icon name="chevronRight" size={18} color={Colors.muted} />
               </Pressable>
             ))
           : null}
+        <EditorialAction label="Fechar" icon="close" labelVariant="button" tone="paper" onPress={() => setSelected(null)} style={styles.sheetClose} />
       </BottomSheet>
     </>
   );
@@ -590,15 +602,34 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.five,
   },
   sheetOption: {
-    minHeight: 52,
-    justifyContent: 'center',
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
     borderBottomWidth: 1,
     borderBottomColor: Colors.rule,
   },
+  sheetIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.strawLight,
+  },
+  sheetIconRed: {
+    backgroundColor: Colors.redSoft,
+  },
   sheetLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 15.5,
-    lineHeight: 20,
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.extrabold,
+    fontSize: 14.5,
+    lineHeight: 19,
+  },
+  sheetClose: {
+    marginTop: Spacing.two,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
   },
   pressed: {
     opacity: 0.75,

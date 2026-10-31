@@ -1,6 +1,6 @@
 import { createContext, use, useCallback, useEffect, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { GestureDetector, useNativeGesture, usePanGesture, type NativeGesture, type PanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useNativeGesture, usePanGesture, type PanGesture } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withTiming, runOnJS, type SharedValue } from 'react-native-reanimated';
 
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
@@ -13,7 +13,6 @@ function settleProfileSwipe<T extends string>(current: SwipeState<T>, translatio
 }
 
 const DragContext = createContext<SharedValue<number> | null>(null);
-const TabGestureContext = createContext<NativeGesture | null>(null);
 const PanGestureContext = createContext<PanGesture | null>(null);
 
 type SwipeState<T extends string> = {
@@ -71,16 +70,12 @@ export function ProfileTabSwipe<T extends string>({ tabs, active, onChange, chil
       if (event.canceled) dragX.value = withTiming(0, { duration: 160 });
     },
   });
-  const tabGesture = useNativeGesture({ block: pan });
-
   return (
     <DragContext.Provider value={dragX}>
       <PanGestureContext.Provider value={pan}>
-        <TabGestureContext.Provider value={tabGesture}>
-          <GestureDetector gesture={pan}>
-            <View style={styles.fill} collapsable={false}>{children}</View>
-          </GestureDetector>
-        </TabGestureContext.Provider>
+        <GestureDetector gesture={pan}>
+          <View style={styles.fill} collapsable={false}>{children}</View>
+        </GestureDetector>
       </PanGestureContext.Provider>
     </DragContext.Provider>
   );
@@ -106,7 +101,10 @@ export function ProfileTabs<K extends string>({ options, value, onChange, height
   onChange: (key: K) => void;
   height?: number;
 }) {
-  const gesture = use(TabGestureContext);
+  // Cada barra cria a própria instância: compartilhar um gesto entre dois
+  // GestureDetectors dispara o erro do Gesture Handler na navegação.
+  const pan = use(PanGestureContext);
+  const gesture = useNativeGesture(pan ? { block: pan } : {});
   return <UnderlineTabs options={options} value={value} onChange={onChange} height={height} gesture={gesture} />;
 }
 

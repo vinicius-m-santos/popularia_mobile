@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -32,7 +33,7 @@ import { SquareEntry } from '@/features/squares/square-entry';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
-import { formatPeople } from '@/lib/format';
+import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
 import { queryClient } from '@/lib/query/client';
 import { useNav } from '@/lib/routes';
@@ -141,8 +142,8 @@ export default function ComunaScreen() {
         <ProfileSwipeContent>
           <LibraryPane scope="comuna" comuna={id} canAdd={canAddDocument} profileContext
             header={<View style={{ backgroundColor: Colors.cream }}>
-              <ComunaHero comuna={data} onChanged={comuna.reload} />
-              <ProfileTabs options={TABS} value={tab} onChange={setTab} height={46} />
+              <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={`${postItems.length}${posts.hasMore ? '+' : ''}`} />
+              <ProfileTabs options={TABS} value={tab} onChange={setTab} height={44} />
               {canAddDocument ? <View style={styles.libraryActions}>
                 <EditorialAction label="Adicionar PDF à biblioteca" icon="plus" tone="red" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { comuna: id } })} />
               </View> : null}
@@ -159,11 +160,11 @@ export default function ComunaScreen() {
       <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} style={styles.scrollView} contentContainerStyle={styles.scroll}>
         <View style={styles.column}>
           {comuna.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} /> : null}
-          <ComunaHero comuna={data} onChanged={comuna.reload} />
+          <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={`${postItems.length}${posts.hasMore ? '+' : ''}`} />
         </View>
         <View style={styles.tabs}>
           <View style={styles.column}>
-            <ProfileTabs options={TABS} value={tab} onChange={setTab} height={46} />
+            <ProfileTabs options={TABS} value={tab} onChange={setTab} height={44} />
           </View>
         </View>
         <ProfileSwipeContent><View style={styles.column}>
@@ -192,11 +193,21 @@ export default function ComunaScreen() {
               {posts.status === 'loading' ? <StateView kind="loading" message="Carregando publicações" /> : null}
               {posts.status === 'error' ? <PostsError error={posts.error} onRetry={posts.refresh} /> : null}
               {posts.status === 'success' && postItems.length === 0 ? (
-                <StateView kind="empty" title="Nenhuma publicação ainda" />
+                <View style={styles.emptyState}>
+                  <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma publicação ainda.</AppText>
+                  <AppText variant="caption" style={styles.emptyCaption}>Seja a primeira pessoa a abrir a conversa, camarada.</AppText>
+                </View>
               ) : null}
-              {postItems.map((item) => (
-                <PostCard key={item.id} item={item} showRule showComuna={false} />
-              ))}
+              {postItems.map((item, index) => {
+                const previous = index > 0 ? postItems[index - 1] : null;
+                const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
+                return (
+                  <View key={item.id}>
+                    {newDay ? <ComunaDayRule label={formatDayRule(item.createdAt)} /> : <View style={styles.postRule} />}
+                    <PostCard item={item} showRule={false} showComuna={false} />
+                  </View>
+                );
+              })}
               {posts.loadMoreError ? (
                 <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
               ) : posts.hasMore ? (
@@ -224,6 +235,16 @@ export default function ComunaScreen() {
       </ScrollView>
     </View>
     </ProfileTabSwipe>
+  );
+}
+
+/** Abre o dia na comuna como a mesma regra editorial do feed e do perfil. */
+function ComunaDayRule({ label }: { label: string }) {
+  return (
+    <View style={styles.dayRule} accessibilityRole="header">
+      <AppText variant="label">{label}</AppText>
+      <View style={styles.dayRuleLine} />
+    </View>
   );
 }
 
@@ -260,9 +281,44 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   tabs: {
+    minHeight: 46,
+    justifyContent: 'center',
     backgroundColor: Colors.cream,
-    borderTopWidth: 1.5,
+    borderTopWidth: 1,
+    borderTopColor: Colors.rule,
     borderBottomWidth: 1.5,
-    borderColor: Colors.ink,
+    borderBottomColor: Colors.ink,
+  },
+  dayRule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.five,
+    paddingBottom: 0,
+  },
+  dayRuleLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.inkSoft,
+  },
+  postRule: {
+    height: 1,
+    backgroundColor: Colors.rule,
+  },
+  emptyState: {
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.six,
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  emptyCaption: {
+    textAlign: 'center',
+    maxWidth: 320,
   },
 });
