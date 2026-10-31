@@ -133,6 +133,8 @@ export type Post = {
   comunaId: string | null;
   createdAt: string;
   text: string;
+  /** Título opcional: com ele o cartão abre em manchete; sem ele vale a descrição. */
+  title?: string | null;
   images?: PostImage[];
   eventId?: string;
   media?: PostMedia;

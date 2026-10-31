@@ -44,7 +44,7 @@ type PostCardProps = {
 
 /** Publicação no feed e na página da comuna (design 1a/1b). */
 export const PostCard = memo(function PostCard({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true, mediaGesture, appearance = 'feed' }: PostCardProps) {
-  const { author, comuna, event, media, images, topComment, topCommentAuthor } = item;
+  const { author, comuna, event, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();
   const sheet = useActionsSheet();
@@ -60,6 +60,18 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
   if (!showMuted && isOn('mutedUsers', author.id)) return null;
 
   const profile = appearance === 'profile';
+  const hasTitle = !!item.title?.trim();
+  const bodyBlock = item.text.trim().length > 0 || (item.images && item.images.length > 0) ? (
+    <Pressable
+      onPress={open}
+      onPressIn={() => preparePost(item)}
+      accessibilityRole="button"
+      accessibilityHint="Abre a discussão"
+      style={styles.body}>
+      {item.text.trim().length > 0 ? <PostBody text={item.text} mentions={item.mentions} /> : null}
+      {item.images && item.images.length > 0 ? <PostImages images={item.images} /> : null}
+    </Pressable>
+  ) : null;
   return (
     <View style={[styles.card, profile && styles.cardProfile, showRule && styles.rule]}>
       {profile ? (
@@ -102,15 +114,8 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         />
       )}
 
-      <Pressable
-        onPress={open}
-        onPressIn={() => preparePost(item)}
-        accessibilityRole="button"
-        accessibilityHint="Abre a discussão"
-        style={styles.body}>
-        <PostBody text={item.text} mentions={item.mentions} />
-        {images && images.length > 0 ? <PostImages images={images} /> : null}
-      </Pressable>
+      {hasTitle ? <AppText style={styles.title}>{item.title}</AppText> : null}
+      {hasTitle ? bodyBlock : null}
 
       {item.attachment ? <PostAttachment
         key={item.attachment.id}
@@ -133,6 +138,8 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
           onSave: actions.toggleSave,
         }}
       /> : null}
+
+      {hasTitle ? null : bodyBlock}
 
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
@@ -344,6 +351,11 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: Spacing.two + 2,
+  },
+  title: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 22,
+    lineHeight: 27,
   },
   topComment: {
     backgroundColor: Colors.highlight,

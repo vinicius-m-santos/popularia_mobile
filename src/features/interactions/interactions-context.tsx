@@ -121,7 +121,7 @@ type InteractionsValue = {
   localCommentsFor: (postId: string) => Comment[];
   addComment: (input: { postId: string; parentId: string | null; text: string; mentions?: Comment['mentions'] }) => Comment;
   localPosts: Post[];
-  addPost: (input: { comunaId: string | null; text: string; poll?: Post['poll']; mentions?: Post['mentions'] }) => Post;
+  addPost: (input: { comunaId: string | null; text: string; title?: string | null; poll?: Post['poll']; mentions?: Post['mentions'] }) => Post;
   /** Na API: contagem exibida = a maior entre a do servidor e a última conhecida nesta sessão. */
   commentCountOf: (postId: string, serverCount: number) => number;
   /** Registra uma contagem vista no servidor ou atualizada depois de comentar (nunca diminui). */
@@ -192,7 +192,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     return comment;
   }, []);
 
-  const addPost = useCallback<InteractionsValue['addPost']>(({ comunaId, text, poll, mentions }) => {
+  const addPost = useCallback<InteractionsValue['addPost']>(({ comunaId, text, title, poll, mentions }) => {
     localIdCounter += 1;
     const post: Post = {
       id: `local-post-${localIdCounter}`,
@@ -200,6 +200,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
       comunaId,
       createdAt: new Date().toISOString(),
       text,
+      title: title ?? null,
       supportCount: 0,
       commentCount: 0,
       echoCount: 0,

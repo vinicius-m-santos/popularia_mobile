@@ -43,6 +43,7 @@ import { queryClient } from '@/lib/query/client';
 import type { Comuna, FeedItem, TopicId } from '@/types/models';
 
 const MAX_LENGTH = 1000;
+const MAX_TITLE = 120;
 /** Seguidores do perfil de demonstração, para "Visível para…". */
 const MY_FOLLOWERS = 312;
 
@@ -99,6 +100,7 @@ export default function CreatePostScreen() {
 
   const draft = useMentionDraft();
   const text = draft.text;
+  const [title, setTitle] = useState('');
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const optionSeq = useRef(2);
   const [topic, setTopic] = useState<TopicId | null>(null);
@@ -139,9 +141,10 @@ export default function CreatePostScreen() {
   const composed = draft.compose();
   const trimmed = composed.body;
   const destinationsReady = chosenId === 'perfil' || comunas.data !== null;
-  const canPublish = (!!document || !!media || trimmed.length > 0 || poll !== null) && !publishing && destinationsReady;
+  const trimmedTitle = title.trim();
+  const canPublish = (!!document || !!media || trimmed.length > 0 || trimmedTitle.length > 0 || poll !== null) && !publishing && destinationsReady;
   const where = destination.kind === 'perfil' ? 'seu perfil' : `c/ ${destination.comuna.name}`;
-  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || !!document || !!media || poll !== null), ({ repeat }) => {
+  const disablePrevention = usePreventRemove(!leaving && (publishing || trimmed.length > 0 || trimmedTitle.length > 0 || !!document || !!media || poll !== null), ({ repeat }) => {
     if (publishingRef.current) return;
     Alert.alert('Descartar publicação?', 'O texto e os anexos deste rascunho serão perdidos.', [
       { text: 'Continuar escrevendo', style: 'cancel' },
@@ -173,7 +176,7 @@ export default function CreatePostScreen() {
     if (pdfMode && !document) { toast.show('Escolha um PDF da biblioteca ou envie um novo.'); return; }
     const pollIssue = pollDraftError(poll);
     if (pollIssue) { toast.show(pollIssue); return; }
-    if (!trimmed && !document && !media && !poll) {
+    if (!trimmed && !trimmedTitle && !document && !media && !poll) {
       toast.show('Escreva algo antes de publicar.');
       return;
     }
@@ -183,7 +186,7 @@ export default function CreatePostScreen() {
       publishingRef.current = true;
       setLeaving(true);
       disablePrevention();
-      addPost({ comunaId, text: trimmed, ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}), ...(poll ? { poll: { ...draftToPoll(poll), id: `local-poll-${Date.now()}` } } : {}) });
+      addPost({ comunaId, text: trimmed, ...(trimmedTitle ? { title: trimmedTitle } : {}), ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}), ...(poll ? { poll: { ...draftToPoll(poll), id: `local-poll-${Date.now()}` } } : {}) });
       toast.show(`Publicado em ${where} só neste aparelho. Nada foi enviado.`);
       if (comunaId) router.dismissTo({ pathname: '/comuna/[id]', params: { id: comunaId } });
       else router.dismissTo('/perfil');
@@ -214,6 +217,7 @@ export default function CreatePostScreen() {
       await createPost({
         comunaServerId,
         text: trimmed,
+        ...(trimmedTitle ? { title: trimmedTitle } : {}),
         ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}),
         ...(pdfMode && document ? { documentId: document.id } : {}),
         ...(mediaId ? { mediaId } : {}),
@@ -269,7 +273,8 @@ export default function CreatePostScreen() {
     authorId: me.id,
     comunaId: destination.kind === 'comuna' ? destination.comuna.id : null,
     createdAt: new Date().toISOString(),
-    text: trimmed || (pdfMode ? '' : 'Seu texto aparece aqui.'),
+    title: trimmedTitle || null,
+    text: trimmed || (pdfMode || trimmedTitle ? '' : 'Seu texto aparece aqui.'),
     ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}),
     supportCount: 0,
     commentCount: 0,
@@ -404,13 +409,33 @@ export default function CreatePostScreen() {
                 style={styles.previewBox}
                 pointerEvents="none"
                 accessible
-                accessibilityLabel={`Pré-visualização: ${previewItem.text}`}
+                accessibilityLabel={`Pré-visualização: ${[previewItem.title, previewItem.text].filter(Boolean).join('. ')}`}
                 importantForAccessibility="no-hide-descendants">
                 <PostCard item={previewItem} />
               </View>
             ) : (
               <View style={styles.contentBox}>
                 {draft.query ? <MentionSuggestions query={draft.query.query} onSelect={draft.insert} /> : null}
+                <View style={styles.titleBlock}>
+                  <View style={styles.titleHeader}>
+                    <AppText variant="label">Título · opcional</AppText>
+                    {title.length > 0 ? (
+                      <AppText style={styles.titleCounter} color={title.length >= MAX_TITLE ? Colors.red : Colors.muted}>
+                        {title.length}/{MAX_TITLE}
+                      </AppText>
+                    ) : null}
+                  </View>
+                  <TextInput
+                    editable={!publishing}
+                    value={title}
+                    onChangeText={setTitle}
+                    maxLength={MAX_TITLE}
+                    placeholder="Ex.: Quinta tem ato contra o aumento da passagem"
+                    placeholderTextColor={Colors.placeholder}
+                    accessibilityLabel="Título da publicação (opcional)"
+                    style={styles.titleInput}
+                  />
+                </View>
                 <View style={styles.writeRow}>
                   <Avatar initials={me.initials} tone={me.tone} size={38} userId={me.id} imageUrl={me.avatarUrl} />
                   <TextInput
@@ -827,6 +852,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     textTransform: 'uppercase',
+  },
+  titleBlock: {
+    gap: 6,
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.rule,
+  },
+  titleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  titleCounter: { fontFamily: Fonts.mono, fontSize: 11, lineHeight: 14, letterSpacing: 0.6 },
+  titleInput: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 21,
+    lineHeight: 27,
+    color: Colors.ink,
+    padding: 0,
+    minHeight: 32,
   },
   previewBox: {
     borderWidth: 1.5,

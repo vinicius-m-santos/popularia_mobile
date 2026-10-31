@@ -49,9 +49,11 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
             <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={() => sheet.open(postTarget(post))} />
           </View>}
         />
-        <PostBody text={post.text} mentions={post.mentions} style={styles.text} />
+        {post.title ? <AppText style={styles.title}>{post.title}</AppText> : null}
+        {post.title && post.text ? <PostBody text={post.text} mentions={post.mentions} style={styles.text} /> : null}
         {post.attachment ? <PostAttachment media={post.attachment} /> : null}
         {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
+        {!post.title && post.text ? <PostBody text={post.text} mentions={post.mentions} style={styles.text} /> : null}
         {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}
         {post.poll ? <PostPollBlock postId={post.id} poll={post.poll} /> : null}
         {post.event ? <EventBox event={post.event} /> : null}
@@ -115,6 +117,11 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 17.5,
     lineHeight: 25,
+  },
+  title: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 26,
+    lineHeight: 32,
   },
   stamp: {
     fontFamily: Fonts.mono,

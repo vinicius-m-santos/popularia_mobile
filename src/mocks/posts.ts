@@ -9,6 +9,7 @@ export const posts: Post[] = [
     authorId: 'luana',
     comunaId: 'tarifa',
     createdAt: hoursAgo(2),
+    title: 'Quinta tem ato contra o aumento da passagem',
     text: 'Assembleia de ontem decidiu: quinta tem ato na Praça Sete contra o aumento da passagem para R$ 6,25. A dúvida que ficou é se o abaixo-assinado pela #TarifaZero entra junto ou fica para depois. Quero ouvir principalmente quem não conseguiu ir.',
     eventId: 'tarifa',
     supportCount: 1204,

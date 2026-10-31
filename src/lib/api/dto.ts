@@ -121,6 +121,8 @@ export type PostDto = {
   topic?: string | null;
   id: string;
   body: string;
+  /** Título opcional; a API antiga não envia o campo. */
+  title?: string | null;
   createdAt: string;
   author: AuthorDto;
   comuna: { id: string; slug: string; name: string; status: 'active' | 'archived' } | null;
