@@ -200,10 +200,10 @@ function SheetBody(props: BodyProps) {
             try { await shareDestination({ kind: target.kind as 'post' | 'profile', id: target.id }); close(); }
             catch { toast.show('Não conseguimos compartilhar este conteúdo.'); }
           }} />
-          <MenuItem icon="link" label="Copiar link" onPress={async () => {
-            try { await Clipboard.setStringAsync(canonicalUrl({ kind: target.kind as 'post' | 'profile', id: target.id })); close(); toast.show('Link copiado.'); }
+          {target.kind === 'profile' ? <MenuItem icon="link" label="Copiar link" onPress={async () => {
+            try { await Clipboard.setStringAsync(canonicalUrl({ kind: 'profile', id: target.id })); close(); toast.show('Link copiado.'); }
             catch { toast.show('Este conteúdo ainda não possui um link público.'); }
-          }} />
+          }} /> : null}
         </> : null}
         {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={blocked ? `Desbloquear @${handle}` : `Bloquear @${handle}`} danger onPress={async () => {
           try {
