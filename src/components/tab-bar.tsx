@@ -102,7 +102,7 @@ function CreateButton() {
           <View style={styles.createIntro}>
             <View style={styles.createIntroCopy}>
               <AppText variant="display" accessibilityRole="header" style={styles.createTitle}>O que você{`\n`}quer criar?</AppText>
-              <AppText variant="label" style={styles.createSubtitle}>Compartilhe ideias, organize conteúdos e fortaleça sua comuna.</AppText>
+              <AppText variant="caption" style={styles.createSubtitle} numberOfLines={3}>Compartilhe ideias, organize conteúdos e fortaleça sua comuna.</AppText>
             </View>
             <CreationIllustration asset="hero" contentFit="contain" style={styles.createIntroArt} />
           </View>
@@ -141,10 +141,10 @@ function CreateMenuItem({ title, description, image, onPress }: MenuItemProps) {
       style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}>
       <View style={styles.menuItemImageFrame}><CreationIllustration asset={image} contentFit="cover" style={styles.menuItemImage} /></View>
       <View style={styles.menuItemContent}>
-        <AppText variant="heading" style={styles.menuItemTitle}>{title}</AppText>
-        <AppText variant="label" style={styles.menuItemDescription}>{description}</AppText>
+        <AppText variant="bodyStrong" style={styles.menuItemTitle}>{title}</AppText>
+        <AppText variant="caption" style={styles.menuItemDescription} numberOfLines={2}>{description}</AppText>
       </View>
-      <Icon name="arrowRight" color={Colors.ink} size={26} />
+      <Icon name="chevronRight" color={Colors.muted} size={18} />
     </Pressable>
   );
 }
@@ -207,23 +207,24 @@ const styles = StyleSheet.create({
   createSubtitle: {
     maxWidth: 235,
     color: Colors.inkSoft,
-    fontSize: 10,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 18,
   },
   createIntroArt: {
     position: 'absolute',
-    right: -30,
-    bottom: -20,
-    width: 196,
-    height: 196,
+    right: -26,
+    bottom: -18,
+    width: 172,
+    height: 172,
   },
   menuItem: {
-    minHeight: 104,
+    minHeight: 96,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    borderWidth: 2,
-    borderColor: Colors.ink,
+    borderWidth: 1,
+    borderColor: Colors.inkSoft,
+    backgroundColor: Colors.paper,
     padding: Spacing.two,
   },
   menuItemPressed: {
@@ -244,14 +245,12 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   menuItemTitle: {
-    fontFamily: Fonts.anton,
-    fontSize: 28,
-    lineHeight: 38,
+    fontSize: 16,
+    lineHeight: 22,
   },
   menuItemDescription: {
-    color: Colors.inkSoft,
-    fontSize: 10.5,
-    lineHeight: 15,
-    letterSpacing: 0.3,
+    color: Colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
