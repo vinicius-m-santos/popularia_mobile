@@ -29,7 +29,8 @@ describe('detalhe de PDF', () => {
     expect(saveDocument).toHaveBeenCalledWith(document.id, true); expect(getDocument).toHaveBeenCalledTimes(1);
     await fireEvent.press(screen.getByText('Publicar no feed'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/criar', params: { documentId: document.id } });
-    expect(screen.getByText('Assunto: Trabalho e direitos trabalhistas')).toBeTruthy();
+    expect(screen.getByText('Assunto')).toBeTruthy();
+    expect(screen.getByText('Trabalho e direitos trabalhistas')).toBeTruthy();
   });
   it('revogação no abrir remove os metadados e nunca usa um arquivo antigo', async () => {
     jest.mocked(getDocument).mockResolvedValueOnce(document).mockRejectedValue(new ApiError(404, '/errors/not-found', 'Indisponível'));

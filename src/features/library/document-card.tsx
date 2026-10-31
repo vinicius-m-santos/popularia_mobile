@@ -53,27 +53,29 @@ export function DocumentCard({ document, onPress, shared = false, appearance = '
     </View>
     <View style={styles.collectionCardChevron}><Icon name="chevronRight" size={21} /></View>
   </Pressable>;
+  // No feed o anexo é uma referência: sem capa decorativa, com o formato nos metadados e
+  // o acesso só quando não é público. A capa preta repetida roubava largura do título.
   if (appearance === 'editorial') return <Pressable accessibilityRole="button" accessibilityLabel={`${document.title ?? 'Documento indisponível'}${locked ? ', acesso restrito' : ', PDF'}`}
-    onPress={handlePress} style={({ pressed }) => [styles.editorialCard, locked && styles.editorialLocked, pressed && styles.pressed]}>
-    <View style={[styles.editorialCover, locked && styles.lockedCover]}>
-      <AppText variant="label" color={Colors.paper}>PDF</AppText>
-      <View style={styles.editorialCoverMark}><Icon name="library" size={31} color={Colors.paper} /></View>
-      <View style={styles.editorialCoverPlanet} />
+    onPress={handlePress} style={({ pressed }) => [styles.editorialCard, pressed && styles.publicPressed]}>
+    <View style={styles.editorialHeading}>
+      <View style={styles.editorialMark}><Icon name="document" size={20} color={Colors.red} /></View>
+      <AppText variant="bodyStrong" style={styles.editorialTitle} numberOfLines={3}>{document.title ?? 'Poxa, não achamos este documento'}</AppText>
+      <Icon name="chevronRight" size={18} color={Colors.muted} />
     </View>
-    <View style={styles.editorialBody}>
-      <View style={styles.top}>
-        <AppText variant="label" color={locked ? Colors.ink : Colors.red}>{locked ? 'PDF · acesso restrito' : 'PDF'}</AppText>
-        <View style={[styles.accessTag, locked && styles.lockedTag]}><AppText variant="label" color={Colors.paper}>{locked ? 'Sem acesso' : accessLabel(document)}</AppText></View>
-      </View>
-      <AppText variant="bodyStrong" style={styles.editorialTitle} numberOfLines={2} ellipsizeMode="tail">{document.title ?? 'Poxa, não achamos este documento'}</AppText>
-      {!locked ? <>
-        {!hideCollection && document.collection ? <AppText variant="caption" numberOfLines={1}>{document.collection.name}</AppText> : null}
+    <View style={styles.editorialMeta}>
+      {locked ? <>
+        <AppText variant="label">Acesso restrito</AppText>
+        <AppText variant="caption">Ver uma publicação com este PDF não dá acesso ao arquivo.</AppText>
+      </> : <>
         {document.author ? <AppText variant="caption" numberOfLines={1}>Autoria: {document.author}</AppText> : null}
-        {!hideCollection ? <AppText variant="caption" numberOfLines={1}>{shared ? `Compartilhado por ${document.responsible?.name ?? 'uma pessoa'}` : document.origin?.name}</AppText> : null}
-        <AppText variant="caption">{[document.pageCount ? `${document.pageCount} págs` : '', sizeLabel(document.byteSize)].filter(Boolean).join(' · ')}</AppText>
-      </> : <AppText variant="caption">Ver uma publicação com este PDF não dá acesso ao arquivo.</AppText>}
+        {!hideCollection && document.collection ? <AppText variant="caption" numberOfLines={1}>{document.collection.name}</AppText> : null}
+        {!hideCollection && (shared || document.origin?.name) ? <AppText variant="caption" numberOfLines={1}>{shared ? `Compartilhado por ${document.responsible?.name ?? 'uma pessoa'}` : document.origin?.name}</AppText> : null}
+        <View style={styles.editorialFooter}>
+          <AppText variant="caption">{[`PDF`, document.pageCount ? `${document.pageCount} págs` : '', sizeLabel(document.byteSize)].filter(Boolean).join(' · ')}</AppText>
+          {document.isPublic ? null : <AppText variant="label" color={Colors.red}>{accessLabel(document)}</AppText>}
+        </View>
+      </>}
     </View>
-    <View style={styles.editorialChevron}><Icon name="chevronRight" size={22} /></View>
   </Pressable>;
   return <Pressable accessibilityRole="button" accessibilityLabel={`${document.title ?? 'Documento indisponível'}${locked ? ', acesso restrito' : ', PDF'}`}
     onPress={handlePress} style={[styles.card, locked && styles.locked]}>
@@ -99,17 +101,15 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1.5, borderLeftWidth: 5, borderColor: Colors.red, backgroundColor: Colors.paper, borderRadius: Radius.xl, padding: Spacing.three, gap: Spacing.one, marginVertical: Spacing.one },
   locked: { borderColor: Colors.ink },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
-  editorialCard: { minHeight: 142, flexDirection: 'row', borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
-  editorialLocked: { opacity: 0.86 },
-  editorialCover: { position: 'relative', width: 74, overflow: 'hidden', backgroundColor: Colors.ink, padding: Spacing.three, borderRightWidth: 1.5, borderRightColor: Colors.ink },
-  editorialCoverMark: { position: 'absolute', top: 56, left: 0, right: 0, alignItems: 'center' },
-  editorialCoverPlanet: { position: 'absolute', width: 82, height: 82, left: -31, bottom: -30, borderRadius: 999, backgroundColor: Colors.red },
+  editorialCard: { padding: Spacing.four, gap: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper },
+  editorialHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
+  editorialMark: { paddingTop: 2 },
+  editorialTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 22 },
+  editorialMeta: { gap: Spacing.one, paddingLeft: 28 },
+  editorialFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two, marginTop: Spacing.one },
   lockedCover: { backgroundColor: Colors.ink },
-  editorialBody: { flex: 1, minWidth: 0, paddingVertical: Spacing.three, paddingLeft: Spacing.four, paddingRight: Spacing.two, gap: 2 },
-  editorialTitle: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 20 },
   accessTag: { backgroundColor: Colors.red, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
   lockedTag: { backgroundColor: Colors.ink },
-  editorialChevron: { width: 34, alignItems: 'center', justifyContent: 'center' },
   collectionCard: { minHeight: 166, flexDirection: 'row', alignItems: 'stretch', borderWidth: 1.5, borderColor: Colors.red, borderRadius: Radius.lg, overflow: 'hidden', backgroundColor: Colors.paper },
   collectionLocked: { borderColor: Colors.ink, opacity: 0.86 },
   collectionCover: { position: 'relative', width: 92, margin: Spacing.three, marginRight: 0, overflow: 'hidden', backgroundColor: Colors.ink, padding: Spacing.three },
