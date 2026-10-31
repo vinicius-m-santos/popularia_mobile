@@ -9,6 +9,8 @@ export type GamificationAchievement = {
   code: string;
   title: string;
   detail: string;
+  /** Como ganhar, usado enquanto a conquista está bloqueada. */
+  criterion: string;
   unlocked: boolean;
   unlockedAt: string | null;
 };
@@ -20,6 +22,8 @@ export type GamificationState = {
   currentLevelXp: number;
   nextLevelXp: number;
   streak: number;
+  /** Último dia civil (America/Sao_Paulo) com participação válida. */
+  lastActivityOn: string | null;
   missionBonusXp: number;
   dayBonusXp: number;
   missions: GamificationMission[];

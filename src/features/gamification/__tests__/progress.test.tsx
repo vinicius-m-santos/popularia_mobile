@@ -31,6 +31,7 @@ const sample: GamificationState = {
   currentLevelXp: 100,
   nextLevelXp: 250,
   streak: 3,
+  lastActivityOn: '2026-06-15',
   missionBonusXp: 4,
   dayBonusXp: 6,
   missions: [
@@ -39,8 +40,8 @@ const sample: GamificationState = {
     { action: 'event_rsvp_positive', label: 'Confirme interesse em um evento', completed: false },
   ],
   achievements: [
-    { code: 'primeiro_passo', title: 'Primeiro passo', detail: 'Participou da primeira enquete.', unlocked: true, unlockedAt: '2026-06-01T15:00:00-03:00' },
-    { code: 'para_depois', title: 'Para depois', detail: 'Salvou a primeira publicação.', unlocked: false, unlockedAt: null },
+    { code: 'primeiro_passo', title: 'Primeiro passo', detail: 'Participou da primeira enquete.', criterion: 'Participe de uma enquete.', unlocked: true, unlockedAt: '2026-06-01T15:00:00-03:00' },
+    { code: 'para_depois', title: 'Para depois', detail: 'Salvou a primeira publicação.', criterion: 'Salve uma publicação.', unlocked: false, unlockedAt: null },
   ],
 };
 
@@ -68,12 +69,15 @@ describe('progresso', () => {
   it('mostra nível, sequência, missão concluída e conquista', async () => {
     await render(<ProgressBody state={sample} />);
     expect(screen.getByText('Nível 2')).toBeTruthy();
-    expect(screen.getByText('40 de 150 para o próximo nível')).toBeTruthy();
+    expect(screen.getByText('Faltam 110 XP pro nível 3.')).toBeTruthy();
     expect(screen.getByText('3 dias seguidos')).toBeTruthy();
+    expect(screen.getByText('1/3')).toBeTruthy();
     expect(screen.getByText('Participe de uma enquete')).toBeTruthy();
     expect(screen.getByText('Salve uma publicação')).toBeTruthy();
     expect(screen.getByText('Primeiro passo')).toBeTruthy();
-    expect(screen.getByText('Ainda não')).toBeTruthy();
+    expect(screen.getByText('Como ganhar: Salve uma publicação.')).toBeTruthy();
+    expect(screen.getByText('1 de 2')).toBeTruthy();
+    expect(screen.getByText('Feito')).toBeTruthy();
     expect(levelFraction(sample)).toBeCloseTo(40 / 150);
     expect(streakLabel(0)).toBe('Nenhum dia seguido');
   });
@@ -104,6 +108,14 @@ describe('progresso', () => {
     await fireEvent.press(screen.getByText('Tentar de novo'));
     expect(await screen.findByText('Nível 2')).toBeTruthy();
     expect(getGamification).toHaveBeenCalledTimes(2);
+  });
+
+  it('explica XP, missões e sequência na folha de ajuda', async () => {
+    jest.mocked(getGamification).mockResolvedValue(sample);
+    await render(host(<ProgressScreen />));
+    await fireEvent.press(await screen.findByLabelText('Como funciona o progresso'));
+    expect(await screen.findByText('Como funciona')).toBeTruthy();
+    expect(screen.getByText(/Cada missão concluída soma XP/)).toBeTruthy();
   });
 
   it('mostra o erro compacto na home e tenta de novo', async () => {

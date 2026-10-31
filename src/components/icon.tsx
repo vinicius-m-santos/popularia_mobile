@@ -107,6 +107,7 @@ const ICONS = {
   check: { strokeWidth: 2.6, body: <Path d="M5 12.5l4.5 4.5L19 7.5" /> },
   send: { strokeWidth: 2.2, body: <Path d="M3.5 11.5 20.5 4l-7.5 17-2.5-7z" /> },
   shield: { strokeWidth: 2.2, body: <Path d="M12 3l7.5 3v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6z" /> },
+  lock: { strokeWidth: 2.4, body: <><Rect x={5} y={11} width={14} height={10} /><Path d="M8 11V7a4 4 0 0 1 8 0v4" /></> },
   phone: {
     strokeWidth: 2.2,
     body: (
