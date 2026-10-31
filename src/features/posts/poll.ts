@@ -7,6 +7,10 @@ export const POLL_QUESTION_MAX = 140;
 export const POLL_OPTION_MAX = 80;
 export const POLL_MIN_OPTIONS = 2;
 export const POLL_MAX_OPTIONS = 6;
+export const POLL_MIN_DURATION_DAYS = 1;
+export const POLL_MAX_DURATION_DAYS = 30;
+/** Prazo inicial de uma enquete nova, como no desenho do feed. */
+export const POLL_DEFAULT_DURATION_DAYS = 5;
 
 export type PollOption = {
   id: string;
@@ -22,13 +26,36 @@ export type PostPoll = {
   question: string;
   totalVotes: number;
   votedOptionId: string | null;
+  /** Prazo opcional; nulo significa sem prazo. */
+  endsAt: string | null;
   options: PollOption[];
 };
 
 export type PollDraft = {
   question: string;
   options: { key: string; label: string }[];
+  /** Prazo em dias. Nulo ou ausente: sem prazo. */
+  durationDays?: number | null;
 };
+
+/** A enquete encerrou? O servidor é quem recusa o voto; isto é só a leitura da tela. */
+export function pollIsClosed(endsAt: string | null, now = Date.now()): boolean {
+  if (!endsAt) return false;
+  const end = Date.parse(endsAt);
+  return !Number.isNaN(end) && end <= now;
+}
+
+/** Rótulo do cabeçalho: "ENCERRA EM 5 DIAS", "ENCERRA HOJE" ou "ENCERRADA". */
+export function pollDeadlineLabel(endsAt: string | null, now = Date.now()): string | null {
+  if (!endsAt) return null;
+  const end = Date.parse(endsAt);
+  if (Number.isNaN(end)) return null;
+  const left = end - now;
+  if (left <= 0) return 'ENCERRADA';
+  if (left < 86_400_000) return 'ENCERRA HOJE';
+  const days = Math.ceil(left / 86_400_000);
+  return days === 1 ? 'ENCERRA EM 1 DIA' : `ENCERRA EM ${days} DIAS`;
+}
 
 /**
  * Percentuais inteiros. Com votos, a soma é 100; sem votos, cada opção fica em 0.
@@ -80,6 +107,9 @@ export function pollDraftError(draft: PollDraft | null): string | null {
   if (labels.some((label) => label.length > POLL_OPTION_MAX)) return `Cada opção pode ter até ${POLL_OPTION_MAX} caracteres.`;
   const unique = new Set(labels.map((label) => label.toLocaleLowerCase()));
   if (unique.size !== labels.length) return 'As opções precisam ser diferentes.';
+  if (draft.durationDays != null && (!Number.isInteger(draft.durationDays) || draft.durationDays < POLL_MIN_DURATION_DAYS || draft.durationDays > POLL_MAX_DURATION_DAYS)) {
+    return `Escolha um prazo entre ${POLL_MIN_DURATION_DAYS} e ${POLL_MAX_DURATION_DAYS} dias.`;
+  }
   return null;
 }
 
@@ -89,6 +119,7 @@ export function draftToPoll(draft: PollDraft): PostPoll {
     question: draft.question.trim() || 'Sua pergunta aparece aqui.',
     totalVotes: 0,
     votedOptionId: null,
+    endsAt: draft.durationDays ? new Date(Date.now() + draft.durationDays * 86_400_000).toISOString() : null,
     options: draft.options.map((option, index) => ({
       id: option.key,
       label: option.label.trim() || `Opção ${index + 1}`,
@@ -157,6 +188,7 @@ function replacePoll(data: unknown, postId: string, poll: PostPoll): unknown {
 export function pollsMatch(left: PostPoll, right: PostPoll): boolean {
   return left.votedOptionId === right.votedOptionId
     && left.totalVotes === right.totalVotes
+    && left.endsAt === right.endsAt
     && left.options.length === right.options.length
     && left.options.every((option, index) => {
       const other = right.options[index];

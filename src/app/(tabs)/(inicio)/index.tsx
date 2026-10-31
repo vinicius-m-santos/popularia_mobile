@@ -2,7 +2,7 @@ import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visi
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/components/app-text';
+import { DayRule } from '@/components/day-rule';
 import { Screen } from '@/components/screen';
 import { PopulariaList } from '@/components/list/popularia-list';
 import { useCachedPages } from '@/hooks/use-cached-pages';
@@ -106,14 +106,6 @@ export default function FeedScreen() {
   );
 }
 
-/** Abre o dia no feed como uma regra editorial: "Hoje", "Ontem", "7 nov". */
-function DayRule({ label }: { label: string }) {
-  return <View style={styles.dayRule} accessibilityRole="header">
-    <AppText variant="label">{label}</AppText>
-    <View style={styles.dayRuleLine} />
-  </View>;
-}
-
 const styles = StyleSheet.create({
   list: {
     paddingBottom: Spacing.seven,
@@ -121,14 +113,5 @@ const styles = StyleSheet.create({
   swipeArea: {
     flex: 1,
   },
-  dayRule: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.five,
-    paddingTop: Spacing.five,
-    paddingBottom: Spacing.one,
-  },
-  dayRuleLine: { flex: 1, height: 1, backgroundColor: Colors.inkSoft },
   separator: { height: 1, backgroundColor: Colors.rule },
 });

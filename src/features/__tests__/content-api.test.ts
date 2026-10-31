@@ -145,6 +145,7 @@ describe('publicações', () => {
       question: 'Qual livro vamos ler?',
       totalVotes: 1,
       votedOptionId: 'opt-1',
+      endsAt: null,
       options: [
         { id: 'opt-1', label: 'O cortiço', voteCount: 1, percent: 100, selected: true },
         { id: 'opt-2', label: 'Capitães da Areia', voteCount: 0, percent: 0, selected: false },

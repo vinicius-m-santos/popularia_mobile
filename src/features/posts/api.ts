@@ -93,7 +93,7 @@ export async function getPost(id: string, signal?: AbortSignal): Promise<FeedIte
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; title?: string | null; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[] } | null; mentions?: ContentMention[]; eventId?: string | null }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; title?: string | null; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[]; durationDays?: number | null } | null; mentions?: ContentMention[]; eventId?: string | null }): Promise<FeedItem> {
   const mentions = mentionRefs(input.mentions);
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',

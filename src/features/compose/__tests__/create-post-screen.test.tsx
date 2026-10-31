@@ -152,7 +152,7 @@ describe('enquete no compositor', () => {
     expect(createPost).toHaveBeenCalledWith({
       comunaServerId: null,
       text: '',
-      poll: { question: 'Qual livro vamos ler?', options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }] },
+      poll: { question: 'Qual livro vamos ler?', options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }], durationDays: 5 },
     });
   });
 });

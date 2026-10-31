@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { PostPollBlock } from '@/features/posts/components/post-poll';
 import { voteOnPoll } from '@/features/posts/api';
-import { applyPollVote, patchCachedPoll, pollDraftError, pollPercents, type PostPoll } from '@/features/posts/poll';
+import { applyPollVote, draftToPoll, patchCachedPoll, pollDeadlineLabel, pollDraftError, pollIsClosed, pollPercents, type PostPoll } from '@/features/posts/poll';
 import { NetworkError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
@@ -22,6 +22,7 @@ function poll(question: string, labels: string[], votedIndex: number | null = nu
     question,
     totalVotes: votedIndex === null ? 0 : 1,
     votedOptionId: votedIndex === null ? null : `opt-${votedIndex}`,
+    endsAt: null,
     options: labels.map((label, index) => ({
       id: `opt-${index}`,
       label,
@@ -72,7 +73,21 @@ describe('resultados da enquete', () => {
     expect(pollDraftError({ question: '  ', options: [{ key: 'a', label: 'Um' }, { key: 'b', label: 'Dois' }] })).toMatch(/pergunta/);
     expect(pollDraftError({ question: 'Qual?', options: [{ key: 'a', label: 'Um' }] })).toMatch(/duas/);
     expect(pollDraftError({ question: 'Qual?', options: [{ key: 'a', label: 'Igual' }, { key: 'b', label: ' igual ' }] })).toMatch(/diferentes/);
-    expect(pollDraftError({ question: 'Qual?', options: [{ key: 'a', label: 'Um' }, { key: 'b', label: 'Dois' }] })).toBeNull();
+    expect(pollDraftError({ question: 'Qual?', options: [{ key: 'a', label: 'Um' }, { key: 'b', label: 'Dois' }], durationDays: 0 })).toMatch(/prazo/);
+    expect(pollDraftError({ question: 'Qual?', options: [{ key: 'a', label: 'Um' }, { key: 'b', label: 'Dois' }], durationDays: 31 })).toMatch(/prazo/);
+    expect(pollDraftError({ question: 'Qual?', options: [{ key: 'a', label: 'Um' }, { key: 'b', label: 'Dois' }], durationDays: 5 })).toBeNull();
+  });
+
+  it('traduz o prazo e fecha a votação quando ele passa', () => {
+    const now = Date.parse('2026-10-31T12:00:00Z');
+    expect(pollIsClosed(null, now)).toBe(false);
+    expect(pollDeadlineLabel(null, now)).toBeNull();
+    expect(pollDeadlineLabel('2026-11-05T12:00:00Z', now)).toBe('ENCERRA EM 5 DIAS');
+    expect(pollDeadlineLabel('2026-11-01T11:00:00Z', now)).toBe('ENCERRA HOJE');
+    expect(pollDeadlineLabel('2026-10-31T11:59:00Z', now)).toBe('ENCERRADA');
+    expect(pollIsClosed('2026-10-31T11:59:00Z', now)).toBe(true);
+    const draft = draftToPoll({ question: 'Qual?', options: [{ key: 'a', label: 'Um' }, { key: 'b', label: 'Dois' }], durationDays: 5 });
+    expect(Date.parse(draft.endsAt ?? '')).toBeGreaterThan(Date.now() + 4 * 86_400_000);
   });
 
   it('troca o voto sem somar dois na mesma opção', () => {
@@ -103,7 +118,7 @@ describe('voto na interface', () => {
     await render(<PostPollBlock postId={post.id} poll={base} />);
     expect(screen.getByText('Qual livro vamos ler?')).toBeTruthy();
     expect(screen.queryByText('100%')).toBeNull();
-    expect(screen.queryByText(/voto/)).toBeNull();
+    expect(screen.getByText('Toque pra votar. O resultado aparece depois do seu voto.')).toBeTruthy();
 
     await fireEvent.press(screen.getByLabelText('Votar em O cortiço'));
     expect(screen.getByLabelText('O cortiço, 100%, 1 voto, seu voto')).toBeTruthy();
@@ -122,8 +137,29 @@ describe('voto na interface', () => {
     expect(queryClient.getQueryData<typeof page>(['feed', 'para-voce', ''])?.pages[0].items[0].poll?.totalVotes).toBe(0);
   });
 
-  it('atualiza o resultado ao trocar o voto e não reaproveita o estado em outra publicação', async () => {
-    const base = poll('Qual horário?', ['Manhã', 'Noite']);
+  it('mostra o resultado e bloqueia o voto quando o prazo passou', async () => {
+    const base = poll('Qual livro?', ['Um', 'Dois'], 0);
+    const closed: PostPoll = {
+      ...base,
+      totalVotes: 3,
+      endsAt: new Date(Date.now() - 60_000).toISOString(),
+      options: base.options.map((option, index) => ({
+        ...option,
+        voteCount: index === 0 ? 2 : 1,
+        percent: index === 0 ? 67 : 33,
+        selected: false,
+      })),
+    };
+    const post = item(closed);
+    await render(<PostPollBlock postId={post.id} poll={closed} />);
+    expect(screen.getByText('ENCERRADA')).toBeTruthy();
+    expect(screen.getByText('Enquete encerrada.')).toBeTruthy();
+    expect(screen.getByText('67%')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(/Um, 67%/));
+    expect(voteOnPoll).not.toHaveBeenCalled();
+  });
+
+  it('atualiza o resultado ao trocar o voto e não reaproveita o estado em outra publicação', async () => {    const base = poll('Qual horário?', ['Manhã', 'Noite']);
     const post = item(base);
     jest.mocked(voteOnPoll).mockResolvedValueOnce({ ...post, poll: applyPollVote(base, 'opt-0') });
     const view = await render(<PostPollBlock postId={post.id} poll={base} />);

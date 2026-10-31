@@ -10,6 +10,7 @@ import { EditorialAction } from '@/components/editorial-action';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
+import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
@@ -29,7 +30,7 @@ import { SingleTopicField } from '@/features/onboarding/components/single-topic-
 import { MentionSuggestions } from '@/features/mentions/mention-suggestions';
 import { useMentionDraft } from '@/features/mentions/use-mention-draft';
 import { createPost } from '@/features/posts/api';
-import { POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
+import { POLL_DEFAULT_DURATION_DAYS, POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
 import { PostCard } from '@/features/posts/components/post-card';
 import { PostAttachment } from '@/features/posts/components/post-attachment';
 import { durationLabel, pickPostImage, pickPostVideo, uploadPostMedia, type LocalPostMedia } from '@/features/posts/post-media';
@@ -44,6 +45,14 @@ import type { Comuna, FeedItem, TopicId } from '@/types/models';
 
 const MAX_LENGTH = 1000;
 const MAX_TITLE = 120;
+/** Prazos rápidos da enquete; o valor nulo deixa a votação aberta. */
+const POLL_DURATION_OPTIONS = [
+  { days: null, label: 'Sem prazo' },
+  { days: 1, label: '1 dia' },
+  { days: 3, label: '3 dias' },
+  { days: 5, label: '5 dias' },
+  { days: 7, label: '7 dias' },
+] as const;
 /** Seguidores do perfil de demonstração, para "Visível para…". */
 const MY_FOLLOWERS = 312;
 
@@ -222,7 +231,7 @@ export default function CreatePostScreen() {
         ...(pdfMode && document ? { documentId: document.id } : {}),
         ...(mediaId ? { mediaId } : {}),
         ...(destination.kind === 'perfil' && topic ? { topic } : {}),
-        ...(poll ? { poll: { question: poll.question.trim(), options: poll.options.map((option) => ({ label: option.label.trim() })) } } : {}),
+        ...(poll ? { poll: { question: poll.question.trim(), options: poll.options.map((option) => ({ label: option.label.trim() })), ...(poll.durationDays ? { durationDays: poll.durationDays } : {}) } } : {}),
         ...(effectiveEvent ? { eventId: effectiveEvent.id } : {}),
       });
     } catch (error) {
@@ -279,6 +288,7 @@ export default function CreatePostScreen() {
     supportCount: 0,
     commentCount: 0,
     echoCount: 0,
+    viewer: { isAuthor: true, canComment: true, canDelete: true },
     author: me,
     comuna: destination.kind === 'comuna' ? destination.comuna : null,
     event: null,
@@ -385,7 +395,7 @@ export default function CreatePostScreen() {
             <View style={styles.typeGrid} role="tablist">
               <TypeButton icon="document" label="Escrever" active onPress={() => setPreview(false)} />
               <TypeButton icon="calendar" label="Chamado" onPress={soon('Criar chamado')} />
-              <TypeButton icon="poll" label="Enquete" active={poll !== null} onPress={() => { if (!poll) setPoll({ question: '', options: [{ key: 'option-1', label: '' }, { key: 'option-2', label: '' }] }); }} />
+              <TypeButton icon="poll" label="Enquete" active={poll !== null} onPress={() => { if (!poll) setPoll({ question: '', options: [{ key: 'option-1', label: '' }, { key: 'option-2', label: '' }], durationDays: POLL_DEFAULT_DURATION_DAYS }); }} />
             </View>
           </View>
 
@@ -492,6 +502,27 @@ export default function CreatePostScreen() {
               {poll.options.length > 2 ? <IconButton icon="close" size={18} accessibilityLabel={`Remover opção ${index + 1}`} onPress={() => setPoll((current) => current ? { ...current, options: current.options.filter((item) => item.key !== option.key) } : current)} style={styles.pollRemove} /> : null}
             </View>)}
             {poll.options.length < POLL_MAX_OPTIONS ? <EditorialAction label="Adicionar opção" icon="plus" onPress={() => { optionSeq.current += 1; const key = `option-${optionSeq.current}`; setPoll((current) => current && current.options.length < POLL_MAX_OPTIONS ? { ...current, options: [...current.options, { key, label: '' }] } : current); }} /> : <AppText variant="caption">Máximo de 6 opções.</AppText>}
+            <View style={styles.pollDeadline}>
+              <AppText variant="label" style={styles.sectionLabel}>Prazo</AppText>
+              <View style={styles.pollDurations}>
+                {POLL_DURATION_OPTIONS.map((option) => {
+                  const selected = (poll.durationDays ?? null) === option.days;
+                  return <PillButton
+                    key={option.label}
+                    label={option.label}
+                    size="sm"
+                    variant={selected ? 'dark' : 'outline'}
+                    selected={selected}
+                    disabled={publishing}
+                    onPress={() => setPoll((current) => current ? { ...current, durationDays: option.days } : current)}
+                    style={styles.pollDuration}
+                  />;
+                })}
+              </View>
+              <AppText variant="caption">
+                {poll.durationDays ? `A enquete encerra em ${poll.durationDays} ${poll.durationDays === 1 ? 'dia' : 'dias'}.` : 'Sem prazo: a votação fica aberta até a publicação ser apagada.'}
+              </AppText>
+            </View>
             <EditorialAction label="Remover enquete" icon="trash" onPress={() => setPoll(null)} />
           </View> : null}
 
@@ -921,6 +952,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: Spacing.two,
+  },
+  pollDeadline: {
+    gap: Spacing.two,
+  },
+  pollDurations: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  pollDuration: {
+    paddingHorizontal: Spacing.two,
   },
   pollRemove: {
     marginBottom: 2,

@@ -30,7 +30,7 @@ function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
 }
 
-export function PostAttachment({ media, localUri, visible = true, chrome, appearance = 'feed' }: {
+export function PostAttachment({ media, localUri, visible = true, chrome, framed = false }: {
   media: PostMediaDto;
   localUri?: string;
   visible?: boolean;
@@ -38,12 +38,11 @@ export function PostAttachment({ media, localUri, visible = true, chrome, appear
   chrome?: VideoChrome;
   /** Mantido por compatibilidade: sem controles nativos, o vídeo não precisa bloquear gestos. */
   blockGesture?: PanGesture | null;
-  /** No perfil a mídia é emoldurada como um quadro, em vez de sangrar no cartão. */
-  appearance?: 'feed' | 'profile';
+  /** No cartão a mídia é emoldurada como um quadro; na prévia do compositor, não. */
+  framed?: boolean;
 }) {
   const uri = localUri ?? media.url;
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
-  const framed = appearance === 'profile';
   if (media.type === 'video') return visible
     ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} framed={framed} />
     : <VideoPoster media={media} framed={framed} />;

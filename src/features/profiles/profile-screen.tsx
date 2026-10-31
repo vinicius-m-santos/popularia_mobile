@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEven
 
 import { AppText } from '@/components/app-text';
 import { Badge } from '@/components/badge';
+import { DayRule } from '@/components/day-rule';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
@@ -441,8 +442,8 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       renderItem={({ item }) => {
         const node = item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
           ? <View style={styles.column}>
-              {item.dayLabel ? <ProfileDayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
-              <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted appearance="profile" />
+              {item.dayLabel ? <DayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
+              <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted />
             </View>
           : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} counts={item.counts} /></View>;
         if (item.kind === 'identity' || item.kind === 'tabs') return node;
@@ -495,18 +496,6 @@ function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: Profil
       ) : (
         <View style={styles.barSpacerRight} />
       )}
-    </View>
-  );
-}
-
-/** Abre o dia no perfil como a mesma regra editorial do feed. */
-function ProfileDayRule({ label }: { label: string }) {
-  return (
-    <View style={styles.dayRule} accessibilityRole="header">
-      <View style={styles.dayChip}>
-        <AppText style={styles.dayChipLabel} color={Colors.cream}>{label}</AppText>
-      </View>
-      <View style={styles.dayRuleLine} />
     </View>
   );
 }
@@ -893,32 +882,6 @@ const styles = StyleSheet.create({
   composerSlot: {
     paddingHorizontal: 16,
     paddingTop: 18,
-  },
-  dayRule: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 26,
-    paddingBottom: 0,
-  },
-  dayChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-    backgroundColor: Colors.ink,
-  },
-  dayChipLabel: {
-    fontFamily: Fonts.monoSemibold,
-    fontSize: 12,
-    lineHeight: 15,
-    letterSpacing: 1.44,
-    textTransform: 'uppercase',
-  },
-  dayRuleLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: Colors.ink,
   },
   postRule: {
     height: 1,

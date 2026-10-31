@@ -138,6 +138,8 @@ export type PostDto = {
     question: string;
     totalVotes: number;
     votedOptionId: string | null;
+    /** Prazo opcional da enquete; nulo significa sem prazo. */
+    endsAt: string | null;
     options: { id: string; label: string; voteCount: number; percent: number; selected: boolean }[];
   } | null;
   /** Atividade da mesma comuna, quando a publicação aponta para uma. */
