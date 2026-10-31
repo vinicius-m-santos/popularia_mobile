@@ -224,15 +224,13 @@ function ActionChip({ icon, count, label, onPress, active }: ActionChipProps) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label}${count > 0 ? `, ${formatCount(count)}` : ''}`}
+      accessibilityLabel={`${label}, ${formatCount(count)}`}
       accessibilityState={active === undefined ? undefined : { selected: active }}
       style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
       <Icon name={icon} size={18} color={color} filled={icon === 'support' && active} />
-      {count > 0 ? (
-        <AppText style={styles.chipCount} color={color}>
-          {formatCount(count)}
-        </AppText>
-      ) : null}
+      <AppText style={styles.chipCount} color={color}>
+        {formatCount(count)}
+      </AppText>
     </Pressable>
   );
 }
