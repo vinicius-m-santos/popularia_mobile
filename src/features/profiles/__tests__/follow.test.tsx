@@ -8,6 +8,12 @@ import { useFollow } from '@/features/interactions/use-post-actions';
 import { FollowButton } from '../components/follow-button';
 import { PersonRow } from '../components/person-row';
 
+// O modo demonstração não pode depender do EXPO_PUBLIC_API_URL do shell que roda os testes:
+// quem inicia o Metro exporta a variável e a suíte herdaria uma API real sem querer.
+jest.mock('@/constants/config', () => ({
+  ...jest.requireActual<typeof import('@/constants/config')>('@/constants/config'),
+  DEMO_MODE: true,
+}));
 jest.mock('@/features/account/account-context', () => ({
   useMe: () => ({ id: 'me' }),
   useAccount: () => ({ account: { id: 'real-id' } }),
