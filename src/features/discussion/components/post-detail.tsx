@@ -4,8 +4,8 @@ import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
 import { Icon } from '@/components/icon';
-import { PillButton } from '@/components/pill-button';
-import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { Kicker } from '@/components/kicker';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { usePostActions } from '@/features/interactions/use-post-actions';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
@@ -52,29 +52,26 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         {post.event ? <EventBox event={post.event} /> : null}
         {post.media ? <MediaBox media={post.media} /> : null}
 
-        <AppText style={styles.stamp} color={Colors.muted}>
-          {formatStamp(post.createdAt)} · {formatCount(actions.echoCount)} ecos
-        </AppText>
+        <AppText style={styles.stamp} color={Colors.muted}>{formatStamp(post.createdAt)}</AppText>
 
         <View style={styles.actions}>
           <CompactAction icon="support" count={actions.supportCount} active={actions.supported} label="Apoiar publicação" onPress={actions.toggleSupport} />
           <CompactAction icon="echo" count={actions.echoCount} active={actions.echoed} label="Ecoar publicação" onPress={actions.toggleEcho} />
+          <View style={styles.spacer} />
           <IconButton
             icon="bookmark"
             accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
             selected={actions.saved}
             filled={actions.saved}
-            size={18}
-            bordered
+            size={20}
             onPress={actions.toggleSave}
+            style={styles.save}
           />
         </View>
       </View>
 
       <View style={styles.commentsHeader}>
-        <AppText variant="heading" style={styles.commentsTitle} accessibilityRole="header">
-          {formatCount(actions.commentCount)} comentários
-        </AppText>
+        <Kicker label={`${formatCount(actions.commentCount)} comentários`} textStyle={styles.commentsLabel} />
         <View style={styles.sort} role="radiogroup" accessibilityLabel="Ordenar comentários">
           <SortChip label="Mais apoiados" active={sort === 'top'} onPress={() => onSortChange('top')} />
           <SortChip label="Recentes" active={sort === 'recent'} onPress={() => onSortChange('recent')} />
@@ -93,16 +90,14 @@ function CompactAction({ icon, count, active, label, onPress }: { icon: 'support
 }
 
 function SortChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <PillButton
-      label={label}
-      onPress={onPress}
-      variant={active ? 'dark' : 'outline'}
-      size="sm"
-      selected={active}
-      style={[styles.chip, !active && styles.chipIdle]}
-    />
-  );
+  return <Pressable
+    onPress={onPress}
+    accessibilityRole="radio"
+    accessibilityLabel={label}
+    accessibilityState={{ checked: active }}
+    style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}>
+    <AppText variant="button" color={active ? Colors.paper : Colors.ink}>{label}</AppText>
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -130,10 +125,12 @@ const styles = StyleSheet.create({
   },
   authorActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   compactAction: { minWidth: 54, minHeight: 44, paddingHorizontal: Spacing.two, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  spacer: { flex: 1 },
+  save: { marginRight: -12 },
   compactCount: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },
   commentsHeader: {
-    borderTopWidth: 1.5,
-    borderTopColor: Colors.ink,
+    borderTopWidth: 1,
+    borderTopColor: Colors.rule,
     paddingHorizontal: Spacing.five,
     paddingTop: 14,
     paddingBottom: Spacing.one,
@@ -143,19 +140,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.two,
   },
-  commentsTitle: {
-    fontSize: 25,
-    lineHeight: 27,
+  commentsLabel: {
+    fontSize: 12.5,
+    lineHeight: 18,
   },
   sort: {
     flexDirection: 'row',
     gap: Spacing.one,
   },
   chip: {
-    minHeight: 30,
-    paddingHorizontal: 10,
+    minHeight: 36,
+    justifyContent: 'center',
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.strawLight,
+    paddingHorizontal: Spacing.three,
   },
-  chipIdle: {
-    borderColor: 'transparent',
+  chipActive: {
+    backgroundColor: Colors.ink,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });
