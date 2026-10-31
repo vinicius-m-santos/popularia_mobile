@@ -4,7 +4,6 @@ import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
-import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
@@ -21,13 +20,16 @@ import { goBack } from '@/lib/routes';
 import type { TopicId } from '@/types/models';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { editDocument, getDocument, listCollections, shareDocument, uploadDocument } from './api';
 import { CollectionEditor } from './collection-editor';
 import { returnAttachment } from './composer-attachment';
 import { sizeLabel } from './document-card';
 import { pickPdf } from './transfers';
 import type { DocumentAccess, LibraryDocument, PickedPdf } from './types';
+
+/** Mesmo teto do servidor: `sharedWith` aceita até 20 comunas por envio. */
+const SHARE_LIMIT = 20;
 
 const ACCESS_COPY: Record<DocumentAccess, { title: string; description: string }> = {
   private: { title: 'Só você', description: 'Visível apenas para você' },
@@ -182,12 +184,12 @@ export default function UploadScreen() {
           </Pressable>}
           {file ? <View style={styles.selectedFile}><View style={styles.selectedFileIcon}><Icon name="document" size={27} color={Colors.paper} /></View><View style={styles.selectedFileCopy}><AppText variant="bodyStrong" numberOfLines={2} ellipsizeMode="middle">{file.name}</AppText><AppText variant="caption">{sizeLabel(file.size ?? null)} · PDF</AppText></View><IconButton icon="close" accessibilityLabel="Remover arquivo selecionado" onPress={() => setFile(null)} /></View> : null}
         </View>
-        <TextField appearance="editorial" label="Nome do documento" value={title} onChangeText={(value) => { titleEdited.current = true; setTitle(value); }} maxLength={160} truncateWhenBlurred />
+        <TextField appearance="editorial" label="Nome do documento" placeholder="Ex.: Cartilha da tarifa zero" value={title} onChangeText={(value) => { titleEdited.current = true; setTitle(value); }} maxLength={160} truncateWhenBlurred />
         <TextField appearance="editorial" label="Autoria" labelAside="opcional" placeholder="Quem escreveu ou organizou?" hint="Informe manualmente; a autoria não é extraída do arquivo." value={author} onChangeText={setAuthor} maxLength={200} />
       </> : null}
       {step === 2 ? <>
         <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Detalhes</AppText><AppText style={styles.stepDescription}>Adicione uma descrição, escolha o assunto e organize o documento.</AppText></View>
-        <TextField appearance="editorial" label="Descrição curta" labelAside={`${description.length}/1000`} value={description} onChangeText={setDescription} maxLength={1000} multiline multilineHeight={148} />
+        <TextField appearance="editorial" label="Descrição curta" labelAside={`${description.length}/1000`} placeholder="Ex.: O que o documento traz e para quem serve" value={description} onChangeText={setDescription} maxLength={1000} multiline multilineHeight={148} />
         <SingleTopicField value={topic} onChange={setTopic} error={!topic && error.startsWith('Escolha um assunto') ? error : undefined} appearance="editorial" />
         <View style={styles.collectionSection}>
           <SectionLabel aside="obrigatório">Coleção</SectionLabel>
@@ -225,13 +227,14 @@ export default function UploadScreen() {
             {memberships.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar suas comunas." onRetry={memberships.reload} /> : null}
             {availableMemberships.length ? <View style={styles.optionList}>{availableMemberships.map((comuna) => {
               const checked = shares.includes(comuna.id);
-              const disabled = comuna.status === 'archived' && !checked;
+              const disabled = (comuna.status === 'archived' && !checked) || (!checked && shares.length >= SHARE_LIMIT);
               return <Pressable key={comuna.id} accessibilityRole="checkbox" accessibilityState={{ checked, disabled }} accessibilityLabel={`c/ ${comuna.name}`} disabled={disabled} onPress={() => setShares((items) => checked ? items.filter((slug) => slug !== comuna.id) : [...items, comuna.id])} style={({ pressed }) => [styles.comunaOption, disabled && styles.disabled, pressed && styles.pressed]}>
                 <CheckboxMark checked={checked} /><ComunaMark initials={comuna.initials ?? initialsOf(comuna.name)} tone={comuna.tone ?? 'red'} size={42} />
                 <View style={styles.flex}><AppText variant="bodyStrong">c/ {comuna.name}</AppText><AppText variant="caption">{comuna.visibility === 'private' ? 'Visível para membros da comuna' : 'Visível para quem visitar a comuna'}{comuna.status === 'archived' ? ' · Arquivada' : ''}</AppText></View>
               </Pressable>;
             })}</View> : null}
             {!availableMemberships.length && memberships.status === 'success' ? <AppText>Você ainda não participa de nenhuma comuna.</AppText> : null}
+            {shares.length >= SHARE_LIMIT ? <AppText variant="caption">Compartilhe com até {SHARE_LIMIT} comunas de uma vez.</AppText> : null}
           </View>
         </> : null}
         <View style={styles.availabilitySection}>
@@ -266,13 +269,22 @@ export default function UploadScreen() {
           </View>
         </View>
         <AppText variant="caption">Ao enviar, você confirma que pode compartilhar este documento e que ele segue as regras do Popularia.</AppText>
-        {busy ? <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress }} style={styles.group}><ActivityIndicator color={Colors.red} /><AppText>{progress < 100 ? `Enviando PDF · ${progress}%` : 'Validando e guardando o PDF…'}</AppText><PillButton label="Interromper envio" variant="outline" onPress={() => controller.current?.abort()} /></View> : null}
+        {busy ? <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress }} style={styles.progress}>
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.max(4, progress)}%` }]} /></View>
+          <AppText variant="caption">{progress < 100 ? `Enviando PDF · ${progress}%` : 'Validando e guardando o PDF…'}</AppText>
+          <EditorialAction label="Interromper envio" icon="close" onPress={() => controller.current?.abort()} />
+        </View> : null}
       </> : null}
       {step === 5 && done ? <>
-        <AppText variant="display">{params.edit ? 'Documento atualizado' : 'PDF na biblioteca'}</AppText><AppText>“{done.title}” está na coleção {done.collection?.name}.</AppText><AppText>{done.isPublic ? 'Também na Biblioteca Pública' : 'Fora da Biblioteca Pública'}</AppText>
-        <PillButton label={params.composerKey ? 'Voltar para a publicação' : 'Ver na biblioteca'} onPress={() => exit(params.composerKey ? 'composer' : 'library')} />
-        <PillButton label="Ver documento" variant="outline" onPress={() => exit('document')} />
-        {!params.composerKey ? <PillButton label="Publicar no feed" variant="outline" onPress={() => exit('post')} /> : null}
+        <View style={styles.stepIntro}>
+          <AppText variant="display" style={styles.stepTitle}>{params.edit ? 'Documento atualizado' : 'PDF na biblioteca'}</AppText>
+          <AppText style={styles.stepDescription}>“{done.title}” está na coleção {done.collection?.name}. {done.isPublic ? 'Também na Biblioteca Pública.' : 'Fora da Biblioteca Pública.'}</AppText>
+        </View>
+        <View style={styles.successActions}>
+          <EditorialAction label={params.composerKey ? 'Voltar para a publicação' : 'Ver na biblioteca'} icon={params.composerKey ? 'reply' : 'library'} tone="red" onPress={() => exit(params.composerKey ? 'composer' : 'library')} />
+          <EditorialAction label="Ver documento" icon="document" onPress={() => exit('document')} />
+          {!params.composerKey ? <EditorialAction label="Publicar no feed" icon="share" onPress={() => exit('post')} /> : null}
+        </View>
       </> : null}
       {error && !(step === 2 && error.startsWith('Escolha um assunto')) ? <AppText color={Colors.error} accessibilityLiveRegion="polite">{error}</AppText> : null}
       {step < 5 ? <View style={styles.wizardActions}>
@@ -297,27 +309,30 @@ const styles = StyleSheet.create({
   sectionLabelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: Spacing.three },
   sectionAside: { color: Colors.muted },
   fileSection: { gap: Spacing.three },
-  filePicker: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
+  filePicker: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
   filePickerIcon: { width: 42, alignItems: 'center' },
-  immutableFile: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, padding: Spacing.four },
-  selectedFile: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+  immutableFile: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper, padding: Spacing.four },
+  selectedFile: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
   selectedFileIcon: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.red },
   selectedFileCopy: { flex: 1, minWidth: 0 },
   collectionSection: { gap: Spacing.three, paddingTop: Spacing.two },
   availabilitySection: { gap: Spacing.three },
-  optionList: { borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
+  optionList: { borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper },
   collectionOption: { minHeight: 58, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
   availabilityOption: { minHeight: 76, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
   availabilityIcon: { width: 38, alignItems: 'center' },
   comunaOption: { minHeight: 68, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
-  publicOption: { minHeight: 72, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
+  publicOption: { minHeight: 72, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1, borderColor: Colors.ink, backgroundColor: Colors.paper },
   disabled: { opacity: 0.45 },
   wizardActions: { flexDirection: 'row', gap: Spacing.three, marginTop: 'auto', paddingTop: Spacing.six },
   wizardBack: { flex: 0.72 },
   wizardNext: { flex: 1.15 },
   pressed: { opacity: 0.68 },
-  group: { gap: Spacing.two },
-  reviewCard: { borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, padding: Spacing.four, gap: Spacing.four },
+  progress: { gap: Spacing.two },
+  progressTrack: { height: 6, backgroundColor: Colors.straw, overflow: 'hidden' },
+  progressFill: { height: 6, backgroundColor: Colors.red },
+  successActions: { gap: Spacing.two },
+  reviewCard: { borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper, padding: Spacing.four, gap: Spacing.four },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three },
   editLink: { textDecorationLine: 'underline' },
   reviewFile: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
