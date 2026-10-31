@@ -482,6 +482,7 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
           <TextField
             label="Descrição"
             labelAside={`${description.length}/500`}
+            placeholder="Ex.: O que a comuna debate e para quem ela serve"
             value={description}
             onChangeText={setDescription}
             maxLength={500}

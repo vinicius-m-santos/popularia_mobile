@@ -209,6 +209,7 @@ export default function SetupScreen() {
           <TextField
             label="Nome de usuário"
             prefix="@"
+            placeholder="Ex.: maria.silva"
             value={profile.handle}
             onChangeText={(value) => {
               updateProfile({ handle: sanitizeHandle(value) });
