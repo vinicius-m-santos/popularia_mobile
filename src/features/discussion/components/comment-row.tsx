@@ -62,7 +62,7 @@ export const CommentRow = memo(function CommentRow({
 
   return (
     <View style={[styles.row, indent]}>
-      <Avatar initials={comment.author.initials} tone={comment.author.tone} size={30} userId={comment.author.id} imageUrl={comment.author.avatarUrl} />
+      <Avatar initials={comment.author.initials} tone={comment.author.tone} size={30} shape="square" outline font="anton" userId={comment.author.id} imageUrl={comment.author.avatarUrl} />
       <View style={styles.body}>
         <View
           style={styles.header}

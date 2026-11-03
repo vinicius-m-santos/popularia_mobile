@@ -35,7 +35,7 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1009324469949-l9m7r4dcbni1596nercrpko8upqm7v4m.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1009324469949-a7n9k5v7ddbnf6vgk57nejesv67ij0h3.apps.googleusercontent.com",
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_LINK_ORIGIN": "https://api.popularia.com.br"
+        "EXPO_PUBLIC_LINK_ORIGIN": "https://popularia.com.br"
       },
       "environment": "production",
       "autoIncrement": true
@@ -48,7 +48,17 @@
     }
   },
   "submit": {
-    "production": {},
-    "testflight-staging": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6827749427",
+        "appleTeamId": "GUA3RMH4KC"
+      }
+    },
+    "testflight-staging": {
+      "ios": {
+        "ascAppId": "6827749427",
+        "appleTeamId": "GUA3RMH4KC"
+      }
+    }
   }
 }

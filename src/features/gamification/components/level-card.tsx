@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   headText: {
     fontFamily: Fonts.monoSemibold,
     fontSize: 11,
-    lineHeight: 14,
+    lineHeight: 19,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
     color: Colors.cream,
@@ -89,16 +89,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
+    paddingTop: 2,
   },
   total: {
     fontFamily: Fonts.anton,
     fontSize: 64,
-    lineHeight: 58,
+    lineHeight: 80,
   },
   span: {
     fontFamily: Fonts.anton,
     fontSize: 26,
-    lineHeight: 26,
+    lineHeight: 38,
     color: Colors.ink,
   },
   track: {
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
   missing: {
     fontFamily: Fonts.regular,
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 22,
     color: Colors.muted,
   },
   missingStrong: {

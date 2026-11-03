@@ -87,11 +87,11 @@ export function useProfileTabPanGesture() {
 }
 
 /** Conteúdo da aba acompanha o dedo. Cabeçalho e tabs ficam de fora. */
-export function ProfileSwipeContent({ children }: { children: ReactNode }) {
+export function ProfileSwipeContent({ children, fill = false }: { children: ReactNode; fill?: boolean }) {
   const dragX = use(DragContext);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: dragX ? dragX.value : 0 }] }));
   if (!dragX) return children;
-  return <Animated.View style={[styles.slide, style]}>{children}</Animated.View>;
+  return <Animated.View style={[styles.slide, fill && styles.fill, style]}>{children}</Animated.View>;
 }
 
 /** Abas do perfil: o toque troca a página e o scroll dos rótulos não vira swipe. */

@@ -34,6 +34,7 @@ export function commentTarget(comment: CommentWithAuthor, post: FeedItem): Repor
     excerpt: excerpt(comment.text),
     where: `Comentário em “${shortTitle(post.text)}”`,
     isOwn: comment.isOwn,
+    postId: post.id,
   };
 }
 

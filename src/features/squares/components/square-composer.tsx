@@ -57,32 +57,37 @@ export function SquareComposer({ inputRef, reply, sending, onCancel, onSend, onS
       ) : null}
 
       <View style={styles.composer}>
-        <AppText variant="label" style={styles.label}>Mensagem</AppText>
         <View style={styles.row}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Escolher emoji" onPress={() => setEmojis((value) => !value)} style={styles.emoji}>
-            <AppText style={styles.emojiText}>☺</AppText>
+          <Pressable accessibilityRole="button" accessibilityLabel="Figurinhas" onPress={onStickers} hitSlop={4} style={({ pressed }) => [styles.squareButton, pressed && styles.pressed]}>
+            <Icon name="plus" size={18} />
           </Pressable>
-          <TextInput
-            ref={inputRef}
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Escreva para a Praça"
-            placeholderTextColor={Colors.placeholder}
-            accessibilityLabel="Conversar na praça"
-            multiline
-            maxLength={2000}
-            style={styles.input}
-            textAlignVertical="center"
-          />
-          <IconButton icon="sticker" accessibilityLabel="Figurinhas" onPress={onStickers} color={Colors.ink} />
+          <View style={styles.inputWrap}>
+            <TextInput
+              ref={inputRef}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Mensagem para a praça"
+              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel="Conversar na praça"
+              multiline
+              numberOfLines={1}
+              maxLength={2000}
+              style={styles.input}
+              textAlignVertical="center"
+            />
+            <Pressable accessibilityRole="button" accessibilityLabel="Escolher emoji" onPress={() => setEmojis((value) => !value)} style={styles.emojiInline} hitSlop={6}>
+              <Icon name="smile" size={18} color={Colors.ink} />
+            </Pressable>
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={sending ? 'Enviando mensagem' : 'Enviar mensagem'}
             disabled={disabled}
             accessibilityState={{ disabled }}
+            hitSlop={4}
             onPress={() => { void submit(); }}
-            style={[styles.send, disabled && styles.sendDisabled]}>
-            <Icon name="send" color={disabled ? Colors.placeholder : Colors.paper} />
+            style={({ pressed }) => [styles.send, disabled && styles.sendDisabled, pressed && styles.pressed]}>
+            <Icon name="send" size={18} color={disabled ? Colors.placeholder : Colors.ink} />
           </Pressable>
         </View>
         {draft.length > 1800 ? <AppText variant="caption" style={styles.count}>{draft.length}/2000</AppText> : null}
@@ -93,7 +98,7 @@ export function SquareComposer({ inputRef, reply, sending, onCancel, onSend, onS
 
 const styles = StyleSheet.create({
   root: {
-    borderTopWidth: 1,
+    borderTopWidth: 1.5,
     borderTopColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
@@ -123,33 +128,55 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.rule,
   },
   composer: {
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
     gap: Spacing.one,
-  },
-  label: {
-    paddingHorizontal: Spacing.one,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    gap: Spacing.two,
+  },
+  squareButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.paper,
+  },
+  inputWrap: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.one,
+    borderWidth: 1.5,
+    borderColor: Colors.ink,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.paper,
+    paddingLeft: Spacing.three,
+    paddingRight: Spacing.one,
   },
   input: {
     flex: 1,
     minWidth: 0,
-    minHeight: 52,
+    minHeight: 33,
     maxHeight: 132,
-    borderWidth: 1,
-    borderColor: Colors.ink,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.paper,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 10,
+    paddingVertical: 7,
     fontFamily: Fonts.regular,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 19,
     color: Colors.ink,
+  },
+  emojiInline: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emoji: {
     minWidth: 44,
@@ -162,19 +189,21 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   send: {
-    width: 44,
-    height: 44,
-    marginBottom: 2,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: Colors.ink,
     borderRadius: Radius.sm,
-    backgroundColor: Colors.red,
+    backgroundColor: Colors.strawLight,
   },
   sendDisabled: {
     backgroundColor: Colors.strawLight,
-    borderColor: Colors.rule,
+    borderColor: Colors.strawDark,
+  },
+  pressed: {
+    opacity: 0.65,
   },
   count: {
     textAlign: 'right',

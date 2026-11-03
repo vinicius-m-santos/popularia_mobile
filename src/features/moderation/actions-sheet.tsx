@@ -3,6 +3,7 @@
  * menu → motivo → detalhes → confirmação. Um único provedor serve o app inteiro.
  */
 import { createContext, use, useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { canonicalUrl } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
@@ -21,6 +22,8 @@ import { describeError } from '@/lib/errors';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { deletePost } from '@/features/posts/api';
+import { queryClient } from '@/lib/query/client';
 import { isPinLocked, pinPost, pinStoreVersion, readPinned, subscribePinStore, unpinPost } from '@/features/comunas/pins';
 import { knownPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
@@ -34,7 +37,7 @@ type Step = 'menu' | 'reason' | 'details' | 'done';
 
 type ActionsSheetValue = {
   /** Abre o menu "⋯" do conteúdo. `reason` pula o menu e começa na escolha do motivo. */
-  open: (target: ReportTarget, start?: 'menu' | 'reason') => void;
+  open: (target: ReportTarget, start?: 'menu' | 'reason', options?: { onDeleted?: () => void }) => void;
 };
 
 const ActionsSheetContext = createContext<ActionsSheetValue | null>(null);
@@ -48,6 +51,7 @@ const TITLES: Record<ReportTarget['kind'], string> = {
 
 export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<ReportTarget | null>(null);
+  const [onDeleted, setOnDeleted] = useState<(() => void) | undefined>();
   const [step, setStep] = useState<Step>('menu');
   const [reasonCode, setReasonCode] = useState('');
   const [details, setDetails] = useState('');
@@ -55,8 +59,9 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [result, setResult] = useState<{ protocol: string; inMyQueue: boolean } | null>(null);
   const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
 
-  const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu') => {
+  const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu', options?: { onDeleted?: () => void }) => {
     setTarget(next);
+    setOnDeleted(() => options?.onDeleted);
     setStep(start);
     setReasonCode('');
     setDetails('');
@@ -64,7 +69,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
     setResult(null);
   }, []);
 
-  const close = useCallback(() => setTarget(null), []);
+  const close = useCallback(() => { setTarget(null); setOnDeleted(undefined); }, []);
   const value = useMemo(() => ({ open }), [open]);
 
   return (
@@ -87,6 +92,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
             blocked={blockedHandles.includes(target.author.handle)}
             setBlocked={(handle, blocked) => setBlockedHandles((items) => blocked ? [...new Set([...items, handle])] : items.filter((item) => item !== handle))}
             close={close}
+            onDeleted={onDeleted}
           />
         ) : null}
       </BottomSheet>
@@ -115,10 +121,11 @@ type BodyProps = {
   blocked: boolean;
   setBlocked: (handle: string, blocked: boolean) => void;
   close: () => void;
+  onDeleted?: () => void;
 };
 
 function SheetBody(props: BodyProps) {
-  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close } =
+  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close, onDeleted } =
     props;
   const toast = useToast();
   const me = useMe();
@@ -152,6 +159,25 @@ function SheetBody(props: BodyProps) {
     const muted = isOn('mutedUsers', target.author.id);
     return (
       <View>
+        {isMine && target.kind === 'post' ? (
+          <MenuItem icon="edit" label="Editar publicação" onPress={() => { close(); router.push({ pathname: '/editar-publicacao/[id]', params: { id: target.id } }); }} />
+        ) : null}
+        {isMine && target.kind === 'post' ? (
+          <MenuItem icon="trash" label="Excluir publicação" danger onPress={async () => {
+            if (busy) return;
+            setBusy(true);
+            try {
+              if (!DEMO_MODE) await deletePost(target.id);
+              await queryClient.invalidateQueries();
+              close();
+              toast.show('Publicação excluída.');
+            } catch (error) {
+              toast.show(`Não foi possível excluir a publicação. ${describeError(error)}`);
+            } finally {
+              setBusy(false);
+            }
+          }} />
+        ) : null}
         {target.kind === 'post' && !DEMO_MODE && savedPost?.viewer?.canPin ? (
           <MenuItem
             icon="pin"
@@ -195,16 +221,19 @@ function SheetBody(props: BodyProps) {
             }}
           />
         ) : null}
-        {target.kind !== 'comment' ? <>
-          <MenuItem icon="shareNodes" label={target.kind === 'profile' ? 'Compartilhar perfil' : 'Compartilhar publicação'} onPress={async () => {
-            try { await shareDestination({ kind: target.kind as 'post' | 'profile', id: target.id }); close(); }
-            catch { toast.show('Não conseguimos compartilhar este conteúdo.'); }
-          }} />
-          {target.kind === 'profile' ? <MenuItem icon="link" label="Copiar link" onPress={async () => {
-            try { await Clipboard.setStringAsync(canonicalUrl({ kind: 'profile', id: target.id })); close(); toast.show('Link copiado.'); }
-            catch { toast.show('Este conteúdo ainda não possui um link público.'); }
-          }} /> : null}
-        </> : null}
+        <MenuItem icon="shareNodes" label={target.kind === 'comment' ? 'Compartilhar comentário' : target.kind === 'profile' ? 'Compartilhar perfil' : 'Compartilhar publicação'} onPress={async () => {
+          try {
+            const shareTarget = target.kind === 'comment'
+              ? { kind: 'post' as const, id: target.postId ?? target.id }
+              : { kind: target.kind as 'post' | 'profile', id: target.id };
+            await shareDestination(shareTarget);
+            close();
+          } catch { toast.show('Não conseguimos compartilhar este conteúdo.'); }
+        }} />
+        {target.kind === 'profile' ? <MenuItem icon="link" label="Copiar link" onPress={async () => {
+          try { await Clipboard.setStringAsync(canonicalUrl({ kind: 'profile', id: target.id })); close(); toast.show('Link copiado.'); }
+          catch { toast.show('Este conteúdo ainda não possui um link público.'); }
+        }} /> : null}
         {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={blocked ? `Desbloquear @${handle}` : `Bloquear @${handle}`} danger onPress={async () => {
           try {
             await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: blocked ? 'DELETE' : 'PUT' });
@@ -217,6 +246,21 @@ function SheetBody(props: BodyProps) {
         }} /> : null}
         {!isMine ? (
           <MenuItem icon="flag" label={title} danger last onPress={() => setStep('reason')} />
+        ) : target.kind === 'comment' ? (
+          <MenuItem icon="trash" label="Excluir comentário" danger last onPress={async () => {
+            if (busy) return;
+            setBusy(true);
+            try {
+              if (!DEMO_MODE) await apiRequest(`/comments/${encodeURIComponent(target.id)}`, { method: 'DELETE', auth: true });
+              onDeleted?.();
+              close();
+              toast.show('Comentário apagado.');
+            } catch (error) {
+              toast.show(`Não foi possível apagar o comentário. ${describeError(error)}`);
+            } finally {
+              setBusy(false);
+            }
+          }} />
         ) : null}
       </View>
     );

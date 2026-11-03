@@ -25,10 +25,12 @@ type BottomSheetProps = {
    * sem padding lateral (as ilustrações encostam na borda).
    */
   appearance?: 'paper' | 'creation';
+  /** Superfície do sheet; a lista de destinos usa o creme do fundo do app. */
+  surface?: 'paper' | 'cream';
 };
 
 /** Aparência Popularia, física e arbitragem entre scroll/teclado delegadas ao Gorhom. */
-export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true, appearance = 'paper' }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true, appearance = 'paper', surface = 'paper' }: BottomSheetProps) {
   const creation = appearance === 'creation';
   const sheet = useRef<GorhomBottomSheet>(null);
   const [mounted, setMounted] = useState(visible);
@@ -57,7 +59,7 @@ export function BottomSheet({ visible, onClose, title, children, scrollable = tr
   const paddingBottom = Math.max(insets.bottom, Spacing.four) + Spacing.four;
   // O Gorhom compõe o contentContainerStyle com dois argumentos; um array de três quebra.
   const contentStyle = StyleSheet.flatten([styles.content, creation ? styles.creationContent : null, { paddingBottom }]);
-  const backgroundStyle = StyleSheet.flatten([styles.background, creation ? styles.creationBackground : null]);
+  const backgroundStyle = StyleSheet.flatten([styles.background, creation ? styles.creationBackground : null, surface === 'cream' ? styles.creamBackground : null]);
   if (!mounted) return null;
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
     <GestureHandlerRootView style={styles.overlay}>
@@ -89,6 +91,9 @@ export const PopulariaBottomSheet = BottomSheet;
 const styles = StyleSheet.create({
   overlay: { flex: 1 },
   background: { backgroundColor: Colors.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  creamBackground: {
+    backgroundColor: Colors.cream,
+  },
   creationBackground: {
     backgroundColor: Colors.cream,
     borderTopLeftRadius: Radius.xl,

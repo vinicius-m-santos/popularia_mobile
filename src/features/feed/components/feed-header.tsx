@@ -4,6 +4,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
+import { DEMO_MODE } from '@/constants/config';
 import { useUnreadCount } from '@/features/notifications/use-unread-count';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import type { FeedTab } from '@/types/models';
@@ -12,7 +13,7 @@ const TABS: TabOption<FeedTab>[] = [
   { key: 'para-voce', label: 'Para você' },
   { key: 'seguindo', label: 'Seguindo' },
   { key: 'minhas', label: 'Minhas comunas' },
-  { key: 'perto', label: 'Perto de mim' },
+  ...(DEMO_MODE ? [{ key: 'perto' as const, label: 'Perto de mim' }] : []),
 ];
 
 type FeedHeaderProps = {
@@ -72,6 +73,6 @@ const styles = StyleSheet.create({
   wordmark: {
     fontFamily: Fonts.condensed,
     fontSize: 27,
-    lineHeight: 30,
+    lineHeight: 35,
   },
 });

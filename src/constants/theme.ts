@@ -18,6 +18,9 @@ export const Colors = {
   /** Palha: avatares claros, placeholders de imagem. */
   straw: '#E4D6BD',
   strawLight: '#EBE1CF',
+  /** Destaque amarelo dos mockups: selo de "acontecendo", opções e interruptores. */
+  yellow: '#F4C534',
+  yellowSoft: '#F9E6A6',
   /** Destaque de comentário em cartões. */
   highlight: '#EADFCB',
   /** Linhas divisórias. */
@@ -38,6 +41,26 @@ export const Colors = {
 } as const;
 
 export type ColorName = keyof typeof Colors;
+
+/**
+ * Identidade das coleções: tons mais saturados que a paleta de avatar, para a faixa de
+ * coleções não ficar em marrons e olivas. A ordem é fixa; o ID da coleção escolhe a posição.
+ */
+export const CollectionColors = [
+  { bg: Colors.red, fg: Colors.paper },
+  { bg: Colors.yellow, fg: Colors.ink },
+  { bg: '#2563EB', fg: Colors.paper },
+  { bg: '#EA580C', fg: Colors.paper },
+  { bg: '#C026D3', fg: Colors.paper },
+  { bg: '#65A30D', fg: Colors.paper },
+  { bg: '#7C3AED', fg: Colors.paper },
+  { bg: '#0891B2', fg: Colors.paper },
+  { bg: '#E11D48', fg: Colors.paper },
+  { bg: '#0D9488', fg: Colors.paper },
+  { bg: '#059669', fg: Colors.paper },
+  { bg: '#B45309', fg: Colors.paper },
+] as const;
+
 
 /**
  * Famílias carregadas em `src/app/_layout.tsx` via `useFonts`.
@@ -78,3 +101,24 @@ export const Radius = {
 export const MinTouchTarget = 44;
 
 export const MaxContentWidth = 640;
+
+/**
+ * Sombra sólida deslocada da direção dos mockups: sem desfoque, tinta sobre o creme.
+ * Use em cartões de destaque e controles principais; não em toda superfície.
+ */
+export const Shadows = {
+  offset: {
+    shadowColor: Colors.ink,
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  offsetSmall: {
+    shadowColor: Colors.ink,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+} as const;

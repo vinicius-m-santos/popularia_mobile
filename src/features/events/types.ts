@@ -1,4 +1,4 @@
-import type { User } from '@/types/models';
+import type { EventCapacityMode, User } from '@/types/models';
 
 export type EventFormat = 'in_person' | 'online' | 'hybrid';
 export type EventLifecycle = 'scheduled' | 'cancelled';
@@ -17,11 +17,14 @@ export type ComunaEvent = {
   placeName: string | null;
   address: string | null;
   onlineUrl: string | null;
-  comuna: { id: string; slug: string; name: string; visibility: string; status: string };
+  comuna: { id: string; slug: string; name: string; visibility: string; status: string } | null;
   organizer: User | null;
   goingCount: number;
   maybeCount: number;
   viewerAttendance: AttendanceStatus | null;
+  /** "spots" (vagas) ou "goal" (meta mínima); nulo é entrada livre. */
+  capacityMode?: EventCapacityMode | null;
+  capacity?: number | null;
   canManage: boolean;
   canRespond: boolean;
   past: boolean;
@@ -40,6 +43,8 @@ export type EventInput = {
   timeZone: string;
   startsAt: string;
   endsAt: string | null;
+  capacityMode?: EventCapacityMode | null;
+  capacity?: number | null;
 };
 
 export type EventDraft = {

@@ -24,7 +24,9 @@ const ICONS = {
     ),
   },
   plus: { strokeWidth: 2.8, body: <Path d="M12 5v14M5 12h14" /> },
+  minus: { strokeWidth: 2.8, body: <Path d="M5 12h14" /> },
   bell: { strokeWidth: 2.2, body: <Path d="M5.5 17V11a6.5 6.5 0 0 1 13 0v6zM3.5 17h17M10 20.5h4" /> },
+  megaphone: { strokeWidth: 2, body: <><Path d="M3.5 9.5v5h3l7 3.5V6L6.5 9.5z" /><Path d="M6.5 14.5v4.5" /><Path d="M16 8.5a5.5 5.5 0 0 1 0 7M18.5 6.5a9 9 0 0 1 0 11" /></> },
   user: {
     strokeWidth: 2.2,
     body: (
@@ -42,6 +44,7 @@ const ICONS = {
   },
   reply: { strokeWidth: 2.2, body: <Path d="M9 5 3 11l6 6M3 11h10c5 0 7 3 7 8" /> },
   sticker: { strokeWidth: 1.8, body: <><Rect x={3} y={3} width={18} height={18} rx={4} /><Path d="M8 10h.01M16 10h.01M8 15c2 2 6 2 8 0" /></> },
+  smile: { strokeWidth: 1.6, body: <><Circle cx={12} cy={12} r={8.5} /><Path d="M9 9.5h.01M15 9.5h.01M8.5 14.5c1.8 2.2 5.2 2.2 7 0" /></> },
   comment: { strokeWidth: 2.2, body: <Path d="M3.5 4.5h17v11.5h-9l-5 4v-4h-3z" /> },
   echo: {
     strokeWidth: 2.2,
@@ -148,8 +151,27 @@ const ICONS = {
       </>
     ),
   },
+  calendarPlus: {
+    strokeWidth: 2.2,
+    body: (
+      <>
+        <Rect x={3.5} y={5} width={17} height={15} />
+        <Path d="M3.5 10h17M8 3v4M16 3v4M12 12.5v5M9.5 15h5" />
+      </>
+    ),
+  },
+  clock: {
+    strokeWidth: 2.4,
+    body: (
+      <>
+        <Circle cx={12} cy={12} r={8.5} />
+        <Path d="M12 7.5V12l3 2" />
+      </>
+    ),
+  },
   poll: { strokeWidth: 2.4, body: <Path d="M5 20V11M12 20V5M19 20v-6" /> },
   arrowRight: { strokeWidth: 2.6, body: <Path d="M5 12h13M13 6l6 6-6 6" /> },
+  arrowLeft: { strokeWidth: 2.6, body: <Path d="M19 12H6M11 6l-6 6 6 6" /> },
   camera: {
     strokeWidth: 2,
     body: (
@@ -169,6 +191,12 @@ const ICONS = {
       </>
     ),
   },
+  filter: { strokeWidth: 2.1, body: <Path d="M3.5 5h17l-6.5 7.5V20l-4-2v-5.5z" /> },
+  download: { strokeWidth: 2.1, body: <><Path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" /><Path d="M4.5 20.5h15" /></> },
+  eye: { strokeWidth: 2.1, body: <><Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><Circle cx={12} cy={12} r={2.8} /></> },
+  print: { strokeWidth: 2, body: <><Path d="M7 8V3.5h10V8M7 17H4.5V8h15v9H17" /><Rect x={7} y={14} width={10} height={7} /><Path d="M17 11h.01" /></> },
+  block: { strokeWidth: 2.1, body: <><Circle cx={12} cy={12} r={9} /><Path d="m5.7 5.7 12.6 12.6" /></> },
+  logout: { strokeWidth: 2.1, body: <><Path d="M14 4h5v16h-5" /><Path d="M10 8l-4 4 4 4M6 12h9" /></> },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS | 'settings';

@@ -139,9 +139,21 @@ export default function DiscussionScreen() {
   );
   const onMore = useCallback(
     (row: ThreadRow) => {
-      if (post) sheet.open(commentTarget(row.comment, post));
+      if (!post) return;
+      sheet.open(commentTarget(row.comment, post), 'menu', {
+        onDeleted: () => {
+          comments.update(row.comment.id, (comment) => ({
+            ...comment,
+            status: 'deleted',
+            text: 'Comentário apagado por quem escreveu.',
+            authorId: '',
+            author: { id: '', name: 'Indisponível', handle: '', initials: '', tone: 'cream' },
+          }));
+          noteCommentCount(id, Math.max(0, commentCountOf(id, post.commentCount) - 1));
+        },
+      });
     },
-    [post, sheet],
+    [commentCountOf, comments, id, noteCommentCount, post, sheet],
   );
   const onReply = useCallback((row: ThreadRow) => {
     setReplyTo({ id: row.comment.id, name: row.comment.author.name });

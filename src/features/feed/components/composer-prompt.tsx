@@ -35,7 +35,7 @@ export function ComposerPrompt({ placeholder, appearance = 'feed' }: { placehold
         ? <View style={styles.tile}>
             <AppText style={styles.tileInitials} color={Colors.cream} maxFontSizeMultiplier={1}>{me.initials}</AppText>
           </View>
-        : <Avatar initials={me.initials} tone={me.tone} size={32} userId={me.id} imageUrl={me.avatarUrl} />}
+        : <Avatar initials={me.initials} tone={me.tone} size={32} shape="square" outline font="anton" userId={me.id} imageUrl={me.avatarUrl} />}
       <AppText style={[styles.placeholder, profile && styles.placeholderProfile]} color={Colors.muted} numberOfLines={1}>
         {prompt}
       </AppText>
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
     paddingLeft: Spacing.two,
     paddingRight: Spacing.three,
     minHeight: 52,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors.ink,
     borderRadius: Radius.sm,
     backgroundColor: Colors.paper,

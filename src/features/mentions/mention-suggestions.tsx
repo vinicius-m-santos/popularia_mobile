@@ -55,7 +55,7 @@ export function MentionSuggestions({ query, onSelect }: { query: string; onSelec
             accessibilityLabel={`${person.displayName}, @${person.handle}`}
             onPressIn={() => onSelect(person)}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-            <Avatar initials={initialsOf(person.displayName)} tone={toneFor(person.userId)} size={32} userId={person.userId} imageUrl={person.avatarUrl} />
+            <Avatar initials={initialsOf(person.displayName)} tone={toneFor(person.userId)} size={32} shape="square" outline font="anton" userId={person.userId} imageUrl={person.avatarUrl} />
             <View style={styles.names}>
               <AppText style={styles.name} numberOfLines={1}>{person.displayName}</AppText>
               <AppText style={styles.handle} color={Colors.inkSoft} numberOfLines={1}>@{person.handle}</AppText>

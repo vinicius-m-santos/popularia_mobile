@@ -121,12 +121,12 @@ Referências locais, em unidades de layout do React Native, não pixels da captu
 | Título principal Anton da Biblioteca | 42–50 / aproximadamente 1.25 × o tamanho |
 | Título principal Anton do Explorar | 54 / 68, acompanha a rolagem |
 | Título principal Anton das Praças | 54 / 68 |
-| Título de seção mono | 12.5 / 18 |
-| Título de documento | 16 / 22, extrabold |
+| Título de seção mono | 12.5 / 21 |
+| Título de documento | 16 / 24, extrabold |
 | Texto de leitura (`body`) | 15.5 / 22 |
-| Texto de botão (`button`) | 13.5 / 18 |
+| Texto de botão (`button`) | 13.5 / 21 |
 | Metadados (`caption`) | 13 / 18 |
-| Trecho de publicação no Explorar | 16 / 22, bold, até três linhas |
+| Trecho de publicação no Explorar | 16 / 24, bold, até três linhas |
 | Texto de busca do Explorar | 18 / 24 |
 
 - Reutilize variantes de `AppText`. Esses valores são referências por função, não uma autorização
@@ -136,11 +136,17 @@ Referências locais, em unidades de layout do React Native, não pixels da captu
 - Não reduza tamanhos de fonte ou alturas de linha existentes sem solicitação explícita.
   Resolva excesso de altura primeiro com hierarquia, repetição de informação e espaçamento.
 - Ao aumentar uma fonte, ajuste também a altura de linha. Na Biblioteca, o título de seção em
-  12.5 herdava linha 14; foi ajustado para 18 para acomodar os acentos.
+  12.5 herdava linha 14; foi ajustado para 18 para acomodar os acentos. Para títulos e textos
+  em bold/semibold, use **lineHeight de pelo menos fontSize + 8** (por exemplo 10/18, 12.5/21,
+  22/30, 54/68). LineHeight igual ou menor que o fontSize corta o topo das maiúsculas, sobretudo
+  em Anton e Archivo Narrow; confira no print e no aparelho. `AppText` aplica esse piso
+  automaticamente para famílias condensada/Anton/bold/extrabold/monoSemibold, texto em caixa
+  alta e texto com fontSize >= 18; `Text`/`TextInput` crus precisam seguir a regra manualmente.
 - Confira palavras como “COLEÇÕES”, “PÚBLICA” e números. Ausência de erro de compilação não garante
   ausência de corte visual. Evite altura fixa e `overflow: hidden` em contêineres de texto.
-- Títulos longos precisam de espaço: o card público permite até três linhas e a coleção até duas.
-  Não diminua a fonte para forçar um título de documento a caber em uma linha.
+- Títulos longos precisam de espaço, mas o card de documento corta em **duas linhas** (público e
+  coleção) para não empurrar autoria, assunto e metadados. Não diminua a fonte para forçar um
+  título a caber em uma linha.
 
 ## Layout e ritmo vertical
 
@@ -156,6 +162,53 @@ Referências locais, em unidades de layout do React Native, não pixels da captu
   crescendo com o conteúdo. Não imponha altura fixa a uma lista com títulos variáveis.
 - O cabeçalho interno usa o chrome compartilhado da Biblioteca descrito em `AGENTS.md`.
   Não crie outra combinação de voltar, título e separadores para cada feature.
+- Na Coleção, a ação de reticências fica **solta**, sem borda nem fundo, como no mockup; o
+  voltar continua em caixa. No Documento, salvar e reticências também ficam soltos, sem caixa.
+  Nas demais telas de acervo, as ações do chrome permanecem em caixa.
+- No detalhe do Documento, o título Anton usa **title case** (primeira letra de cada palavra),
+  não caixa alta. O título da Coleção continua em caixa alta.
+- No Documento sem descrição, visitante não vê a linha; o dono vê “Sem descrição ainda.
+  **Adicionar**” sublinhado, que abre a edição. “Abrir PDF” mantém borda de 2 e sombra sólida
+  de 3 à direita e abaixo; é a ação principal do rodapé.
+- As iniciais do avatar sem foto precisam preencher o selo; no avatar de 30 do responsável,
+  a fonte ficava pequena demais. Use a proporção maior e **Anton** no responsável, sem reduzir o selo.
+- O composer de comentário usa retângulo `Radius.sm`, borda de 2 e botão quadrado de 44 com
+  borda de tinta; não volte ao campo pill. O menu “⋯” do comentário oferece compartilhar, denunciar
+  quando não é da pessoa e excluir (soft delete) quando é dela.
+- O contador de pessoas do Chamado acelera progressivamente ao segurar, para aumentar e diminuir.
+- Pessoas bloqueadas ficam fora do feed, da busca/Explorar, das conversas e do perfil de ambas as
+  partes; o servidor aplica o filtro antes da paginação.
+- No composer de publicação, os passos usam 01/02/03/04 em etiqueta vermelha com número
+  extrabold; o cartão de destino é compacto (64), marca 42 com borda 2 e fita adesiva; a grade
+  de tipos tem gap 8, raio 8 e não duplica a borda à direita; o card do editor tem raio 8 e
+  sombra de 3; a barra “Rascunho” fica em 30; a seta de publicar tem raio 8. O primeiro passo
+  começa 12 abaixo do chrome; a foto tem tilt de -1,2° e uma fita menor, com respiro antes da foto
+  para não encostar no botão de título.
+- A barra de publicar fica oculta enquanto o teclado está aberto, para não cobrir o rascunho.
+  É possível publicar no perfil e em até **3 comunas** na mesma postagem. Chamados podem ser
+  publicados no perfil (evento sem comuna) ou nas comunas escolhidas.
+- No assunto de perfil, “Escolher assuntos” abre uma folha com toda a taxonomia, em grupos e com
+  rolagem; são **até 3, opcionais**, com checkboxes e chips no gatilho. O seletor de anexos tem
+  Foto, Vídeo e PDF; **Evento não aparece** abaixo do assunto.
+- No Chamado, o card usa sombra sólida de 3, cabeçalho de 30 e o título sem respiro extra. O
+  “Quando” é uma grade DIA/Nº/MÊS/HORA que abre um único seletor de data e hora (sem fim); os
+  atalhos Hoje/Amanhã/Sex/Outra ocupam a largura toda. O “Onde” busca no Photon/OpenStreetMap.
+  Capacidade usa contador com repetição ao segurar e teto de +1000; “Cada um leva” começa vazio.
+  O botão de confirmar do Chamado usa o speaker, não a seta. Só a capa (imagem) anexa à publicação
+  do chamado; vídeo, PDF e Evento ficam ocultos no Chamado. O feed e a publicação aberta mostram o
+  cartão de chamado com data, quem vai, barra de vagas/meta e as ações Eu vou, Talvez e agenda.
+  Depois de publicar, volta direto ao feed;
+  a tela de “Publicado” fica fora do fluxo por enquanto. Endereço privado e lista de espera ficam fora
+  desta versão; não exiba texto que prometa essas lógicas.
+- Na Enquete, o card usa o mesmo raio, sombra e cabeçalho de 30 do rascunho. Não mostre Foto,
+  Vídeo, PDF nem Evento nessa tela.
+- A folha “Onde publicar?” usa o creme do app, cantos de 8 em busca, itens e botões. “Perto de
+  mim” fica oculta; o rodapé vermelho cobre a largura e a base inteiras, sem faixa creme. Os itens
+  são checkboxes: é possível marcar o perfil e **até 3 comunas** na mesma postagem. O item selecionado
+  tem borda de tinta e sombra vermelha de 3 à direita/abaixo; avatares são quadrados com borda de
+  tinta. Como a API cria uma publicação por comuna, o app cria uma cópia por destino; mídia
+  (foto/vídeo) fica bloqueada em múltiplos destinos porque cada arquivo só pode ser anexado a
+  uma publicação.
 - Para novos títulos de seção nessa direção, reutilize `SectionHeading appearance="editorial"`:
   marcador vermelho, rótulo mono 12.5/18 e ação em sans/tinta com alvo mínimo 44. “Ver todas”
   é navegação secundária; não precisa competir em vermelho com o conteúdo.
@@ -163,6 +216,18 @@ Referências locais, em unidades de layout do React Native, não pixels da captu
   editorial já podem estabelecer a separação. Use divisórias discretas entre linhas de pessoas.
 
 ## Busca e filtros
+
+### Régua de controles de acervo
+
+- Nas telas de acervo (Biblioteca, Coleção e lista de coleções), a barra de busca e a ação
+  editorial de corpo (Adicionar PDF, Abrir PDF) usam **52 de altura, incluindo a borda de 2**.
+  Fora dessas telas, o `EditorialAction` mantém o mínimo de 50.
+- A busca de acervo usa borda de 2 `Colors.ink`, `Radius.sm`, ícone de 20 e texto 16/22. O
+  placeholder pode truncar; o rótulo acessível permanece.
+- Não crie alturas avulsas para busca ou botão nessas superfícies. A régua 52 também vale para
+  o campo de busca e o botão “Assunto” da Coleção, e para o campo da lista de coleções.
+- Os segmentos de origem (Tudo / De pessoas / De comunas) têm **52 de altura externa**: 48 no
+  miolo mais a borda de 2. O rótulo fica em 15. Não aumente o miolo para 52, senão a barra vira 56.
 
 - Agrupe busca e filtros visualmente. Use rótulo persistente para o campo e placeholder curto
   e realista. Na Biblioteca: “Buscar no acervo” e “Ex.: organização popular”.
@@ -202,7 +267,10 @@ Referências locais, em unidades de layout do React Native, não pixels da captu
   um título grande consumindo permanentemente a área de leitura.
 - O bloco fixo tem fundo opaco `Colors.cream`, respeita a área segura e mantém os alinhamentos
   laterais. Conteúdo pode passar por trás dele durante a rolagem; texto atravessando visualmente
-  o fundo do cabeçalho ou controles sobrepostos são falhas.
+  o fundo do cabeçalho ou controles sobrepostos são falhas. Nas abas fixas do Perfil, não use
+  margem externa nem anime a altura da lista: use um overlay absoluto com fundo creme e anime
+  `translateY`/opacidade. Ele recolhe ao descer e reaparece ao subir, mantendo a barra do perfil
+  no topo, sem deslocar o conteúdo e sem faixa transparente.
 - Mantenha a mesma instância do campo ao alternar entre descoberta, carregamento e resultados.
   Recriar o campo a cada caractere pode perder foco ou fechar o teclado. Evite árvores distintas
   de busca para cada estado e chaves que mudem com o texto digitado.
@@ -260,6 +328,12 @@ Referência: `src/features/posts/components/post-attachment.tsx` e `photo-viewer
 
 - No Explorar, a identidade de quem publicou substitui a numeração grande de ranking. Não
   reintroduza esses números como decoração. Avatar, nome e @ deixam a descoberta mais humana.
+  Avatares de identidade em listas e cards usam o componente compartilhado `Avatar` com
+  `shape="square"`, `outline` e `font="anton"`; só pilhas sobrepostas permanecem circulares.
+  Os assuntos usam borda de 1,5 em `Colors.ink`, não a borda fina de filtro.
+- O selo de coleção usa `CollectionAvatar` (mesmo monograma, cor e centralização no cartão e no
+  cabeçalho). O avatar do perfil fica centralizado acima do nome e do @; os dois lados da
+  identidade usam o mesmo componente de foto.
 - Ordem do card social: avatar/nome/@ → comuna, quando houver → trecho da publicação → tempo,
   comentários e indicação de mídia. Não ocupe uma linha com “No perfil” quando não houver comuna.
 - Referência do resumo social: fundo papel, borda 1 `Colors.inkSoft`, cantos retos, padding 12,
@@ -290,6 +364,9 @@ Referência: `src/features/posts/components/post-attachment.tsx` e `photo-viewer
 - Anexo de PDF em publicação é **referência**, não capa: ícone pequeno, título até três linhas,
   autoria, origem e formato nos metadados, sem bloco decorativo nem repetição de “PDF”. O selo de
   acesso só aparece quando o documento não é público.
+- A marca da coleção usa a paleta de identidade estável de coleções, com tons mais vivos que a
+  paleta de avatar, derivada do ID da coleção. A borda continua em tinta; não deixe todas as
+  coleções no mesmo palha/vermelho.
 - Uma única coleção, sem próximas páginas, ocupa toda a largura disponível. Várias coleções podem
   aparecer em faixa horizontal, deixando perceptível a continuação. Uma única caixa estreita com
   espaço sobrando à direita parece um layout incompleto.
@@ -319,9 +396,9 @@ Referência de abertura, busca e card: `src/features/squares/squares-screen.tsx`
 O usuário decidiu manter a navegação atual por enquanto. **Não implemente os itens abaixo como
 efeito colateral de aplicar este documento.** São pendências para uma tarefa futura:
 
-- A faixa horizontal atual de coleções é paginada, mas renderiza todos os cards carregados.
-  Ela não é a referência para navegar por centenas de coleções. A evolução discutida é uma amostra
-  curta na entrada e “Ver todas” levando a uma lista vertical com busca própria e virtualização.
+- A faixa horizontal mostra a primeira página de coleções e “Ver mais” leva à lista vertical com
+  busca e paginação em `/biblioteca/colecoes`. A faixa não é a referência para navegar por
+  centenas; a lista é. Preserve esse caminho para não cortar coleções fora da amostra.
 - Documentos usam páginas de 20 e `FlatList`; busca e filtros vão ao servidor. Isso é uma base
   adequada, não uma comprovação de desempenho com milhares de itens. Dados carregados continuam
   acumulados na memória e o desempenho do backend precisa ser medido separadamente.

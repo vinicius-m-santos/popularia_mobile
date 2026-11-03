@@ -241,7 +241,7 @@ describe('swipe das abas do perfil', () => {
     expect(getUserPostsPage.mock.calls.length).toBe(calls);
   });
 
-  it('guarda a rolagem da aba e a restaura sem buscar de novo', async () => {
+  it('volta ao começo do conteúdo ao trocar de aba, sem buscar de novo', async () => {
     await render(<ProfileScreen />);
     await screen.findByText('Nenhuma publicação ainda.');
     await fireEvent.press(screen.getByLabelText('Simular rolagem do perfil'));
@@ -250,7 +250,7 @@ describe('swipe das abas do perfil', () => {
     await screen.findByText('Nenhuma imagem ou vídeo publicado ainda.');
     await swipe(80);
     await screen.findByText('Nenhuma publicação ainda.');
-    expect(scrollLog().at(-1)).toBe(320);
+    expect(scrollLog().at(-1)).toBe(0);
     expect(getUserPostsPage.mock.calls.length).toBe(calls);
   });
 
@@ -277,7 +277,7 @@ describe('swipe das abas do perfil', () => {
     }));
     await render(<ProfileScreen />);
     expect(await screen.findByText('Tainá Souza')).toBeTruthy();
-    expect(screen.getByText('Mensagem')).toBeTruthy();
+    expect(screen.queryByText('Mensagem')).toBeNull();
     expect(screen.queryByText('Editar perfil')).toBeNull();
     expect(screen.queryByText('O que você quer compartilhar?')).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Episódios' })).toBeNull();

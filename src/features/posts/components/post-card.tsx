@@ -1,5 +1,5 @@
-import { memo } from 'react';
 import { preparePost } from '@/features/posts/queries';
+import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
 
@@ -16,15 +16,15 @@ import { formatCount, formatRelative } from '@/lib/format';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
-import { LinkedEventCallout } from '@/features/events/linked-event';
+import { ChamadoAuthorLine, ChamadoCard } from '@/features/events/chamado-card';
+import { chamadoCardFor } from '@/features/events/chamado-data';
 import { DocumentCard } from '@/features/library/document-card';
 
 import { AuthorLine } from './author-line';
-import { EventBox } from './event-box';
 import { MediaBox } from './media-box';
-import { PostImages } from './post-images';
 import { PostAttachment } from './post-attachment';
 import { PostBody } from './post-body';
+import { PostImages } from './post-images';
 import { PostPollBlock } from './post-poll';
 
 type PostCardProps = {
@@ -48,11 +48,12 @@ type PostCardProps = {
  * linha do destino, como no desenho do feed.
  */
 export const PostCard = memo(function PostCard({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true, mediaGesture }: PostCardProps) {
-  const { author, comuna, event, media, topComment, topCommentAuthor } = item;
+  const { author, comuna, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();
   const sheet = useActionsSheet();
   const { isOn } = useInteractions();
+  const chamado = useMemo(() => chamadoCardFor(item), [item]);
   const open = () => { preparePost(item); nav.openPost(item.id); };
   // Na API, só o próprio perfil abre (perfis de outras pessoas ainda são fictícios).
   const openAuthor = !item.viewer
@@ -83,12 +84,79 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
       ? 'No seu perfil'
       : `No perfil de @${author.handle}`;
   const showOrigin = showComuna || !comuna;
-  const tag = item.poll ? 'Enquete' : item.linkedEvent || item.event ? 'Chamado' : null;
+  const tag = item.poll ? 'Enquete' : null;
   const replies = actions.commentCount === 1
     ? 'Ver a resposta'
     : actions.commentCount > 1
       ? `Ver as ${formatCount(actions.commentCount)} respostas`
       : 'Ver a discussão';
+
+  const actionsRow = (
+    <View style={styles.actions}>
+      <ActionChip
+        icon="support"
+        count={actions.supportCount}
+        active={actions.supported}
+        label="Apoiar"
+        onPress={actions.toggleSupport}
+      />
+      <ActionChip icon="comment" count={actions.commentCount} label="Comentar" onPress={open} />
+      <ActionChip
+        icon="echo"
+        count={actions.echoCount}
+        active={actions.echoed}
+        label="Ecoar"
+        onPress={actions.toggleEcho}
+      />
+      <View style={styles.spacer} />
+      <IconButton
+        icon="bookmark"
+        accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
+        selected={actions.saved}
+        filled={actions.saved}
+        color={actions.saved ? Colors.red : Colors.ink}
+        size={20}
+        onPress={actions.toggleSave}
+        style={styles.saveChip}
+      />
+    </View>
+  );
+
+  const more = (
+    <IconButton icon="more" accessibilityLabel="Mais opções" onPress={() => sheet.open(postTarget(item))} size={20} style={styles.more} />
+  );
+
+  // Chamado: o cartão substitui o texto e o título da publicação; o título aparece só nele.
+  if (chamado) {
+    return (
+      <View style={[styles.card, showRule && styles.rule]}>
+        <ChamadoAuthorLine author={author} origin={showComuna || !comuna ? origin : ''} meta={formatRelative(item.createdAt)} onPress={openAuthor} trailing={more} />
+        <ChamadoCard data={chamado} />
+        {item.attachment && item.attachment.type !== 'image' ? <PostAttachment
+          key={item.attachment.id}
+          media={item.attachment}
+          visible={mediaVisible}
+          framed
+          chrome={{
+            author: item.author,
+            comuna: item.comuna,
+            text: item.text,
+            supportCount: actions.supportCount,
+            supported: actions.supported,
+            onSupport: actions.toggleSupport,
+            commentCount: actions.commentCount,
+            onComment: open,
+            echoCount: actions.echoCount,
+            echoed: actions.echoed,
+            onEcho: actions.toggleEcho,
+            saved: actions.saved,
+            onSave: actions.toggleSave,
+          }}
+        /> : null}
+        {actionsRow}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.card, showRule && styles.rule]}>
@@ -119,9 +187,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         meta={formatRelative(item.createdAt)}
         onPress={openAuthor}
         appearance="card"
-        trailing={(
-          <IconButton icon="more" accessibilityLabel="Mais opções" onPress={() => sheet.open(postTarget(item))} size={20} style={styles.more} />
-        )}
+        trailing={more}
       />
 
       {hasTitle ? <AppText style={styles.title}>{item.title}</AppText> : null}
@@ -154,8 +220,6 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
       {/* O anexo mantém o mesmo cartão da seção "Documentos públicos" da biblioteca. */}
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
       {item.poll ? <PostPollBlock postId={item.id} poll={item.poll} /> : null}
-      {item.linkedEvent ? <LinkedEventCallout event={item.linkedEvent} /> : null}
-      {event ? <EventBox event={event} /> : null}
       {media ? (
         <Pressable onPress={open} accessibilityHint="Abre a discussão">
           <MediaBox media={media} />
@@ -177,34 +241,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         </Pressable>
       ) : null}
 
-      <View style={styles.actions}>
-        <ActionChip
-          icon="support"
-          count={actions.supportCount}
-          active={actions.supported}
-          label="Apoiar"
-          onPress={actions.toggleSupport}
-        />
-        <ActionChip icon="comment" count={actions.commentCount} label="Comentar" onPress={open} />
-        <ActionChip
-          icon="echo"
-          count={actions.echoCount}
-          active={actions.echoed}
-          label="Ecoar"
-          onPress={actions.toggleEcho}
-        />
-        <View style={styles.spacer} />
-        <IconButton
-          icon="bookmark"
-          accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
-          selected={actions.saved}
-          filled={actions.saved}
-          color={actions.saved ? Colors.red : Colors.ink}
-          size={20}
-          onPress={actions.toggleSave}
-          style={styles.saveChip}
-        />
-      </View>
+      {actionsRow}
     </View>
   );
 });
@@ -261,7 +298,7 @@ const styles = StyleSheet.create({
   },
   originLabel: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 20,
     letterSpacing: 1.2,
   },
   tag: {
@@ -275,7 +312,7 @@ const styles = StyleSheet.create({
   tagText: {
     fontFamily: Fonts.monoSemibold,
     fontSize: 10,
-    lineHeight: 13,
+    lineHeight: 18,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     color: Colors.ink,
@@ -293,7 +330,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.extrabold,
     fontSize: 22,
-    lineHeight: 26,
+    lineHeight: 30,
   },
   topComment: {
     borderWidth: 2,

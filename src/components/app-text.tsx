@@ -1,4 +1,4 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps, type TextStyle } from 'react-native';
 
 import { Colors, Fonts } from '@/constants/theme';
 
@@ -21,13 +21,30 @@ export type AppTextProps = TextProps & {
  * (acessibilidade), com teto para não quebrar layouts compactos.
  */
 export function AppText({ variant = 'body', color, style, ...rest }: AppTextProps) {
+  const merged = StyleSheet.flatten([styles[variant], color ? { color } : null, style]);
   return (
     <Text
       maxFontSizeMultiplier={variant === 'label' ? 1.4 : 1.8}
-      style={[styles[variant], color ? { color } : null, style]}
+      style={withMinimumLineHeight(merged ?? {})}
       {...rest}
     />
   );
+}
+
+const TITLE_FAMILIES: string[] = [Fonts.condensed, Fonts.anton, Fonts.bold, Fonts.extrabold, Fonts.monoSemibold];
+
+/**
+ * Regra de legibilidade: títulos, nomes e rótulos em bold/condensada precisam de
+ * `lineHeight >= fontSize + 8`. O topo das maiúsculas do Anton e do Archivo Narrow
+ * fica fora da caixa quando a linha é apertada; o piso central evita repetir o
+ * ajuste em cada tela.
+ */
+export function withMinimumLineHeight(style: TextStyle): TextStyle {
+  if (typeof style.fontSize !== 'number' || typeof style.lineHeight !== 'number') return style;
+  const emphasized = TITLE_FAMILIES.includes(style.fontFamily ?? '') || style.textTransform === 'uppercase' || style.fontSize >= 18;
+  if (!emphasized) return style;
+  const minimum = style.fontSize + 8;
+  return style.lineHeight >= minimum ? style : { ...style, lineHeight: minimum };
 }
 
 const styles = StyleSheet.create({
@@ -42,7 +59,7 @@ const styles = StyleSheet.create({
   heading: {
     fontFamily: Fonts.condensed,
     fontSize: 21,
-    lineHeight: 26,
+    lineHeight: 30,
     textTransform: 'uppercase',
     color: Colors.ink,
   },
@@ -55,7 +72,7 @@ const styles = StyleSheet.create({
   bodyStrong: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 23,
     color: Colors.ink,
   },
   caption: {
@@ -68,7 +85,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: Fonts.monoSemibold,
     fontSize: 11,
-    lineHeight: 14,
+    lineHeight: 19,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     color: Colors.ink,
@@ -76,7 +93,7 @@ const styles = StyleSheet.create({
   button: {
     fontFamily: Fonts.extrabold,
     fontSize: 13.5,
-    lineHeight: 18,
+    lineHeight: 21,
     color: Colors.ink,
   },
 });

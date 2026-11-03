@@ -53,13 +53,13 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 20,
     letterSpacing: 1.44,
   },
   fraction: {
     fontFamily: Fonts.anton,
     fontSize: 24,
-    lineHeight: 24,
+    lineHeight: 32,
   },
   card: {
     paddingHorizontal: 12,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.bold,
     fontSize: 16,
-    lineHeight: 21,
+    lineHeight: 24,
     color: Colors.ink,
   },
   labelDone: {
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   done: {
     fontFamily: Fonts.monoSemibold,
     fontSize: 11,
-    lineHeight: 14,
+    lineHeight: 19,
     letterSpacing: 0.88,
     textTransform: 'uppercase',
     color: Colors.ink,
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   note: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 21,
     color: Colors.muted,
   },
 });

@@ -49,13 +49,13 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 20,
     letterSpacing: 1.44,
   },
   title: {
     fontFamily: Fonts.anton,
     fontSize: 34,
-    lineHeight: 34,
+    lineHeight: 42,
     textTransform: 'uppercase',
     color: Colors.ink,
   },
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   day: {
     flex: 1,
     minWidth: 0,
-    height: 56,
+    minHeight: 68,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -95,14 +95,14 @@ const styles = StyleSheet.create({
   weekday: {
     fontFamily: Fonts.monoSemibold,
     fontSize: 10,
-    lineHeight: 13,
+    lineHeight: 18,
     letterSpacing: 0.6,
     color: Colors.ink,
   },
   number: {
     fontFamily: Fonts.anton,
     fontSize: 20,
-    lineHeight: 20,
+    lineHeight: 28,
     color: Colors.ink,
   },
   onActive: {
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   note: {
     fontFamily: Fonts.regular,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
     color: Colors.muted,
   },
 });

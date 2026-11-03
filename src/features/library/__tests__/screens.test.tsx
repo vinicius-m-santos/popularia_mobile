@@ -8,6 +8,7 @@ import { listCollections, listDocuments, uploadDocument, saveDocument, getDocume
 import { subscribeAttachment } from '../composer-attachment';
 import { DocumentCard } from '../document-card';
 import { LibraryPane } from '../library-screen';
+import CollectionsScreen from '../collections-screen';
 import UploadScreen, { titleFromFilename } from '../upload-screen';
 import { pickPdf } from '../transfers';
 import { collection, document } from '../testing/fixtures';
@@ -33,22 +34,24 @@ describe('bibliotecas reais', () => {
     jest.mocked(listDocuments).mockResolvedValue({ items: [document], nextCursor: null });
     await render(<LibraryPane scope="public" canAdd />);
     await screen.findByText(document.title!);
-    expect(screen.getByText('Autoria: Coletivo Tarifa Zero')).toBeTruthy();
+    expect(screen.getByText(/Coletivo Tarifa Zero/)).toBeTruthy();
     expect(screen.queryByLabelText('Mais ações da biblioteca')).toBeNull();
-    expect(screen.getByText('Criar coleção')).toBeTruthy();
+    expect(screen.getByText('Ver mais')).toBeTruthy();
     expect(screen.getByLabelText('Buscar na biblioteca')).toBeTruthy();
     expect(screen.getByLabelText(`Abrir coleção ${collection.name}`)).toBeTruthy();
     await fireEvent.press(screen.getByRole('radio', { name: 'De pessoas' }));
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'people', scope: 'public' }), null));
     await fireEvent.changeText(screen.getByLabelText('Buscar na biblioteca'), 'organização');
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'organização' }), null));
-    await fireEvent.press(screen.getByLabelText('Assunto: Todos os assuntos'));
+    await fireEvent.press(screen.getByLabelText('Mais assuntos'));
     await fireEvent.press(await screen.findByRole('radio', { name: 'Trabalho e direitos trabalhistas' }));
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ topic: 'trab' }), null));
     expect(screen.queryByLabelText(`Abrir coleção ${collection.name}`)).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Limpar filtros: Resultados' }));
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: '', topic: undefined, origin: 'all' }), null));
     expect(screen.getByLabelText('Buscar na biblioteca').props.value).toBe('');
+    await fireEvent.press(screen.getByText('Ver mais'));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/colecoes', params: { scope: 'public' } });
     await fireEvent.press(screen.getByLabelText(`Abrir coleção ${collection.name}`));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca', params: expect.objectContaining({ collection: collection.id }) });
   });
@@ -60,13 +63,20 @@ describe('bibliotecas reais', () => {
     expect(screen.getByText(collection.name)).toBeTruthy();
     expect(screen.getByText(collection.origin.name)).toBeTruthy();
     expect(screen.getByLabelText('Buscar nesta coleção')).toBeTruthy();
-    expect(screen.getAllByText('Público').length).toBeGreaterThan(0);
-    await fireEvent.press(screen.getByText('Editar coleção'));
-    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText('Pública').length).toBeGreaterThan(0);
+    // A edição da coleção vive no chrome da tela (menu da coleção), fora deste painel.
+    expect(onEdit).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText('Adicionar PDF'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/enviar', params: { collection: collection.id } });
     await fireEvent.changeText(screen.getByLabelText('Buscar nesta coleção'), 'tarifa');
     await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ collection: collection.id, q: 'tarifa' }), null));
+  });
+  it('a tela de coleções lista e abre uma coleção', async () => {
+    await render(<CollectionsScreen />);
+    await screen.findByText(collection.name);
+    expect(screen.getByText('Leituras organizadas pela comunidade.')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(`Abrir coleção ${collection.name}`));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca', params: { scope: 'public', collection: collection.id } });
   });
   it('minha biblioteca vazia oferece adicionar e criar coleção', async () => {
     await render(<LibraryPane scope="personal" owner="me" canAdd />);

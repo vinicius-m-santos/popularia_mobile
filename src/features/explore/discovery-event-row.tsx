@@ -14,12 +14,12 @@ export function DiscoveryEventRow({ event }: { event: ComunaEvent }) {
     <Pressable
       onPress={() => openDestination({ kind: 'event', id: event.id })}
       accessibilityRole="link"
-      accessibilityLabel={`${event.status === 'cancelled' ? 'Evento cancelado. ' : ''}${event.title}. ${when.day} ${when.month} ${when.time}. ${event.comuna.name}`}
+      accessibilityLabel={`${event.status === 'cancelled' ? 'Evento cancelado. ' : ''}${event.title}. ${when.day} ${when.month} ${when.time}${event.comuna ? `. ${event.comuna.name}` : ''}`}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       <View style={styles.text}>
         <AppText variant="label" color={Colors.red} numberOfLines={1}>{event.status === 'cancelled' ? 'Evento cancelado' : event.past ? 'Evento passado' : 'Evento'}</AppText>
         <AppText variant="bodyStrong" numberOfLines={2}>{event.title}</AppText>
-        <AppText variant="caption" numberOfLines={1}>{event.comuna.name} · {when.day} {when.month} · {when.time}</AppText>
+        <AppText variant="caption" numberOfLines={1}>{event.comuna ? `${event.comuna.name} · ` : ''}{when.day} {when.month} · {when.time}</AppText>
         {place ? <AppText variant="caption" numberOfLines={1}>{place}</AppText> : null}
         {event.description ? <AppText variant="caption" numberOfLines={2}>{event.description}</AppText> : null}
         <AppText variant="caption">{attendanceCount(event.goingCount, event.maybeCount)}</AppText>

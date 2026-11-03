@@ -121,12 +121,33 @@ describe('publicações', () => {
     expect(toFeedItem(postDto).topCommentAuthor).toBeNull();
   });
 
+  it('leva o resumo do chamado com capacidade, resposta e prévia de quem vai', () => {
+    const event = {
+      id: 'evento-1', title: 'Piquenique', format: 'in_person' as const, status: 'scheduled' as const,
+      startsAt: '2026-11-06T19:00:00-03:00', endsAt: null, timeZone: 'America/Sao_Paulo',
+      placeName: 'Parque Municipal', address: 'Rua X, 123',
+      goingCount: 6, maybeCount: 2, viewerAttendance: 'going' as const,
+      capacityMode: 'goal' as const, capacity: 10,
+      goingPreview: [{ id: 'rafa', handle: 'rafa', displayName: 'Rafael Prado' }],
+      past: false,
+    };
+    const item = toFeedItem({ ...postDto, event });
+    expect(item.event).toBeNull();
+    expect(item.linkedEvent).toMatchObject({
+      id: 'evento-1',
+      capacityMode: 'goal',
+      capacity: 10,
+      viewerAttendance: 'going',
+      goingPreview: [{ id: 'rafa', name: 'Rafael Prado', initials: 'RP' }],
+    });
+  });
+
   it('cria mandando só o texto e a comuna (nunca autoria ou contagens)', async () => {
     api.mockResolvedValue(postDto);
     await createPost({ comunaServerId: comunaDto.id, text: 'Olá', mentions: [] });
     expect(api).toHaveBeenCalledWith('/posts', {
       method: 'POST',
-      body: { comunaId: comunaDto.id, body: 'Olá' },
+      body: { comunaId: comunaDto.id, body: 'Olá', topics: [] },
       auth: true,
     });
     api.mockResolvedValue(postDto);
@@ -137,7 +158,7 @@ describe('publicações', () => {
     });
     expect(api).toHaveBeenLastCalledWith('/posts', {
       method: 'POST',
-      body: { mentions: [{ userId: 'user-ana', start: 4, end: 8 }], comunaId: null, body: 'Olá @ana' },
+      body: { mentions: [{ userId: 'user-ana', start: 4, end: 8 }], comunaId: null, body: 'Olá @ana', topics: [] },
       auth: true,
     });
   });
@@ -147,7 +168,7 @@ describe('publicações', () => {
     expect(toFeedItem({ ...postDto, media }).attachment).toMatchObject({ ...media, url: 'http://api.test/signed/video' });
     api.mockResolvedValue({ ...postDto, media });
     await createPost({ comunaServerId: null, text: '', mediaId: media.id });
-    expect(api).toHaveBeenCalledWith('/posts', { method: 'POST', body: { mediaId: media.id, comunaId: null, body: '' }, auth: true });
+    expect(api).toHaveBeenCalledWith('/posts', { method: 'POST', body: { mediaId: media.id, comunaId: null, body: '', topics: [] }, auth: true });
   });
 
   it('leva a enquete no item e manda só pergunta e opções ao criar ou votar', async () => {
@@ -168,7 +189,7 @@ describe('publicações', () => {
     await createPost({ comunaServerId: null, text: '', poll: { question: poll.question, options: poll.options.map(({ label }) => ({ label })) } });
     expect(api).toHaveBeenCalledWith('/posts', {
       method: 'POST',
-      body: { poll: { question: poll.question, options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }] }, comunaId: null, body: '' },
+      body: { poll: { question: poll.question, options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }] }, comunaId: null, body: '', topics: [] },
       auth: true,
     });
     await voteOnPoll(postDto.id, 'opt-2');

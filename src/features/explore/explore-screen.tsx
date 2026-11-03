@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -80,6 +80,16 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
     return () => clearTimeout(timer);
   }, [query]);
   const topic = data.data?.topics.find((t) => t.id === topicId);
+  // O /explore?topic= não inclui documentos; usa a busca por assunto para trazer o acervo.
+  const topicDocuments = useQuery({
+    queryKey: ['topic-documents', me.id, topicId ?? ''],
+    queryFn: ({ signal }) => searchDiscovery(me.id, '', 'documents', topicId, null, signal),
+    enabled: !!topicId && !!topic,
+    retry: false,
+    staleTime: 60_000,
+  }, queryClient);
+  const topicDocumentItems = (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents');
+  const refetchTopicDocuments = topicDocuments.refetch;
   const showHome = !query.trim() && filter === 'all';
   const short = !!query.trim() && (query.trim().replace(/^@/, '').length < 3 || !/[\p{L}\p{N}]{3}/u.test(query));
   const settled = query.trim() === debounced;
@@ -103,17 +113,20 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   useEffect(() => {
     revalidateRef.current = () => {
       reload();
+      if (topicId && topic) void refetchTopicDocuments();
       if (searchEnabled) void refreshSearch();
     };
-  }, [reload, refreshSearch, searchEnabled]);
+  }, [reload, refreshSearch, searchEnabled, topicId, topic, refetchTopicDocuments]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
     focusedOnce.current = true;
   }, []));
   const refresh = useCallback(() => {
-    if (showHome || !data.data) reload();
-    else if (searchEnabled) void refreshSearch();
-  }, [showHome, data.data, reload, searchEnabled, refreshSearch]);
+    if (showHome || !data.data) {
+      reload();
+      if (topicId && topic) void refetchTopicDocuments();
+    } else if (searchEnabled) void refreshSearch();
+  }, [showHome, data.data, reload, searchEnabled, refreshSearch, topicId, topic, refetchTopicDocuments]);
   const pullRefresh = useManualRefresh(showHome || !data.data ? data.status === 'loading' : result.isRefetching, refresh);
   const items = dedupe(result.data?.pages.flatMap((page) => page.items) ?? []);
   const loadMore = () => {
@@ -140,7 +153,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   } else if (topicId && !topic) {
     addState('unknown-topic', <StateView kind="empty" title="Assunto não encontrado" />);
   } else if (showHome) {
-    rows.push(...discoveryRows(data.data, topic));
+    rows.push(...discoveryRows(data.data, topic, topicDocumentItems));
   } else if (short) {
     addState('short-query', <StateView kind="empty" title="Continue escrevendo" message="Use pelo menos três letras ou números seguidos para buscar." />);
   } else if (!settled || result.isPending || result.isPlaceholderData) {
@@ -180,7 +193,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
         refreshControl={<RefreshControl refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} tintColor={Colors.red} />}
         ListHeaderComponent={<View onLayout={(event) => { titleHeight.current = event.nativeEvent.layout.height; }} style={styles.titleWrap}>
           {topicId ? <View style={styles.topicChrome}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><View style={styles.barDivider} /><AppText variant="label">Assuntos da Popularia</AppText></View> : null}
-          <AppText variant="display" accessibilityRole="header" style={styles.title}>{title}</AppText>
+          <AppText variant="display" accessibilityRole="header" style={[styles.title, topicId ? styles.topicTitle : null]}>{title}</AppText>
         </View>}
         renderItem={({ item }) => {
           if (item.kind === 'controls') return <View style={styles.controls}>
@@ -224,21 +237,22 @@ function hitRows(entries: DiscoveryEntry[]): DiscoveryRow[] {
 }
 
 /** A entrada apresenta amostras; as categorias continuam dando acesso aos resultados completos. */
-function discoveryRows(data: DiscoveryData, topic?: Topic): DiscoveryRow[] {
+function discoveryRows(data: DiscoveryData, topic?: Topic, topicDocuments: DiscoveryEntry[] = []): DiscoveryRow[] {
   const rows: DiscoveryRow[] = [];
-  const add = (label: string, filter: DiscoveryFilter, entries: DiscoveryEntry[]) => {
+  const add = (label: string, filter: DiscoveryFilter, entries: DiscoveryEntry[], action?: string) => {
     if (!entries.length) return;
-    rows.push({ key: `section-${label}`, kind: 'section', label, filter });
+    rows.push({ key: `section-${label}`, kind: 'section', label, filter, ...(action ? { action } : {}) });
     rows.push(...hitRows(entries.slice(0, PREVIEW_LIMIT)));
   };
   add(topic ? 'Em destaque' : 'Discussões em destaque', 'posts', data.posts.map((value) => ({ id: value.id, kind: 'posts', value })));
   if (!topic && data.topics.length) rows.push({ key: 'topics', kind: 'topics' });
   add('Pessoas para acompanhar', 'people', data.people.map((value) => ({ id: value.id, kind: 'people', value })));
   add(topic ? 'Comunas' : 'Comunas para conhecer', 'comunas', data.comunas.map((value) => ({ id: value.id, kind: 'comunas', value })));
+  if (topic) add('Documentos', 'documents', topicDocuments, 'Ver todos');
   const recent = data.recentPosts.filter((post) => !data.posts.some((featured) => featured.id === post.id));
   add('Publicações recentes', 'posts', recent.map((value) => ({ id: value.id, kind: 'posts', value })));
   if (!topic) rows.push({ key: 'library', kind: 'library' });
-  if (!data.posts.length && !data.people.length && !data.comunas.length && !recent.length) rows.push({ key: 'discovery-empty', kind: 'state', content: <>
+  if (!data.posts.length && !data.people.length && !data.comunas.length && !recent.length && !topicDocuments.length) rows.push({ key: 'discovery-empty', kind: 'state', content: <>
     <StateView kind="empty" title="Ainda não há muita coisa por aqui." message="Outros assuntos e comunas estão à sua espera." />
     {topic ? <PillButton label="Descobrir outros assuntos" variant="outline" onPress={() => router.navigate('/explorar')} /> : null}
   </> });
@@ -311,12 +325,13 @@ const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.seven },
   titleWrap: { paddingHorizontal: Spacing.five, paddingTop: Spacing.three, paddingBottom: Spacing.one },
   title: { fontFamily: Fonts.anton, fontSize: 54, lineHeight: 68, letterSpacing: -0.8 },
+  topicTitle: { lineHeight: 80 },
   topicChrome: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 58 },
   barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink },
   controls: { backgroundColor: Colors.cream, paddingTop: Spacing.two, paddingBottom: Spacing.three, gap: Spacing.two },
   searchGroup: { marginHorizontal: Spacing.five, gap: Spacing.two },
   searchLabel: { lineHeight: 16 },
-  search: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 1, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+  search: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
   input: { flex: 1, minWidth: 0, minHeight: 48, fontFamily: Fonts.regular, fontSize: 18, lineHeight: 24, color: Colors.ink, paddingVertical: Spacing.two, outlineWidth: 0 },
   filters: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.five },
   filter: { minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.strawLight, borderRadius: Radius.sm, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
@@ -328,13 +343,13 @@ const styles = StyleSheet.create({
   document: { marginVertical: Spacing.one },
   topicsSection: { paddingHorizontal: Spacing.five, paddingTop: Spacing.three, paddingBottom: Spacing.one, gap: Spacing.one },
   topics: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  topic: { minHeight: 44, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, borderRadius: Radius.sm, backgroundColor: Colors.paper, justifyContent: 'center', alignItems: 'center', flexGrow: 1, maxWidth: '100%' },
-  topicLabel: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 20, textAlign: 'center', flexShrink: 1 },
+  topic: { minHeight: 44, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, justifyContent: 'center', alignItems: 'center', flexGrow: 1, maxWidth: '100%' },
+  topicLabel: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 23, textAlign: 'center', flexShrink: 1 },
   libraryWrap: { paddingHorizontal: Spacing.five, paddingTop: Spacing.six },
   libraryCard: { minHeight: 144, overflow: 'hidden', position: 'relative', backgroundColor: Colors.ink },
   libraryArt: { position: 'absolute', inset: 0, width: '100%', height: '100%' },
   libraryContent: { width: '74%', padding: Spacing.four, gap: Spacing.one },
-  libraryHeading: { fontFamily: Fonts.condensed, fontSize: 30, lineHeight: 35, textTransform: 'uppercase' },
+  libraryHeading: { fontFamily: Fonts.condensed, fontSize: 30, lineHeight: 38, textTransform: 'uppercase' },
   libraryDescription: { fontSize: 15.5, lineHeight: 22 },
   libraryArrow: { position: 'absolute', right: Spacing.four, bottom: Spacing.four },
   pressed: { opacity: 0.75 },

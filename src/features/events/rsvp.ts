@@ -59,7 +59,7 @@ export function writeEvent(next: ComunaEvent) {
 /** Criar, editar ou cancelar: o detalhe muda na hora e as listas da comuna são recarregadas. */
 export function storeEvent(event: ComunaEvent) {
   writeEvent(event);
-  void queryClient.invalidateQueries({ queryKey: ['comuna-events', event.comuna.slug] });
+  if (event.comuna) void queryClient.invalidateQueries({ queryKey: ['comuna-events', event.comuna.slug] });
 }
 
 export async function setAttendance(event: ComunaEvent, status: AttendanceStatus): Promise<'applied' | 'ignored'> {

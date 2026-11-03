@@ -75,7 +75,10 @@ export function toFeedItem(post: PostDto): FeedItem {
     author: toUser(post.author),
     comuna: post.comuna ? { id: post.comuna.slug, name: post.comuna.name, status: post.comuna.status } : null,
     event: null,
-    linkedEvent: post.event ?? null,
+    linkedEvent: post.event ? {
+      ...post.event,
+      goingPreview: post.event.goingPreview?.map(toUser),
+    } : null,
     topComment: top ? { authorId: top.author.id, text: top.body } : undefined,
     topCommentAuthor: top ? toUser(top.author) : null,
   };
@@ -95,11 +98,11 @@ export async function getPost(id: string, signal?: AbortSignal): Promise<FeedIte
  * POST /posts. `comunaServerId` é o UUID da comuna (null publica no próprio perfil).
  * Exige e-mail confirmado (403 /errors/email-not-verified) e participar da comuna (403 /errors/not-a-member).
  */
-export async function createPost(input: { comunaServerId: string | null; text: string; title?: string | null; topic?: TopicId | null; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[]; durationDays?: number | null } | null; mentions?: ContentMention[]; eventId?: string | null }): Promise<FeedItem> {
+export async function createPost(input: { comunaServerId: string | null; text: string; title?: string | null; topic?: TopicId | null; topics?: TopicId[]; documentId?: string; mediaId?: string; poll?: { question: string; options: { label: string }[]; durationDays?: number | null } | null; mentions?: ContentMention[]; eventId?: string | null }): Promise<FeedItem> {
   const mentions = mentionRefs(input.mentions);
   const post = await apiRequest<PostDto>('/posts', {
     method: 'POST',
-    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), ...(mentions ? { mentions } : {}), ...(input.eventId ? { eventId: input.eventId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.title ? { title: input.title } : {}), ...(input.comunaServerId === null && input.topic ? { topic: input.topic } : {}) },
+    body: { ...(input.documentId ? { documentId: input.documentId } : {}), ...(input.mediaId ? { mediaId: input.mediaId } : {}), ...(input.poll ? { poll: input.poll } : {}), ...(mentions ? { mentions } : {}), ...(input.eventId ? { eventId: input.eventId } : {}), comunaId: input.comunaServerId, body: input.text, ...(input.title ? { title: input.title } : {}), ...(input.comunaServerId === null && input.topics?.length ? (input.topics.length === 1 ? { topic: input.topics[0] } : { topics: input.topics }) : input.comunaServerId === null && input.topic ? { topic: input.topic } : { topics: [] }), ...(input.comunaServerId === null ? {} : { topics: [] }) },
     auth: true,
   });
   const item = toFeedItem(post);
@@ -109,6 +112,22 @@ export async function createPost(input: { comunaServerId: string | null; text: s
     void queryClient.invalidateQueries({ queryKey: ['topic', slug] });
   }
   return item;
+}
+
+/** PATCH /posts/{id}. Só a autoria edita o texto e o título. */
+export async function updatePost(id: string, input: { body: string; title: string | null }): Promise<FeedItem> {
+  const post = await apiRequest<PostDto>(`/posts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: input,
+    auth: true,
+    contentType: 'application/merge-patch+json',
+  });
+  return toFeedItem(post);
+}
+
+/** DELETE /posts/{id}. Soft delete no servidor: a autoria some do feed. */
+export function deletePost(id: string): Promise<void> {
+  return apiRequest<void>(`/posts/${encodeURIComponent(id)}`, { method: 'DELETE', auth: true });
 }
 
 /** PUT ou DELETE /posts/{id}/save. As duas respostas são vazias e podem repetir sem efeito. */

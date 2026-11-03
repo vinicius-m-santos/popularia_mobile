@@ -18,11 +18,13 @@ type EventDto = {
   placeName: string | null;
   address: string | null;
   onlineUrl: string | null;
-  comuna: { id: string; slug: string; name: string; visibility: string; status: string };
+  comuna: { id: string; slug: string; name: string; visibility: string; status: string } | null;
   organizer: AuthorDto | null;
   goingCount: number;
   maybeCount: number;
   viewerAttendance: AttendanceStatus | null;
+  capacityMode?: 'spots' | 'goal' | null;
+  capacity?: number | null;
   canManage: boolean;
   canRespond: boolean;
   past: boolean;
@@ -60,6 +62,11 @@ export async function listEvents(slug: string, when: EventWhen, cursor: string |
 
 export async function createEvent(slug: string, input: EventInput): Promise<ComunaEvent> {
   return toEvent(await apiRequest<EventDto>(`/comunas/${encodeURIComponent(slug)}/events`, { method: 'POST', body: input, auth: true }));
+}
+
+/** Chamado no perfil: evento sem comuna, ligado ao post do próprio autor. */
+export async function createProfileEvent(input: EventInput): Promise<ComunaEvent> {
+  return toEvent(await apiRequest<EventDto>('/me/events', { method: 'POST', body: input, auth: true }));
 }
 
 export async function updateEvent(id: string, input: EventInput): Promise<ComunaEvent> {

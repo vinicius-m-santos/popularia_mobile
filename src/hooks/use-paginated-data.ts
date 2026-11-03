@@ -29,6 +29,10 @@ export type PaginatedData<T> = Omit<State<T>, 'load' | 'nextCursor'> & {
   revalidate: () => void;
   /** Acrescenta um item criado pela pessoa, sem duplicar se ele já tiver chegado da API. */
   append: (item: T) => void;
+  /** Remove um item localmente depois de uma exclusão confirmada. */
+  remove: (id: string) => void;
+  /** Atualiza um item já carregado sem refazer a página. */
+  update: (id: string, change: (item: T) => T) => void;
 };
 
 function initialState<T>(load: State<T>['load']): State<T> {
@@ -143,6 +147,16 @@ export function usePaginatedData<T extends { id: string }>(
     [load],
   );
 
+  const remove = useCallback(
+    (id: string) => setState((prev) => (prev.load === load ? { ...prev, items: prev.items.filter((item) => item.id !== id) } : prev)),
+    [load],
+  );
+
+  const update = useCallback(
+    (id: string, change: (item: T) => T) => setState((prev) => (prev.load === load ? { ...prev, items: prev.items.map((item) => item.id === id ? change(item) : item) } : prev)),
+    [load],
+  );
+
   const view = sameQuery ? state : initialState(load);
   return {
     status: view.status,
@@ -157,5 +171,7 @@ export function usePaginatedData<T extends { id: string }>(
     refresh,
     revalidate,
     append,
+    remove,
+    update,
   };
 }

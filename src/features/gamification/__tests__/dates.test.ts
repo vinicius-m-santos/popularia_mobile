@@ -44,7 +44,7 @@ describe('selo da conquista', () => {
   });
 
   it('usa a data de Brasília quando é outro dia', () => {
-    expect(achievementUnlockedLabel('2026-06-02T15:00:00-03:00', '2026-10-31')).toBe('DESBLOQUEADA EM 02 JUN');
+    expect(achievementUnlockedLabel('2026-06-02T15:00:00-03:00', '2026-10-31')).toBe('DESBLOQUEADA EM 02/06/2026');
   });
 
   it('não inventa data sem registro', () => {

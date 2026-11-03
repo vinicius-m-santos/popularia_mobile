@@ -24,7 +24,7 @@ export function BlockedPeoplePanel() {
     {data.status === 'loading' ? <StateView kind="loading" message="Carregando pessoas bloqueadas" /> : null}
     {data.data?.map((person) => (
       <View key={person.handle} style={styles.row}>
-        <Avatar initials={initialsOf(person.displayName)} tone="cream" size={36} />
+        <Avatar initials={initialsOf(person.displayName)} tone="cream" size={36} shape="square" outline font="anton" />
         <View style={styles.copy}>
           <AppText style={styles.name}>{person.displayName}</AppText>
           <AppText variant="caption">@{person.handle}</AppText>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Colors, Fonts } from '@/constants/theme';
+import { CollectionColors, Colors, Fonts } from '@/constants/theme';
 import { queryClient } from '@/lib/query/client';
 import type { Tone } from '@/types/models';
 
@@ -55,6 +55,18 @@ export function avatarPalette(id: string | null | undefined, tone: Tone): Avatar
   return avatarColorFor(id) ?? TONE_COLORS[tone];
 }
 
+/**
+ * Cor estável de coleção. O hash FNV de UUIDs vizinhos colide com frequência; o sufixo do UUID
+ * espalha melhor as coleções criadas em sequência, mantendo a mesma cor em qualquer tela.
+ * Usa `CollectionColors`, não a paleta de avatar: a faixa precisa de tons mais vivos.
+ */
+export function collectionColorFor(id: string | null | undefined): AvatarColor {
+  if (!id) return CollectionColors[0];
+  const suffix = id.replace(/[^0-9a-f]/gi, '').slice(-8);
+  const index = Number.parseInt(suffix, 16);
+  return CollectionColors[Number.isFinite(index) ? index % CollectionColors.length : 0] ?? CollectionColors[0];
+}
+
 type AvatarProps = {
   initials: string;
   tone: Tone;
@@ -97,13 +109,13 @@ export function Avatar({ initials, tone, size = 40, ring = false, shape = 'circl
     <View
       style={[
         styles.circle,
-        { width: size, height: size, borderRadius: radius, backgroundColor: bg },
+        { width: size, height: size, borderRadius: radius, backgroundColor: showImage ? 'transparent' : bg },
         outline ? styles.outline : ring ? styles.ring : null,
       ]}
       accessible={false}
       importantForAccessibility="no-hide-descendants">
       <AppText
-        style={[styles.initials, font === 'anton' ? styles.anton : null, { fontSize: size * (font === 'anton' ? 0.4 : 0.35), lineHeight: size * (font === 'anton' ? 0.5 : 0.45) }]}
+        style={[styles.initials, font === 'anton' ? styles.anton : null, { fontSize: size * (font === 'anton' ? 0.44 : 0.42), lineHeight: size * (font === 'anton' ? 0.54 : 0.52) }]}
         color={fg}
         maxFontSizeMultiplier={1}>
         {initials}
@@ -115,7 +127,7 @@ export function Avatar({ initials, tone, size = 40, ring = false, shape = 'circl
         recyclingKey={resolved}
         transition={0}
         onError={() => setFailedUrl(resolved)}
-        style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
+        style={[StyleSheet.absoluteFill, { borderRadius: 0 }]}
       /> : null}
     </View>
   );
@@ -142,6 +154,7 @@ const styles = StyleSheet.create({
   circle: {
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   ring: {
     borderWidth: 2,

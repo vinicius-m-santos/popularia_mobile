@@ -15,6 +15,11 @@ import { EVENT_CARD_WIDTH, EventCard } from './event-card';
  * Os chamados ainda não existem na API: com ela configurada, o título avisa que são fictícios.
  */
 export function WeekEvents() {
+  if (!DEMO_MODE) return null;
+  return <DemoWeekEvents />;
+}
+
+function DemoWeekEvents() {
   const load = useCallback(() => getWeekEvents(), []);
   const events = useAsyncData(load);
 

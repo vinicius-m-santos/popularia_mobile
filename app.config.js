@@ -15,7 +15,10 @@ module.exports = ({ config }) => {
   const linkOrigin = process.env.EXPO_PUBLIC_LINK_ORIGIN || api.replace(/\/api\/v1$/, '') || 'http://localhost:8080';
   const linkUrl = new URL(linkOrigin);
   if (linkUrl.username || linkUrl.password || linkUrl.search || linkUrl.hash || linkUrl.pathname !== '/') throw new Error('Origem de links inválida.');
-  if (profile && profile !== 'development' && (linkUrl.protocol !== 'https:' || linkOrigin !== api.replace(/\/api\/v1$/, ''))) throw new Error('Origem de links deve corresponder ao host HTTPS da API neste ambiente.');
+  const expectedLinkOrigin = environment === 'production'
+    ? 'https://popularia.com.br'
+    : environment === 'staging' ? api.replace(/\/api\/v1$/, '') : null;
+  if (profile && profile !== 'development' && (linkUrl.protocol !== 'https:' || (expectedLinkOrigin && linkOrigin !== expectedLinkOrigin))) throw new Error('Origem de links inválida para este ambiente.');
   const linkPaths = ['/p/', '/u/', '/c/', '/d/', '/e/', '/t/'];
   const iosClient = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const iosUrlScheme = iosClient ? `com.googleusercontent.apps.${iosClient.replace(/\.apps\.googleusercontent\.com$/, '')}` : null;

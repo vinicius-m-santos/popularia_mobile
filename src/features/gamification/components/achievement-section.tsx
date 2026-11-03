@@ -87,13 +87,13 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 20,
     letterSpacing: 1.44,
   },
   count: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 21,
     color: Colors.muted,
   },
   list: { gap: 10 },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   stampText: {
     fontFamily: Fonts.anton,
     fontSize: 20,
-    lineHeight: 20,
+    lineHeight: 28,
     textAlign: 'center',
     textTransform: 'uppercase',
     color: Colors.red,
@@ -149,19 +149,19 @@ const styles = StyleSheet.create({
   unlockedTitle: {
     fontFamily: Fonts.extrabold,
     fontSize: 16,
-    lineHeight: 20,
+    lineHeight: 24,
     color: Colors.ink,
   },
   detail: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 21,
     color: Colors.muted,
   },
   badge: {
     fontFamily: Fonts.monoSemibold,
     fontSize: 11,
-    lineHeight: 14,
+    lineHeight: 19,
     letterSpacing: 0.66,
     textTransform: 'uppercase',
     color: Colors.redPressed,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   lockedTitle: {
     fontFamily: Fonts.extrabold,
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 23,
     color: Colors.ink,
   },
 });

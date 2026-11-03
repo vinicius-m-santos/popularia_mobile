@@ -1,7 +1,9 @@
 import { AppText } from '@/components/app-text';
 import { BottomSheet, InsideBottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { ChipRow } from '@/components/chip';
+import { RadioMark } from '@/components/choice-marks';
 import { EditorialAction } from '@/components/editorial-action';
+import { EditorialHeader } from '@/components/editorial-header';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
@@ -9,8 +11,11 @@ import { Screen } from '@/components/screen';
 import { SectionHeading } from '@/components/section-heading';
 import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
-import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
+import { getTopicGroups } from '@/features/onboarding/api';
+import { CollectionCard } from './collection-card';
+import { CollectionAvatar } from './collection-avatar';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
@@ -39,7 +44,17 @@ export default function LibraryScreen() {
   const editorialRoot = scope === 'public' && !params.collection;
   const collectionPage = !!collection.data;
   return <Screen>
-    <View style={[styles.bar, (editorialRoot || collectionPage) && styles.editorialBar]}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />{editorialRoot || collectionPage ? <View style={styles.barDivider} /> : null}<AppText variant="label" style={[(editorialRoot || collectionPage) && styles.barLabel, collectionPage && styles.collectionBarTitle]}>{collectionPage ? 'Coleção' : 'Biblioteca'}</AppText>{collectionPage && collection.data?.canManage ? <IconButton icon="more" accessibilityLabel="Mais opções da coleção" onPress={() => setEditingCollection(true)} /> : collectionPage ? <View style={styles.barSpacer} /> : null}</View>
+    {collectionPage ? (
+      <EditorialHeader
+        title="Coleção"
+        onBack={goBack}
+        actions={collection.data?.canManage ? [{ icon: 'more', label: 'Mais opções da coleção', plain: true, onPress: () => setEditingCollection(true) }] : []}
+      />
+    ) : editorialRoot ? (
+      <EditorialHeader onBack={goBack} rule={false} />
+    ) : (
+      <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><View style={styles.barDivider} /><AppText variant="label" style={styles.barLabel}>Biblioteca</AppText></View>
+    )}
     <LibraryPane key={`${scope}-${section}`} initialSection={section} initialQuery={params.q} initialTopic={params.topic} scope={scope} owner={params.owner} comuna={params.comuna} collection={params.collection} canAdd={canAdd}
       collectionData={collection.data ?? undefined} onEditCollection={() => setEditingCollection(true)} />
     {collection.data ? <CollectionEditor key={`${collection.data.id}-${editingCollection}`} visible={editingCollection} initial={collection.data} onClose={() => setEditingCollection(false)} onDone={(value) => { if (value) collection.reload(); else goBack(); }} /> : null}
@@ -68,7 +83,11 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   const [term, setTerm] = useState(initialQuery ?? '');
   const [topic, setTopic] = useState<TopicId | null>(initialTopic ?? null);
   const [origin, setOrigin] = useState<'all' | 'people' | 'comunas'>('all');
-  const sort = term ? 'relevance' : 'recent';
+  const [sort, setSort] = useState<'recent' | 'relevance'>('recent');
+  const [sortSheet, setSortSheet] = useState(false);
+  const [topicSheet, setTopicSheet] = useState(false);
+  const topicData = useAsyncData(useCallback(() => getTopicGroups(), []));
+  const allTopics = topicData.data?.flatMap((group) => group.topics) ?? [];
   const [newCollection, setNewCollection] = useState(false);
   const [actionsVisible, setActionsVisible] = useState(false);
   const [removedSaves, setRemovedSaves] = useState<string[]>([]);
@@ -125,24 +144,46 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
         {sectionTabs}
         {editorialCollection ? <View style={styles.collectionHero}>
           <View style={styles.collectionIdentity}>
-            <View style={styles.collectionMonogram}><AppText variant="heading" style={styles.collectionMonogramText}>{collectionMonogram(collectionData.name)}</AppText></View>
+            <CollectionAvatar id={collectionData.id} name={collectionData.name} size={98} shadow />
             <View style={styles.collectionIdentityCopy}>
-              <AppText variant="display" accessibilityRole="header" style={styles.collectionPageTitle}>{collectionData.name}</AppText>
-              <AppText style={styles.collectionOrigin} numberOfLines={2}>{collectionData.origin.name}</AppText>
-              <View style={styles.collectionMeta}><AppText>{collectionData.documentCount} {collectionData.documentCount === 1 ? 'documento' : 'documentos'}</AppText><View style={styles.metaDot} /><View style={styles.collectionScopeBadge}><AppText variant="label" color={Colors.paper}>{scope === 'public' ? 'Público' : scope === 'comuna' ? 'Comuna' : 'Pessoal'}</AppText></View></View>
+              <AppText accessibilityRole="header" style={styles.collectionPageTitle} numberOfLines={2}>{collectionData.name}</AppText>
+              <AppText variant="caption" style={styles.collectionOrigin} numberOfLines={1}>{collectionData.origin.name}</AppText>
+              <View style={styles.collectionMeta}>
+                <AppText style={styles.collectionCount}>{collectionData.documentCount} {collectionData.documentCount === 1 ? 'documento' : 'documentos'}</AppText>
+                <View style={styles.collectionScopeBadge}>
+                  <Icon name="globe" size={12} color={Colors.paper} />
+                  <AppText style={styles.collectionScopeText} color={Colors.paper}>{scope === 'public' ? 'Pública' : scope === 'comuna' ? 'Comuna' : 'Pessoal'}</AppText>
+                </View>
+              </View>
             </View>
           </View>
           <AppText style={styles.collectionDescription}>{collectionData.description || (scope === 'public' ? 'PDFs compartilhados para qualquer pessoa.' : 'Documentos organizados nesta coleção.')}</AppText>
-          {(canAdd || collectionData.canManage) ? <View style={styles.collectionActions}>
-            {canAdd ? <EditorialAction label="Adicionar PDF" icon="plus" tone="red" onPress={add} style={styles.collectionAddAction} /> : null}
-            {collectionData.canManage && onEditCollection ? <EditorialAction label="Editar coleção" icon="edit" onPress={onEditCollection} style={styles.collectionEditAction} /> : null}
-          </View> : null}
-          <View style={styles.searchBox}>
-            <Icon name="search" size={22} />
-            <Input accessibilityLabel="Buscar nesta coleção" placeholder="Buscar nesta coleção" placeholderTextColor={Colors.placeholder} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
+          {canAdd ? <EditorialAction label="Adicionar PDF" icon="plus" tone="red" labelVariant="button" onPress={add} style={[styles.collectionAddAction, Shadows.offsetSmall]} /> : null}
+          <View style={styles.collectionSearchRow}>
+            <View style={[styles.searchBox, styles.collectionSearchBox]}>
+              <Icon name="search" size={20} />
+              <Input accessibilityLabel="Buscar nesta coleção" placeholder="Buscar nesta coleção" placeholderTextColor={Colors.muted} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
+              {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Assunto: ${allTopics.find((item) => item.id === topic)?.label ?? 'Todos os assuntos'}`}
+              onPress={() => setTopicSheet(true)}
+              style={({ pressed }) => [styles.topicFilter, !!topic && styles.topicFilterActive, pressed && styles.actionPressed]}>
+              <Icon name="filter" size={18} />
+              <AppText style={styles.topicFilterLabel} numberOfLines={1}>{topic ? allTopics.find((item) => item.id === topic)?.shortLabel ?? 'Assunto' : 'Assunto'}</AppText>
+            </Pressable>
           </View>
-          <SingleTopicField value={topic} onChange={setTopic} optional appearance="editorial" />
-          <View style={styles.collectionResults}><AppText variant="label">Documentos</AppText><AppText variant="caption">{collectionData.documentCount} {collectionData.documentCount === 1 ? 'documento' : 'documentos'}{term ? ' · por relevância' : ' · mais recentes'}</AppText></View>
+          <View style={styles.collectionResults}>
+            <SectionHeading
+              appearance="editorial"
+              label={filtered ? 'Resultados' : 'Documentos'}
+              actionLabel={filtered ? 'Limpar filtros' : undefined}
+              onAction={filtered ? () => { setQuery(''); setTerm(''); setTopic(null); setOrigin('all'); } : undefined}
+              trailing={!filtered ? <SortButton label={sort === 'recent' ? 'Mais recentes' : 'Mais relevantes'} onPress={() => setSortSheet(true)} /> : undefined}
+              actionIcon={undefined}
+            />
+          </View>
         </View> : editorial ? <View style={styles.editorialHero}>
           <View style={styles.editorialIntro}>
             <View style={styles.editorialCopy}>
@@ -151,6 +192,7 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
                 style={[styles.editorialTitle, { fontSize: editorialTitleSize, lineHeight: Math.round(editorialTitleSize * 1.25) }]}>
                 {title ?? 'BIBLIOTECA\nPÚBLICA'}
               </AppText>
+              <AppText style={styles.editorialSubtitle}>Conhecimento compartilhado pela comunidade.</AppText>
             </View>
             {!stackActions ? <View pointerEvents="none" style={styles.editorialIllustrationWrap}>
               <Image fadeDuration={0}
@@ -161,21 +203,19 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
               />
             </View> : null}
           </View>
-          <AppText style={styles.editorialSubtitle}>Conhecimento compartilhado pela comunidade.</AppText>
-          <View style={[styles.editorialActions, stackActions && styles.stackedControls]}>
-            {canAdd ? <EditorialAction label="Adicionar PDF" labelVariant="button" icon="plus" tone="red" onPress={add} style={styles.addAction} /> : null}
-            <EditorialAction label="Criar coleção" labelVariant="button" icon="folder" tone="paper" onPress={() => setNewCollection(true)} style={styles.createAction} />
+          {canAdd ? <EditorialAction label="Adicionar PDF" labelVariant="button" icon="plus" tone="red" onPress={add} style={[styles.addAction, Shadows.offsetSmall]} /> : null}
+          <View style={[styles.searchBox, styles.publicSearchBox]}>
+            <Icon name="search" size={20} />
+            <Input accessibilityLabel="Buscar na biblioteca" placeholder="Buscar no acervo. Ex.: organização popular" placeholderTextColor={Colors.muted} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
+            {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}
           </View>
-          <View style={styles.publicSearchGroup}>
-            <AppText variant="label">Buscar no acervo</AppText>
-            <View style={[styles.searchBox, styles.publicSearchBox]}>
-              <Icon name="search" size={20} />
-              <Input accessibilityLabel="Buscar na biblioteca" placeholder="Ex.: organização popular" placeholderTextColor={Colors.muted} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
-              {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}
-            </View>
-            <EditorialOriginTabs value={origin} onChange={setOrigin} stacked={fontScale > 1.2} />
-            <SingleTopicField value={topic} onChange={setTopic} optional appearance="filter" />
-          </View>
+          <EditorialOriginTabs value={origin} onChange={setOrigin} stacked={fontScale > 1.2} />
+          <TopicChips
+            topics={allTopics}
+            value={topic}
+            onChange={setTopic}
+            onMore={() => setTopicSheet(true)}
+          />
         </View> : <View style={styles.header}>
           {!profileContext ? <>
             <AppText variant={scope === 'public' ? 'heading' : 'display'} accessibilityRole="header">{title ?? (scope === 'public' ? 'Biblioteca pública' : own ? 'Minha biblioteca' : scope === 'saved' ? 'Documentos salvos' : 'Biblioteca')}</AppText>
@@ -190,14 +230,13 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
         </View>}
         {scope === 'public' && !editorial && !editorialCollection ? <ChipRow options={[{ key: 'all', label: 'Tudo' }, { key: 'people', label: 'De pessoas' }, { key: 'comunas', label: 'De comunas' }]} value={origin} onChange={setOrigin} accessibilityLabel="Origem dos documentos" /> : null}
         {editorial && !filtered ? <View style={styles.publicCollections}>
-          <View style={styles.publicSectionInset}><EditorialSectionHeading label="Coleções" /></View>
+          <View style={styles.publicSectionInset}>
+            <SectionHeading appearance="editorial" label="Coleções" actionLabel="Ver mais" onAction={() => router.push({ pathname: '/biblioteca/colecoes', params: { scope } } as never)} />
+          </View>
           {collections.status === 'loading' ? <StateView kind="loading" message="Carregando coleções" /> : null}
           {collections.status === 'error' || collections.refreshError ? <StateView kind="error" message="Não conseguimos carregar as coleções." onRetry={collections.refresh} /> : null}
           <ScrollView horizontal scrollEnabled={!singlePublicCollection} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.collectionRail, singlePublicCollection && styles.singleCollectionRail]}>
-            {collections.items.map((item) => <EditorialCollectionCard key={item.id} item={item} width={singlePublicCollection ? undefined : Math.min(width - 52, 280)} onPress={() => router.push({ pathname: '/biblioteca', params: { scope, owner, comuna, collection: item.id } })} />)}
-            {collections.hasMore ? <Pressable accessibilityRole="button" accessibilityLabel="Carregar mais coleções" disabled={collections.loadingMore} accessibilityState={{ disabled: collections.loadingMore }} onPress={collections.loadMore} style={({ pressed }) => [styles.moreCollections, pressed && styles.actionPressed]}>
-              <Icon name="chevronRight" size={22} /><AppText variant="button">{collections.loadingMore ? 'Carregando…' : 'Mais coleções'}</AppText>
-            </Pressable> : null}
+            {collections.items.map((item) => <CollectionCard key={item.id} item={item} width={singlePublicCollection ? undefined : Math.min(width - 110, 250)} onPress={() => router.push({ pathname: '/biblioteca', params: { scope, owner, comuna, collection: item.id } })} />)}
           </ScrollView>
           {collections.status === 'success' && collections.items.length === 0 && !collections.hasMore ? <AppText variant="caption" style={styles.publicSectionInset}>Organize leituras em uma coleção. A primeira pode ser sua.</AppText> : null}
           {collections.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais coleções." onRetry={collections.loadMore} /> : null}
@@ -216,16 +255,42 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
           {collections.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais coleções." onRetry={collections.loadMore} /> : null}
         </View> : null}
         {!profileContext && !editorialCollection ? <View style={[styles.header, editorial && styles.publicResults]}>{editorial ? <>
-          <EditorialSectionHeading label={filtered ? 'Resultados' : 'Documentos públicos'} actionLabel={filtered ? 'Limpar filtros' : undefined} onAction={filtered ? () => { setQuery(''); setTerm(''); setTopic(null); setOrigin('all'); } : undefined} />
-          <AppText variant="caption">{term ? 'Ordenados por relevância' : 'Adicionados recentemente'}</AppText>
-        </> : <SectionHeading label={scope === 'public' ? 'Documentos públicos' : 'Documentos'} />}{!editorial && term && sort === 'relevance' ? <AppText variant="caption">Relevância</AppText> : null}</View> : null}
+          <SectionHeading
+            appearance="editorial"
+            label={filtered ? 'Resultados' : 'Documentos'}
+            actionLabel={filtered ? 'Limpar filtros' : undefined}
+            onAction={filtered ? () => { setQuery(''); setTerm(''); setTopic(null); setOrigin('all'); } : undefined}
+            trailing={!filtered ? <SortButton label={sort === 'recent' ? 'Mais recentes' : 'Mais relevantes'} onPress={() => setSortSheet(true)} /> : undefined}
+          />
+        </> : <SectionHeading label={scope === 'public' ? 'Documentos públicos' : 'Documentos'} />}</View> : null}
         {saveError ? <AppText>{saveError}</AppText> : null}
         {documents.refreshError ? <StateView kind="error" message="Não conseguimos atualizar os documentos." onRetry={documents.refresh} /> : null}
         </>}
       </>}
-      renderItem={({ item }) => <View style={[styles.row, (editorial || editorialCollection || profileContext) && styles.editorialRow]}><DocumentCard document={item} appearance={editorial ? 'public' : onSelect || editorialCollection || profileContext ? 'editorial' : 'default'} hideCollection={editorialCollection} shared={scope === 'comuna' && item.origin?.kind === 'personal'} onPress={onSelect && item.state === 'available' ? () => onSelect(item) : scope === 'comuna' ? () => router.push({ pathname: '/biblioteca/documento/[id]', params: { id: item.id, comuna } }) : undefined} />{scope === 'saved' ? <PillButton label="Remover dos salvos" variant="outline" onPress={async () => { try { await saveDocument(item.id, false); setRemovedSaves((ids) => [...ids, item.id]); } catch { setSaveError('Não conseguimos remover dos salvos. Tente novamente.'); } }} /> : null}</View>}
+      renderItem={({ item }) => <View style={[styles.row, (editorial || editorialCollection || profileContext) && styles.editorialRow]}><DocumentCard document={item} appearance={editorial ? 'public' : editorialCollection ? 'collection' : onSelect || profileContext ? 'editorial' : 'default'} hideCollection={editorialCollection} shared={scope === 'comuna' && item.origin?.kind === 'personal'} onPress={onSelect && item.state === 'available' ? () => onSelect(item) : scope === 'comuna' ? () => router.push({ pathname: '/biblioteca/documento/[id]', params: { id: item.id, comuna } }) : undefined} />{scope === 'saved' ? <PillButton label="Remover dos salvos" variant="outline" onPress={async () => { try { await saveDocument(item.id, false); setRemovedSaves((ids) => [...ids, item.id]); } catch { setSaveError('Não conseguimos remover dos salvos. Tente novamente.'); } }} /> : null}</View>}
       ListEmptyComponent={isEmptyLibrary ? undefined : documents.status === 'loading' ? <StateView kind="loading" message="Carregando documentos" /> : documents.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a biblioteca." onRetry={documents.refresh} /> : <StateView kind="empty" title={emptyTitle} message={emptyMessage} />}
       ListFooterComponent={documents.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais documentos." onRetry={documents.loadMore} /> : documents.hasMore ? <PillButton label={documents.loadingMore ? 'Carregando…' : 'Mais documentos'} disabled={documents.loadingMore} onPress={documents.loadMore} variant="outline" /> : undefined} />
+    <BottomSheet visible={topicSheet} onClose={() => setTopicSheet(false)} title="Filtrar por assunto">
+      <Pressable accessibilityRole="radio" accessibilityState={{ checked: topic === null }} accessibilityLabel="Todos os assuntos" onPress={() => { setTopic(null); setTopicSheet(false); }} style={styles.topicOption}>
+        <RadioMark selected={topic === null} /><AppText>Todos os assuntos</AppText>
+      </Pressable>
+      {topicData.status === 'loading' ? <StateView kind="loading" message="Carregando assuntos" /> : null}
+      {topicData.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar os assuntos." onRetry={topicData.reload} /> : null}
+      {topicData.data?.map((group) => <View key={group.title}>
+        <AppText variant="label" color={Colors.red} style={styles.topicGroup}>{group.title}</AppText>
+        {group.topics.map((item) => <Pressable key={item.id} accessibilityRole="radio" accessibilityState={{ checked: topic === item.id }} accessibilityLabel={item.label} onPress={() => { setTopic(item.id); setTopicSheet(false); }} style={styles.topicOption}>
+          <RadioMark selected={topic === item.id} /><AppText>{item.label}</AppText>
+        </Pressable>)}
+      </View>)}
+    </BottomSheet>
+    <BottomSheet visible={sortSheet} onClose={() => setSortSheet(false)} title="Ordenar documentos">
+      <Pressable accessibilityRole="radio" accessibilityState={{ checked: sort === 'recent' }} accessibilityLabel="Mais recentes" onPress={() => { setSort('recent'); setSortSheet(false); }} style={styles.topicOption}>
+        <RadioMark selected={sort === 'recent'} /><AppText>Mais recentes</AppText>
+      </Pressable>
+      <Pressable accessibilityRole="radio" accessibilityState={{ checked: sort === 'relevance' }} accessibilityLabel="Mais relevantes" onPress={() => { setSort('relevance'); setSortSheet(false); }} style={styles.topicOption}>
+        <RadioMark selected={sort === 'relevance'} /><AppText>Mais relevantes</AppText>
+      </Pressable>
+    </BottomSheet>
     <CollectionEditor key={String(newCollection)} visible={newCollection} onClose={() => setNewCollection(false)} comuna={comuna} onDone={() => collections.refresh()} />
     <BottomSheet visible={actionsVisible} onClose={() => setActionsVisible(false)} title="Ações da biblioteca">
       <View style={styles.actionsMenu}>
@@ -236,41 +301,45 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   </>;
 }
 
-function collectionMonogram(name: string) {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  return (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2) ?? 'CO').toUpperCase();
-}
-
 function EditorialOriginTabs({ value, onChange, stacked }: { value: 'all' | 'people' | 'comunas'; onChange: (value: 'all' | 'people' | 'comunas') => void; stacked: boolean }) {
   const options = [{ key: 'all', label: 'Tudo' }, { key: 'people', label: 'De pessoas' }, { key: 'comunas', label: 'De comunas' }] as const;
   return <View accessibilityRole="radiogroup" accessibilityLabel="Origem dos documentos" style={[styles.originTabs, stacked && styles.stackedControls]}>
-    {options.map((option) => {
+    {options.map((option, index) => {
       const active = value === option.key;
-      return <Pressable key={option.key} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => onChange(option.key)} style={({ pressed }) => [styles.originTab, active && styles.originTabActive, pressed && styles.actionPressed]}>
-        <AppText variant="button" color={active ? Colors.paper : Colors.ink}>{option.label}</AppText>
+      return <Pressable key={option.key} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => onChange(option.key)} style={({ pressed }) => [styles.originTab, index > 0 && styles.originTabRule, active && styles.originTabActive, pressed && styles.actionPressed]}>
+        <AppText style={styles.originTabLabel} color={active ? Colors.paper : Colors.ink}>{option.label}</AppText>
       </Pressable>;
     })}
   </View>;
 }
 
-function EditorialSectionHeading({ label, actionLabel, onAction }: { label: string; actionLabel?: string; onAction?: () => void }) {
-  return <View style={styles.sectionHeading}>
-    <View accessibilityRole="header" style={styles.sectionTitle}><View style={styles.sectionSquare} /><AppText variant="label" style={styles.sectionLabel}>{label}</AppText></View>
-    {actionLabel && onAction ? <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}: ${label}`} onPress={onAction} style={({ pressed }) => [styles.sectionAction, pressed && styles.actionPressed]}>
-      <AppText variant="label">{actionLabel}</AppText><Icon name="chevronRight" size={16} />
-    </Pressable> : null}
-  </View>;
+function SortButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Ordenar: ${label}`} onPress={onPress} style={({ pressed }) => [styles.sortButton, pressed && styles.actionPressed]}>
+    <AppText style={styles.sortLabel}>{label}</AppText>
+    <Icon name="chevronDown" size={16} />
+  </Pressable>;
 }
 
-function EditorialCollectionCard({ item, onPress, width }: { item: LibraryCollection; onPress: () => void; width?: number }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Abrir coleção ${item.name}`} onPress={onPress} style={({ pressed }) => [styles.editorialCollection, width === undefined ? styles.flex : { width }, pressed && styles.actionPressed]}>
-    <View style={styles.collectionIcon}><Icon name="folder" size={24} /></View>
-    <View style={styles.collectionBody}>
-      <AppText variant="bodyStrong" style={styles.collectionTitle} numberOfLines={2}>{item.name}</AppText>
-      <AppText variant="caption" numberOfLines={2}>{item.documentCount} {item.documentCount === 1 ? 'PDF' : 'PDFs'} · {item.origin.name}</AppText>
-    </View>
-    <View style={styles.collectionChevron}><Icon name="chevronRight" size={21} /></View>
-  </Pressable>;
+function TopicChips({ topics, value, onChange, onMore }: { topics: { id: TopicId; shortLabel: string; label: string }[]; value: TopicId | null; onChange: (value: TopicId | null) => void; onMore: () => void }) {
+  const featured = ['edu', 'pol', 'cult'];
+  const visible = featured.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is { id: TopicId; shortLabel: string; label: string } => !!topic);
+  const selected = value ? topics.find((topic) => topic.id === value) : undefined;
+  const list = selected && !visible.some((topic) => topic.id === selected.id) ? [...visible, selected] : visible;
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicChips} accessibilityRole="radiogroup" accessibilityLabel="Filtrar por assunto">
+    <Pressable accessibilityRole="radio" accessibilityState={{ checked: value === null }} onPress={() => onChange(null)} style={({ pressed }) => [styles.topicChip, value === null && styles.topicChipActive, pressed && styles.actionPressed]}>
+      <AppText style={styles.topicChipLabel} color={value === null ? Colors.paper : Colors.ink}>Todos</AppText>
+    </Pressable>
+    {list.map((topic) => {
+      const active = value === topic.id;
+      return <Pressable key={topic.id} accessibilityRole="radio" accessibilityLabel={topic.label} accessibilityState={{ checked: active }} onPress={() => onChange(topic.id)} style={({ pressed }) => [styles.topicChip, active && styles.topicChipActive, pressed && styles.actionPressed]}>
+        <AppText style={styles.topicChipLabel} color={active ? Colors.paper : Colors.ink} numberOfLines={1}>{topic.shortLabel}</AppText>
+      </Pressable>;
+    })}
+    <Pressable accessibilityRole="button" accessibilityLabel="Mais assuntos" onPress={onMore} style={({ pressed }) => [styles.topicChip, styles.topicChipMore, pressed && styles.actionPressed]}>
+      <AppText style={styles.topicChipLabel}>Mais assuntos</AppText>
+      <Icon name="chevronDown" size={14} />
+    </Pressable>
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
@@ -289,54 +358,61 @@ const styles = StyleSheet.create({
   row: { paddingHorizontal: Spacing.five },
   editorialRow: { marginBottom: Spacing.three },
   collection: { backgroundColor: Colors.paper, borderWidth: 1.5, borderColor: Colors.ink, padding: Spacing.four, borderRadius: 12, gap: Spacing.two },
-  collectionHero: { paddingHorizontal: Spacing.five, paddingTop: Spacing.four, paddingBottom: Spacing.four, gap: Spacing.four },
-  collectionIdentity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.five },
-  collectionMonogram: { width: 88, height: 88, flexShrink: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.strawLight },
-  collectionMonogramText: { fontSize: 34, lineHeight: 38 },
+  collectionHero: { paddingHorizontal: Spacing.five, paddingTop: Spacing.four, paddingBottom: Spacing.three, gap: Spacing.four },
+  collectionIdentity: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.four },
   collectionIdentityCopy: { flex: 1, minWidth: 0, gap: Spacing.one },
-  collectionPageTitle: { fontSize: 34, lineHeight: 38 },
+  collectionPageTitle: { fontFamily: Fonts.anton, fontSize: 38, lineHeight: 46, letterSpacing: -0.5, textTransform: 'uppercase' },
   collectionOrigin: { color: Colors.muted },
-  collectionMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.two },
+  collectionMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.two, paddingTop: 2 },
+  collectionCount: { fontFamily: Fonts.bold, fontSize: 14.5, lineHeight: 23 },
   metaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: Colors.muted },
-  collectionScopeBadge: { minHeight: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.red, paddingHorizontal: Spacing.three },
-  collectionDescription: { color: Colors.muted },
-  collectionActions: { flexDirection: 'row', gap: Spacing.three },
-  collectionAddAction: { flex: 1.05 },
-  collectionEditAction: { flex: 1 },
-  collectionResults: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two, borderTopWidth: 1.5, borderTopColor: Colors.ink, paddingTop: Spacing.three },
+  collectionScopeBadge: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center', borderRadius: Radius.sm, backgroundColor: Colors.red, paddingHorizontal: Spacing.two },
+  collectionScopeText: { fontFamily: Fonts.bold, fontSize: 11.5, lineHeight: 20 },
+  collectionDescription: { fontSize: 15.5, lineHeight: 22, color: Colors.inkSoft },
+  collectionSearchRow: { flexDirection: 'row', gap: Spacing.two },
+  collectionSearchBox: { flex: 1, minWidth: 0, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm },
+  topicFilter: { minHeight: 52, maxWidth: 120, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+  topicFilterActive: { backgroundColor: Colors.strawLight },
+  topicFilterLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
+  collectionAddAction: { alignSelf: 'stretch', minHeight: 52, borderRadius: Radius.sm, borderWidth: 2 },
+  collectionResults: { paddingTop: Spacing.two },
   editorialHero: { paddingHorizontal: Spacing.five, paddingTop: Spacing.two, paddingBottom: Spacing.three, gap: Spacing.three },
-  editorialIntro: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  editorialCopy: { flex: 1, minWidth: 0 },
+  editorialIntro: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
+  editorialCopy: { flex: 1, minWidth: 0, gap: Spacing.two },
   editorialTitle: { fontFamily: Fonts.anton, fontWeight: '400', letterSpacing: -0.8, textTransform: 'uppercase', color: '#0A0A08' },
-  editorialSubtitle: { fontSize: 16, lineHeight: 23, color: Colors.muted },
-  editorialIllustrationWrap: { width: '32%', height: 122 },
+  editorialSubtitle: { fontSize: 15.5, lineHeight: 22, color: Colors.inkSoft },
+  editorialIllustrationWrap: { width: '40%', height: 140, marginTop: 0 },
   editorialIllustration: { width: '100%', height: '100%' },
-  editorialActions: { flexDirection: 'row', gap: Spacing.two },
   stackedControls: { flexDirection: 'column' },
-  addAction: { flexGrow: 1, borderRadius: Radius.sm },
-  createAction: { flexGrow: 1, borderWidth: 1, borderRadius: Radius.sm },
+  addAction: { alignSelf: 'stretch', minHeight: 52, borderRadius: Radius.sm, borderWidth: 2 },
   actionPressed: { opacity: 0.68 },
-  searchBox: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
-  searchInput: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 0, fontFamily: Fonts.regular, fontSize: 15.5, lineHeight: 21, color: Colors.ink, outlineWidth: 0 },
-  publicSearchGroup: { gap: Spacing.two, marginTop: Spacing.one },
-  publicSearchBox: { borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.three, gap: Spacing.two },
-  originTabs: { flexDirection: 'row', gap: Spacing.one, backgroundColor: Colors.strawLight, borderRadius: Radius.sm, padding: Spacing.one },
-  originTab: { flexGrow: 1, flexBasis: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm, paddingHorizontal: Spacing.one, paddingVertical: Spacing.two },
+  searchBox: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
+  searchInput: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 0, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 22, color: Colors.ink, outlineWidth: 0 },
+  publicSearchBox: { borderWidth: 2, borderRadius: Radius.sm, paddingHorizontal: Spacing.four, gap: 10 },
+  originTabs: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+  originTab: { flexGrow: 1, flexBasis: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.one },
+  originTabRule: { borderLeftWidth: 2, borderLeftColor: Colors.ink },
   originTabActive: { backgroundColor: Colors.ink },
-  publicCollections: { gap: Spacing.one, paddingBottom: Spacing.two },
+  originTabLabel: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23 },
+  topicChips: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingRight: Spacing.five },
+  topicChip: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+  topicChipActive: { backgroundColor: Colors.ink },
+  topicChipMore: { borderStyle: 'dashed' },
+  topicChipLabel: { fontFamily: Fonts.bold, fontSize: 14.5, lineHeight: 23 },
+  topicOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+  topicGroup: { paddingTop: Spacing.five, paddingBottom: Spacing.two },
+  publicCollections: { gap: Spacing.two, paddingBottom: Spacing.two },
   publicSectionInset: { paddingHorizontal: Spacing.five },
-  collectionRail: { paddingHorizontal: Spacing.five, gap: Spacing.two },
+  collectionRail: { paddingHorizontal: Spacing.five, gap: Spacing.two, paddingBottom: Spacing.one },
   singleCollectionRail: { flexGrow: 1 },
-  moreCollections: { minWidth: 124, minHeight: 72, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.three, borderWidth: 1, borderColor: Colors.inkSoft, borderRadius: Radius.sm },
+  moreCollections: { minWidth: 124, minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
   publicResults: { paddingTop: Spacing.one, paddingBottom: Spacing.two, gap: 0 },
-  sectionHeading: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
-  sectionTitle: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  sectionSquare: { width: 10, height: 10, backgroundColor: Colors.red },
-  sectionLabel: { fontSize: 12.5, lineHeight: 18, flexShrink: 1 },
-  sectionAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  editorialCollection: { minHeight: 72, flexDirection: 'row', alignItems: 'center', padding: Spacing.three, gap: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper },
-  collectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  collectionBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: Spacing.one },
-  collectionTitle: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 21 },
-  collectionChevron: { alignItems: 'center', justifyContent: 'center' },
+  sortButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  sortLabel: { fontFamily: Fonts.bold, fontSize: 13.5, lineHeight: 21 },
+  editorialCollection: { minHeight: 80, flexDirection: 'row', alignItems: 'center', padding: Spacing.three, gap: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+  collectionMark: { width: 56, height: 56, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.straw },
+  collectionMarkComuna: { backgroundColor: Colors.red },
+  collectionMarkText: { fontFamily: Fonts.anton, fontSize: 24, lineHeight: 30 },
+  collectionBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 2 },
+  collectionTitle: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 24 },
 });

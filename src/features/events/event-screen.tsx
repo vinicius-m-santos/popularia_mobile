@@ -92,7 +92,7 @@ export default function EventScreen() {
   return <Screen>
     <EventBar title="Evento" action={<IconButton icon="share" accessibilityLabel="Compartilhar evento" onPress={() => { void shareDestination({ kind: 'event', id: data.id }); }} />} />
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
-      <EventPoster event={data} onOpenComuna={() => openDestination({ kind: 'comuna', id: data.comuna.slug })} onOpenCounts={() => router.push({ pathname: '/evento/[id]/participantes', params: { id: data.id, status: data.goingCount > 0 ? 'going' : 'maybe' } })} />
+      <EventPoster event={data} onOpenComuna={data.comuna ? () => openDestination({ kind: 'comuna', id: data.comuna!.slug }) : undefined} onOpenCounts={() => router.push({ pathname: '/evento/[id]/participantes', params: { id: data.id, status: data.goingCount > 0 ? 'going' : 'maybe' } })} />
       {data.canRespond ? (
         <View style={styles.rsvp}>
           {CHOICES.map((choice) => (
@@ -135,16 +135,16 @@ export default function EventScreen() {
   </Screen>;
 }
 
-function EventPoster({ event, onOpenComuna, onOpenCounts }: { event: ComunaEvent; onOpenComuna: () => void; onOpenCounts: () => void }) {
+function EventPoster({ event, onOpenComuna, onOpenCounts }: { event: ComunaEvent; onOpenComuna?: () => void; onOpenCounts: () => void }) {
   const when = formatPoster(event.startsAt, event.timeZone);
   const end = event.endsAt ? formatPoster(event.endsAt, event.timeZone) : null;
   const sameDay = !!end && end.day === when.day && end.month === when.month;
   const map = mapsLink(event.address);
   return (
     <View style={styles.poster}>
-      <Pressable onPress={onOpenComuna} accessibilityRole="link" accessibilityLabel={`Comuna ${event.comuna.name}`}>
+      {onOpenComuna && event.comuna ? <Pressable onPress={onOpenComuna} accessibilityRole="link" accessibilityLabel={`Comuna ${event.comuna.name}`}>
         <AppText variant="label" color={Colors.red}>c/ {event.comuna.name}</AppText>
-      </Pressable>
+      </Pressable> : null}
       {event.status === 'cancelled' ? <AppText variant="label" color={Colors.red}>Evento cancelado</AppText> : null}
       <AppText variant="display" style={styles.title}>{event.title}</AppText>
       <AppText variant="display" style={styles.day}>{when.day} {when.month}</AppText>

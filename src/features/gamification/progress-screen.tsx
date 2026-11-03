@@ -74,10 +74,6 @@ export function HomeProgressCard({ state, onPress }: { state: GamificationState;
         accessibilityLabel={`${streakLabel(state.streak)}, ${done} de ${total} ${total === 1 ? 'missão' : 'missões'} hoje. Ver progresso`}
         style={({ pressed }) => [styles.progressCard, pressed && styles.pressed]}>
         <View style={styles.progressHead}>
-          <View style={styles.progressMark} accessible={false} importantForAccessibility="no-hide-descendants">
-            <View style={styles.progressSlash} />
-            <View style={styles.progressSlash} />
-          </View>
           <AppText style={styles.progressStreak}>{streakLabel(state.streak)}</AppText>
           <AppText style={styles.progressFraction} color={Colors.red}>{done}/{total}</AppText>
         </View>
@@ -172,31 +168,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: Colors.ink,
   },
-  progressMark: {
-    width: 18,
-    height: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  progressSlash: {
-    width: 4,
-    height: 17,
-    backgroundColor: Colors.ink,
-    transform: [{ rotate: '15deg' }],
-  },
   progressStreak: {
     flex: 1,
     fontFamily: Fonts.monoSemibold,
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 20,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   progressFraction: {
     fontFamily: Fonts.anton,
     fontSize: 22,
-    lineHeight: 24,
+    lineHeight: 30,
   },
   missionRow: {
     minHeight: 40,
@@ -228,7 +211,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.bold,
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 23,
     color: Colors.ink,
   },
   missionLabelDone: {

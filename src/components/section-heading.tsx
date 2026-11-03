@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Icon, type IconName } from '@/components/icon';
 import { Kicker } from '@/components/kicker';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 
@@ -9,37 +10,42 @@ type SectionHeadingProps = {
   /** Link à direita, como "Ver todas". */
   actionLabel?: string;
   onAction?: () => void;
+  /** Ícone opcional antes do link, como o "+" de "Criar coleção". */
+  actionIcon?: IconName;
+  /** Controle próprio à direita, como o seletor "Mais recentes". */
+  trailing?: React.ReactNode;
   /** Escala e alvos de toque da direção refinada, sem alterar consumidores antigos. */
   appearance?: 'default' | 'editorial';
 };
 
 /** Título de seção com quadradinho vermelho e, opcionalmente, um link à direita. */
-export function SectionHeading({ label, actionLabel, onAction, appearance = 'default' }: SectionHeadingProps) {
+export function SectionHeading({ label, actionLabel, onAction, actionIcon, trailing, appearance = 'default' }: SectionHeadingProps) {
   const editorial = appearance === 'editorial';
   return (
     <View style={[styles.row, editorial && styles.editorialRow]}>
       <View accessibilityRole="header" style={{ flex: 1, minWidth: 0 }}>
         <Kicker label={label} textStyle={editorial ? styles.editorialLabel : undefined} />
       </View>
-      {actionLabel && onAction ? (
+      {trailing ?? (actionLabel && onAction ? (
         <Pressable
           onPress={onAction}
           accessibilityRole="button"
           accessibilityLabel={`${actionLabel}: ${label}`}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={[styles.action, editorial && styles.editorialAction]}>
+          {actionIcon ? <Icon name={actionIcon} size={16} color={editorial ? Colors.ink : Colors.red} /> : null}
           <AppText style={styles.actionLabel} color={editorial ? Colors.ink : Colors.red}>
             {actionLabel}
           </AppText>
         </Pressable>
-      ) : null}
+      ) : null)}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   editorialRow: { minHeight: 36 },
-  editorialLabel: { fontSize: 12.5, lineHeight: 18 },
+  editorialLabel: { fontSize: 12.5, lineHeight: 21 },
   editorialAction: { minHeight: 44 },
   row: {
     flexDirection: 'row',
@@ -50,11 +56,14 @@ const styles = StyleSheet.create({
   },
   action: {
     minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
     justifyContent: 'center',
   },
   actionLabel: {
     fontFamily: Fonts.bold,
     fontSize: 13,
-    lineHeight: 17,
+    lineHeight: 21,
   },
 });

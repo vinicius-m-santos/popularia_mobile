@@ -52,13 +52,13 @@ describe('Praças no aplicativo', () => {
     mocked.listSquares.mockImplementation(async (section) => ({ items: section === 'mine' ? [] : [square()], nextCursor: null }));
     await render(<SquaresScreen />);
     await waitFor(() => expect(screen.getByText('Encontre sua comunidade')).toBeTruthy());
-    expect(screen.getByText('Acontecendo agora')).toBeTruthy();
-    expect(screen.getByText('Tecnologia')).toBeTruthy();
-    expect(screen.getByText('Trabalho')).toBeTruthy();
+    expect(screen.getByText('Movimentadas agora')).toBeTruthy();
+    expect(screen.queryByText('Tecnologia')).toBeNull();
+    expect(screen.queryByText('Trabalho')).toBeNull();
     expect(screen.queryByText('Comunidade')).toBeNull();
     await fireEvent.press(screen.getByText('Explorar comunas'));
     expect(router.navigate).toHaveBeenCalledWith('/explorar');
-    await fireEvent.press(screen.getByLabelText('Entrar na Praça Trabalhadores de TI'));
+    await fireEvent.press(screen.getByLabelText('Espiar a Praça Trabalhadores de TI'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/praca/[id]', params: { id: 'square1' } });
   });
   it('a Comuna oferece sua Praça existente, sem ativação ou criação manual', async () => {
@@ -188,7 +188,7 @@ describe('Praças no aplicativo', () => {
     expect(screen.getByLabelText('Marina, Mensagem excluída')).toBeTruthy();
     expect(screen.getByText('Marina')).toBeTruthy();
     expect(screen.getByText('@marina')).toBeTruthy();
-    expect(screen.getByText('Mensagem excluída')).toBeTruthy();
+    expect(screen.getByText(/Mensagem apagada/)).toBeTruthy();
     expect(screen.queryByLabelText('Mais ações da mensagem')).toBeNull();
   });
   it('mantém resposta e opções acessíveis sem PanResponder artesanal', async () => {

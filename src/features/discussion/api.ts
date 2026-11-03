@@ -103,6 +103,10 @@ export async function createComment(input: {
   return toComment(dto);
 }
 
+export function deleteComment(commentId: string): Promise<void> {
+  return apiRequest<void>(`/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE', auth: true });
+}
+
 export async function setCommentSupport(commentId: string, supported: boolean): Promise<CommentWithAuthor> {
   const dto = await apiRequest<CommentDto>(`/comments/${encodeURIComponent(commentId)}/support`, {
     method: supported ? 'PUT' : 'DELETE',

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
+import { getMyComunas } from '@/features/comunas/api';
 import { getDocument } from '@/features/library/api';
 import { returnAttachment } from '@/features/library/composer-attachment';
 import { document } from '@/features/library/testing/fixtures';
@@ -13,7 +14,7 @@ import CreatePostScreen from '../create-post-screen';
 
 const mockParams: { documentId?: string } = {};
 jest.mock('@/features/library/api', () => ({ getDocument: jest.fn(), listDocuments: jest.fn(), listCollections: jest.fn() }));
-jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Cultura e ideias', topics: [{ id: 'tec', label: 'Tecnologia e ciência', shortLabel: 'Tecnologia' }] }]) }));
+jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Cultura e ideias', topics: [{ id: 'tec', label: 'Tecnologia e ciência', shortLabel: 'Tecnologia' }, { id: 'cult', label: 'Cultura popular', shortLabel: 'Cultura' }] }]) }));
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, USE_MOCKS: true }));
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), canGoBack: () => true, replace: jest.fn(), dismissTo: jest.fn(), push: jest.fn() },
@@ -31,7 +32,7 @@ jest.mock('@/features/account/account-context', () => ({
 jest.mock('@/features/interactions/interactions-context', () => ({
   useInteractions: () => ({ membershipOf: () => undefined, notifyPostCreated: jest.fn() }),
 }));
-jest.mock('@/features/comunas/api', () => ({ getMyComunas: () => Promise.resolve([]) }));
+jest.mock('@/features/comunas/api', () => ({ getMyComunas: jest.fn() }));
 jest.mock('@/features/posts/api', () => ({ createPost: jest.fn() }));
 jest.mock('@/features/posts/components/post-card', () => ({ PostCard: () => null }));
 jest.mock('@/features/posts/components/post-attachment', () => ({ PostAttachment: () => null }));
@@ -41,14 +42,71 @@ jest.mock('@/features/posts/post-media', () => ({
 }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 
-beforeEach(() => { jest.clearAllMocks(); delete mockParams.documentId; });
+beforeEach(() => {
+  jest.clearAllMocks();
+  delete mockParams.documentId;
+  jest.mocked(getMyComunas).mockResolvedValue([]);
+});
+
+const multiComunas = [
+  { id: 'a', serverId: 'srv-a', name: 'Comuna A', handle: 'a', initials: 'CA', tone: 'red', place: '', topics: [], memberCount: 2, visibility: 'public', status: 'active', viewerIsMember: true },
+  { id: 'b', serverId: 'srv-b', name: 'Comuna B', handle: 'b', initials: 'CB', tone: 'black', place: '', topics: [], memberCount: 3, visibility: 'public', status: 'active', viewerIsMember: true },
+  { id: 'c', serverId: 'srv-c', name: 'Comuna C', handle: 'c', initials: 'CC', tone: 'cream', place: '', topics: [], memberCount: 4, visibility: 'public', status: 'active', viewerIsMember: true },
+  { id: 'd', serverId: 'srv-d', name: 'Comuna D', handle: 'd', initials: 'CD', tone: 'red', place: '', topics: [], memberCount: 5, visibility: 'public', status: 'active', viewerIsMember: true },
+] as never;
 
 describe('criação de publicação', () => {
   it('remove redundâncias e informa os limites das mídias', async () => {
     await render(<CreatePostScreen />);
     expect(screen.queryByText('Link')).toBeNull();
-    expect(screen.getAllByText('Imagem')).toHaveLength(1);
-    expect(screen.getByText('Até 100 MB · 30 s')).toBeTruthy();
+    expect(screen.getAllByText('Foto')).toHaveLength(1);
+    expect(screen.getByText('Vídeo')).toBeTruthy();
+    expect(screen.getByText(/100 MB/)).toBeTruthy();
+  });
+
+  it('publica uma cópia em cada comuna selecionada', async () => {
+    jest.mocked(getMyComunas).mockResolvedValue(multiComunas);
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Olá, duas comunas');
+    await fireEvent.press(screen.getByLabelText(/Publicar em .*Trocar destino/));
+    await fireEvent.press(await screen.findByLabelText(/c\/ Comuna B\./));
+    await fireEvent.press(screen.getByLabelText(/Confirmar publicação em/));
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(2));
+    expect(createPost).toHaveBeenNthCalledWith(1, expect.objectContaining({ comunaServerId: 'srv-a', text: 'Olá, duas comunas' }));
+    expect(createPost).toHaveBeenNthCalledWith(2, expect.objectContaining({ comunaServerId: 'srv-b', text: 'Olá, duas comunas' }));
+  });
+
+  it('limita a três locais por publicação', async () => {
+    jest.mocked(getMyComunas).mockResolvedValue(multiComunas);
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Três locais');
+    await fireEvent.press(screen.getByLabelText(/Publicar em .*Trocar destino/));
+    await fireEvent.press(await screen.findByLabelText(/c\/ Comuna B\./));
+    await fireEvent.press(screen.getByLabelText(/c\/ Comuna C\./));
+    expect(screen.getByLabelText(/c\/ Comuna D\./).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getByLabelText(/Confirmar publicação em/));
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(3));
+    expect(jest.mocked(createPost).mock.calls.map(([input]) => input.comunaServerId)).toEqual(['srv-a', 'srv-b', 'srv-c']);
+  });
+
+  it('publica no próprio perfil junto de até três comunas', async () => {
+    jest.mocked(getMyComunas).mockResolvedValue(multiComunas);
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Perfil e comunas');
+    await fireEvent.press(screen.getByLabelText(/Publicar em .*Trocar destino/));
+    await fireEvent.press(await screen.findByLabelText(/Meu perfil/));
+    await fireEvent.press(screen.getByLabelText(/c\/ Comuna B\./));
+    await fireEvent.press(screen.getByLabelText(/c\/ Comuna C\./));
+    expect(screen.getByLabelText(/c\/ Comuna D\./).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getByLabelText(/Confirmar publicação em/));
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(4));
+    expect(jest.mocked(createPost).mock.calls.map(([input]) => input.comunaServerId)).toEqual([null, 'srv-a', 'srv-b', 'srv-c']);
   });
 
   it('publica somente imagem, enviando bytes uma vez e referenciando mediaId', async () => {
@@ -56,8 +114,8 @@ describe('criação de publicação', () => {
     jest.mocked(uploadPostMedia).mockResolvedValue({ id: 'media-1', type: 'image', mimeType: 'image/jpeg', byteSize: 100, width: 800, height: 600, durationMs: null, url: null });
     jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
     await render(<CreatePostScreen />);
-    await fireEvent.press(screen.getByText('Imagem'));
-    expect(screen.getByText('Imagem anexada')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Foto'));
+    expect(screen.getByLabelText('Trocar foto')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Publicar'));
     expect(uploadPostMedia).toHaveBeenCalledTimes(1);
     expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: '', mediaId: 'media-1' });
@@ -66,11 +124,24 @@ describe('criação de publicação', () => {
   it('envia um assunto opcional na publicação de perfil', async () => {
     jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
     await render(<CreatePostScreen />);
-    await fireEvent.press(await screen.findByLabelText('Assunto: Escolher assunto'));
-    await fireEvent.press(await screen.findByRole('radio', { name: 'Tecnologia e ciência' }));
+    await fireEvent.press(await screen.findByText('Escolher assuntos'));
+    await fireEvent.press(await screen.findByLabelText('Tecnologia e ciência'));
+    await fireEvent.press(screen.getByText('Concluir'));
     await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Linux nas escolas');
     await fireEvent.press(screen.getByLabelText('Publicar'));
     expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: 'Linux nas escolas', topic: 'tec' });
+  });
+
+  it('envia mais de um assunto na publicação de perfil', async () => {
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.press(await screen.findByText('Escolher assuntos'));
+    await fireEvent.press(await screen.findByLabelText('Tecnologia e ciência'));
+    await fireEvent.press(screen.getByLabelText('Esportes'));
+    await fireEvent.press(screen.getByText('Concluir'));
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Dois assuntos');
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    expect(createPost).toHaveBeenCalledWith({ comunaServerId: null, text: 'Dois assuntos', topics: ['tec', 'esp'] });
   });
 
   it('cancelar volta sem publicar; reabrir começa com rascunho vazio', async () => {
@@ -90,15 +161,14 @@ describe('criação de publicação', () => {
     await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Mutirão');
     await fireEvent.press(screen.getByLabelText('Publicar'));
     expect(screen.getByLabelText('Texto da publicação').props.value).toBe('Mutirão');
-    expect(router.dismissTo).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
     jest.mocked(createPost).mockResolvedValueOnce({} as Awaited<ReturnType<typeof createPost>>);
     const submit = screen.getByLabelText('Publicar');
     await fireEvent.press(submit);
     await fireEvent.press(submit);
     expect(createPost).toHaveBeenCalledTimes(2);
-    expect(router.dismissTo).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledWith('/');
     expect(router.back).not.toHaveBeenCalled();
-    expect(router.push).not.toHaveBeenCalled();
     await view.unmount();
   });
 });
@@ -136,23 +206,23 @@ describe('enquete no compositor', () => {
     jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
     await render(<CreatePostScreen />);
     await fireEvent.press(screen.getByRole('tab', { name: 'Enquete' }));
-    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await fireEvent.press(screen.getByLabelText('Publicar enquete'));
     expect(createPost).not.toHaveBeenCalled();
-    await fireEvent.changeText(screen.getByLabelText('Pergunta'), 'Qual livro vamos ler?');
-    await fireEvent.changeText(screen.getByLabelText('Opção 1'), 'O cortiço');
-    await fireEvent.changeText(screen.getByLabelText('Opção 2'), 'O cortiço');
-    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await fireEvent.changeText(screen.getByLabelText('Pergunta da enquete'), 'Qual livro vamos ler?');
+    await fireEvent.changeText(screen.getByLabelText('Opção A'), 'O cortiço');
+    await fireEvent.changeText(screen.getByLabelText('Opção B'), 'O cortiço');
+    await fireEvent.press(screen.getByLabelText('Publicar enquete'));
     expect(createPost).not.toHaveBeenCalled();
-    await fireEvent.changeText(screen.getByLabelText('Opção 2'), 'Capitães da Areia');
+    await fireEvent.changeText(screen.getByLabelText('Opção B'), 'Capitães da Areia');
     await fireEvent.press(screen.getByLabelText('Adicionar opção'));
-    await fireEvent.changeText(screen.getByLabelText('Opção 3'), 'Memórias póstumas');
-    await fireEvent.press(screen.getByLabelText('Remover opção 3'));
-    expect(screen.queryByLabelText('Opção 3')).toBeNull();
-    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await fireEvent.changeText(screen.getByLabelText('Opção C'), 'Memórias póstumas');
+    await fireEvent.press(screen.getByLabelText('Remover opção C'));
+    expect(screen.queryByLabelText('Opção C')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Publicar enquete'));
     expect(createPost).toHaveBeenCalledWith({
       comunaServerId: null,
       text: '',
-      poll: { question: 'Qual livro vamos ler?', options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }], durationDays: 5 },
+      poll: { question: 'Qual livro vamos ler?', options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }], durationDays: 7 },
     });
   });
 });

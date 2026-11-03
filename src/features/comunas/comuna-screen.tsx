@@ -139,7 +139,7 @@ export default function ComunaScreen() {
     const canAddDocument = data.status !== 'archived' && (data.viewerRole === 'founder' || data.viewerRole === 'moderator');
     return <ProfileTabSwipe tabs={TAB_KEYS} active={tab} onChange={setTab}>
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ProfileSwipeContent>
+        <ProfileSwipeContent fill>
           <LibraryPane scope="comuna" comuna={id} canAdd={canAddDocument} profileContext
             header={<View style={{ backgroundColor: Colors.cream }}>
               <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={`${postItems.length}${posts.hasMore ? '+' : ''}`} />

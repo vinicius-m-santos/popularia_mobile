@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.monoSemibold,
     fontSize: 14,
-    lineHeight: 18,
+    lineHeight: 22,
     letterSpacing: 1.68,
     textTransform: 'uppercase',
     color: Colors.ink,
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   help: {
     fontFamily: Fonts.extrabold,
     fontSize: 18,
-    lineHeight: 20,
+    lineHeight: 26,
     color: Colors.ink,
   },
 });

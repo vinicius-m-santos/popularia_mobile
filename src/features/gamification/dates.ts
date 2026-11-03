@@ -78,7 +78,6 @@ export function achievementUnlockedLabel(unlockedAt: string | null, today: strin
   if (!unlockedAt) return 'DESBLOQUEADA';
   const date = new Date(unlockedAt);
   if (todayInStreakZone(date) === today) return 'DESBLOQUEADA HOJE';
-  const parts = new Intl.DateTimeFormat('pt-BR', { timeZone: STREAK_TIME_ZONE, day: '2-digit', month: 'short' }).formatToParts(date);
-  const month = readPart(parts, 'month').replace('.', '').slice(0, 3).toUpperCase();
-  return `DESBLOQUEADA EM ${readPart(parts, 'day')} ${month}`;
+  const parts = new Intl.DateTimeFormat('pt-BR', { timeZone: STREAK_TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(date);
+  return `DESBLOQUEADA EM ${readPart(parts, 'day')}/${readPart(parts, 'month')}/${readPart(parts, 'year')}`;
 }

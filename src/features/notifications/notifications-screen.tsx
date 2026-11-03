@@ -205,9 +205,9 @@ function NotificationRow({ notification: n, unread, disabled, onOpen, onInteract
         style={({ pressed }) => [styles.rowTap, pressed && styles.pressed]}>
         <View style={styles.avatarWrap}>
           {n.actor ? (
-            <Avatar initials={n.actor.initials} tone={n.actor.tone} size={44} userId={n.actor.id} imageUrl={n.actor.avatarUrl} />
+            <Avatar initials={n.actor.initials} tone={n.actor.tone} size={44} shape="square" outline font="anton" userId={n.actor.id} imageUrl={n.actor.avatarUrl} />
           ) : (
-            <Avatar initials="C" tone="cream" size={44} />
+            <Avatar initials="C" tone="cream" size={44} shape="square" outline font="anton" />
           )}
           <KindBadge kind={n.kind} />
         </View>

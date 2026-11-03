@@ -23,14 +23,28 @@ describe('detalhe de PDF', () => {
     await render(<DocumentScreen />);
     await fireEvent.press(await screen.findByText('Abrir PDF'));
     expect(screen.getAllByText(document.title!)).toHaveLength(1);
-    expect(screen.getByText('Autoria: Coletivo Tarifa Zero')).toBeTruthy();
+    expect(screen.getByText(/Coletivo Tarifa Zero/)).toBeTruthy();
     expect(openPdf).toHaveBeenCalledWith(document.id, expect.anything());
     await fireEvent.press(screen.getByLabelText('Salvar documento'));
     expect(saveDocument).toHaveBeenCalledWith(document.id, true); expect(getDocument).toHaveBeenCalledTimes(1);
     await fireEvent.press(screen.getByText('Publicar no feed'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/criar', params: { documentId: document.id } });
-    expect(screen.getByText('Assunto')).toBeTruthy();
     expect(screen.getByText('Trabalho e direitos trabalhistas')).toBeTruthy();
+  });
+  it('sem descrição, visitante não vê o espaço vazio', async () => {
+    jest.mocked(getDocument).mockResolvedValue({ ...document, description: null, viewer: {} });
+    await render(<DocumentScreen />);
+    await screen.findByText('Abrir PDF');
+    expect(screen.queryByText(/Sem descrição ainda/)).toBeNull();
+    expect(screen.queryByText('Adicionar')).toBeNull();
+  });
+  it('dono sem descrição vê “Adicionar” e vai para a edição', async () => {
+    jest.mocked(getDocument).mockResolvedValue({ ...document, description: null, viewer: { canEdit: true } });
+    await render(<DocumentScreen />);
+    await screen.findByText('Abrir PDF');
+    expect(screen.getByText(/Sem descrição ainda/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Adicionar'));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/enviar', params: { edit: document.id } });
   });
   it('revogação no abrir remove os metadados e nunca usa um arquivo antigo', async () => {
     jest.mocked(getDocument).mockResolvedValueOnce(document).mockRejectedValue(new ApiError(404, '/errors/not-found', 'Indisponível'));

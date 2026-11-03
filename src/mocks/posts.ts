@@ -1,16 +1,16 @@
 import type { Post } from '@/types/models';
 
-import { daysAgo, hoursAgo } from './time';
+import { daysAgo, hoursAgo, minutesAgo } from './time';
 
 /** Publicações fictícias. */
 export const posts: Post[] = [
   {
     id: 'tarifa',
-    authorId: 'luana',
+    authorId: 'marcos',
     comunaId: 'tarifa',
-    createdAt: hoursAgo(2),
-    title: 'Quinta tem ato contra o aumento da passagem',
-    text: 'Assembleia de ontem decidiu: quinta tem ato na Praça Sete contra o aumento da passagem para R$ 6,25. A dúvida que ficou é se o abaixo-assinado pela #TarifaZero entra junto ou fica para depois. Quero ouvir principalmente quem não conseguiu ir.',
+    createdAt: minutesAgo(1),
+    title: 'Ato pela Tarifa Zero',
+    text: 'Concentração na Praça Sete. Leve cartaz, apito e água.',
     eventId: 'tarifa',
     supportCount: 1204,
     commentCount: 187,
@@ -19,6 +19,30 @@ export const posts: Post[] = [
       authorId: 'rosangela',
       text: 'Trabalho até as 18h no Barro Preto. Dá pra fazer uma concentração mais tarde pra quem sai do serviço?',
     },
+  },
+  {
+    id: 'jogatina',
+    authorId: 'jessica',
+    comunaId: 'jogatina',
+    createdAt: hoursAgo(2),
+    title: 'Noite de jogos de tabuleiro',
+    text: 'Cada um leva um jogo ou um petisco. Iniciantes são bem-vindos.',
+    eventId: 'jogatina',
+    supportCount: 9,
+    commentCount: 3,
+    echoCount: 2,
+  },
+  {
+    id: 'piquenique',
+    authorId: 'rafa',
+    comunaId: 'leitura',
+    createdAt: hoursAgo(5),
+    title: 'Piquenique e troca de livros',
+    text: 'Traga um livro que você já leu e leve outro pra casa.',
+    eventId: 'piquenique',
+    supportCount: 14,
+    commentCount: 2,
+    echoCount: 6,
   },
   {
     id: 'horta',
@@ -197,4 +221,4 @@ export const posts: Post[] = [
 ];
 
 /** Publicações em destaque na aba "Para você" (curadoria fictícia). */
-export const forYouPostIds = ['tarifa', 'horta', 'cursinho', 'leitura'];
+export const forYouPostIds = ['tarifa', 'jogatina', 'piquenique', 'horta', 'cursinho', 'leitura'];

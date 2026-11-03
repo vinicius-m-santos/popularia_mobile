@@ -7,13 +7,14 @@ import { Icon } from '@/components/icon';
 import { Kicker } from '@/components/kicker';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { usePostActions } from '@/features/interactions/use-post-actions';
+import { chamadoCardFor } from '@/features/events/chamado-data';
+import { ChamadoCard } from '@/features/events/chamado-card';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
 import { FollowButton } from '@/features/profiles/components/follow-button';
 import { shareDestination } from '@/features/links/share';
 import { useToast } from '@/components/toast';
 import { AuthorLine } from '@/features/posts/components/author-line';
-import { EventBox } from '@/features/posts/components/event-box';
 import { MediaBox } from '@/features/posts/components/media-box';
 import { PostImages } from '@/features/posts/components/post-images';
 import { PostAttachment } from '@/features/posts/components/post-attachment';
@@ -35,6 +36,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
   const actions = usePostActions(post);
   const toast = useToast();
   const sheet = useActionsSheet();
+  const chamado = chamadoCardFor(post);
   const share = () => { shareDestination({ kind: 'post', id: post.id }).catch(() => toast.show('Este conteúdo ainda não possui um link público.')); };
 
   return (
@@ -49,15 +51,23 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
             <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={() => sheet.open(postTarget(post))} />
           </View>}
         />
-        {post.title ? <AppText style={styles.title}>{post.title}</AppText> : null}
-        {post.title && post.text ? <PostBody text={post.text} mentions={post.mentions} style={styles.text} /> : null}
-        {post.attachment ? <PostAttachment media={post.attachment} /> : null}
-        {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
-        {!post.title && post.text ? <PostBody text={post.text} mentions={post.mentions} style={styles.text} /> : null}
-        {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}
-        {post.poll ? <PostPollBlock postId={post.id} poll={post.poll} /> : null}
-        {post.event ? <EventBox event={post.event} /> : null}
-        {post.media ? <MediaBox media={post.media} /> : null}
+        {chamado ? (
+          <>
+            <ChamadoCard data={chamado} />
+            {post.attachment && post.attachment.type !== 'image' ? <PostAttachment media={post.attachment} /> : null}
+          </>
+        ) : (
+          <>
+            {post.title ? <AppText style={styles.title}>{post.title}</AppText> : null}
+            {post.title && post.text ? <PostBody text={post.text} mentions={post.mentions} style={styles.text} /> : null}
+            {post.attachment ? <PostAttachment media={post.attachment} /> : null}
+            {post.images && post.images.length > 0 ? <PostImages images={post.images} /> : null}
+            {!post.title && post.text ? <PostBody text={post.text} mentions={post.mentions} style={styles.text} /> : null}
+            {post.document ? <DocumentCard document={post.document} appearance="editorial" /> : null}
+            {post.poll ? <PostPollBlock postId={post.id} poll={post.poll} /> : null}
+            {post.media ? <MediaBox media={post.media} /> : null}
+          </>
+        )}
 
         <AppText style={styles.stamp} color={Colors.muted}>{formatStamp(post.createdAt)}</AppText>
 

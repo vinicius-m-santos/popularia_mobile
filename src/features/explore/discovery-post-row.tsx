@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { PostBody } from '@/features/posts/components/post-body';
-import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { formatCount, formatRelative } from '@/lib/format';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
@@ -14,7 +14,7 @@ export function DiscoveryPostRow({ post }: { post: FeedItem }) {
   return (
     <Pressable onPress={() => nav.openPost(post.id)} accessibilityRole="link" accessibilityLabel={`Abrir publicação de ${post.author.name}: ${post.text}`} style={({ pressed }) => [styles.row, pressed && { opacity: 0.75 }]}>
       <View style={styles.author}>
-        <Avatar initials={post.author.initials} tone={post.author.tone} size={36} userId={post.author.id} imageUrl={post.author.avatarUrl} />
+        <Avatar initials={post.author.initials} tone={post.author.tone} size={36} shape="square" outline font="anton" userId={post.author.id} imageUrl={post.author.avatarUrl} />
         <View style={styles.identity}>
           <AppText variant="bodyStrong" numberOfLines={1}>{post.author.name}</AppText>
           <AppText variant="caption" numberOfLines={1}>@{post.author.handle}</AppText>
@@ -28,7 +28,7 @@ export function DiscoveryPostRow({ post }: { post: FeedItem }) {
 }
 
 const styles = StyleSheet.create({
-  row: { gap: Spacing.two, padding: Spacing.three, marginBottom: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, backgroundColor: Colors.paper },
+  row: { gap: Spacing.two, padding: Spacing.three, marginBottom: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, borderRadius: Radius.sm, backgroundColor: Colors.paper },
   author: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   identity: { flex: 1, minWidth: 0 },
   context: { lineHeight: 16 },

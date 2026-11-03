@@ -156,10 +156,18 @@ export type PostDto = {
     format: 'in_person' | 'online' | 'hybrid';
     status: 'scheduled' | 'cancelled';
     startsAt: string;
+    endsAt?: string | null;
     timeZone: string;
     placeName: string | null;
+    address?: string | null;
     goingCount: number;
     maybeCount: number;
+    /** Resposta de quem está vendo, quando existe. */
+    viewerAttendance?: 'going' | 'maybe' | 'not_going' | null;
+    capacityMode?: 'spots' | 'goal' | null;
+    capacity?: number | null;
+    /** Até três pessoas que vão, para os rostos do cartão do feed. */
+    goingPreview?: AuthorDto[];
     past: boolean;
   } | null;
 };

@@ -10,7 +10,6 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { RadioMark } from '@/components/choice-marks';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon, type IconName } from '@/components/icon';
-import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -79,6 +78,24 @@ function Conversation({ id }: { id: string }) {
   const messageRows = useRef(chat.messages);
   useEffect(() => { messageRows.current = chat.messages; }, [chat.messages]);
   useFocusEffect(useCallback(() => { setStatusBarStyle('light'); return () => setStatusBarStyle('dark'); }, []));
+  const canReadSquare = !!s?.viewer.canRead;
+  const presenceCount = s?.presence ?? 0;
+  useEffect(() => {
+    if (!canReadSquare || presenceCount <= 0) return;
+    let active = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const load = () => {
+      const request = api.getPresence?.(id);
+      request?.then((result) => {
+        if (!active) return;
+        setPeople(result.people);
+        // O heartbeat que atualiza a contagem pode chegar depois do primeiro GET.
+        if (result.people.length === 0 && presenceCount > 0) retry = setTimeout(load, 1200);
+      }).catch(() => {});
+    };
+    load();
+    return () => { active = false; if (retry) clearTimeout(retry); };
+  }, [canReadSquare, id, presenceCount]);
 
   const onReply = useCallback((m: api.SquareMessage) => { if (!m.viewer.canReply) return; setReplyId(m.id); setPicker(null); input.current?.focus(); }, []);
   const onActions = useCallback((m: api.SquareMessage) => { setActionsId(m.id); setForm(null); setReason(''); }, [setActionsId, setForm, setReason]);
@@ -142,6 +159,7 @@ function Conversation({ id }: { id: string }) {
     <KeyboardView style={styles.screen}>
       <SquareHeader
         square={s}
+        people={people}
         locked={locked}
         onComuna={() => { if (s?.comuna) nav.openComuna(s.comuna.slug); }}
         onPresence={() => openSheet('presence')}
@@ -185,11 +203,13 @@ function Conversation({ id }: { id: string }) {
           renderItem={({ item, index }) => {
             const older = chat.messages[index + 1];
             const newDay = !chat.separatorId && (!older || dayKey(older.createdAt) !== dayKey(item.createdAt));
+            const sameGroup = !!older && !newDay && older.author?.id === item.author?.id && older.status === 'published' && item.status === 'published';
             return <>
               <MessageRow
                 message={item}
                 separator={chat.separatorId === item.id}
                 inverted
+                showAuthor={!sameGroup}
                 onOpenPicker={openPicker}
                 onReply={onReply}
                 onReact={chat.react}
@@ -203,7 +223,7 @@ function Conversation({ id }: { id: string }) {
           windowSize={9}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          contentContainerStyle={styles.messages}
+          contentContainerStyle={[styles.messages, styles.messagesGrow]}
           onScroll={(event) => { const bottom = event.nativeEvent.contentOffset.y < 80; atBottom.current = bottom; chat.onBottom(bottom); }}
           scrollEventThrottle={100}
           onScrollBeginDrag={() => setPicker(null)}
@@ -243,7 +263,7 @@ function Conversation({ id }: { id: string }) {
         <AppText variant="caption">Presença recente, aproximada.</AppText>
         {people.length ? people.map((p, index) => (
           <View key={p.id} style={[styles.person, index > 0 && styles.personRule]}>
-            <Avatar initials={initialsOf(p.displayName)} tone="red" size={36} userId={p.id} imageUrl={absoluteMediaUrl(p.avatarUrl)} />
+            <Avatar initials={initialsOf(p.displayName)} tone="red" size={36} shape="square" outline font="anton" userId={p.id} imageUrl={absoluteMediaUrl(p.avatarUrl)} />
             <View style={styles.flex}>
               <AppText variant="bodyStrong">{p.displayName}</AppText>
               <AppText variant="caption">@{p.handle}</AppText>
@@ -346,8 +366,9 @@ function Conversation({ id }: { id: string }) {
   </Screen>;
 }
 
-function SquareHeader({ square, locked, onComuna, onPresence, onManage }: {
+function SquareHeader({ square, people, locked, onComuna, onPresence, onManage }: {
   square: api.Square | null;
+  people: AuthorDto[];
   locked: boolean;
   onComuna: () => void;
   onPresence: () => void;
@@ -360,12 +381,13 @@ function SquareHeader({ square, locked, onComuna, onPresence, onManage }: {
     : square?.status === 'closed'
       ? 'Somente leitura · encerrada'
       : presence > 0
-        ? `${presence} ${presence === 1 ? 'pessoa' : 'pessoas'} na praça`
+        ? `${presence} na praça agora`
         : 'Ninguém na praça agora';
-
+  const stack = people.slice(0, 3);
   return <View style={styles.header}>
-    <IconButton icon="back" color={Colors.cream} accessibilityLabel="Voltar" onPress={goBack} />
-    <View style={styles.headerDivider} />
+    <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={goBack} style={({ pressed }) => [styles.backBox, pressed && styles.headerPressed]}>
+      <Icon name="arrowLeft" color={Colors.cream} size={24} />
+    </Pressable>
     <View style={styles.headerText}>
       <Pressable accessibilityRole="button" accessibilityLabel="Ver comuna" onPress={onComuna} disabled={!square?.comuna} style={styles.titlePress}>
         <AppText style={styles.headerTitle} color={Colors.cream} numberOfLines={1}>{square?.title ?? 'Praça'}</AppText>
@@ -377,17 +399,24 @@ function SquareHeader({ square, locked, onComuna, onPresence, onManage }: {
         accessibilityLabel={`Pessoas na Praça. ${presenceText}`}
         hitSlop={{ top: 6, bottom: 6 }}
         style={styles.presence}>
-        {active && presence > 0 ? <View style={styles.liveDot} /> : null}
-        <AppText style={styles.presenceText} color={Colors.onInkMuted}>{presenceText}</AppText>
+        {stack.length ? <View style={styles.presenceStack}>
+          {stack.map((person) => <View key={person.id} style={styles.presenceAvatar}>
+            <Avatar initials={initialsOf(person.displayName)} tone="cream" size={18} shape="square" userId={person.id} imageUrl={absoluteMediaUrl(person.avatarUrl)} />
+          </View>)}
+        </View> : null}
+        <AppText style={styles.presenceText} color={Colors.onInkMuted} numberOfLines={1}>{presenceText}</AppText>
       </Pressable>
     </View>
-    {square?.viewer.canRead ? <IconButton icon="more" color={Colors.cream} accessibilityLabel="Opções da Praça" onPress={onManage} /> : <View style={styles.headerSpacer} />}
+    {square?.viewer.canRead ? <Pressable accessibilityRole="button" accessibilityLabel="Opções da Praça" onPress={onManage} style={({ pressed }) => [styles.moreButton, pressed && styles.headerPressed]}>
+      <Icon name="more" color={Colors.cream} size={24} />
+    </Pressable> : <View style={styles.headerSpacer} />}
   </View>;
 }
 
 function ChatDayRule({ label }: { label: string }) {
   return <View style={styles.dayRule} accessibilityRole="header">
-    <AppText variant="label">{label}</AppText>
+    <View style={styles.dayRuleLine} />
+    <AppText variant="label" color={Colors.muted} style={styles.dayRuleLabel}>{label}</AppText>
     <View style={styles.dayRuleLine} />
   </View>;
 }
@@ -457,25 +486,38 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream,
   },
   header: {
-    minHeight: 58,
+    minHeight: 80,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.one,
-    paddingVertical: Spacing.one,
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     backgroundColor: Colors.ink,
     borderBottomWidth: 1,
     borderBottomColor: Colors.inkRule,
   },
-  headerDivider: {
-    width: 1.5,
-    height: 28,
-    backgroundColor: Colors.cream,
+  backBox: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.cream,
+    borderRadius: Radius.sm,
+  },
+  moreButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerPressed: {
+    opacity: 0.65,
   },
   headerText: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: 3,
   },
   titlePress: {
     minHeight: 22,
@@ -492,18 +534,20 @@ const styles = StyleSheet.create({
     minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
+  },
+  presenceStack: {
+    flexDirection: 'row',
+    paddingRight: 2,
+  },
+  presenceAvatar: {
+    marginRight: -4,
   },
   presenceText: {
+    flexShrink: 1,
     fontFamily: Fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.red,
+    fontSize: 12.5,
+    lineHeight: 17,
   },
   headerSpacer: { width: 44 },
   stateWrap: { flex: 1 },
@@ -531,6 +575,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.rule,
   },
   messages: { paddingVertical: Spacing.two },
+  messagesGrow: { flexGrow: 1, justifyContent: 'flex-end' },
   emptyWrap: { minHeight: 280 },
   olderWrap: { paddingVertical: Spacing.three },
   older: { alignSelf: 'center' },
@@ -646,7 +691,7 @@ const styles = StyleSheet.create({
   dayRule: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.one,
@@ -654,7 +699,10 @@ const styles = StyleSheet.create({
   dayRuleLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.rule,
+    backgroundColor: Colors.strawDark,
+  },
+  dayRuleLabel: {
+    letterSpacing: 1.4,
   },
   pickerOverlay: { flex: 1 },
   pickerBounds: { position: 'absolute' },

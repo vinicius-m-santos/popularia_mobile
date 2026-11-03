@@ -12,6 +12,35 @@
       "bundleIdentifier": "com.popularia.mobile",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeCrashData",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePerformanceData",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeOtherDiagnosticData",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          }
+        ],
+        "NSPrivacyTracking": false
       }
     },
     "android": {
@@ -29,14 +58,20 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-notifications", { "defaultChannel": "social", "color": "#B82025" }],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "social",
+          "color": "#B82025"
+        }
+      ],
       "expo-video",
       "expo-image",
       "expo-sharing",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Popularia acessa suas fotos e vídeos apenas quando você escolhe uma mídia para publicar.",
+          "photosPermission": "Popularia acessa suas fotos e v\u00eddeos apenas quando voc\u00ea escolhe uma m\u00eddia para publicar.",
           "cameraPermission": false,
           "microphonePermission": false
         }

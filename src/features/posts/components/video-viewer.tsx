@@ -131,7 +131,7 @@ export function VideoViewer({
               <View style={styles.info}>
                 {chrome.comuna ? <Kicker label={`c/ ${chrome.comuna.name}`} color={Colors.red} /> : null}
                 <View style={styles.author}>
-                  <Avatar initials={chrome.author.initials} tone={chrome.author.tone} size={36} userId={chrome.author.id} imageUrl={chrome.author.avatarUrl} />
+                  <Avatar initials={chrome.author.initials} tone={chrome.author.tone} size={36} shape="square" outline font="anton" userId={chrome.author.id} imageUrl={chrome.author.avatarUrl} />
                   <View style={styles.identity}>
                     <AppText variant="bodyStrong" color={Colors.paper} numberOfLines={1}>{chrome.author.name}</AppText>
                     <AppText variant="caption" color={Colors.onInkSoft} numberOfLines={1}>@{chrome.author.handle}</AppText>

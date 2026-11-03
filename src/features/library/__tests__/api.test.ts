@@ -26,7 +26,7 @@ describe('contrato da biblioteca', () => {
     api.mockResolvedValue({ id: 'post-1', body: 'Leia', author: { id: 'me', handle: 'camila', displayName: 'Camila' }, document, comuna: null, viewer: {}, createdAt: '', commentCount: 0 });
     const post = await createPost({ comunaServerId: null, text: 'Leia', documentId: 'doc-1' });
     expect(post.document).toEqual(document);
-    expect(api).toHaveBeenCalledWith('/posts', { method: 'POST', body: { comunaId: null, body: 'Leia', documentId: 'doc-1' }, auth: true });
+    expect(api).toHaveBeenCalledWith('/posts', { method: 'POST', body: { comunaId: null, body: 'Leia', documentId: 'doc-1', topics: [] }, auth: true });
     expect(api).toHaveBeenCalledTimes(1);
   });
   it('revogar publicação pública e excluir usam o original', async () => {

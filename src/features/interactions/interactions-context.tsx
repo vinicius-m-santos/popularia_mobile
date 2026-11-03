@@ -25,6 +25,7 @@ export type ToggleKind =
   | 'echoedPosts'
   | 'savedPosts'
   | 'goingEvents'
+  | 'maybeEvents'
   | 'followedUsers'
   | 'supportedComments'
   | 'joinedComunas'
@@ -63,6 +64,7 @@ function initialState(): State {
     echoedPosts: {},
     savedPosts: {},
     goingEvents: {},
+    maybeEvents: {},
     followedUsers: {},
     supportedComments: {},
     // Na API, a participação vem do servidor; os mocks já começam em algumas comunas.

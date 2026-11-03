@@ -112,7 +112,7 @@ export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inp
           {sending ? (
             <ActivityIndicator color={Colors.paper} />
           ) : (
-            <Icon name="send" size={20} color={Colors.paper} />
+            <Icon name="send" size={20} color={canSend ? Colors.paper : Colors.inkSoft} />
           )}
         </Pressable>
       </View>
@@ -123,7 +123,7 @@ export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inp
 const styles = StyleSheet.create({
   bar: {
     backgroundColor: Colors.paper,
-    borderTopWidth: 1.5,
+    borderTopWidth: 2,
     borderTopColor: Colors.ink,
     paddingTop: Spacing.two + 2,
     paddingHorizontal: Spacing.three,
@@ -169,28 +169,31 @@ const styles = StyleSheet.create({
     minWidth: 0,
     minHeight: MinTouchTarget,
     maxHeight: 120,
-    borderRadius: 22,
-    borderWidth: 1.5,
+    borderRadius: Radius.sm,
+    borderWidth: 2,
     borderColor: Colors.ink,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.paper,
     paddingHorizontal: Spacing.four,
-    paddingTop: 11,
-    paddingBottom: 11,
+    paddingTop: 9,
+    paddingBottom: 9,
     fontFamily: Fonts.regular,
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 21,
     color: Colors.ink,
   },
   send: {
     width: MinTouchTarget,
     height: MinTouchTarget,
-    borderRadius: Radius.pill,
+    borderRadius: Radius.sm,
+    borderWidth: 2,
+    borderColor: Colors.ink,
     backgroundColor: Colors.red,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendDisabled: {
-    opacity: 0.4,
+    backgroundColor: Colors.strawLight,
+    opacity: 0.72,
   },
   pressed: {
     opacity: 0.75,

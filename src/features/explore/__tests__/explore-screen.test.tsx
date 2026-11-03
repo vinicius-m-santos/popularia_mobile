@@ -245,6 +245,15 @@ describe('página de Assunto', () => {
     expect(search).toHaveBeenLastCalledWith('me', 'assembleia', 'events', undefined, null, expect.anything());
   });
 
+  it('traz documentos do assunto escolhido e abre a categoria completa', async () => {
+    const document = { id: 'doc-topic', state: 'available' as const, title: 'Cartilha de educação', description: 'Estudo do assunto', origin: null, collection: null, responsible: null, createdAt: null, byteSize: null, pageCount: null, topic: 'tec' as const, access: null, isPublic: true, saved: false, viewer: {}, distributions: null, message: null };
+    search.mockImplementation(async (_me, _q, filter) => ({ items: filter === 'documents' ? [{ id: document.id, kind: 'documents' as const, value: document }] : entries.filter((entry) => entry.kind === filter), nextCursor: null }));
+    await render(<TopicScreen />);
+    expect(await screen.findByText('Cartilha de educação')).toBeTruthy();
+    await fireEvent.press(await screen.findByLabelText('Ver todos: Documentos'));
+    expect(search).toHaveBeenLastCalledWith('me', '', 'documents', 'tec', null, expect.anything());
+  });
+
   it('base pequena oculta seções vazias e permite descobrir outros assuntos', async () => {
     getData.mockResolvedValue({ ...data, comunas: [], posts: [], people: [] });
     await render(<TopicScreen />);

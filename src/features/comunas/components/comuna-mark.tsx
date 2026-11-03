@@ -14,11 +14,13 @@ type ComunaMarkProps = {
   raised?: boolean;
   /** Marca enviada pela comuna. Ausente, mostra as iniciais. */
   imageUrl?: string | null;
+  /** Proporção das iniciais em relação ao tamanho da marca. */
+  initialScale?: number;
   style?: StyleProp<ViewStyle>;
 };
 
 /** Marca quadrada da comuna, com imagem enviada ou iniciais. Decorativa: o nome fica no texto ao lado. */
-export function ComunaMark({ initials, tone, size = 44, raised = false, imageUrl = null, style }: ComunaMarkProps) {
+export function ComunaMark({ initials, tone, size = 44, raised = false, imageUrl = null, initialScale = 0.43, style }: ComunaMarkProps) {
   const { bg, fg } = TONE_COLORS[tone];
   return (
     <View
@@ -32,7 +34,7 @@ export function ComunaMark({ initials, tone, size = 44, raised = false, imageUrl
       accessible={false}
       importantForAccessibility="no-hide-descendants">
       <AppText
-        style={[styles.initials, { fontSize: size * 0.43, lineHeight: size * 0.5 }]}
+        style={[styles.initials, { fontSize: size * initialScale, lineHeight: size * (initialScale + 0.07) }]}
         color={fg}
         maxFontSizeMultiplier={1}>
         {initials}

@@ -10,6 +10,7 @@ import { mergeById } from '@/lib/pagination';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { Badge } from '@/components/badge';
@@ -56,6 +57,8 @@ type ProfileRow =
   | { kind: 'content'; id: string }
   | { kind: 'post'; id: string; item: FeedItem; index: number; dayLabel?: string }
   | { kind: 'media'; id: string; items: FeedItem[]; counts?: { total: number; photos: number; videos: number } };
+
+const PROFILE_TABS_HEIGHT = 44;
 
 function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
   const mediaGesture = useProfileTabPanGesture();
@@ -185,23 +188,65 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const tabs = useMemo(() => profileTabOptions(Boolean(profile.creator)), [profile.creator]);
   const tabKeys = useMemo(() => tabs.map((item) => item.key), [tabs]);
   const scrollY = useRef(0);
-  const offsets = useRef<Partial<Record<ProfileTabKey, number>>>({});
+  const previousPageKey = useRef<ProfileTabKey | null>(null);
   const listRef = useRef<FlashListRef<ProfileRow>>(null);
+  const tabsOffset = useRef(0);
+  const overlayVisible = useRef(false);
+  const overlayTranslate = useSharedValue(-PROFILE_TABS_HEIGHT);
+  const overlayOpacity = useSharedValue(0);
+  const overlayStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: overlayTranslate.value }],
+    opacity: overlayOpacity.value,
+  }));
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [overlayMounted, setOverlayMounted] = useState(false);
+  const setOverlayVisible = useCallback((open: boolean) => {
+    if (overlayVisible.current === open) return;
+    overlayVisible.current = open;
+    if (open) {
+      setOverlayMounted(true);
+      setOverlayOpen(true);
+      // eslint-disable-next-line react-hooks/immutability -- shared values do Reanimated
+      overlayTranslate.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
+      // eslint-disable-next-line react-hooks/immutability -- shared values do Reanimated
+      overlayOpacity.value = withTiming(1, { duration: 160 });
+      return;
+    }
+    setOverlayOpen(false);
+    overlayTranslate.value = withTiming(-PROFILE_TABS_HEIGHT, { duration: 180, easing: Easing.in(Easing.cubic) });
+    overlayOpacity.value = withTiming(0, { duration: 140 });
+  }, [overlayOpacity, overlayTranslate]);
   const selectTab = useCallback((next: ProfileTabKey) => {
     const current = tabs.some((item) => item.key === tab) ? tab : 'posts';
     if (next === current) return;
-    offsets.current[current] = scrollY.current;
+    setOverlayVisible(false);
     setTab(next);
-  }, [tab, tabs]);
-  const onListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollY.current = event.nativeEvent.contentOffset.y;
-  }, []);
+  }, [setOverlayVisible, tab, tabs]);
   const pageKey = tabs.some((item) => item.key === tab) ? tab : 'posts';
-  useLayoutEffect(() => {
-    if (pageKey === 'biblioteca') return;
-    const y = offsets.current[pageKey] ?? 0;
+  const onListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const previous = scrollY.current;
     scrollY.current = y;
-    listRef.current?.scrollToOffset({ offset: y, animated: false });
+    if (pageKey === 'biblioteca') return;
+    const threshold = tabsOffset.current;
+    const delta = y - previous;
+    if (y <= threshold - 2) setOverlayVisible(false);
+    else if (delta > 12 && y > threshold) setOverlayVisible(false);
+    else if (delta < -12) setOverlayVisible(true);
+  }, [pageKey, setOverlayVisible]);
+  useLayoutEffect(() => {
+    // Ao trocar de aba, começa no conteúdo (as abas no topo), não no perfil inteiro.
+    // A primeira abertura preserva o topo para apresentar a identidade.
+    if (previousPageKey.current === null) {
+      previousPageKey.current = pageKey;
+      return;
+    }
+    if (previousPageKey.current === pageKey) return;
+    previousPageKey.current = pageKey;
+    if (pageKey === 'biblioteca') return;
+    const target = Math.max(0, tabsOffset.current);
+    scrollY.current = target;
+    listRef.current?.scrollToOffset({ offset: target, animated: false });
   }, [pageKey]);
 
   // No próprio perfil, nome, @, bio, cidade e comunas vêm do cadastro e do estado local.
@@ -242,7 +287,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3), ...(index === 0 && counts ? { counts } : {}) });
     }
   }
-  const identity = (<View style={styles.column}>
+  const identity = (<View style={styles.column} onLayout={(event) => { tabsOffset.current = event.nativeEvent.layout.height; }}>
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
           <View style={styles.identityBlock}>
             <View style={styles.identity}>
@@ -305,13 +350,6 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                   appearance="editorial"
                   style={[styles.action, stackActions && styles.actionStackItem]}
                 />
-                <EditorialAction
-                  label="Mensagem"
-                  icon="comment"
-                  labelVariant="button"
-                  onPress={soon('Mensagens')}
-                  style={[styles.action, styles.secondaryAction, stackActions && styles.actionStackItem]}
-                />
               </View>
             )}
 
@@ -321,8 +359,10 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         </View>);
   const tabBar = (
     <View style={styles.tabs}>
-      <View style={styles.column}>
-        <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={64} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />
+      <View style={styles.tabInner}>
+        <View style={styles.column}>
+          <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />
+        </View>
       </View>
     </View>
   );
@@ -420,9 +460,9 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
           ) : null}
         </View>);
   const page = pageKey === 'biblioteca' ? (
-    <ProfileSwipeContent>
+    <ProfileSwipeContent fill>
       <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
-        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={64} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />} />
+        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />} />
     </ProfileSwipeContent>
   ) : (
     <PopulariaList<ProfileRow>
@@ -433,7 +473,6 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       viewabilityConfig={mediaViewabilityConfig}
       keyExtractor={(row) => row.id}
       getItemType={(row) => row.kind === 'post' ? (row.item.poll ? 'post-poll' : 'post') : row.kind}
-      stickyHeaderIndices={[1]}
       refreshing={refreshing} onRefresh={onRefresh}
       onScroll={onListScroll}
       scrollEventThrottle={16}
@@ -471,6 +510,19 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)), pageKey === 'biblioteca' ? () => setTab('posts') : undefined)}
       <ProfileTabSwipe tabs={tabKeys} active={pageKey} onChange={selectTab}>
         {page}
+        {overlayMounted ? (
+          <Animated.View
+            style={[styles.tabsOverlay, overlayStyle]}
+            pointerEvents={overlayOpen ? 'auto' : 'none'}
+            accessibilityElementsHidden={!overlayOpen}
+            importantForAccessibility={overlayOpen ? 'auto' : 'no-hide-descendants'}>
+            <View style={styles.tabInner}>
+              <View style={styles.column}>
+                <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />
+              </View>
+            </View>
+          </Animated.View>
+        ) : null}
       </ProfileTabSwipe>
     </Screen>
   );
@@ -656,7 +708,7 @@ const styles = StyleSheet.create({
   mastTitle: {
     fontFamily: Fonts.condensed,
     fontSize: 64,
-    lineHeight: 60,
+    lineHeight: 72,
     textTransform: 'uppercase',
     marginTop: 6,
     paddingTop: 4,
@@ -677,25 +729,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   identity: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   names: {
-    flex: 1,
+    width: '100%',
     minWidth: 0,
+    alignItems: 'center',
   },
   badge: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     marginBottom: 5,
   },
   name: {
     fontFamily: Fonts.anton,
     fontSize: 46,
-    lineHeight: 46,
+    lineHeight: 54,
     letterSpacing: -0.4,
     textTransform: 'uppercase',
     paddingTop: 2,
+    textAlign: 'center',
   },
   handle: {
     fontSize: 14,
@@ -703,10 +756,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.84,
     textTransform: 'none',
     marginTop: 4,
+    textAlign: 'center',
   },
   bio: {
     fontSize: 17,
     lineHeight: 24,
+    textAlign: 'center',
   },
   privateNote: {
     flexDirection: 'row',
@@ -827,7 +882,7 @@ const styles = StyleSheet.create({
   supportTitle: {
     fontFamily: Fonts.condensed,
     fontSize: 24,
-    lineHeight: 26,
+    lineHeight: 32,
     textTransform: 'uppercase',
   },
   supportText: {
@@ -847,7 +902,7 @@ const styles = StyleSheet.create({
   tierValue: {
     fontFamily: Fonts.condensed,
     fontSize: 24,
-    lineHeight: 26,
+    lineHeight: 32,
   },
   tierLabel: {
     fontSize: 12,
@@ -868,14 +923,25 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   tabLabel: {
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 14.5,
+    lineHeight: 19,
   },
   tabs: {
-    minHeight: 66,
+    backgroundColor: Colors.cream,
+  },
+  tabsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 10,
+    backgroundColor: Colors.cream,
+  },
+  tabInner: {
+    height: PROFILE_TABS_HEIGHT,
     justifyContent: 'center',
     backgroundColor: Colors.cream,
-    marginTop: 14,
     borderBottomWidth: 2,
     borderBottomColor: Colors.ink,
   },
@@ -928,7 +994,7 @@ const styles = StyleSheet.create({
     minWidth: 46,
     fontFamily: Fonts.condensed,
     fontSize: 38,
-    lineHeight: 36,
+    lineHeight: 46,
     color: Colors.red,
   },
   episodeText: {

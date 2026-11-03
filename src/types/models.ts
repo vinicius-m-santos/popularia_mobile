@@ -94,6 +94,9 @@ export type Comuna = {
 
 export type EventKind = 'Ato' | 'Mutirão' | 'Assembleia';
 
+/** Como o chamado mede a presença: teto de vagas, meta mínima ou entrada livre (nulo). */
+export type EventCapacityMode = 'spots' | 'goal';
+
 export type CommunityEvent = {
   id: string;
   comunaId: string;
@@ -103,6 +106,19 @@ export type CommunityEvent = {
   place: string;
   attendeeCount: number;
   tone: Tone;
+  /** Descrição curta do chamado, usada no cartão do feed. */
+  description?: string;
+  /** Capa ilustrada; sem capa, o cartão mostra o bloco de data ao lado do título. */
+  cover?: number | string;
+  coverFit?: 'cover' | 'contain';
+  address?: string | null;
+  timeZone?: string;
+  maybeCount?: number;
+  capacityMode?: EventCapacityMode | null;
+  capacity?: number | null;
+  /** Quem vai/talvez, para os rostos e nomes do cartão (mocks). */
+  goingIds?: string[];
+  maybeIds?: string[];
 };
 
 export type PostMedia = {
@@ -151,6 +167,8 @@ export type Post = {
   /** Quando esta pessoa guardou a publicação. Só na lista de salvos. */
   savedAt?: string;
   mentions?: ContentMention[];
+  /** Assuntos oficiais; o primeiro também aparece em `topic` na API. */
+  topics?: TopicId[];
 };
 
 export type PostViewer = { isAuthor: boolean; canComment: boolean; canDelete: boolean; canRemove?: boolean; saved?: boolean; canPin?: boolean; pinned?: boolean; supported?: boolean; echoed?: boolean };
@@ -166,10 +184,17 @@ export type LinkedEvent = {
   format: 'in_person' | 'online' | 'hybrid';
   status: 'scheduled' | 'cancelled';
   startsAt: string;
+  endsAt?: string | null;
   timeZone: string;
   placeName: string | null;
+  address?: string | null;
   goingCount: number;
   maybeCount: number;
+  viewerAttendance?: 'going' | 'maybe' | 'not_going' | null;
+  capacityMode?: EventCapacityMode | null;
+  capacity?: number | null;
+  /** Até três pessoas que vão, para os rostos do cartão. */
+  goingPreview?: User[];
   past: boolean;
 };
 
@@ -328,6 +353,8 @@ export type ReportTarget = {
   where: string;
   /** Conteúdo da própria pessoa, segundo o servidor (ausente nos mocks: compara o ID "me"). */
   isOwn?: boolean;
+  /** Publicação de origem, para compartilhar um comentário pelo link da discussão. */
+  postId?: string;
 };
 
 /** Denúncia na fila de uma comuna. */
