@@ -28,6 +28,12 @@ export function PushRuntime() {
   const accountId = account?.id;
   const ready = !DEMO_MODE && status === 'signedIn' && onboarded && !!account?.legalAccepted && !showLoginWelcome && !pathname.startsWith('/boas-vindas') && pathname !== '/aceite-legal';
   const handled = useRef(new Set<string>());
+  // As funções do contexto mudam de identidade a cada render; mantê-las em uma ref
+  // evita reiniciar o efeito e reenviar o push-device em loop (429).
+  const callbacks = useRef({ changed, read, refreshUnread, show });
+  useEffect(() => {
+    callbacks.current = { changed, read, refreshUnread, show };
+  });
 
   const [incomingVersion, setIncomingVersion] = useState(0);
   const waitedForSession = useRef(!ready);
@@ -67,8 +73,8 @@ export function PushRuntime() {
     let current = true;
     const isCurrent = () => current;
     const refresh = () => {
-      void refreshUnread();
-      changed();
+      void callbacks.current.refreshUnread();
+      callbacks.current.changed();
       void registerPush(false, isCurrent).catch(() => { /* retry on next foreground/token change */ });
     };
     refresh();
@@ -76,8 +82,8 @@ export function PushRuntime() {
     const token = Notifications.addPushTokenListener(() => { void registerPush(false, isCurrent).catch(() => {}); });
     const receive = Notifications.addNotificationReceivedListener((notification) => {
       if (!pushNotificationId(notification.request.content.data, accountId)) return;
-      changed();
-      void refreshUnread();
+      callbacks.current.changed();
+      void callbacks.current.refreshUnread();
       // Existing detail queries revalidate access and content; paginated Avisos receives `changed`.
       void queryClient.invalidateQueries({ queryKey: ['post'] });
     });
@@ -93,18 +99,18 @@ export function PushRuntime() {
       handled.current.add(key);
       const revision = beginIncomingPush();
       try {
-        const notification = await read(id, true);
+        const notification = await callbacks.current.read(id, true);
         if (!current) { handled.current.delete(key); return; }
         if (revision !== incomingRevision()) return;
         if (notification.target) receivePushDestination(notification.target, accountId);
-        changed();
+        callbacks.current.changed();
       } catch (error) {
         if (!current) { handled.current.delete(key); return; }
         if (revision !== incomingRevision()) return;
         if (error instanceof ApiError && [403, 404, 410].includes(error.status)) {
-          show('Este conteúdo não está mais disponível ou você não tem mais acesso.');
+          callbacks.current.show('Este conteúdo não está mais disponível ou você não tem mais acesso.');
         } else {
-          show('Não conseguimos abrir este aviso. Tente novamente em Avisos.');
+          callbacks.current.show('Não conseguimos abrir este aviso. Tente novamente em Avisos.');
         }
       } finally {
         if (current) Notifications.clearLastNotificationResponse();
@@ -115,6 +121,6 @@ export function PushRuntime() {
     const initial = Notifications.getLastNotificationResponse();
     if (initial) void respond(initial);
     return () => { current = false; resume.remove(); token.remove(); receive.remove(); response.remove(); };
-  }, [ready, accountId, changed, read, refreshUnread, show]);
+  }, [ready, accountId]);
   return null;
 }
