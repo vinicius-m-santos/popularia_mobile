@@ -164,6 +164,10 @@ export type MockApiOptions = {
   feedItems?: unknown[];
   /** Pessoas que GET /me/blocks devolve como já bloqueadas. */
   blockedHandles?: string[];
+  /** Corpo de GET /explore; sem ele, a descoberta volta vazia. */
+  explore?: unknown;
+  /** Corpo de GET /search; sem ele, usa o mesmo corpo de /explore. */
+  search?: unknown;
 };
 
 export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, options: MockApiOptions = {}): Promise<MockApi> {
@@ -316,6 +320,13 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
         await fulfill(200, (options.blockedHandles ?? []).map((handle) => ({ handle, displayName: handle })));
         return;
       }
+      if (path === '/explore' && method === 'GET') {
+        await fulfill(200, options.explore ?? {
+          topics: [], comunas: [], people: [], posts: [], recentPosts: [],
+          next: { comunas: null, people: null, posts: null, events: null, documents: null },
+        });
+        return;
+      }
       if (path === '/comunas' && method === 'GET') {
         await fulfill(200, pageOf());
         return;
@@ -325,7 +336,10 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
         return;
       }
       if (path === '/search' && method === 'GET') {
-        await fulfill(200, { people: pageOf(), comunas: pageOf(), posts: pageOf() });
+        await fulfill(200, options.search ?? options.explore ?? {
+          topics: [], comunas: [], people: [], posts: [], recentPosts: [],
+          next: { comunas: null, people: null, posts: null, events: null, documents: null },
+        });
         return;
       }
 

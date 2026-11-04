@@ -51,6 +51,7 @@ Docs: https://docs.expo.dev/eas/index.md
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
 - Mudança de funcionalidade é mudança de fluxo: ao alterar um contrato usado em mais de uma entrada (por exemplo, geração de @), valide todos os consumidores — cadastro comum, onboarding social, perfil/edição, API e testes — e confirme que o comportamento aparece na tela onde a pessoa o espera. Backend implementado não significa funcionalidade entregue no app.
+- **Prints no WSL:** sempre que for abrir Chromium/Playwright para capturar telas, limite a memória com `NODE_OPTIONS=--max-old-space-size=512`, use um único Chromium e um único fluxo por vez, e não mantenha outro Metro/Expo nem Jest rodando junto. Não rode a suíte inteira só para tirar print: Chromium + Metro + testes simultâneos derrubam o WSL.
 
 ## Validação de fluxo com Playwright (obrigatória)
 

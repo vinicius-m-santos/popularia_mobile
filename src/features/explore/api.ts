@@ -6,6 +6,7 @@ import { getFeaturedPeople, getSearchablePeople } from '@/features/profiles/api'
 import { mockDelay } from '@/lib/mock-delay';
 import { posts } from '@/mocks/posts';
 import { topicGroups, trends } from '@/mocks/topics';
+import { currentUser } from '@/mocks/users';
 import { apiRequest } from '@/lib/api/client';
 import type { AuthorDto, ComunaDto, PostDto } from '@/lib/api/dto';
 import { toFeedItem, toUser } from '@/features/posts/api';
@@ -92,11 +93,15 @@ export async function getDiscoveryData(ownUserId: string, topic?: string): Promi
   const data = await getExploreData(ownUserId);
   const related = data.comunas.filter((c) => !topic || c.topics[0] === topic);
   const relatedPosts = data.posts.filter((p) => !topic || related.some((c) => c.id === p.comunaId));
+  // Sugestões não incluem as comunas de que a pessoa já participa; a tela ordena por cidade e interesses.
+  const suggested = related.filter((c) => !currentUser.joinedComunaIds.includes(c.id));
+  // No assunto, a abertura continua com três destaques e as recentes em seguida.
+  const featured = topic ? relatedPosts.slice(0, 3) : relatedPosts;
   return {
     topics: data.topics,
-    comunas: related.slice(0, 5),
+    comunas: suggested.slice(0, topic ? 5 : 8),
     people: topic ? [] : data.featuredPeople.map((p) => p.user).filter((u) => u.id !== ownUserId).slice(0, 5),
-    posts: relatedPosts.slice(0, 3),
+    posts: featured,
     recentPosts: topic ? relatedPosts.slice(3, 8) : [],
     documents: [],
     events: [],

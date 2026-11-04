@@ -52,6 +52,7 @@ aberto e é encerrado ao fim da execução. Para outra porta, use
 - Sessão: `POST /auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`.
 - Conta: `GET/PATCH /me`, gamificação, avisos não lidos.
 - Feed e listas: `/feed`, `/comunas`, `/me/comunas`, `/users/*/posts`, `/topics`.
+- Descoberta: `GET /explore` e `GET /search` usam os fixtures opcionais `explore` e `search`.
 - Cadastro: sugestão de `@`, disponibilidade de `@`, países, estados e municípios.
 - Provedores sociais: `POST /auth/social` existe no mock, mas **o fluxo nativo
   Google/Apple não é exercitado** — os módulos não rodam no navegador.
@@ -68,6 +69,7 @@ vez de deixar a tela cair no estado de erro.
 | `auth.spec.ts` | Login válido até o feed; credenciais inválidas; validação de campos vazios; sair pela Conta e voltar às boas-vindas. |
 | `signup-onboarding.spec.ts` | Cadastro completo: credenciais + aceite → identidade/estado/cidade → confirmação de e-mail adiada → assuntos → comunas → mensagem editorial → feed. Também prova que o cadastro não avança sem o aceite. |
 | `legal.spec.ts` | Termos, Política e Regras a partir das boas-vindas e de Sobre e legal; Sobre e legal ↔ Licenças; voltar em um nível por vez. |
+| `explore-sections.spec.ts` | Ordem Em alta → Assuntos → Comunas → Pessoas; card das três publicações em alta; carrossel e participação otimista; card abre a comuna; os dois “Ver todas” trocam a lista. |
 | `session-guards.spec.ts` | Rotas protegidas (`/biblioteca`, `/avisos`, `/conta`, `/perfil`, `/criar`, `/progresso`) sem sessão; login e Sobre e legal públicos; documento legal por link direto com a âncora no voltar. |
 | `report-success.spec.ts` | Denúncia de uma enquete no feed até a confirmação; cartão do conteúdo, link das Regras; contrato de `POST /reports`; bloquear, desfazer, bloquear de novo e confirmar que a publicação sai do feed ao fechar; linha oculta para quem já está bloqueado. Usa `installApiMock(page, {}, { feedItems, blockedHandles })` para semear feed e bloqueios. |
 

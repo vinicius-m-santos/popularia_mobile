@@ -31,7 +31,9 @@ jest.mock('@/lib/routes', () => ({
   useNav: () => ({ openProfile: mockOpenProfile, openComuna: mockOpenComuna, openPost: mockOpenPost }),
   goBack: jest.fn(),
 }));
-jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me' }), useAccount: () => ({ interests: ['tec'] }) }));
+jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me' }), useAccount: () => ({ interests: ['tec'], profile: { city: 'São Paulo · SP' } }) }));
+jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+jest.mock('@/features/interactions/interactions-context', () => ({ useInteractions: () => ({ membershipOf: () => false, setOn: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
@@ -48,7 +50,8 @@ jest.mock('../api', () => ({ getDiscoveryData: jest.fn(), searchDiscovery: jest.
 const getData = jest.mocked(getDiscoveryData);
 const search = jest.mocked(searchDiscovery);
 const person = { id: 'ana', handle: 'analinux', name: 'Ana Linux', initials: 'AL', tone: 'red' as const };
-const post = { id: 'post1', authorId: 'ana', author: person, comunaId: null, comuna: null, text: 'Linux nas escolas', createdAt: '2026-10-26T00:00:00Z', supportCount: 0, commentCount: 2, echoCount: 0, event: null, topCommentAuthor: null };
+const comunaRef = { id: 'linux', name: 'Linux Brasil', status: 'active' as const };
+const post = { id: 'post1', authorId: 'ana', author: person, comunaId: 'linux', comuna: comunaRef, text: 'Linux nas escolas', createdAt: new Date().toISOString(), supportCount: 0, commentCount: 2, echoCount: 0, event: null, topCommentAuthor: null };
 const comuna = { id: 'linux', name: 'Linux Brasil', handle: 'linux', initials: 'LB', tone: 'red' as const, description: 'Software livre', memberCount: 3, topics: ['tec' as const], place: '', foundedYear: '2026', coverAlt: '', stats: [], rules: [], moderationNote: '', pinned: null, moderatorIds: [], founderRole: '', featuredMemberIds: [], visibility: 'public' as const };
 const entries: DiscoveryEntry[] = [
   { id: comuna.id, kind: 'comunas', value: comuna },
@@ -97,10 +100,10 @@ describe('Explorar', () => {
     await render(<ExploreScreen />);
     await screen.findByText('Discussão 0');
     expect(screen.queryByText('Discussão 3')).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: 'Ver todas: Discussões em destaque' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Ver todas: Em alta agora' }));
     expect(await screen.findByText('Discussão 4')).toBeTruthy();
     await fireEvent.press(screen.getByRole('radio', { name: 'Tudo' }));
-    expect(await screen.findByText('Discussões em destaque')).toBeTruthy();
+    expect(await screen.findByText('Em alta agora')).toBeTruthy();
     expect(screen.queryByText('Discussão 4')).toBeNull();
   });
 
@@ -125,7 +128,7 @@ describe('Explorar', () => {
     expect(router.push).toHaveBeenCalledWith('/biblioteca');
     expect(router.push).toHaveBeenCalledWith({ pathname: '/explorar/assunto/[id]', params: { id: 'tec' } });
     await fireEvent.press(screen.getByLabelText('Abrir pessoa Ana Linux'));
-    await fireEvent.press(screen.getByLabelText(/Linux Brasil, Pública/));
+    await fireEvent.press(screen.getByLabelText('Linux Brasil, Software livre'));
     await fireEvent.press(screen.getByLabelText(/Abrir publicação de Ana/));
     expect(mockOpenProfile).toHaveBeenCalledWith('ana');
     expect(mockOpenComuna).toHaveBeenCalledWith('linux');
@@ -171,7 +174,7 @@ describe('Explorar', () => {
     let fail: (error: Error) => void = () => {};
     getData.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
     await render(<ExploreScreen />);
-    expect(screen.getByText('Carregando descoberta')).toBeTruthy();
+    expect(screen.getByTestId('trending-skeleton')).toBeTruthy();
     await act(async () => fail(new Error('offline')));
     await fireEvent.press(await screen.findByText('Tentar de novo'));
     expect(await screen.findByText('Comunas para conhecer')).toBeTruthy();
