@@ -154,7 +154,9 @@ function renderSummary({ status, review, findings, note }) {
   lines.push('');
 
   if (findings.length === 0) {
-    lines.push('Nenhum achado bloqueante encontrado.');
+    if (review) {
+      lines.push('Nenhum achado bloqueante encontrado.');
+    }
   } else if (blocking.length > 0) {
     lines.push(`### Bloqueantes (${blocking.length})`, '');
     lines.push(blocking.map((finding, index) => renderFinding(finding, index)).join('\n\n'));
