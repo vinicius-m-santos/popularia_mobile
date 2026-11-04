@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { installApiMock } from '../support/api-mock';
+import { installApiMock, type MockApi, type MockApiOptions } from '../support/api-mock';
 import { signInToFeed, visibleButton, visibleHeading, visibleLink } from '../support/flows';
 
 const REPORTER_POST = {
@@ -27,7 +27,7 @@ const REPORTER_POST = {
   },
 };
 
-async function reportPost(page: import('@playwright/test').Page) {
+async function openReport(page: Page): Promise<void> {
   await visibleButton(page, 'Mais opções').click();
   await visibleButton(page, 'Denunciar publicação').click();
   await page.getByRole('radio', { name: 'Spam' }).click();
@@ -35,15 +35,19 @@ async function reportPost(page: import('@playwright/test').Page) {
   await expect(page.getByText('DENÚNCIA ENVIADA.')).toBeVisible();
 }
 
-test.describe('confirmação da denúncia', () => {
-  test.beforeEach(async ({ page }) => {
-    await installApiMock(page, {}, { feedItems: [REPORTER_POST] });
-  });
+async function setup(page: Page, options: MockApiOptions = {}): Promise<MockApi> {
+  const api = await installApiMock(page, {}, { feedItems: [REPORTER_POST], ...options });
+  await page.goto('/');
+  await signInToFeed(page);
+  return api;
+}
 
+test.describe('confirmação da denúncia', () => {
   test('mostra o que foi denunciado e abre as Regras da Comunidade', async ({ page }) => {
-    await page.goto('/');
-    await signInToFeed(page);
-    await reportPost(page);
+    const api = await setup(page);
+    await openReport(page);
+
+    expect(api.requests).toContainEqual({ method: 'POST', path: '/reports' });
 
     const reportedCard = page.getByLabel(/^Conteúdo denunciado:/);
     await expect(reportedCard).toContainText('ENQUETE');
@@ -59,16 +63,17 @@ test.describe('confirmação da denúncia', () => {
   });
 
   test('bloqueia, desfaz, bloqueia de novo e tira a publicação do feed ao fechar', async ({ page }) => {
-    await page.goto('/');
-    await signInToFeed(page);
-    await reportPost(page);
+    const api = await setup(page);
+    await openReport(page);
 
     await visibleButton(page, 'Bloquear Vinicius Santos').click();
     await expect(page.getByText('Vinicius Santos foi bloqueado')).toBeVisible();
     await expect(page.getByText('Dá pra desfazer em Conta › Bloqueios')).toBeVisible();
+    expect(api.requests).toContainEqual({ method: 'PUT', path: '/me/blocks/u01a1' });
 
     await visibleButton(page, 'Desfazer bloqueio de Vinicius Santos').click();
     await expect(visibleButton(page, 'Bloquear Vinicius Santos')).toBeVisible();
+    expect(api.requests).toContainEqual({ method: 'DELETE', path: '/me/blocks/u01a1' });
 
     await visibleButton(page, 'Bloquear Vinicius Santos').click();
     await expect(page.getByText('Vinicius Santos foi bloqueado')).toBeVisible();
@@ -76,5 +81,13 @@ test.describe('confirmação da denúncia', () => {
     await visibleButton(page, 'Entendi').click();
     await expect(page.getByText('DENÚNCIA ENVIADA.')).toBeHidden();
     await expect(page.getByText('Qual livro vamos ler no próximo encontro?')).toHaveCount(0);
+  });
+
+  test('não oferece bloquear quando a pessoa já está bloqueada', async ({ page }) => {
+    await setup(page, { blockedHandles: ['u01a1'] });
+    await openReport(page);
+
+    await expect(page.getByText('DENÚNCIA ENVIADA.')).toBeVisible();
+    await expect(page.getByText('Bloquear Vinicius Santos')).toHaveCount(0);
   });
 });
