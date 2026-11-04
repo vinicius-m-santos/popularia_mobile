@@ -111,7 +111,7 @@ export function InterestsPickerScreen({ mode }: { mode: Mode }) {
         style={styles.scroll}
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
-        contentContainerStyle={[styles.content, { paddingBottom: footerHeight + 24 }]}>
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: footerHeight + 24 }]}>
         <View style={styles.top}>
           <IconButton icon="back" size={22} strokeWidth={2.6} accessibilityLabel="Voltar" onPress={() => router.back()} />
           {!editing ? (
@@ -203,7 +203,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
-    paddingTop: 54,
     paddingHorizontal: 24,
   },
   top: {
