@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet, PopulariaBottomSheetFlatList } from '@/components/bottom-sheet';
+import { BottomSheet } from '@/components/bottom-sheet';
 import { Icon } from '@/components/icon';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
@@ -41,14 +41,11 @@ export function SelectField({ label, value, options, placeholder, onChange, disa
         <Icon name="chevronDown" size={18} color={Colors.muted} />
       </Pressable>
       {error ? <AppText style={[styles.error, appearance === 'setup' && styles.setupError]} color={Colors.red}>{error}</AppText> : null}
-      <BottomSheet visible={open} onClose={() => setOpen(false)} title={label} scrollable={false} virtualized>
-        <PopulariaBottomSheetFlatList
-          data={options}
-          keyExtractor={(item) => item.value}
-          style={styles.list}
-          contentContainerStyle={styles.options}
-          renderItem={({ item }) => (
+      <BottomSheet visible={open} onClose={() => setOpen(false)} title={label} contentPanningGesture={false}>
+        <View style={styles.options}>
+          {options.map((item) => (
             <Pressable
+              key={item.value}
               accessibilityRole="radio"
               accessibilityState={{ checked: item.value === value }}
               onPress={() => { onChange(item.value); setOpen(false); }}
@@ -56,8 +53,8 @@ export function SelectField({ label, value, options, placeholder, onChange, disa
               <AppText style={styles.optionLabel}>{item.label}</AppText>
               {item.value === value ? <Icon name="check" size={18} color={Colors.red} /> : null}
             </Pressable>
-          )}
-        />
+          ))}
+        </View>
       </BottomSheet>
     </View>
   );
@@ -86,9 +83,6 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.55 },
   pressed: { opacity: 0.72 },
   error: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },
-  // O sheet virtualizado já limita a altura; a lista ocupa o espaço restante
-  // em vez de parar antes do fim da folha.
-  list: { flex: 1 },
   options: { paddingBottom: Spacing.four },
   option: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
   selected: { backgroundColor: Colors.strawLight },

@@ -19,6 +19,8 @@ type BottomSheetProps = {
   /** Conteúdo com BottomSheetFlatList: não envolver em outro scrollable. */
   virtualized?: boolean;
   dismissible?: boolean;
+  /** Permite arrastar a folha pela área de conteúdo; desligue em listas que precisam rolar. */
+  contentPanningGesture?: boolean;
   /**
    * Variante visual explícita. `creation` é o menu central de criação: superfície
    * creme, cantos de 12 com fio de tinta no topo, alça de tinta 48 × 5 e conteúdo
@@ -30,7 +32,7 @@ type BottomSheetProps = {
 };
 
 /** Aparência Popularia, física e arbitragem entre scroll/teclado delegadas ao Gorhom. */
-export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true, appearance = 'paper', surface = 'paper' }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, children, scrollable = true, virtualized = false, dismissible = true, contentPanningGesture = dismissible, appearance = 'paper', surface = 'paper' }: BottomSheetProps) {
   const creation = appearance === 'creation';
   const sheet = useRef<GorhomBottomSheet>(null);
   const [mounted, setMounted] = useState(visible);
@@ -67,7 +69,7 @@ export function BottomSheet({ visible, onClose, title, children, scrollable = tr
     onClose={() => { Keyboard.dismiss(); setMounted(false); if (visible) onClose(); }}
     enablePanDownToClose={dismissible}
     enableHandlePanningGesture={dismissible}
-    enableContentPanningGesture={dismissible}
+    enableContentPanningGesture={contentPanningGesture}
     enableDynamicSizing={!virtualized}
     snapPoints={virtualized ? ['86%'] : undefined}
     maxDynamicContentSize={height * 0.86}

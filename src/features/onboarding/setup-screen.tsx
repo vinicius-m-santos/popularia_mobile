@@ -350,7 +350,7 @@ export default function SetupScreen() {
         </View>
       </BottomSheet>
 
-      <BottomSheet visible={countryOpen} onClose={() => setCountryOpen(false)} title="País" scrollable={false} virtualized>
+      <BottomSheet visible={countryOpen} onClose={() => setCountryOpen(false)} title="País" scrollable={false} virtualized contentPanningGesture={false}>
         <PopulariaBottomSheetTextInput
           value={countryQuery}
           onChangeText={setCountryQuery}
