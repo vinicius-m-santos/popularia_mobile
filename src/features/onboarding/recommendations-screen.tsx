@@ -14,7 +14,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { plural } from '@/lib/format';
 
 import { getTopicGroups } from './api';
-import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
+import { OnboardingBackHeader, OnboardingFooter } from './components/onboarding-chrome';
 
 const INITIAL_COUNT = 4;
 
@@ -44,7 +44,7 @@ export default function RecommendationsScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <OnboardingProgress step={4} />
+      <OnboardingBackHeader />
       <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         <View>
           <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>

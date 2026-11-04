@@ -1,15 +1,16 @@
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/icon';
 import { KeyboardView } from '@/components/keyboard-view';
 import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
-import { SobreELegalLink } from '@/features/legal/sobre-e-legal-link';
+
 import { describeError } from '@/lib/errors';
 import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
@@ -24,16 +25,18 @@ const SIGNUP = {
   redText: '#A3261C',
   secondary: '#5E554A',
   line: '#D9CFBF',
+  paper: '#FBF7EF',
 } as const;
 
 /** Etapa 1 do cadastro: credenciais, com o mesmo visual e componentes do login. */
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
-  const { setSignupCredentials, signInWithGoogle, signInWithApple } = useAccount();
+  const { setSignupCredentials, setLegalAcceptedDraft, signInWithGoogle, signInWithApple } = useAccount();
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [socialBusy, setSocialBusy] = useState(false);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
@@ -42,9 +45,19 @@ export default function AccountScreen() {
   const passwordError = !password ? 'Preencha a senha' : password.length < PASSWORD_MIN_LENGTH ? `A senha precisa de pelo menos ${PASSWORD_MIN_LENGTH} caracteres` : undefined;
   const valid = !emailError && !passwordError;
 
+  const toggleAccepted = () => {
+    const next = !accepted;
+    setAccepted(next);
+    setLegalAcceptedDraft(next);
+  };
+
+  const openLegal = (id: 'termos' | 'regras' | 'privacidade') => {
+    router.push({ pathname: '/documento-legal/[id]', params: { id } } as never);
+  };
+
   const submit = () => {
     setSubmitted(true);
-    if (!valid) return;
+    if (!accepted || !valid) return;
     setSignupCredentials(email, password);
     router.push('/boas-vindas/perfil');
   };
@@ -122,12 +135,31 @@ export default function AccountScreen() {
             textContentType="newPassword"
           />
 
-          <View style={styles.legal}><SobreELegalLink /></View>
+          <View style={styles.consentCard}>
+            <Pressable
+              onPress={toggleAccepted}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: accepted }}
+              accessibilityLabel="Tenho 18 anos ou mais e aceito os termos de uso, as regras da comunidade e a política de privacidade"
+              hitSlop={6}
+              style={styles.consentCheckboxTouch}>
+              <View style={[styles.consentCheckbox, accepted && styles.consentCheckboxOn]}>
+                {accepted ? <Icon name="check" size={16} color={SIGNUP.paper} /> : null}
+              </View>
+            </Pressable>
+            <Text style={styles.consentText}>
+              Tenho <Text style={styles.consentStrong}>18 anos ou mais</Text> e aceito os{' '}
+              <Text style={styles.consentLink} accessibilityRole="link" onPress={() => openLegal('termos')}>Termos de Uso</Text> e as{' '}
+              <Text style={styles.consentLink} accessibilityRole="link" onPress={() => openLegal('regras')}>Regras da Comunidade</Text>. Li a{' '}
+              <Text style={styles.consentLink} accessibilityRole="link" onPress={() => openLegal('privacidade')}>Política de Privacidade</Text>.
+            </Text>
+          </View>
         </ScrollView>
 
         <AuthFooter
           label="Continuar"
           onPress={submit}
+          disabled={!accepted}
           secondaryText="Já tem conta?"
           secondaryAction="Entrar"
           onSecondary={switchToLogin}
@@ -146,5 +178,11 @@ const styles = StyleSheet.create({
   divider: { marginTop: 18, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   dividerLine: { flex: 1, height: 1.5, backgroundColor: SIGNUP.line },
   dividerText: { fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 15, letterSpacing: 1.1, color: SIGNUP.secondary },
-  legal: { alignItems: 'center', marginTop: 18 },
+  consentCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginTop: 14, padding: 16, borderWidth: 2, borderColor: SIGNUP.ink, borderRadius: 6, backgroundColor: SIGNUP.paper },
+  consentCheckboxTouch: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+  consentCheckbox: { width: 28, height: 28, borderWidth: 2, borderColor: SIGNUP.ink, borderRadius: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: SIGNUP.paper },
+  consentCheckboxOn: { backgroundColor: SIGNUP.ink },
+  consentText: { flex: 1, fontFamily: Fonts.regular, fontSize: 15, lineHeight: 23, color: SIGNUP.ink },
+  consentStrong: { fontFamily: Fonts.extrabold },
+  consentLink: { fontFamily: Fonts.extrabold, textDecorationLine: 'underline' },
 });

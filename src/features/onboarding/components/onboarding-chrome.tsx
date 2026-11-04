@@ -11,9 +11,14 @@ import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 const ONBOARDING = { red: '#BF3326', ink: '#15120F', paper: '#FBF7EF', cream: '#F2EADB', disabled: '#E8DDC8', disabledText: '#6E6458' } as const;
 
 /** Etapas do cadastro depois das boas-vindas: conta, perfil, assuntos e comunas. */
-export const ONBOARDING_STEPS = 4;
+export const ONBOARDING_STEPS = 2;
 
-/** Cabeçalho único das etapas: usar este wrapper evita divergência de layout entre 1, 2, 3 e 4. */
+/** Topo das telas que vêm depois das duas etapas de cadastro: só o voltar. */
+export function OnboardingBackHeader() {
+  return <View style={styles.backHeader}><IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} /></View>;
+}
+
+/** Cabeçalho único das etapas de cadastro: usar este wrapper evita divergência de layout entre 1 e 2. */
 export function OnboardingHeader({ step }: { step: number }) {
   return <View style={styles.header}><OnboardingProgress step={step} /></View>;
 }
@@ -88,6 +93,7 @@ export function OnboardingFooter({ label, onPress, hint, count, accessibilityHin
 
 const styles = StyleSheet.create({
   header: { width: '100%' },
+  backHeader: { flexDirection: 'row', alignItems: 'center', marginLeft: -10, paddingTop: 2, paddingBottom: 8 },
   progress: {
     flexDirection: 'row',
     alignItems: 'center',

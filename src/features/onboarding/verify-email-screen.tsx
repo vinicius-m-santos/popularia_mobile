@@ -14,7 +14,7 @@ import { useAccount } from '@/features/account/account-context';
 import { resendVerificationCode } from '@/features/account/api';
 import { describeError } from '@/lib/errors';
 
-import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
+import { OnboardingBackHeader, OnboardingFooter } from './components/onboarding-chrome';
 
 let lastAutomaticSend: { address: string; at: number } | null = null;
 
@@ -109,7 +109,7 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
     <Screen edges={['top', 'left', 'right']}>
       <KeyboardView style={styles.flex}>
         {inOnboarding ? (
-          <OnboardingProgress step={2} />
+          <OnboardingBackHeader />
         ) : (
           <View style={styles.backRow}>
             <IconButton icon="back" size={20} accessibilityLabel="Voltar" onPress={leave} />

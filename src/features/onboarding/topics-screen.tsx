@@ -12,7 +12,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { describeError } from '@/lib/errors';
 
 import { getTopicGroups } from './api';
-import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
+import { OnboardingBackHeader, OnboardingFooter } from './components/onboarding-chrome';
 import { TopicPicker } from './components/topic-picker';
 
 /** Sugestão de mínimo para o feed ter variedade; não é obrigatório. */
@@ -29,7 +29,7 @@ export default function TopicsScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <OnboardingProgress step={3} />
+      <OnboardingBackHeader />
       <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         <TopicsTitle />
         {groups.status === 'error' ? (
