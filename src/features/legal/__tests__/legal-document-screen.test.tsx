@@ -60,6 +60,29 @@ describe('documento legal', () => {
     expect(mockedPush).toHaveBeenCalledWith({ pathname: '/documento-legal/[id]', params: { id: 'regras' } });
   });
 
+  it('na privacidade, mostra os chips, o aviso com pin e os dados privados', async () => {
+    await render(<LegalDocumentPage id="privacidade" />);
+    expect(screen.getByLabelText('E-mail, Identificador, Nome, @, Bio, Endereço declarado, Interesses, Preferências')).toBeTruthy();
+    expect(screen.getByText('Não usamos GPS pra descobrir sua cidade.')).toBeTruthy();
+    expect(screen.getByLabelText('E-mail, Senha, Interesses, Sessões, Bloqueios')).toBeTruthy();
+  });
+
+  it('o caminho sem rótulo é lido por extenso e vira atalho só com sessão', async () => {
+    await render(<LegalDocumentPage id="privacidade" />);
+    expect(screen.getByLabelText('Conta → Excluir conta')).toBeTruthy();
+
+    mockUseAccount.mockReturnValue({ account: { id: 'pessoa-1' } });
+    await render(<LegalDocumentPage id="privacidade" />);
+    fireEvent.press(screen.getByLabelText('Abrir Conta → Excluir conta'));
+    expect(mockedPush).toHaveBeenCalledWith('/conta/exclusao');
+  });
+
+  it('usa o rótulo de suporte definido no documento', async () => {
+    await render(<LegalDocumentPage id="privacidade" />);
+    expect(screen.getByText('Quer pedir algo sobre seus dados?')).toBeTruthy();
+    expect(screen.getByLabelText('Quer pedir algo sobre seus dados? Fale com o suporte')).toBeTruthy();
+  });
+
   it('documento desconhecido não quebra a tela', async () => {
     await render(<LegalDocumentPage id="inexistente" />);
     expect(screen.getByText('Documento não encontrado.')).toBeTruthy();

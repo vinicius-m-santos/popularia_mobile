@@ -14,13 +14,15 @@ export type LegalBlock =
   | { type: 'chips_no'; items: string[] }
   | { type: 'chips'; items: string[] }
   | { type: 'chips_private'; items: string[] }
-  | { type: 'path'; label: string; segments: LegalPathSegment[] }
-  | { type: 'notice'; text: string }
+  | { type: 'path'; label?: string; segments: LegalPathSegment[]; href?: string }
+  | { type: 'notice'; text: string; icon?: 'info' | 'pin' }
   | { type: 'alert'; title?: string; text: string }
   | { type: 'highlight'; text: string }
   | { type: 'link_card'; label: string; documentId: string };
 
 export type LegalSection = { title: string; blocks: LegalBlock[] };
+
+export type LegalSupportCard = { label: string; title: string };
 
 export type LegalDocument = {
   title: string;
@@ -28,6 +30,8 @@ export type LegalDocument = {
   /** Origem exibida na barra fixa; o nome do documento não se repete nela. */
   backLabel: string;
   sections: LegalSection[];
+  /** Rótulo e título do card final; o padrão é "Ficou com dúvida? / Fale com o suporte". */
+  supportCard?: LegalSupportCard;
 };
 
 const DOCUMENTS: Record<string, LegalDocument> = {
@@ -144,59 +148,53 @@ const DOCUMENTS: Record<string, LegalDocument> = {
 
   privacidade: {
     title: 'Política de Privacidade',
-    intro: 'O que guardamos, por quê e o que fica fora do alcance de outras pessoas.',
+    intro: 'O que a gente guarda sobre você, pra quê, e o que você pode pedir.',
     backLabel: 'Sobre e legal',
     sections: [
       {
         title: 'O que tratamos',
         blocks: [
-          { type: 'paragraph', text: 'Tratamos os dados necessários para criar a conta, organizar o perfil e controlar acessos:' },
-          { type: 'chips', items: ['E-mail', 'Nome', '@', 'Bio', 'Endereço declarado', 'Interesses'] },
+          { type: 'chips', items: ['E-mail', 'Identificador', 'Nome', '@', 'Bio', 'Endereço declarado', 'Interesses', 'Preferências'] },
+          { type: 'list', items: ['Sua senha é guardada como hash: nem a gente consegue ler.'] },
+          { type: 'notice', icon: 'pin', text: '**Não usamos GPS pra descobrir sua cidade.** Vale o endereço que você declara.' },
         ],
       },
       {
-        title: 'O que não é público',
-        blocks: [
-          { type: 'chips_private', items: ['E-mail', 'Senha', 'Interesses', 'Sessões', 'Bloqueios'] },
-          { type: 'paragraph', text: 'A senha é armazenada como hash. Não usamos GPS para obter sua cidade.' },
-        ],
-      },
-      {
-        title: 'Como usamos',
+        title: 'Pra que usamos',
         blocks: [
           {
             type: 'list',
-            items: [
-              'Recomendar conteúdo, pessoas e comunas.',
-              'Controlar acessos e proteger a conta.',
-              'Enviar avisos sobre o próprio serviço.',
-            ],
+            items: ['Criar sua conta', 'Organizar seu perfil', 'Recomendar conteúdo', 'Controlar quem acessa o quê'],
           },
+        ],
+      },
+      {
+        title: 'O que fica só com você',
+        blocks: [
+          { type: 'paragraph', text: 'Não aparecem no seu perfil público:' },
+          { type: 'chips_private', items: ['E-mail', 'Senha', 'Interesses', 'Sessões', 'Bloqueios'] },
+          { type: 'paragraph', text: 'O que você publica em **Comunas e Praças** segue as permissões de cada espaço.' },
         ],
       },
       {
         title: 'Seus direitos',
         blocks: [
-          { type: 'paragraph', text: 'Você pode pedir acesso, correção, informação, eliminação ou revisão pelo suporte.' },
+          { type: 'paragraph', text: 'Pelo suporte, você pode pedir acesso, correção, informação, eliminação ou revisão dos seus dados.' },
+          { type: 'paragraph', text: 'Pra excluir a conta:' },
           {
             type: 'path',
-            label: 'No app:',
             segments: [
               { kind: 'chip', text: 'Conta' },
               { kind: 'arrow' },
               { kind: 'chip', text: 'Excluir conta', danger: true },
             ],
+            href: '/conta/exclusao',
           },
-          { type: 'paragraph', text: 'Não envie senha ou token ao suporte.' },
-        ],
-      },
-      {
-        title: 'Segurança',
-        blocks: [
-          { type: 'alert', title: 'Ninguém do Popularia pede sua senha', text: 'Não compartilhe senha, código de recuperação ou token — nem com quem diz ser do suporte.' },
+          { type: 'alert', title: 'Nunca envie senha ou token ao suporte.', text: 'A gente nunca pede.' },
         ],
       },
     ],
+    supportCard: { label: 'Quer pedir algo sobre seus dados?', title: 'Fale com o suporte' },
   },
 };
 

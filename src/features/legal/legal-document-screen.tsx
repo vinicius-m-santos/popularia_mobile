@@ -61,7 +61,11 @@ export function LegalDocumentPage({ id }: { id: string }) {
               <Section key={section.title} section={section} index={index} />
             ))}
 
-            <SupportCard onPress={openSupport} />
+            <SupportCard
+              label={document.supportCard?.label ?? 'Ficou com dúvida?'}
+              title={document.supportCard?.title ?? 'Fale com o suporte'}
+              onPress={openSupport}
+            />
           </>
         ) : (
           <AppText style={styles.intro}>Documento não encontrado.</AppText>
@@ -78,9 +82,11 @@ function Section({ section, index }: { section: LegalSection; index: number }) {
         <AppText style={styles.sectionNumber}>{String(index + 1).padStart(2, '0')}</AppText>
         <AppText style={styles.sectionTitle} accessibilityRole="header">{section.title}</AppText>
       </View>
-      <View style={styles.blocks}>
+      <View>
         {section.blocks.map((block, blockIndex) => (
-          <Block key={`${section.title}-${blockIndex}`} block={block} />
+          <View key={`${section.title}-${blockIndex}`} style={{ marginTop: blockTopMargin(section.blocks, blockIndex) }}>
+            <Block block={block} />
+          </View>
         ))}
       </View>
     </View>
@@ -121,33 +127,14 @@ function Block({ block }: { block: LegalBlock }) {
       );
     }
 
-    case 'path': {
-      const spoken = [block.label, ...block.segments.map((segment) => (segment.kind === 'arrow' ? '→' : segment.text))].join(' ');
-      return (
-        <View style={styles.path} accessible accessibilityLabel={spoken}>
-          <AppText style={styles.pathText}>{block.label}</AppText>
-          {block.segments.map((segment, index) => {
-            if (segment.kind === 'arrow') {
-              return <Icon key={`arrow-${index}`} name="arrowRight" size={14} color={P.ink} strokeWidth={3} />;
-            }
-            if (segment.kind === 'text') {
-              return <AppText key={`text-${index}`} style={styles.pathText}>{segment.text}</AppText>;
-            }
-            return (
-              <View key={`chip-${index}`} style={[styles.pathChip, segment.danger && styles.pathChipDanger]}>
-                <AppText style={[styles.pathChipText, segment.danger && styles.pathChipTextDanger]}>{segment.text}</AppText>
-              </View>
-            );
-          })}
-        </View>
-      );
-    }
+    case 'path':
+      return <PathBlock block={block} />;
 
     case 'notice':
       return (
         <View style={styles.notice}>
           <View style={styles.noticeIcon}>
-            <Icon name="info" size={20} color={P.ink} strokeWidth={2.4} />
+            <Icon name={block.icon === 'pin' ? 'pin' : 'info'} size={20} color={P.ink} strokeWidth={2.4} />
           </View>
           <InlineText text={block.text} style={styles.noticeText} />
         </View>
@@ -182,16 +169,56 @@ function Block({ block }: { block: LegalBlock }) {
   }
 }
 
-function SupportCard({ onPress }: { onPress: () => void }) {
+function PathBlock({ block }: { block: Extract<LegalBlock, { type: 'path' }> }) {
+  const { account } = useAccount();
+  const spoken = [block.label, ...block.segments.map((segment) => (segment.kind === 'arrow' ? '→' : segment.text))]
+    .filter(Boolean)
+    .join(' ');
+
+  const steps = (
+    <>
+      {block.label ? <AppText style={styles.pathText}>{block.label}</AppText> : null}
+      {block.segments.map((segment, index) => {
+        if (segment.kind === 'arrow') {
+          return <Icon key={`arrow-${index}`} name="arrowRight" size={14} color={P.ink} strokeWidth={3} />;
+        }
+        if (segment.kind === 'text') {
+          return <AppText key={`text-${index}`} style={styles.pathText}>{segment.text}</AppText>;
+        }
+        return (
+          <View key={`chip-${index}`} style={[styles.pathChip, segment.danger && styles.pathChipDanger]}>
+            <AppText style={[styles.pathChipText, segment.danger && styles.pathChipTextDanger]}>{segment.text}</AppText>
+          </View>
+        );
+      })}
+    </>
+  );
+
+  // Com sessão e destino, o caminho vira atalho; sem login, é só texto.
+  if (!block.href || !account) {
+    return <View style={styles.path} accessible accessibilityLabel={spoken}>{steps}</View>;
+  }
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Abrir ${spoken}`}
+      onPress={() => router.push(block.href as never)}
+      style={({ pressed }) => [styles.path, pressed && styles.pressed]}>
+      {steps}
+    </Pressable>
+  );
+}
+
+function SupportCard({ label, title, onPress }: { label: string; title: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Ficou com dúvida? Fale com o suporte"
+      accessibilityLabel={`${label} ${title}`}
       onPress={onPress}
       style={({ pressed }) => [styles.support, pressed && styles.supportPressed]}>
       <View style={styles.supportCopy}>
-        <AppText style={styles.supportLabel}>Ficou com dúvida?</AppText>
-        <AppText style={styles.supportTitle}>Fale com o suporte</AppText>
+        <AppText style={styles.supportLabel}>{label}</AppText>
+        <AppText style={styles.supportTitle}>{title}</AppText>
       </View>
       <Icon name="chevronRight" size={18} color={P.surface} />
     </Pressable>
@@ -230,6 +257,34 @@ function openHref(href: string) {
     return;
   }
   void Linking.openURL(href).catch(() => {});
+}
+
+/** Espaçamento superior de cada bloco, conforme o tipo e o bloco anterior. */
+function blockTopMargin(blocks: LegalBlock[], index: number): number {
+  const block = blocks[index];
+  if (!block) return 0;
+  const previous = blocks[index - 1];
+  const afterChips = previous?.type === 'chips' || previous?.type === 'chips_private';
+  switch (block.type) {
+    case 'chips':
+    case 'chips_private':
+    case 'chips_no':
+      return 12;
+    case 'paragraph':
+      return !previous ? 10 : afterChips ? 14 : 12;
+    case 'list':
+      return afterChips ? 14 : 12;
+    case 'notice':
+      return 14;
+    case 'path':
+      return 8;
+    case 'alert':
+      return 16;
+    case 'link_card':
+      return 14;
+    default:
+      return 12;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -306,10 +361,6 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     textTransform: 'uppercase',
     color: P.ink,
-  },
-  blocks: {
-    marginTop: 10,
-    gap: 12,
   },
   paragraph: {
     fontFamily: Fonts.regular,
@@ -459,7 +510,6 @@ const styles = StyleSheet.create({
     color: P.surface,
   },
   linkCard: {
-    marginTop: 2,
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
