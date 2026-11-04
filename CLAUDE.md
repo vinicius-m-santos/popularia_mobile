@@ -407,6 +407,8 @@ efeito colateral de aplicar este documento.** São pendências para uma tarefa f
 
 ## Como revisar e validar
 
+Toda feature de fluxo (rotas, autenticação, onboarding, navegação ou formulário) exige a navegação Playwright descrita em `AGENTS.md` antes de ser considerada pronta. Testes Jest e typecheck não substituem a verificação do ponto de entrada, do voltar e dos fluxos anexos.
+
 Antes de considerar uma tela pronta, confira a hierarquia, a primeira área visível, a clareza das
 ações, os alinhamentos e o comportamento com conteúdo real. Inspecione também largura pequena,
 fonte ampliada, acentos, títulos longos e os estados de carregamento, vazio e erro.

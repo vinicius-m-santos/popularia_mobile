@@ -336,8 +336,8 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.anton,
     fontSize: 48,
-    // Piso de legibilidade do AppText (fontSize + 8) mantém o topo das maiúsculas.
-    lineHeight: 56,
+    // Anton precisa de mais que o piso do AppText para não cortar acentos.
+    lineHeight: 68,
     textTransform: 'uppercase',
     color: P.ink,
   },
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   sectionNumber: {
     fontFamily: Fonts.anton,
     fontSize: 28,
-    lineHeight: 36,
+    lineHeight: 44,
     color: P.red,
   },
   sectionTitle: {
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: Fonts.anton,
     fontSize: 28,
-    lineHeight: 36,
+    lineHeight: 44,
     textTransform: 'uppercase',
     color: P.ink,
   },

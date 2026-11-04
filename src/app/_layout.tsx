@@ -32,6 +32,9 @@ import { NotificationsProvider } from '@/features/notifications/notifications-co
 import { initSentry } from '@/lib/monitoring';
 import { warmCreationAssets } from '@/features/media/creation-assets';
 
+// Link direto para uma tela legal precisa de uma rota âncora para o voltar continuar funcionando.
+export const unstable_settings = { anchor: '(tabs)' };
+
 // Inicializa o Sentry o mais cedo possível (antes de qualquer render).
 initSentry();
 
@@ -156,8 +159,8 @@ function RootStack() {
       <Stack.Screen name="sobre-e-legal" />
       <Stack.Screen name="licencas" />
       <Stack.Screen name="documento-legal/[id]" />
+      <Stack.Screen name="(tabs)" />
       <Stack.Protected guard={onboarded}>
-        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="avisos" />
         <Stack.Screen name="biblioteca" />
         <Stack.Screen name="praca/[id]" options={{ gestureEnabled: false }} />
