@@ -24,7 +24,10 @@ export function LicensesScreen() {
   return (
     <Screen edges={['left', 'right']} backgroundColor={P.bg}>
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top + 10, 54) }]}>
-        <IconButton icon="back" size={22} accessibilityLabel="Voltar" onPress={() => router.replace('/sobre-e-legal')} color={P.ink} />
+        <IconButton icon="back" size={22} accessibilityLabel="Voltar" onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace('/sobre-e-legal');
+          }} color={P.ink} />
       </View>
       <SectionList
         sections={SECTIONS}

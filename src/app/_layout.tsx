@@ -32,6 +32,9 @@ import { NotificationsProvider } from '@/features/notifications/notifications-co
 import { initSentry } from '@/lib/monitoring';
 import { warmCreationAssets } from '@/features/media/creation-assets';
 
+// Link direto para uma tela legal precisa de uma rota âncora para o voltar continuar funcionando.
+export const unstable_settings = { anchor: '(tabs)' };
+
 // Inicializa o Sentry o mais cedo possível (antes de qualquer render).
 initSentry();
 
