@@ -33,9 +33,29 @@ export async function pickProfileImage(kind: 'avatar' | 'cover' | 'mark', source
     exif: false,
     quality: 1,
   };
-  const result = source === 'camera'
-    ? await ImagePicker.launchCameraAsync(options)
-    : await ImagePicker.launchImageLibraryAsync(options);
+  if (source === 'camera') {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      throw new ApiError(
+        403,
+        '/errors/camera-permission',
+        permission.canAskAgain
+          ? 'Permita o acesso à câmera para tirar a foto.'
+          : 'Acesso à câmera bloqueado. Libere nas configurações do aparelho ou escolha uma foto da galeria.',
+      );
+    }
+  }
+  let result;
+  try {
+    result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync(options)
+      : await ImagePicker.launchImageLibraryAsync(options);
+  } catch (error) {
+    if (source === 'camera') {
+      throw new ApiError(422, '/errors/camera-unavailable', 'Não foi possível abrir a câmera. Escolha uma foto da galeria.');
+    }
+    throw error;
+  }
   if (result.canceled || !result.assets[0]) return null;
   const context = ImageManipulator.manipulate(result.assets[0].uri, { maxWidth: 2048, maxHeight: 2048 });
   const rendered = await context.renderAsync();

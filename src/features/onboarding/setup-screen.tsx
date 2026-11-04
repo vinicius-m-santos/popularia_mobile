@@ -136,7 +136,6 @@ export default function SetupScreen() {
       }
     } catch (error) {
       toast.show(describeError(error));
-      setPhotoSheetOpen(false);
     } finally {
       setPhotoBusy(false);
     }
