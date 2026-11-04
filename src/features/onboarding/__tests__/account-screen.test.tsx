@@ -4,7 +4,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import AccountScreen from '../account-screen';
 
 const mockSetCredentials = jest.fn();
-const mockSetLegal = jest.fn();
 const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
@@ -28,7 +27,6 @@ jest.mock('expo-apple-authentication', () => ({
 jest.mock('@/features/account/account-context', () => ({
   useAccount: () => ({
     setSignupCredentials: mockSetCredentials,
-    setLegalAcceptedDraft: mockSetLegal,
     signInWithGoogle: jest.fn(),
     signInWithApple: jest.fn(),
   }),
@@ -44,7 +42,6 @@ describe('cadastro etapa 1', () => {
     expect(mockSetCredentials).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByLabelText(/Tenho 18 anos ou mais/));
-    expect(mockSetLegal).toHaveBeenCalledWith(true);
     await fireEvent.press(screen.getByLabelText('Continuar'));
     await waitFor(() => expect(screen.getByText('Preencha o e-mail')).toBeTruthy());
     expect(screen.getByText('Preencha a senha')).toBeTruthy();

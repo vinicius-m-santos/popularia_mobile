@@ -123,7 +123,7 @@ function AccountSurfaces({ children }: { children: ReactNode }) {
  * A splash fica na tela enquanto a sessão guardada no aparelho é retomada.
  */
 function RootStack() {
-  const { onboarded, status, account, showLoginWelcome, authBusy } = useAccount();
+  const { onboarded, status, showLoginWelcome, authBusy } = useAccount();
   const pathname = usePathname();
   const restoring = status === 'restoring';
 
@@ -132,23 +132,6 @@ function RootStack() {
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);
-
-  // Contas sociais em onboarding aceitam na própria etapa 2; não passam pela tela legal.
-  const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted && !account.pendingOnboarding;
-
-  useEffect(() => {
-    if (restoring) return;
-    const legalDocument = pathname === '/sobre-e-legal' || pathname.startsWith('/documento-legal/');
-    if (needsLegal && pathname !== '/aceite-legal' && !legalDocument) {
-      router.replace('/aceite-legal');
-      return;
-    }
-    if (!needsLegal && pathname === '/aceite-legal') {
-      if (status !== 'signedIn') router.replace('/boas-vindas');
-      else if (onboarded) router.replace('/');
-      else router.replace(account?.pendingOnboarding ? '/boas-vindas/perfil' : '/boas-vindas');
-    }
-  }, [account?.pendingOnboarding, needsLegal, onboarded, pathname, restoring, status]);
 
   // A mensagem editorial pertence a cada autenticação concluída, antes do feed.
   useEffect(() => {
@@ -170,10 +153,9 @@ function RootStack() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream }, gestureEnabled: !authBusy }}>
       <Stack.Screen name="abrir-link" />
       <Stack.Screen name="link-indisponivel" />
-      <Stack.Screen name="aceite-legal" />
       <Stack.Screen name="sobre-e-legal" />
       <Stack.Screen name="documento-legal/[id]" />
-      <Stack.Protected guard={onboarded && !needsLegal}>
+      <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="avisos" />
         <Stack.Screen name="biblioteca" />
@@ -195,7 +177,7 @@ function RootStack() {
         <Stack.Screen name="conta" />
         <Stack.Screen name="verificar-email" />
       </Stack.Protected>
-      <Stack.Protected guard={(!onboarded || showLoginWelcome) && !needsLegal}>
+      <Stack.Protected guard={!onboarded || showLoginWelcome}>
         <Stack.Screen name="boas-vindas" />
       </Stack.Protected>
     </Stack>

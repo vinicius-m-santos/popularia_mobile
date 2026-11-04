@@ -30,7 +30,7 @@ const SIGNUP = {
 /** Etapa 1 do cadastro: credenciais, com o mesmo visual e componentes do login. */
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
-  const { setSignupCredentials, setLegalAcceptedDraft, signInWithGoogle, signInWithApple } = useAccount();
+  const { setSignupCredentials, signInWithGoogle, signInWithApple } = useAccount();
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +47,6 @@ export default function AccountScreen() {
   const toggleAccepted = () => {
     const next = !accepted;
     setAccepted(next);
-    setLegalAcceptedDraft(next);
   };
 
   const submit = () => {

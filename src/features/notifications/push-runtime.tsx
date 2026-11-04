@@ -26,7 +26,7 @@ export function PushRuntime() {
   const { show } = useToast();
   const pathname = usePathname();
   const accountId = account?.id;
-  const ready = !DEMO_MODE && status === 'signedIn' && onboarded && !!account?.legalAccepted && !showLoginWelcome && !pathname.startsWith('/boas-vindas') && pathname !== '/aceite-legal';
+  const ready = !DEMO_MODE && status === 'signedIn' && onboarded && !!account?.legalAccepted && !showLoginWelcome && !pathname.startsWith('/boas-vindas');
   const handled = useRef(new Set<string>());
   // As funções do contexto mudam de identidade a cada render; mantê-las em uma ref
   // evita reiniciar o efeito e reenviar o push-device em loop (429).

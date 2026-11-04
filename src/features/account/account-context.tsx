@@ -73,8 +73,6 @@ type AccountValue = {
   startSignup: () => void;
   /** Guarda e-mail e senha da etapa 1 na memória até o cadastro ser enviado na etapa 2. */
   setSignupCredentials: (email: string, password: string) => void;
-  /** Aceite dos termos marcado na etapa 1; enviado ao servidor assim que a conta é criada. */
-  setLegalAcceptedDraft: (accepted: boolean) => void;
   /** Etapa 2: cria a conta e entra nela. Repetir depois de criada só atualiza o perfil. */
   completeSignupProfile: () => Promise<void>;
   /** Completa o onboarding de conta criada via social (escolhe handle e nome). */
@@ -130,7 +128,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
   // E-mail e senha da etapa 1: só na memória, apagados assim que o cadastro é enviado.
   const credentials = useRef<{ email: string; password: string } | null>(null);
-  const legalAcceptedDraft = useRef(false);
 
   const applyAccount = useCallback((me: MeDto) => {
     setSentryUser(me.id);
@@ -238,7 +235,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const startSignup = useCallback(() => {
     replaceAll('joinedComunas', []);
     credentials.current = null;
-    legalAcceptedDraft.current = false;
     setInterests([]);
     setDraft(DEMO_MODE ? DEMO_PROFILE : EMPTY_PROFILE);
     setSocialProvider(null);
@@ -247,10 +243,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const setSignupCredentials = useCallback((email: string, password: string) => {
     credentials.current = { email: email.trim(), password };
-  }, []);
-
-  const setLegalAcceptedDraft = useCallback((accepted: boolean) => {
-    legalAcceptedDraft.current = accepted;
   }, []);
 
   const completeSignupProfile = useCallback(async () => {
@@ -274,7 +266,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         }
         throw error;
       }
-      if (legalAcceptedDraft.current) await accountApi.acceptLegal();
       credentials.current = null;
       applyAccount(await accountApi.getMe());
     });
@@ -485,7 +476,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       onboarded,
       startSignup,
       setSignupCredentials,
-      setLegalAcceptedDraft,
       completeSignupProfile,
       completeSocialOnboarding,
       finishSignup,
@@ -516,7 +506,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       onboarded,
       startSignup,
       setSignupCredentials,
-      setLegalAcceptedDraft,
       completeSignupProfile,
       completeSocialOnboarding,
       finishSignup,
