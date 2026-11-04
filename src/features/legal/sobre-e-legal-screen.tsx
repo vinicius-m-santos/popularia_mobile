@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -11,6 +11,7 @@ import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { LegalHardShadow, LegalPaint as P } from '@/features/legal/legal-theme';
+import { openSupportMail, SUPPORT_EMAIL } from '@/features/legal/support';
 import { goBack } from '@/lib/routes';
 
 type LegalDocument = {
@@ -27,9 +28,6 @@ const DOCUMENTS: LegalDocument[] = [
   { id: 'privacidade', title: 'Política de Privacidade', description: 'Dados, sessões e visibilidade', icon: 'lock', accent: 'ink' },
 ];
 
-const SUPPORT_EMAIL = 'suporte@popularia.com.br';
-const SUPPORT_SUBJECT = 'Ajuda para entrar';
-
 /**
  * "Sobre e legal": documentos da comunidade e ajuda básica.
  * Abre do login e do cadastro (sem sessão) e também da Conta, então não depende de conta.
@@ -41,8 +39,9 @@ export function SobreELegalScreen() {
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
   const openSupport = () => {
-    const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(SUPPORT_SUBJECT)}`;
-    void Linking.openURL(url).catch(() => toast.show('Não foi possível abrir o aplicativo de e-mail.'));
+    void openSupportMail('Ajuda para entrar').then((opened) => {
+      if (!opened) toast.show('Não foi possível abrir o aplicativo de e-mail.');
+    });
   };
 
   return (

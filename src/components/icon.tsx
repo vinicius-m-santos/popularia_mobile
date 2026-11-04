@@ -111,6 +111,7 @@ const ICONS = {
   send: { strokeWidth: 2.2, body: <Path d="M3.5 11.5 20.5 4l-7.5 17-2.5-7z" /> },
   shield: { strokeWidth: 2.2, body: <Path d="M12 3l7.5 3v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6z" /> },
   alert: { strokeWidth: 2.2, body: <><Path d="M12 3 22 21H2z" /><Path d="M12 9v5M12 17h.01" /></> },
+  info: { strokeWidth: 2.2, body: <><Circle cx={12} cy={12} r={9.5} /><Path d="M12 11v5.5" /><Path d="M12 7.6h.01" /></> },
   lock: { strokeWidth: 2.4, body: <><Rect x={5} y={11} width={14} height={10} /><Path d="M8 11V7a4 4 0 0 1 8 0v4" /></> },
   phone: {
     strokeWidth: 2.2,
@@ -211,10 +212,12 @@ type IconProps = {
   color?: string;
   /** Preenche a forma (por exemplo, "Apoiar" ativo). */
   filled?: boolean;
+  /** Espessura do traço, quando o mockup pede um ícone mais grosso ou mais fino. */
+  strokeWidth?: number;
 };
 
 /** Ícones são decorativos: o rótulo acessível fica no botão que os contém. */
-export function Icon({ name, size = 24, color = Colors.ink, filled = false }: IconProps) {
+export function Icon({ name, size = 24, color = Colors.ink, filled = false, strokeWidth }: IconProps) {
   if (name === 'settings') {
     return (
       <View accessible={false} importantForAccessibility="no-hide-descendants">
@@ -232,7 +235,7 @@ export function Icon({ name, size = 24, color = Colors.ink, filled = false }: Ic
         viewBox="0 0 24 24"
         fill={icon.solid || filled ? color : 'none'}
         stroke={icon.solid ? 'none' : color}
-        strokeWidth={icon.strokeWidth}
+        strokeWidth={strokeWidth ?? icon.strokeWidth}
         strokeLinejoin="miter"
         strokeLinecap="square">
         {icon.body}
