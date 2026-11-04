@@ -14,7 +14,6 @@ import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
-import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import { BIO_MAX_LENGTH, useAccount, useMe } from '@/features/account/account-context';
 import { pickProfileImage, type PickedImage } from '@/features/media/pick-image';
 import { uploadAvatar } from '@/features/media/upload-image';
@@ -51,7 +50,6 @@ type HandleCheck = { handle: string; available: boolean | null };
 /** Etapa 2: identidade, @ e país. A conta só é criada ao tocar em Continuar. */
 export default function SetupScreen() {
   const insets = useSafeAreaInsets();
-  const keyboardVisible = useKeyboardVisible();
   const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl } = useAccount();
   const me = useMe();
   const toast = useToast();
@@ -74,14 +72,16 @@ export default function SetupScreen() {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const fieldLayout = useRef({ name: { y: 0, height: 0 }, handle: { y: 0, height: 0 }, bio: { y: 0, height: 0 } });
   const viewportRef = useRef(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
+  const contentHeightRef = useRef(0);
 
   const scrollToField = (key: 'name' | 'handle' | 'bio') => {
     // Espera o teclado terminar de ajustar a área visível e centraliza o campo nela.
     setTimeout(() => {
       const { y, height } = fieldLayout.current[key];
       const centerOffset = height / 2 - viewportRef.current / 2;
-      scrollRef.current?.scrollTo({ y: Math.max(0, y + centerOffset), animated: true });
+      const maxY = Math.max(0, contentHeightRef.current - viewportRef.current);
+      const target = Math.min(maxY, Math.max(0, y + centerOffset));
+      scrollRef.current?.scrollTo({ y: target, animated: true });
     }, 350);
   };
 
@@ -214,20 +214,16 @@ export default function SetupScreen() {
       <KeyboardView style={styles.flex} keyboardVerticalOffset={0}>
         <ScrollView
           ref={scrollRef}
+          onContentSizeChange={(_, height) => { contentHeightRef.current = height; }}
           onLayout={(event: LayoutChangeEvent) => {
-            const next = event.nativeEvent.layout.height;
-            viewportRef.current = next;
-            setViewportHeight((current) => (current === next ? current : next));
+            viewportRef.current = event.nativeEvent.layout.height;
           }}
           style={styles.flex}
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={[styles.content, {
-            paddingTop: Math.max(insets.top + 10, 54),
-            paddingBottom: keyboardVisible ? viewportHeight / 2 + 24 : 24,
-          }]}>
+          contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 54) }]}>
           <OnboardingHeader step={2} />
 
           <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>COMO VOCÊ QUER{'\n'}APARECER?</AppText>
