@@ -417,6 +417,8 @@ fonte ampliada, acentos, títulos longos e os estados de carregamento, vazio e e
   substituem esses cenários. Limpe temporizadores de cache nos testes para que o processo encerre.
 - Evite mudanças globais para corrigir uma tela. Documente variantes explícitas e preserve os demais
   consumidores até que sua revisão seja solicitada.
+- Antes de concluir uma mudança que cruza camadas, mapeie todos os fluxos que consomem o contrato alterado
+  (cadastro comum, onboarding social, perfil, edição e testes) e valide o comportamento na tela, não apenas na API.
 - **Restrição do ambiente do usuário:** o WSL sofre com carga alta. Execute verificações pesadas
   uma por vez, com `NODE_OPTIONS=--max-old-space-size=512`; testes Jest focados usam `--runInBand`
   e sem watch. Esse limite é do heap do Node, não da memória total do processo.

@@ -19,6 +19,7 @@ import { uploadAvatar } from '@/features/media/upload-image';
 import { ApiError, describeError } from '@/lib/errors';
 
 import { checkHandleAvailable } from './api';
+import { useSuggestedHandle } from './use-suggested-handle';
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
 import { BrazilLocationFields } from '@/features/locations/brazil-location-fields';
 import { getCountries, type Country } from '@/features/locations/api';
@@ -87,6 +88,8 @@ export default function SetupScreen() {
     if (DEMO_MODE) return;
     getCountries().then(setCountries, () => setCountryError('Não conseguimos carregar os países.'));
   }, []);
+
+  useSuggestedHandle({ account, handle: profile.handle, update: updateProfile });
 
   let handleHint = ownHandle || checked?.available ? '✓ Disponível' : checked ? '' : 'Conferindo…';
   let handleColor: string = Colors.ink;
