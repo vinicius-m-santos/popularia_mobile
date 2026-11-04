@@ -5,7 +5,7 @@ import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view
 import { Screen } from '@/components/screen';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { EventBar } from '@/features/events/chrome';
-import { LegalDocumentScreen } from '@/features/legal/legal-document-screen';
+import { SobreELegalScreen } from '@/features/legal/sobre-e-legal-screen';
 import { BlockedPeoplePanel } from '@/features/profiles/blocked-people-panel';
 import { PrivacyPanel } from '@/features/profiles/privacy-panel';
 
@@ -24,7 +24,7 @@ const TITLES: Record<string, string> = {
 
 export default function AccountSectionScreen() {
   const { section } = useLocalSearchParams<{ section?: string }>();
-  if (section === 'sobre-e-legal') return <LegalDocumentScreen showSupport />;
+  if (section === 'sobre-e-legal') return <SobreELegalScreen />;
   if (section === 'meus-dados') return <ProfileEditorScreen />;
   if (section === 'contato') return <ContactScreen />;
 

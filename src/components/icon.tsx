@@ -173,6 +173,8 @@ const ICONS = {
   poll: { strokeWidth: 2.4, body: <Path d="M5 20V11M12 20V5M19 20v-6" /> },
   arrowRight: { strokeWidth: 2.6, body: <Path d="M5 12h13M13 6l6 6-6 6" /> },
   arrowLeft: { strokeWidth: 2.6, body: <Path d="M19 12H6M11 6l-6 6 6 6" /> },
+  /** Abre fora do app (e-mail, site): seta para cima e para a direita. */
+  external: { strokeWidth: 2.6, body: <><Path d="M7 17 17 7" /><Path d="M9.5 7H17v7.5" /></> },
   camera: {
     strokeWidth: 2,
     body: (
