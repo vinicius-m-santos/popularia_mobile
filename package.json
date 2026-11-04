@@ -79,6 +79,7 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
+      "/__rsc_tests__/",
       "<rootDir>/e2e/"
     ],
     "transformIgnorePatterns": [
