@@ -12,9 +12,10 @@ import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
-import { useAccount, useMe } from '@/features/account/account-context';
+import { BIO_MAX_LENGTH, useAccount, useMe } from '@/features/account/account-context';
 import { pickProfileImage, type PickedImage } from '@/features/media/pick-image';
 import { uploadAvatar } from '@/features/media/upload-image';
+import { BrazilLocationFields } from '@/features/locations/brazil-location-fields';
 import { getCountries, type Country } from '@/features/locations/api';
 import { ApiError, describeError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
@@ -71,6 +72,7 @@ export default function SetupScreen() {
   const nameMissing = profile.name.trim() === '';
   const handleShort = profile.handle.length < 3;
   const ownHandle = account?.handle === profile.handle;
+  const locationMissing = profile.countryCode === 'BR' && (!profile.stateIbgeCode || !profile.municipalityIbgeCode);
 
   useSuggestedHandle({ account, handle: profile.handle, update: updateProfile });
 
@@ -150,6 +152,10 @@ export default function SetupScreen() {
     if (busyRef.current) return;
     setSubmitted(true);
     if (!canContinue) return;
+    if (locationMissing) {
+      toast.show('Escolha seu estado e sua cidade.');
+      return;
+    }
     if (DEMO_MODE) {
       router.push('/boas-vindas/assuntos');
       return;
@@ -311,6 +317,37 @@ export default function SetupScreen() {
             </Pressable>
             {countryError ? <Text style={styles.error}>{countryError}</Text> : null}
           </View>
+
+          {profile.countryCode === 'BR' ? (
+            <View style={[styles.field, styles.locationField]}>
+              <BrazilLocationFields
+                appearance="setup"
+                stateId={profile.stateIbgeCode}
+                municipalityId={profile.municipalityIbgeCode}
+                city={profile.city}
+                state={profile.state}
+                onChange={updateProfile}
+              />
+              {submitted && locationMissing ? <Text style={styles.error}>Escolha seu estado e sua cidade.</Text> : null}
+            </View>
+          ) : null}
+
+          <View style={[styles.field, styles.bioField]}>
+            <View style={styles.bioLabelRow}>
+              <Text style={styles.label}>Bio</Text>
+              <Text style={styles.bioCount}>opcional · {profile.bio.length}/{BIO_MAX_LENGTH}</Text>
+            </View>
+            <TextInput
+              value={profile.bio}
+              onChangeText={(bio) => updateProfile({ bio })}
+              placeholder="O que você faz, onde atua, o que te move"
+              placeholderTextColor={SETUP.placeholder}
+              multiline
+              maxLength={BIO_MAX_LENGTH}
+              accessibilityLabel="Bio"
+              style={[styles.input, styles.bioInput]}
+            />
+          </View>
         </ScrollView>
 
         <OnboardingFooter label={busy ? 'Criando conta…' : 'Continuar'} onPress={() => { void next(); }} disabled={!canContinue} />
@@ -399,8 +436,13 @@ const styles = StyleSheet.create({
   statusMuted: { fontFamily: Fonts.regular, fontSize: 14, lineHeight: 22, color: SETUP.secondary },
   statusLink: { flex: 1, minWidth: 0, fontFamily: Fonts.mono, fontSize: 11, lineHeight: 16, color: SETUP.secondary },
   countryField: { marginTop: 14 },
+  locationField: { marginTop: 14, gap: 12 },
+  bioField: { marginTop: 14 },
+  bioLabelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  bioCount: { fontFamily: Fonts.regular, fontSize: 13, lineHeight: 20, color: SETUP.secondary },
   select: { height: 52, marginTop: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface },
   selectValue: { flex: 1, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: SETUP.ink },
+  bioInput: { height: 88, paddingTop: 12, paddingBottom: 12, textAlignVertical: 'top' },
   sheetActions: { gap: 8, paddingBottom: 16 },
   countrySearch: { minHeight: 48, marginHorizontal: 4, marginBottom: 8, paddingHorizontal: 14, borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: SETUP.ink },
   countryOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#D9CFBF' },

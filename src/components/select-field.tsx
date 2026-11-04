@@ -18,7 +18,7 @@ type Props = {
   loading?: boolean;
   error?: string;
   /** Variante editorial, usada nos formulários do perfil. */
-  appearance?: 'default' | 'editorial';
+  appearance?: 'default' | 'editorial' | 'setup';
 };
 
 /** Select nativo ao design do app: gatilho compacto e opções em folha rolável. */
@@ -29,18 +29,18 @@ export function SelectField({ label, value, options, placeholder, onChange, disa
 
   return (
     <View style={styles.field}>
-      <AppText style={[styles.label, appearance === 'editorial' && styles.editorialLabel]}>{label}</AppText>
+      <AppText style={[styles.label, appearance === 'editorial' && styles.editorialLabel, appearance === 'setup' && styles.setupLabel]}>{label}</AppText>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${text}`}
         accessibilityState={{ disabled, expanded: open }}
         disabled={disabled || loading}
         onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.trigger, appearance === 'editorial' && styles.triggerEditorial, (disabled || loading) && styles.disabled, pressed && styles.pressed]}>
-        <AppText style={styles.value} color={selected ? Colors.ink : Colors.muted} numberOfLines={1}>{text}</AppText>
+        style={({ pressed }) => [styles.trigger, appearance === 'editorial' && styles.triggerEditorial, appearance === 'setup' && styles.setupTrigger, (disabled || loading) && styles.disabled, pressed && styles.pressed]}>
+        <AppText style={[styles.value, appearance === 'setup' && styles.setupValue]} color={selected ? Colors.ink : Colors.muted} numberOfLines={1}>{text}</AppText>
         <Icon name="chevronDown" size={18} color={Colors.muted} />
       </Pressable>
-      {error ? <AppText style={styles.error} color={Colors.red}>{error}</AppText> : null}
+      {error ? <AppText style={[styles.error, appearance === 'setup' && styles.setupError]} color={Colors.red}>{error}</AppText> : null}
       <BottomSheet visible={open} onClose={() => setOpen(false)} title={label} scrollable={false} virtualized>
         <PopulariaBottomSheetFlatList
           data={options}
@@ -78,6 +78,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radius.sm,
   },
+  setupLabel: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 23 },
+  setupTrigger: { height: 52, borderWidth: 2, borderColor: Colors.ink, borderRadius: 6, paddingLeft: 14, paddingRight: 16 },
+  setupValue: { fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24 },
+  setupError: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
   value: { flex: 1, fontSize: 16, lineHeight: 21 },
   disabled: { opacity: 0.55 },
   pressed: { opacity: 0.72 },

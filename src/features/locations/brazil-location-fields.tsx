@@ -11,7 +11,7 @@ const BRAZIL_STATES: LocationState[] = [
   ['12', 'Acre', 'AC'], ['27', 'Alagoas', 'AL'], ['16', 'Amapá', 'AP'], ['13', 'Amazonas', 'AM'], ['29', 'Bahia', 'BA'], ['23', 'Ceará', 'CE'], ['53', 'Distrito Federal', 'DF'], ['32', 'Espírito Santo', 'ES'], ['52', 'Goiás', 'GO'], ['21', 'Maranhão', 'MA'], ['51', 'Mato Grosso', 'MT'], ['50', 'Mato Grosso do Sul', 'MS'], ['31', 'Minas Gerais', 'MG'], ['15', 'Pará', 'PA'], ['25', 'Paraíba', 'PB'], ['41', 'Paraná', 'PR'], ['26', 'Pernambuco', 'PE'], ['22', 'Piauí', 'PI'], ['33', 'Rio de Janeiro', 'RJ'], ['24', 'Rio Grande do Norte', 'RN'], ['43', 'Rio Grande do Sul', 'RS'], ['11', 'Rondônia', 'RO'], ['14', 'Roraima', 'RR'], ['42', 'Santa Catarina', 'SC'], ['35', 'São Paulo', 'SP'], ['28', 'Sergipe', 'SE'], ['17', 'Tocantins', 'TO'],
 ].map(([id, name, abbreviation]) => ({ id, name, abbreviation }));
 
-type Props = { stateId: string; municipalityId: string; city: string; state: string; onChange: (patch: { stateIbgeCode: string; municipalityIbgeCode: string; city: string; state: string }) => void; appearance?: 'default' | 'editorial' };
+type Props = { stateId: string; municipalityId: string; city: string; state: string; onChange: (patch: { stateIbgeCode: string; municipalityIbgeCode: string; city: string; state: string }) => void; appearance?: 'default' | 'editorial' | 'setup' };
 
 export function BrazilLocationFields({ stateId, municipalityId, state, onChange, appearance = 'default' }: Props) {
   const [states, setStates] = useState<LocationState[]>(DEMO_MODE ? BRAZIL_STATES : []);

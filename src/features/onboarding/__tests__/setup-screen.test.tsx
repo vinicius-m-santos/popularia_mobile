@@ -11,7 +11,11 @@ jest.mock('react-native-safe-area-context', () => {
 jest.mock('@/hooks/use-keyboard-visible', () => ({ useKeyboardVisible: () => false }));
 jest.mock('@/components/icon', () => ({ Icon: () => null }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
-jest.mock('@/features/locations/api', () => ({ getCountries: async () => [{ code: 'BR', name: 'Brasil' }] }));
+jest.mock('@/features/locations/api', () => ({
+  getCountries: async () => [{ code: 'BR', name: 'Brasil' }],
+  getBrazilStates: async () => [{ id: '35', name: 'São Paulo', abbreviation: 'SP' }],
+  getBrazilMunicipalities: async () => [{ id: '3550308', name: 'São Paulo' }],
+}));
 jest.mock('../api', () => ({
   suggestHandle: async () => 'mellowriver',
   checkHandleAvailable: async () => true,
@@ -40,6 +44,9 @@ describe('cadastro etapa 2', () => {
 
     await waitFor(() => expect(screen.getByText('Disponível')).toBeTruthy());
     expect(screen.getByText('popularia.com.br/@mellowriver')).toBeTruthy();
+    expect(screen.getByText('Bio')).toBeTruthy();
+    expect(screen.getByText('Estado')).toBeTruthy();
+    expect(screen.getByText('Cidade')).toBeTruthy();
 
     await fireEvent.press(screen.getByLabelText('Adicionar foto'));
     expect(screen.getByText('Tirar foto')).toBeTruthy();
