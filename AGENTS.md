@@ -57,14 +57,14 @@ Toda feature que altera navegação, rotas, autenticação, onboarding ou um for
 
 Antes de encerrar:
 
-1. Suba o Expo web usando o Metro existente desta worktree; não inicie um segundo Metro.
+1. Para a navegação manual, suba o Expo web usando o Metro existente desta worktree; não inicie um segundo Metro. A suíte automatizada (`npm run test:e2e`) sobe e derruba o próprio servidor isolado na porta 8099.
 2. Navegue pelo fluxo implementado do começo ao fim, incluindo o ponto de entrada real (`/` ou deep link), não apenas a rota interna isolada.
 3. Repita os fluxos anexos que compartilham rota, layout, guarda de sessão, componente ou contrato alterado.
 4. Cubra, quando aplicável: sessão ausente, restaurando, autenticada e onboarding pendente; abertura inicial; voltar/hardware back; sair da tela; deep link; recarregar a página; e o caminho de erro.
 5. Confirme a URL final e o conteúdo visível, não só que não houve crash. Para um loop de navegação, navegue pelo menos dois passos para trás e confirme que não retorna à tela anterior.
 6. Registre no relatório o que foi navegado e o que não foi possível validar (ex.: Google/Apple nativo, teclado, câmera). Não declare validação no aparelho sem aparelho.
 
-Artefatos de Playwright (screenshots, traces, vídeos) são evidência local e não devem ser versionados. A automação E2E deve ser ampliada junto com a feature quando a suíte existir; até lá, a navegação manual via Playwright é obrigatória.
+Artefatos de Playwright (screenshots, traces, vídeos) são evidência local e não devem ser versionados. A suíte E2E existe em `e2e/` (ver `docs/e2e.md`) e cobre entrada inicial, login/cadastro, onboarding, documentos legais e guardas de sessão. Amplie-a junto com a feature, acrescentando o spec do fluxo alterado; ela não substitui a inspeção visual nem a validação no aparelho.
 
 ## Design rules
 

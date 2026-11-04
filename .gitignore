@@ -26,6 +26,12 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# Playwright (evidência local e relatórios não versionados)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # macOS
 .DS_Store
 *.pem
