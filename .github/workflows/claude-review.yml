@@ -1,0 +1,113 @@
+name: AI review
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  review:
+    name: Claude review
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      structured: ${{ steps.claude.outputs.structured_output }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A rubrica não pode ser alterada pelo próprio PR que está sendo revisado.
+      # Arquivos novos (como o REVIEW.md deste PR) ainda não existem na base e
+      # ficam com a versão do PR até o merge.
+      - name: Usar as regras de review da base
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          for file in REVIEW.md CLAUDE.md AGENTS.md; do
+            if git cat-file -e "origin/$BASE_REF:$file" 2>/dev/null; then
+              git checkout "origin/$BASE_REF" -- "$file"
+            fi
+          done
+
+      - name: Revisar o PR com o Claude
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # O push do fix é feito pelo Claude App; sem isso o evento de
+          # synchronize seria rejeitado pelo check de ator do action.
+          allowed_bots: 'claude[bot]'
+          prompt: |
+            Você é o code review obrigatório da Popularia, um app Expo/React Native.
+            Siga o REVIEW.md deste repositório e as regras de CLAUDE.md/AGENTS.md.
+
+            Escopo fechado: revise APENAS `git diff origin/${{ github.base_ref }}...HEAD`.
+            - Comece rodando `git diff --stat origin/${{ github.base_ref }}...HEAD`
+              e `git diff origin/${{ github.base_ref }}...HEAD`.
+            - Não explore o repositório inteiro, não rode testes e não use Glob/Grep.
+            - Leia no máximo 10 arquivos, apenas os alterados e, se necessário, um
+              arquivo diretamente importado por eles. Use o contexto do diff quando bastar.
+            - Assim que tiver evidência suficiente, PARE e retorne o JSON do schema.
+              Não continue investigando depois que os achados estiverem claros.
+
+            Procure, em ordem:
+            1. bugs de comportamento/regressão e perda de dados;
+            2. segurança, autorização e exposição de dados;
+            3. contrato com API/backend;
+            4. testes ausentes para comportamento alterado;
+            5. violações claras de CLAUDE.md/AGENTS.md;
+            6. acessibilidade, teclado e layout em tela pequena.
+
+            Não reporte o que ESLint/TypeScript/Jest já pegam. Não invente arquivos ou
+            linhas: use apenas caminhos e linhas do diff. Use `blocker`/`major` somente
+            quando o merge realmente não deve acontecer sem correção.
+          claude_args: |
+            --max-turns 30
+            --allowedTools "Read,Bash(git diff:*),Bash(git status:*)"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["approve","request_changes"]},"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string","enum":["blocker","major","minor","nit"]},"file":{"type":"string"},"line":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"suggestion":{"type":"string"}},"required":["severity","file","title","body"]}}},"required":["verdict","summary","findings"]}'
+
+  gate:
+    name: AI review
+    needs: review
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O gate roda a versão confiável da base, não a versão alterada no PR.
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 1
+
+      # Bootstrap: no PR que introduz o gate o arquivo ainda não existe na base.
+      # Depois do merge, a base sempre vence e o PR não consegue alterar o gate.
+      - name: Garantir o gate confiável
+        run: |
+          if [ ! -f scripts/ai-review-gate.mjs ]; then
+            git fetch --depth=1 origin "${{ github.event.pull_request.head.sha }}"
+            git checkout "${{ github.event.pull_request.head.sha }}" -- scripts/ai-review-gate.mjs
+          fi
+
+      - name: Publicar veredito e bloquear se necessário
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_RESULT: ${{ needs.review.result }}
+          REVIEW_JSON: ${{ needs.review.outputs.structured }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: node scripts/ai-review-gate.mjs

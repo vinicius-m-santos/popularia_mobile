@@ -1,5 +1,32 @@
 # Design da Popularia
 
+## Gate obrigatório antes de commit
+
+Nenhum commit ou push pode acontecer com lint, TypeScript ou testes vermelhos.
+Rode e corrija antes de commitar:
+
+```bash
+npm run check:fast   # ESLint + TypeScript
+npm run check        # ESLint + TypeScript + Jest
+```
+
+Antes de abrir ou atualizar o PR, rode também o E2E quando a mudança tocar
+navegação, rotas, autenticação, onboarding ou formulário:
+
+```bash
+npm run test:e2e
+```
+
+Se algo falhar, corrija e rode tudo de novo. Não use `--no-verify`, não comente
+testes e não baixe o nível de validação para "ganhar tempo". O hook
+`.claude/hooks/pre-commit-check.sh` roda ESLint e TypeScript em todo
+`git commit` feito pelo Claude Code e bloqueia o commit se falhar.
+
+O GitHub tem dois portões de IA: o check obrigatório **`AI review`**, que segue
+`REVIEW.md`, e o workflow **Claude fix**, acionado pela label **`ai:fix`**. O fix
+roda lint/typecheck/Jest antes do commit, dá push na branch do PR e dispara
+Quality, Playwright e AI review de novo. Só mergeie com todos verdes.
+
 ## Direção e escopo
 
 A Popularia é uma rede social com identidade editorial e brutalista: papel, tinta, vermelho,
