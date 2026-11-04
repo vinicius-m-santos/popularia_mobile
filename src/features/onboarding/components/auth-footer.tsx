@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -53,7 +53,12 @@ export function AuthFooter({ label, onPress, busy = false, disabled = false, err
           accessibilityLabel={label}
           accessibilityState={{ busy, disabled: isDisabled }}
           style={({ pressed }) => [styles.primary, isDisabled && styles.primaryDisabled, pressed && !isDisabled && styles.primaryPressed]}>
-          <Text style={styles.primaryLabel} maxFontSizeMultiplier={1.2}>{label.toUpperCase()}</Text>
+          <AppText
+            style={[styles.primaryLabel, isDisabled && styles.primaryLabelDisabled]}
+            color={isDisabled ? AUTH.disabledText : AUTH.paper}
+            maxFontSizeMultiplier={1.2}>
+            {label.toUpperCase()}
+          </AppText>
           {busy ? <ActivityIndicator color={AUTH.paper} /> : <Icon name="arrowRight" size={18} color={isDisabled ? AUTH.disabledText : AUTH.paper} />}
         </Pressable>
       </View>
@@ -77,7 +82,8 @@ const styles = StyleSheet.create({
   primary: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 2, borderColor: AUTH.ink, borderRadius: 6, backgroundColor: AUTH.red },
   primaryDisabled: { backgroundColor: AUTH.disabled },
   primaryPressed: { transform: [{ translateX: 2 }, { translateY: 2 }] },
-  primaryLabel: { fontFamily: Fonts.anton, fontSize: 22, lineHeight: 26, letterSpacing: 0.88, color: AUTH.paper },
+  primaryLabel: { fontFamily: Fonts.anton, fontSize: 22, lineHeight: 30, letterSpacing: 0.88, color: AUTH.paper, textAlign: 'center' },
+  primaryLabelDisabled: { color: AUTH.disabledText },
   secondary: { minHeight: 44, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontFamily: Fonts.regular, fontSize: 15, lineHeight: 21, color: AUTH.ink, textAlign: 'center' },
   secondaryAction: { fontFamily: Fonts.extrabold, color: AUTH.redText, textDecorationLine: 'underline' },
