@@ -73,7 +73,7 @@ export default function AccountScreen() {
 
   return (
     <Screen edges={['left', 'right']} backgroundColor={SIGNUP.bg}>
-      <KeyboardView style={styles.flex}>
+      <KeyboardView style={styles.flex} keyboardVerticalOffset={0}>
         <ScrollView
           style={styles.flex}
           contentInsetAdjustmentBehavior="never"
