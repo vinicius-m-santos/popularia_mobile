@@ -730,26 +730,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   identity: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   names: {
-    width: '100%',
+    flex: 1,
     minWidth: 0,
-    alignItems: 'center',
   },
   badge: {
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
     marginBottom: 5,
   },
   name: {
     fontFamily: Fonts.anton,
-    fontSize: 38,
-    lineHeight: 46,
+    fontSize: 42,
+    lineHeight: 50,
     letterSpacing: -0.4,
     textTransform: 'uppercase',
     paddingTop: 2,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   handle: {
     fontSize: 14,
@@ -757,12 +757,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.84,
     textTransform: 'none',
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   bio: {
     fontSize: 17,
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   privateNote: {
     flexDirection: 'row',

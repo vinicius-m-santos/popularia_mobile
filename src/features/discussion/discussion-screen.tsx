@@ -23,6 +23,7 @@ import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { commentTarget, postTarget } from '@/features/moderation/targets';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { useCachedPost } from '@/features/posts/queries';
+import { queryClient } from '@/lib/query/client';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { mergeById, singlePage } from '@/lib/pagination';
@@ -51,7 +52,7 @@ export default function DiscussionScreen() {
   );
   const discussion = useCachedPost(id, localPost);
   const comments = usePaginatedData(loadComments);
-  const { isOn, toggle, localCommentsFor, addComment, membershipOf, setOn, commentCountOf, noteCommentCount } =
+  const { isOn, toggle, localCommentsFor, addComment, membershipOf, setOn, noteCommentCount } =
     useInteractions();
   const { account, reloadAccount } = useAccount();
   const toast = useToast();
@@ -149,11 +150,12 @@ export default function DiscussionScreen() {
             authorId: '',
             author: { id: '', name: 'Indisponível', handle: '', initials: '', tone: 'cream' },
           }));
-          noteCommentCount(id, Math.max(0, commentCountOf(id, post.commentCount) - 1));
+          void discussion.reload();
+          void queryClient.invalidateQueries({ queryKey: ['feed'] });
         },
       });
     },
-    [commentCountOf, comments, id, noteCommentCount, post, sheet],
+    [comments, discussion, post, sheet],
   );
   const onReply = useCallback((row: ThreadRow) => {
     setReplyTo({ id: row.comment.id, name: row.comment.author.name });
@@ -177,7 +179,8 @@ export default function DiscussionScreen() {
       const created = await createComment({ postId: id, parentId: replyTo?.id ?? null, text, mentions });
       comments.append(created);
       setSentIds((prev) => [...prev, created.id]);
-      noteCommentCount(id, commentCountOf(id, post.commentCount) + 1);
+      void discussion.reload();
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
       afterSend();
       toast.show(replyTo ? 'Resposta publicada.' : 'Comentário publicado.');
       acknowledgeGamification(account?.id, toast.show);

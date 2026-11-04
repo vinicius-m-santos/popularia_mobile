@@ -36,10 +36,10 @@ describe('badge de avisos', () => {
 });
 
 describe('navegação das abas', () => {
-  it('tocar na aba ativa volta ao topo da pilha', async () => {
+  it('tocar na aba ativa não dispara POP_TO_TOP', async () => {
     await render(<TabBar {...props} />);
     await fireEvent.press(screen.getByLabelText('(inicio)'));
-    expect(router.dismissAll).toHaveBeenCalledTimes(1);
+    expect(router.dismissAll).not.toHaveBeenCalled();
     expect(props.navigateToTab).not.toHaveBeenCalled();
   });
 

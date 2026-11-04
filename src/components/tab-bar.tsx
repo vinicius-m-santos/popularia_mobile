@@ -42,12 +42,9 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
         const onPress = () => {
           const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (event.defaultPrevented) return;
-          if (focused) {
-            // Tocar na aba ativa volta ao topo dela, padrão dos apps com pilha por aba.
-            router.dismissAll();
-            return;
-          }
-          navigateToTab(route.key);
+          // A aba ativa não dispara POP_TO_TOP: ela já está no topo ou o gesto de
+          // voltar cuida da pilha. O reset automático acontece no blur (popToTopOnBlur).
+          if (!focused) navigateToTab(route.key);
         };
 
         return (

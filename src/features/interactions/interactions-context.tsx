@@ -34,9 +34,9 @@ export type ToggleKind =
   /** Pessoas silenciadas ou bloqueadas: as publicações delas somem do feed. */
   | 'mutedUsers';
 
-/** A contagem local manda: exclusões precisam baixar o número que veio do servidor. */
-export function displayedCommentCount(serverCount: number, knownCount: number | undefined): number {
-  return knownCount ?? serverCount;
+/** Na API o servidor é a fonte da verdade; só o modo demonstração soma a contagem local. */
+export function displayedCommentCount(serverCount: number, knownCount: number | undefined, demoMode: boolean): number {
+  return demoMode ? Math.max(serverCount, knownCount ?? 0) : serverCount;
 }
 
 type State = Record<ToggleKind, Record<string, boolean>> & {
@@ -129,7 +129,7 @@ type InteractionsValue = {
   addComment: (input: { postId: string; parentId: string | null; text: string; mentions?: Comment['mentions'] }) => Comment;
   localPosts: Post[];
   addPost: (input: { comunaId: string | null; text: string; title?: string | null; poll?: Post['poll']; mentions?: Post['mentions'] }) => Post;
-  /** Na API: usa a última contagem conhecida; o servidor só vale quando ainda não há registro local. */
+  /** Na API: o servidor é a fonte; no modo demonstração, soma os comentários locais. */
   commentCountOf: (postId: string, serverCount: number) => number;
   /** Registra uma contagem vista no servidor ou atualizada depois de comentar/excluir. */
   noteCommentCount: (postId: string, count: number) => void;
@@ -219,7 +219,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const commentCountOf = useCallback(
-    (postId: string, serverCount: number) => displayedCommentCount(serverCount, state.commentCounts[postId]),
+    (postId: string, serverCount: number) => displayedCommentCount(serverCount, state.commentCounts[postId], DEMO_MODE),
     [state.commentCounts],
   );
   const noteCommentCount = useCallback(
