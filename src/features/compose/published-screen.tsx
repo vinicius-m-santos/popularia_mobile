@@ -80,7 +80,7 @@ export default function PublishedScreen() {
       <View style={styles.shareRow}>
         <ShareButton icon="link" label="Copiar link" onPress={() => { void copy(); }} />
         <ShareButton icon="comment" label="WhatsApp" onPress={whatsapp} />
-        <ShareButton icon="share" label="Mais" onPress={() => { void more(); }} />
+        <ShareButton icon="shareNodes" label="Mais" onPress={() => { void more(); }} />
       </View>
     </ScrollView>
 

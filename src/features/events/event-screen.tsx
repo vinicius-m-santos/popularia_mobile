@@ -90,7 +90,7 @@ export default function EventScreen() {
 
   const data = event.data;
   return <Screen>
-    <EventBar title="Evento" action={<IconButton icon="share" accessibilityLabel="Compartilhar evento" onPress={() => { void shareDestination({ kind: 'event', id: data.id }); }} />} />
+    <EventBar title="Evento" action={<IconButton icon="shareNodes" accessibilityLabel="Compartilhar evento" onPress={() => { void shareDestination({ kind: 'event', id: data.id }); }} />} />
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
       <EventPoster event={data} onOpenComuna={data.comuna ? () => openDestination({ kind: 'comuna', id: data.comuna!.slug }) : undefined} onOpenCounts={() => router.push({ pathname: '/evento/[id]/participantes', params: { id: data.id, status: data.goingCount > 0 ? 'going' : 'maybe' } })} />
       {data.canRespond ? (

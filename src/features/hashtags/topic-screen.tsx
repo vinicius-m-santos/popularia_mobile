@@ -38,7 +38,7 @@ export function TopicScreen() {
           <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
           <View style={styles.divider} />
           <AppText variant="label" style={styles.chromeTitle}>Tópico</AppText>
-          {!DEMO_MODE && valid ? <IconButton icon="share" accessibilityLabel="Compartilhar tópico" onPress={() => { void shareDestination({ kind: 'hashtag', id: slug }); }} /> : <View style={styles.spacer} />}
+          {!DEMO_MODE && valid ? <IconButton icon="shareNodes" accessibilityLabel="Compartilhar tópico" onPress={() => { void shareDestination({ kind: 'hashtag', id: slug }); }} /> : <View style={styles.spacer} />}
         </View>
         <View style={styles.heading}>
           <AppText style={styles.name}>#{info.data?.displayName ?? slug}</AppText>

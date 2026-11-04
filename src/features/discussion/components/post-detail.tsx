@@ -45,7 +45,7 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
           avatarShape="square"
           trailing={<View style={styles.authorActions}>
             {post.viewer?.isAuthor ? null : <FollowButton user={post.author} />}
-            <IconButton icon="share" size={20} accessibilityLabel="Compartilhar publicação" onPress={share} />
+            <IconButton icon="shareNodes" size={20} accessibilityLabel="Compartilhar publicação" onPress={share} />
           </View>}
         />
         {chamado ? (
