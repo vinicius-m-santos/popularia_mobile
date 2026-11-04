@@ -69,6 +69,7 @@ vez de deixar a tela cair no estado de erro.
 | `signup-onboarding.spec.ts` | Cadastro completo: credenciais + aceite → identidade/estado/cidade → confirmação de e-mail adiada → assuntos → comunas → mensagem editorial → feed. Também prova que o cadastro não avança sem o aceite. |
 | `legal.spec.ts` | Termos, Política e Regras a partir das boas-vindas e de Sobre e legal; Sobre e legal ↔ Licenças; voltar em um nível por vez. |
 | `session-guards.spec.ts` | Rotas protegidas (`/biblioteca`, `/avisos`, `/conta`, `/perfil`, `/criar`, `/progresso`) sem sessão; login e Sobre e legal públicos; documento legal por link direto com a âncora no voltar. |
+| `report-success.spec.ts` | Denúncia de uma enquete no feed até a confirmação; cartão do conteúdo, link das Regras; bloquear, desfazer, bloquear de novo e confirmar que a publicação sai do feed ao fechar. Usa `installApiMock(page, {}, { feedItems })` para semear a publicação. |
 
 As asserções verificam URL, texto visível, estado do formulário e o contrato observado
 na API (por exemplo, o corpo de `/auth/register` e o PATCH de interesses). Não são

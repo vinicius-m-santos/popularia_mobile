@@ -2,9 +2,9 @@
  * Menu "⋯" de publicações, comentários e perfis, com o fluxo de denúncia (design 2h):
  * menu → motivo → detalhes → confirmação. Um único provedor serve o app inteiro.
  */
-import { createContext, use, useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import { canonicalUrl } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
 import * as Clipboard from 'expo-clipboard';
@@ -27,11 +27,12 @@ import { queryClient } from '@/lib/query/client';
 import { isPinLocked, pinPost, pinStoreVersion, readPinned, subscribePinStore, unpinPost } from '@/features/comunas/pins';
 import { knownPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
-import { openModeration } from '@/lib/routes';
 import type { ReportTarget } from '@/types/models';
 
+import { cachedBlockedHandles, ensureBlockedHandles, rememberBlocked } from './blocks';
 import { CONTENT_REPORT_REASONS, DETAILS_MAX_LENGTH } from './constants';
 import { useModeration } from './moderation-context';
+import { ReportSuccessSheet } from './report-success-sheet';
 
 type Step = 'menu' | 'reason' | 'details' | 'done';
 
@@ -57,7 +58,6 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [reasonCode, setReasonCode] = useState('');
   const [details, setDetails] = useState('');
   const [block, setBlock] = useState(false);
-  const [result, setResult] = useState<{ protocol: string; inMyQueue: boolean } | null>(null);
   const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
 
   const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu', options?: { onDeleted?: () => void; hideShare?: boolean }) => {
@@ -68,8 +68,18 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
     setReasonCode('');
     setDetails('');
     setBlock(false);
-    setResult(null);
+    setBlockedHandles(cachedBlockedHandles());
   }, []);
+
+  // A lista do servidor decide se a linha de bloqueio já deve nascer escondida.
+  useEffect(() => {
+    if (!target || target.kind === 'comuna') return;
+    let active = true;
+    void ensureBlockedHandles().then((handles) => {
+      if (active && handles.length > 0) setBlockedHandles((items) => [...new Set([...items, ...handles])]);
+    });
+    return () => { active = false; };
+  }, [target]);
 
   const close = useCallback(() => { setTarget(null); setOnDeleted(undefined); setHideShare(false); }, []);
   const value = useMemo(() => ({ open }), [open]);
@@ -77,7 +87,11 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   return (
     <ActionsSheetContext value={value}>
       {children}
-      <BottomSheet visible={target !== null} onClose={close}>
+      <BottomSheet
+        visible={target !== null}
+        onClose={close}
+        appearance={step === 'done' ? 'report' : 'paper'}
+        accessibilityLabel={step === 'done' ? 'Denúncia enviada' : undefined}>
         {target ? (
           <SheetBody
             target={target}
@@ -89,8 +103,6 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
             setDetails={setDetails}
             block={block}
             setBlock={setBlock}
-            result={result}
-            setResult={setResult}
             blocked={blockedHandles.includes(target.author.handle)}
             setBlocked={(handle, blocked) => setBlockedHandles((items) => blocked ? [...new Set([...items, handle])] : items.filter((item) => item !== handle))}
             close={close}
@@ -119,8 +131,6 @@ type BodyProps = {
   setDetails: (d: string) => void;
   block: boolean;
   setBlock: (b: boolean) => void;
-  result: { protocol: string; inMyQueue: boolean } | null;
-  setResult: (r: { protocol: string; inMyQueue: boolean }) => void;
   blocked: boolean;
   setBlocked: (handle: string, blocked: boolean) => void;
   close: () => void;
@@ -129,7 +139,7 @@ type BodyProps = {
 };
 
 function SheetBody(props: BodyProps) {
-  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close, onDeleted, hideShare } =
+  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, blocked, setBlocked, close, onDeleted, hideShare } =
     props;
   const toast = useToast();
   const me = useMe();
@@ -244,6 +254,7 @@ function SheetBody(props: BodyProps) {
         {!isMine && !DEMO_MODE ? <MenuItem icon="mute" label={blocked ? `Desbloquear @${handle}` : `Bloquear @${handle}`} danger onPress={async () => {
           try {
             await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: blocked ? 'DELETE' : 'PUT' });
+            rememberBlocked(handle, !blocked);
             setBlocked(handle, !blocked);
             setOn('mutedUsers', [target.author.handle], !blocked);
             if (blocked) void queryClient.invalidateQueries({ queryKey: ['feed'] });
@@ -311,8 +322,8 @@ function SheetBody(props: BodyProps) {
       if (sending.current) return;
       sending.current = true; setBusy(true);
       try {
-        const res = await submitReport({ target, reasonCode, reasonLabel, details });
-        setResult(res); setStep('done');
+        await submitReport({ target, reasonCode, reasonLabel, details });
+        setStep('done');
       } catch (e) { toast.show(describeError(e)); }
       finally { sending.current = false; setBusy(false); }
     };
@@ -363,55 +374,63 @@ function SheetBody(props: BodyProps) {
     );
   }
 
+  const blockedName = target.author.name.trim() || `@${handle}`;
+  const canBlock = target.kind !== 'comuna' && !isMine;
+
   const blockPerson = async () => {
-    if (sending.current || target.kind === 'comuna') return;
+    if (sending.current || !canBlock) return;
     sending.current = true;
+    setBusy(true);
     try {
       if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' });
+      rememberBlocked(handle, true);
       setBlocked(handle, true);
       setOn('mutedUsers', [target.author.handle], true);
       setBlock(true);
-      toast.show(`@${handle} bloqueado.`);
-    } catch (e) {
-      toast.show(describeError(e));
+      AccessibilityInfo.announceForAccessibility(`${blockedName} foi bloqueado`);
+    } catch {
+      toast.show('Não deu pra bloquear agora. Tenta de novo.');
     } finally {
       sending.current = false;
+      setBusy(false);
+    }
+  };
+
+  const undoBlock = async () => {
+    if (sending.current) return;
+    sending.current = true;
+    setBusy(true);
+    try {
+      if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'DELETE' });
+      rememberBlocked(handle, false);
+      setBlocked(handle, false);
+      setBlock(false);
+      setOn('mutedUsers', [target.author.handle], false);
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      AccessibilityInfo.announceForAccessibility(`${blockedName} foi desbloqueado`);
+    } catch {
+      toast.show('Não deu pra desbloquear agora. Tenta de novo.');
+    } finally {
+      sending.current = false;
+      setBusy(false);
     }
   };
 
   return (
-    <View style={styles.done} accessibilityLiveRegion="polite">
-      <View style={styles.doneIcon}>
-        <Icon name="check" size={32} color={Colors.cream} />
-      </View>
-      <AppText style={styles.doneTitle} accessibilityRole="header">
-        Denúncia enviada
-      </AppText>
-      <AppText style={styles.doneText} color={Colors.inkSoft}>
-        {DEMO_MODE
-          ? (result?.inMyQueue
-            ? `Você modera ${comunaName}, então ela já está na sua fila de moderação.`
-            : 'Nesta demonstração a denúncia fica só neste aparelho.')
-          : 'Vamos analisar o conteúdo.'}
-        {block ? ` @${handle} foi bloqueado.` : ''}
-      </AppText>
-      {target.kind !== 'comuna' && !blocked && !block ? (
-        <AppText style={styles.doneText} color={Colors.inkSoft}>Você também pode bloquear esta pessoa.</AppText>
-      ) : null}
-      <DarkButton label="Entendi" onPress={close} stretch />
-      {target.kind !== 'comuna' && !blocked && !block ? (
-        <TextLink label={`Bloquear @${handle}`} onPress={() => { void blockPerson(); }} />
-      ) : null}
-      {DEMO_MODE && result?.inMyQueue && comuna ? (
-        <TextLink
-          label="Abrir fila de moderação"
-          onPress={() => {
-            close();
-            openModeration(comuna.id);
-          }}
-        />
-      ) : null}
-    </View>
+    <ReportSuccessSheet
+      target={target}
+      blockedBefore={blocked}
+      blockedNow={block}
+      busy={busy}
+      canBlock={canBlock}
+      onBlock={() => { void blockPerson(); }}
+      onUndo={() => { void undoBlock(); }}
+      onClose={close}
+      onOpenRules={() => {
+        close();
+        router.push({ pathname: '/documento-legal/[id]', params: { id: 'regras' } });
+      }}
+    />
   );
 }
 
@@ -461,16 +480,6 @@ export function DarkButton({ label, onPress, stretch = false }: { label: string;
       accessibilityRole="button"
       style={({ pressed }) => [styles.dark, stretch && styles.darkStretch, pressed && styles.pressed]}>
       <AppText style={styles.darkLabel} color={Colors.cream}>
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
-function TextLink({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={styles.link}>
-      <AppText style={styles.linkLabel} color={Colors.red}>
         {label}
       </AppText>
     </Pressable>
@@ -624,48 +633,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 23,
     textTransform: 'uppercase',
-  },
-  done: {
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingTop: Spacing.three,
-    paddingHorizontal: Spacing.one,
-  },
-  doneIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: Colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doneTitle: {
-    fontFamily: Fonts.condensed,
-    fontSize: 34,
-    lineHeight: 34,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-  doneText: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  protocol: {
-    fontFamily: Fonts.mono,
-    fontSize: 10.5,
-    lineHeight: 14,
-    letterSpacing: 0.6,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-  link: {
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  linkLabel: {
-    fontFamily: Fonts.extrabold,
-    fontSize: 14,
-    lineHeight: 18,
   },
 });

@@ -20,6 +20,9 @@ export function postTarget(post: FeedItem): ReportTarget {
     author: post.author,
     comunaId: post.comunaId,
     excerpt: excerpt(post.text),
+    title: (post.poll?.question ?? post.title ?? post.text).trim(),
+    poll: !!post.poll,
+    comunaName: post.comuna?.name,
     where: 'Publicação',
     isOwn: post.viewer?.isAuthor,
   };
@@ -32,6 +35,8 @@ export function commentTarget(comment: CommentWithAuthor, post: FeedItem): Repor
     author: comment.author,
     comunaId: post.comunaId,
     excerpt: excerpt(comment.text),
+    title: comment.text.trim(),
+    comunaName: post.comuna?.name,
     where: `Comentário em “${shortTitle(post.text)}”`,
     isOwn: comment.isOwn,
     postId: post.id,
@@ -39,7 +44,7 @@ export function commentTarget(comment: CommentWithAuthor, post: FeedItem): Repor
 }
 
 export function profileTarget(user: User, bio: string): ReportTarget {
-  return { kind: 'profile', id: user.id, author: user, comunaId: null, excerpt: excerpt(bio), where: 'Perfil' };
+  return { kind: 'profile', id: user.id, author: user, comunaId: null, excerpt: excerpt(bio), title: user.name.trim(), where: 'Perfil' };
 }
 
 /** Denúncia da comuna inteira. Cai na plataforma, nunca na fila dos próprios moderadores. */
@@ -57,6 +62,7 @@ export function comunaTarget(comuna: ComunaDetails): ReportTarget {
     author,
     comunaId: null,
     excerpt: excerpt(comuna.description),
+    title: comuna.name,
     where: `Comuna c/${comuna.handle}`,
     isOwn: comuna.viewerRole === 'founder',
   };

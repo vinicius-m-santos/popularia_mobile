@@ -159,7 +159,12 @@ function profileOf(me: MockMe) {
   };
 }
 
-export async function installApiMock(page: Page, initial: Partial<MockMe> = {}): Promise<MockApi> {
+export type MockApiOptions = {
+  /** Publicações devolvidas por GET /feed; vazio por padrão para não alterar os specs existentes. */
+  feedItems?: unknown[];
+};
+
+export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, options: MockApiOptions = {}): Promise<MockApi> {
   const state: MockApi = {
     me: { ...DEMO_ACCOUNT, ...initial },
     registration: null,
@@ -302,7 +307,11 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}):
 
       // Descoberta e feed
       if (path === '/feed' && method === 'GET') {
-        await fulfill(200, pageOf());
+        await fulfill(200, pageOf(options.feedItems ?? []));
+        return;
+      }
+      if (path === '/me/blocks' && method === 'GET') {
+        await fulfill(200, []);
         return;
       }
       if (path === '/comunas' && method === 'GET') {

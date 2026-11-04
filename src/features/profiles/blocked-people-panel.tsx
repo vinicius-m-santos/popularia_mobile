@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { rememberBlocked } from '@/features/moderation/blocks';
 import { apiRequest } from '@/lib/api/client';
 import { describeError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
@@ -43,6 +44,7 @@ export function BlockedPeoplePanel() {
               setError(''); setBusyHandle(person.handle);
               await apiRequest(`/me/blocks/${encodeURIComponent(person.handle)}`, { auth: true, method: 'DELETE' });
               // O bloqueio também some do filtro local do feed; senão as publicações continuam ocultas.
+              rememberBlocked(person.handle, false);
               setOn('mutedUsers', [person.handle], false);
               void queryClient.invalidateQueries({ queryKey: ['feed'] });
               toast.show(`@${person.handle} desbloqueado.`);
