@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ImageStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
@@ -38,7 +39,8 @@ export default function WelcomeScreen() {
 
   // Em telas baixas, o título desce para 64 e a tela inteira rola.
   const titleSize = height < 700 ? 64 : Math.min(76, Math.round(width * 0.195));
-  const titleLineHeight = Math.round(titleSize * 0.92);
+  // Anton precisa de headroom; line-height apertado corta o topo das maiúsculas.
+  const titleLineHeight = Math.max(Math.round(titleSize * 1.1), titleSize + 8);
   const raysHeight = Math.round((width * 240) / 390);
 
   const signup = () => {
@@ -84,12 +86,12 @@ export default function WelcomeScreen() {
             </View>
           </View>
 
-          <Text
+          <AppText
             style={[styles.title, { fontSize: titleSize, lineHeight: titleLineHeight }]}
             accessibilityRole="header"
             maxFontSizeMultiplier={1.1}>
             A REDE É{'\n'}DE QUEM{'\n'}PARTICIPA.
-          </Text>
+          </AppText>
 
           <View style={styles.points}>
             {POINTS.map((point, index) => (
@@ -150,8 +152,8 @@ const styles = StyleSheet.create({
   kickerSquare: { width: 9, height: 9, backgroundColor: WELCOME.paper },
   kickerText: { fontFamily: Fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: WELCOME.paper },
   stampOuter: { borderWidth: 2, borderColor: WELCOME.paper, borderRadius: 6, padding: 1, transform: [{ translateY: -6 }, { rotate: '-7deg' }] },
-  stampInner: { borderWidth: 2, borderColor: WELCOME.paper, borderRadius: 3, paddingVertical: 2, paddingHorizontal: 8 },
-  stampText: { fontFamily: Fonts.anton, fontSize: 15, lineHeight: 17, letterSpacing: 0.75, textTransform: 'uppercase', color: WELCOME.paper },
+  stampInner: { borderWidth: 2, borderColor: WELCOME.paper, borderRadius: 3, paddingVertical: 3, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  stampText: { fontFamily: Fonts.anton, fontSize: 15, lineHeight: 19, letterSpacing: 0.75, textTransform: 'uppercase', color: WELCOME.paper, textAlign: 'center' },
   title: { marginTop: 22, fontFamily: Fonts.anton, color: WELCOME.paper, textTransform: 'uppercase' },
   points: { marginTop: 30, borderTopWidth: 2, borderTopColor: WELCOME.paper },
   point: { flexDirection: 'row', alignItems: 'baseline', gap: 14, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: WELCOME.paper },
