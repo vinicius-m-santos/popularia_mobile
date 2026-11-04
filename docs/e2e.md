@@ -67,7 +67,8 @@ vez de deixar a tela cair no estado de erro.
 | --- | --- |
 | `entry.spec.ts` | `/` → boas-vindas sem sessão; recarregar a rota pública; voltar do login pelo botão e pelo navegador. |
 | `auth.spec.ts` | Login válido até o feed; credenciais inválidas; validação de campos vazios; sair pela Conta e voltar às boas-vindas. |
-| `signup-onboarding.spec.ts` | Cadastro completo: credenciais + aceite → identidade/estado/cidade → confirmação de e-mail adiada → assuntos → comunas → mensagem editorial → feed. Confere o card de boas-vindas (nome, etiqueta e fechamento) e o `PATCH /me` com `welcomeDismissed`. Também prova que o cadastro não avança sem o aceite. |
+| `interests.spec.ts` | Conta → Interesses abre com os assuntos do perfil, atualiza o contador, salva com `PATCH /me` e volta. |
+| `signup-onboarding.spec.ts` | Cadastro completo: credenciais + aceite → identidade/estado/cidade → confirmação de e-mail adiada → interesses → comunas → mensagem editorial → feed. Confere o card de boas-vindas (nome, etiqueta e fechamento) e o `PATCH /me` com `welcomeDismissed`. Também prova que o cadastro não avança sem o aceite. |
 | `legal.spec.ts` | Termos, Política e Regras a partir das boas-vindas e de Sobre e legal; Sobre e legal ↔ Licenças; voltar em um nível por vez. |
 | `explore-sections.spec.ts` | Ordem Em alta → Assuntos → Comunas → Pessoas; card das três publicações em alta; carrossel e participação otimista; card abre a comuna; os dois “Ver todas” trocam a lista. |
 | `session-guards.spec.ts` | Rotas protegidas (`/biblioteca`, `/avisos`, `/conta`, `/perfil`, `/criar`, `/progresso`) sem sessão; login e Sobre e legal públicos; documento legal por link direto com a âncora no voltar. |
