@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
 
+import { KeyboardAwareScrollView, useKeyboardAwareFieldFocus } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { EditorialHeader } from '@/components/editorial-header';
@@ -17,6 +18,7 @@ import { queryClient } from '@/lib/query/client';
 export default function EditPostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const toast = useToast();
+  const focusField = useKeyboardAwareFieldFocus();
   const [post, setPost] = useState<FeedItem | null>(null);
   const [body, setBody] = useState('');
   const [title, setTitle] = useState('');
@@ -60,20 +62,20 @@ export default function EditPostScreen() {
       {loading ? <StateView kind="loading" message="Carregando publicação" /> : !post ? (
         <StateView kind="error" message={error || 'Não conseguimos carregar esta publicação.'} onRetry={() => router.replace({ pathname: '/editar-publicacao/[id]', params: { id } })} />
       ) : (
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View style={styles.field}>
             <AppText variant="label">Título</AppText>
-            <TextInput value={title} onChangeText={setTitle} maxLength={120} placeholder="Ex.: Quinta tem ato contra o aumento da passagem" placeholderTextColor={Colors.placeholder} accessibilityLabel="Título da publicação" style={styles.titleInput} />
+            <TextInput value={title} onChangeText={setTitle} onFocus={focusField ?? undefined} maxLength={120} placeholder="Ex.: Quinta tem ato contra o aumento da passagem" placeholderTextColor={Colors.placeholder} accessibilityLabel="Título da publicação" style={styles.titleInput} />
           </View>
           <View style={styles.field}>
             <AppText variant="label">Texto</AppText>
-            <TextInput value={body} onChangeText={setBody} multiline maxLength={1000} placeholder="Escreva sua publicação" placeholderTextColor={Colors.placeholder} accessibilityLabel="Texto da publicação" textAlignVertical="top" style={styles.bodyInput} />
+            <TextInput value={body} onChangeText={setBody} onFocus={focusField ?? undefined} multiline maxLength={1000} placeholder="Escreva sua publicação" placeholderTextColor={Colors.placeholder} accessibilityLabel="Texto da publicação" textAlignVertical="top" style={styles.bodyInput} />
           </View>
           {error ? <AppText color={Colors.red} accessibilityLiveRegion="polite">{error}</AppText> : null}
           {saving ? <ActivityIndicator color={Colors.red} accessibilityLabel="Salvando publicação" /> : (
             <EditorialAction label="Salvar alterações" icon="check" tone="red" labelVariant="button" disabled={!canSave} onPress={() => { void save(); }} style={styles.save} />
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
     </Screen>
   );

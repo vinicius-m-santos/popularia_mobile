@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -113,7 +114,7 @@ export function ProfileEditorScreen() {
   return <Screen edges={['top', 'left', 'right']}>
     <KeyboardView style={styles.flex}>
       <EventBar title="Meus dados" />
-      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         <AppText variant="caption">O e-mail é usado para entrar e não pode ser alterado por aqui.</AppText>
 
         <View style={styles.section}>
@@ -149,7 +150,7 @@ export function ProfileEditorScreen() {
           onPress={save}
           style={styles.save}
         />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </KeyboardView>
   </Screen>;
 }

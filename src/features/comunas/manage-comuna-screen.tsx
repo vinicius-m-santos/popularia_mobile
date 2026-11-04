@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -217,7 +218,7 @@ function MembersTab({ comuna, onChanged }: TabProps) {
 
   return (
     <>
-      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.list}>
+      <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.list}>
         {members.status === 'loading' ? <StateView kind="loading" message="Carregando membros" /> : null}
         {members.status === 'error' ? (
           <StateView kind="error" message={`Não conseguimos carregar os membros. ${comunaErrorMessage(members.error)}`} onRetry={members.refresh} />
@@ -262,7 +263,7 @@ function MembersTab({ comuna, onChanged }: TabProps) {
             style={styles.more}
           />
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <BottomSheet visible={selected !== null} onClose={() => setSelected(null)} title={selected?.name}>
         {selected
           ? memberActions(selected, viewer).map((action) => (
@@ -313,7 +314,7 @@ function RequestsTab({ comuna, onChanged }: TabProps) {
   };
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.list}>
+    <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.list}>
       {requests.status === 'loading' ? <StateView kind="loading" message="Carregando pedidos" /> : null}
       {requests.status === 'error' ? (
         <StateView kind="error" message={`Não conseguimos carregar os pedidos. ${comunaErrorMessage(requests.error)}`} onRetry={requests.refresh} />
@@ -357,7 +358,7 @@ function RequestsTab({ comuna, onChanged }: TabProps) {
       ) : requests.hasMore ? (
         <PillButton label={requests.loadingMore ? 'Carregando…' : 'Carregar mais'} disabled={requests.loadingMore} onPress={requests.loadMore} variant="outline" style={styles.more} />
       ) : null}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -459,7 +460,7 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
   const transfer = comuna.ownershipTransfer;
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.settings}>
+    <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.settings}>
       <SquareEntry slug={comuna.id} />
       {transfer?.direction === 'outgoing' ? (
         <View style={styles.card}>
@@ -529,7 +530,7 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
           <AppText variant="caption">Esta comuna está arquivada. A exclusão definitiva não está disponível pelo app.</AppText>
         ) : null}
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

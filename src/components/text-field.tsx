@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, Radius } from '@/constants/theme';
+import { KeyboardAwareFieldContext } from '@/components/keyboard-aware-scroll-view';
 
 type TextFieldProps = Omit<ComponentProps<typeof TextInput>, 'style'> & {
   label: string;
@@ -56,6 +57,7 @@ export function TextField({
   ...inputProps
 }: TextFieldProps) {
   const inSheet = useContext(InsideBottomSheet);
+  const keyboardAwareFocus = useContext(KeyboardAwareFieldContext);
   const Input = inSheet ? SheetTextInput : TextInput;
   const [focused, setFocused] = useState(false);
   const nativeInput = useRef<ComponentRef<typeof TextInput>>(null);
@@ -89,6 +91,7 @@ export function TextField({
           onFocus={(e) => {
             setFocused(true);
             onFocus?.(e);
+            if (!inSheet) keyboardAwareFocus?.(e);
           }}
           onBlur={(e) => {
             setFocused(false);

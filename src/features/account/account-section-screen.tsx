@@ -1,6 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { Screen } from '@/components/screen';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { EventBar } from '@/features/events/chrome';
@@ -30,9 +31,9 @@ export default function AccountSectionScreen() {
   return (
     <Screen>
       <EventBar title={TITLES[section ?? ''] ?? 'Conta'} />
-      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
         {section === 'privacidade' ? <PrivacyPanel /> : section === 'bloqueados' ? <BlockedPeoplePanel /> : <DeletionPanel />}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { IconButton } from '@/components/icon-button';
@@ -114,7 +115,7 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
             <IconButton icon="back" size={20} accessibilityLabel="Voltar" onPress={leave} />
           </View>
         )}
-        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View>
             <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
               Confira seu e-mail
@@ -154,7 +155,7 @@ export default function VerifyEmailScreen({ inOnboarding = false }: { inOnboardi
               </Pressable>
             ) : null}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <OnboardingFooter
           disabled={busy || resending}
           label={busy ? 'Confirmando…' : 'Confirmar e-mail'}

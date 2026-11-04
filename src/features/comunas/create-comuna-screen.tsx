@@ -1,7 +1,8 @@
 import { router, usePreventRemove } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { RadioMark } from '@/components/choice-marks';
@@ -241,7 +242,7 @@ export default function CreateComunaScreen() {
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardView style={styles.flex}>
         {bar}
-        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <AppText variant="caption">
             Você será a pessoa proprietária: edita descrição, assunto e regras, escolhe a moderação e decide sobre a comuna.
             Cada pessoa pode ter até {quota.data.limit} comunas ativas ({quota.data.activeOwned} em uso).
@@ -308,7 +309,7 @@ export default function CreateComunaScreen() {
             <AppText style={styles.sectionLabel}>Regras da comunidade</AppText>
             <RulesEditor rules={rules} onChange={setRules} error={rulesViolation(violations)} />
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardView>
     </Screen>
   );

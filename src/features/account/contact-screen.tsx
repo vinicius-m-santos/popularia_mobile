@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -37,7 +38,7 @@ export function ContactScreen() {
     <Screen>
       <KeyboardView style={styles.flex}>
         <EventBar title="Suporte e contato" />
-        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
           <AppText variant="heading">Fale com a Popularia</AppText>
           <AppText variant="caption">Escreva sua mensagem e ela será encaminhada ao suporte. Não envie senha, código de recuperação ou token.</AppText>
           <TextField
@@ -58,7 +59,7 @@ export function ContactScreen() {
             disabled={!message.trim() || busy}
             style={styles.action}
           />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardView>
     </Screen>
   );

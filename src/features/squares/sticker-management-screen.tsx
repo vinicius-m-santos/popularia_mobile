@@ -1,7 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
@@ -52,7 +53,7 @@ export default function StickerManagementScreen() {
       {!data.data ? (
         <StateView kind={data.status === 'error' ? 'error' : 'loading'} message={data.status === 'error' ? describeError(data.error) : 'Carregando figurinhas'} onRetry={data.reload} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
           contentContainerStyle={styles.body}
@@ -140,7 +141,7 @@ export default function StickerManagementScreen() {
               style={styles.add}
             />
           </> : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
     </KeyboardView>
   </Screen>;

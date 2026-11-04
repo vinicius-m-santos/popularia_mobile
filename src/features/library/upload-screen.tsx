@@ -20,8 +20,9 @@ import { goBack } from '@/lib/routes';
 import type { TopicId } from '@/types/models';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { editDocument, getDocument, listCollections, shareDocument, uploadDocument } from './api';
+import { Alert, AppState, Pressable, StyleSheet, View } from 'react-native';
+
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';import { editDocument, getDocument, listCollections, shareDocument, uploadDocument } from './api';
 import { CollectionEditor } from './collection-editor';
 import { returnAttachment } from './composer-attachment';
 import { sizeLabel } from './document-card';
@@ -174,7 +175,7 @@ export default function UploadScreen() {
       <View style={styles.barDivider} />
       <View style={styles.flex}><AppText variant="label" style={styles.barTitle}>{params.edit ? 'Editar documento' : 'Adicionar arquivo'}</AppText><AppText variant="caption" style={styles.barSubtitle}>{comunaSlug ? `Biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText></View>
       <AppText variant="caption" style={styles.stepCounter}>{step < 5 ? `${step} de 4` : 'Concluído'}</AppText></View>
-    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       {step === 1 ? <>
         <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Arquivo e informações</AppText><AppText style={styles.stepDescription}>Selecione o PDF do seu dispositivo e preencha as informações básicas.</AppText></View>
         <View style={styles.fileSection}>
@@ -291,7 +292,7 @@ export default function UploadScreen() {
         {step > 1 ? <EditorialAction label="Voltar" icon="back" disabled={busy} onPress={() => { setError(''); setStep(step - 1); }} style={styles.wizardBack} /> : null}
         <EditorialAction label={busy ? 'Enviando…' : step === 4 ? params.edit ? 'Salvar alterações' : error ? 'Tentar enviar novamente' : 'Enviar arquivo' : 'Continuar'} icon={step === 4 ? params.edit ? 'check' : 'send' : 'arrowRight'} iconPosition="trailing" tone="red" disabled={busy || selecting} onPress={next} style={styles.wizardNext} />
       </View> : null}
-    </ScrollView>
+    </KeyboardAwareScrollView>
     <CollectionEditor key={String(newCollection)} visible={newCollection} onClose={() => setNewCollection(false)} comuna={comunaSlug} onDone={(collection) => { if (collection) { collections.append(collection); setCollectionId(collection.id); } }} />
   </KeyboardView></Screen>;
 }

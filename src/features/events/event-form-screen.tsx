@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll-view';
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { Screen } from '@/components/screen';
@@ -118,7 +119,7 @@ function EventFields({ initial, editing, id, slug }: { initial: EventDraft; edit
 
   return <Screen>
     <EventBar title={editing ? 'Editar' : 'Nova atividade'} />
-    <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <AppText variant="caption">O horário vale no fuso {draft.timeZone || 'do aparelho'}.{editing ? ' Esse fuso não muda.' : ''}</AppText>
       <TextField appearance="editorial" label="Título" placeholder="Ex.: Assembleia mensal" value={draft.title} onChangeText={(title) => set({ title })} maxLength={120} />
       <TextField appearance="editorial" label="Descrição" labelAside="opcional" placeholder="Ex.: Pauta e como chegar" value={draft.description} onChangeText={(description) => set({ description })} maxLength={2000} multiline multilineHeight={120} />
@@ -155,7 +156,7 @@ function EventFields({ initial, editing, id, slug }: { initial: EventDraft; edit
       {endDate ? <EditorialAction label="Remover horário de término" icon="close" onPress={clearEnd} /> : null}
       {error ? <AppText color={Colors.red} accessibilityLiveRegion="polite">{error}</AppText> : null}
       <EditorialAction label={editing ? 'Salvar evento' : 'Marcar evento'} icon="check" tone="red" onPress={submit} disabled={pending || !draft.timeZone} />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   </Screen>;
 }
 
