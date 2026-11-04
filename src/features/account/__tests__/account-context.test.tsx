@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { queryClient } from '@/lib/query/client';
 import { ApiError } from '@/lib/errors';
 import { AccountProvider, useAccount } from '../account-context';
-import { getMe, logout } from '../api';
+import { getMe, logout, updateMe, type MeDto } from '../api';
 
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
 jest.mock('@/lib/monitoring', () => ({ setSentryUser: jest.fn(), clearSentryUser: jest.fn() }));
@@ -18,7 +18,7 @@ jest.mock('@/lib/api/client', () => ({
   refreshSession: jest.fn<() => Promise<string>>().mockResolvedValue('token'),
   onSessionEnded: jest.fn(),
 }));
-jest.mock('../api', () => ({ getMe: jest.fn(), logout: jest.fn() }));
+jest.mock('../api', () => ({ getMe: jest.fn(), logout: jest.fn(), updateMe: jest.fn() }));
 
 afterEach(async () => { await cleanup(); queryClient.clear(); });
 
@@ -61,6 +61,48 @@ it('mostra a mensagem editorial ao concluir o cadastro', async () => {
   await act(async () => { result.current.finishSignup(); });
   expect(result.current.showLoginWelcome).toBe(true);
   expect(result.current.showWelcome).toBe(true);
+});
+
+it('guarda no perfil que as boas-vindas foram fechadas', async () => {
+  const me: MeDto = {
+    id: 'conta-boas-vindas', displayName: 'Maria E2E', handle: 'maria.e2e', bio: '',
+    interests: ['edu'], city: 'São Paulo', state: 'São Paulo', country: 'Brasil', countryCode: 'BR',
+    stateIbgeCode: '35', municipalityIbgeCode: '3550308',
+    email: 'maria@example.test', emailVerified: false, platformRole: 'user' as const,
+    createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z',
+    pendingOnboarding: false, hasPassword: true, legalAccepted: true, followerCount: 0,
+  };
+  jest.mocked(getMe).mockResolvedValue(me);
+  jest.mocked(updateMe).mockResolvedValue({ ...me, welcomeDismissed: true });
+  const { result } = await renderHook(useAccount, {
+    wrapper: ({ children }: { children: ReactNode }) => <AccountProvider>{children}</AccountProvider>,
+  });
+  await waitFor(() => expect(result.current.status).toBe('signedIn'));
+  await act(async () => { result.current.finishSignup(); });
+  expect(result.current.showWelcome).toBe(true);
+
+  await act(async () => { result.current.dismissWelcome(); });
+
+  expect(result.current.showWelcome).toBe(false);
+  await waitFor(() => expect(updateMe).toHaveBeenCalledWith({ welcomeDismissed: true }));
+});
+
+it('não reabre as boas-vindas quando o perfil já marcou como fechado', async () => {
+  const me: MeDto = {
+    id: 'conta-retorno', displayName: 'Maria E2E', handle: 'maria.e2e', bio: '',
+    interests: ['edu'], city: 'São Paulo', state: 'São Paulo', country: 'Brasil', countryCode: 'BR',
+    stateIbgeCode: '35', municipalityIbgeCode: '3550308',
+    email: 'maria@example.test', emailVerified: true, platformRole: 'user',
+    createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z',
+    pendingOnboarding: false, hasPassword: true, legalAccepted: true, welcomeDismissed: true, followerCount: 0,
+  };
+  jest.mocked(getMe).mockResolvedValue(me);
+  const { result } = await renderHook(useAccount, {
+    wrapper: ({ children }: { children: ReactNode }) => <AccountProvider>{children}</AccountProvider>,
+  });
+  await waitFor(() => expect(result.current.status).toBe('signedIn'));
+  await act(async () => { result.current.finishSignup(); });
+  expect(result.current.showWelcome).toBe(false);
 });
 
 it('expõe a barreira visual durante a saída', async () => {

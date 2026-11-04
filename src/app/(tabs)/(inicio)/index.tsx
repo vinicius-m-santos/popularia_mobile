@@ -103,7 +103,7 @@ export default function FeedScreen() {
       </>;
     }}
     getItemType={(item) => `${item.poll ? 'poll' : 'text'}:${item.attachment?.type ?? (item.document ? 'document' : 'plain')}`}
-    ListHeaderComponent={<><WelcomeBanner /><HomeProgress /><ComposerPrompt /></>}
+    ListHeaderComponent={<>{tab === 'para-voce' ? <WelcomeBanner /> : null}<HomeProgress /><ComposerPrompt /></>}
     emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
     emptyMessage={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).message}
     contentContainerStyle={styles.list}

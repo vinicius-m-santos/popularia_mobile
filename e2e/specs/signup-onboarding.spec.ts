@@ -80,11 +80,14 @@ test.describe('cadastro e onboarding', () => {
     await continueToFeed(page);
 
     await expect(page.getByRole('tab', { name: 'Início' })).toBeVisible();
-    await expect(visibleHeading(page, 'Seu feed está pronto, Maria.')).toBeVisible();
+    await expect(page.getByLabel('SEU FEED ESTÁ PRONTO, MARIA.')).toBeVisible();
+    await expect(page.getByText('1 ASSUNTO', { exact: true })).toBeVisible();
+    await expect(page.getByText(/COMUNA/, { exact: true })).toHaveCount(0);
     await expect(page.getByText('Nenhuma publicação ainda')).toBeVisible();
 
     await visibleButton(page, 'Fechar boas-vindas').click();
-    await expect(page.getByText(/Seu feed está pronto/)).toHaveCount(0);
+    await expect(page.getByLabel('SEU FEED ESTÁ PRONTO, MARIA.')).toHaveCount(0);
+    await expect.poll(() => api.me.welcomeDismissed).toBe(true);
 
     // Contrato observado pela API: o cadastro levou identidade e localização,
     // e a escolha de assunto foi persistida antes de seguir.

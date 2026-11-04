@@ -10,6 +10,8 @@ type IconButtonProps = {
   onPress: () => void;
   color?: string;
   size?: number;
+  /** Traço do ícone quando o mockup pede um desenho mais grosso. */
+  strokeWidth?: number;
   /** Círculo de fundo, usado sobre a capa da comuna. */
   background?: string;
   /** Borda circular, usada no botão "Salvar" da discussão. */
@@ -26,6 +28,7 @@ export function IconButton({
   onPress,
   color = Colors.ink,
   size = 22,
+  strokeWidth,
   background,
   bordered = false,
   filled,
@@ -46,7 +49,7 @@ export function IconButton({
         pressed && styles.pressed,
         style,
       ]}>
-      <Icon name={icon} size={size} color={color} filled={filled} />
+      <Icon name={icon} size={size} color={color} filled={filled} strokeWidth={strokeWidth} />
     </Pressable>
   );
 }

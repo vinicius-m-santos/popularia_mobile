@@ -277,11 +277,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const finishSignup = useCallback(() => {
     setSigningUp(false);
-    setShowWelcome(true);
+    if (!account?.welcomeDismissed) setShowWelcome(true);
     // A mensagem editorial fecha o cadastro comum e o onboarding social novo.
     setShowLoginWelcome(true);
     if (DEMO_MODE) setStatus('signedIn');
-  }, []);
+  }, [account?.welcomeDismissed]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -506,7 +506,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [applyAccount]);
 
-  const dismissWelcome = useCallback(() => setShowWelcome(false), []);
+  const dismissWelcome = useCallback(() => {
+    setShowWelcome(false);
+    if (DEMO_MODE || !account) return;
+    // Fechar é definitivo: a marca vai para o perfil, não fica só neste aparelho.
+    void accountApi.updateMe({ welcomeDismissed: true })
+      .then((me) => setAccount((current) => current?.id === me.id ? { ...me, welcomeDismissed: true } : current))
+      .catch((error) => {
+        if (__DEV__) console.warn('Não foi possível guardar o fechamento das boas-vindas.', error);
+      });
+  }, [account]);
   const dismissLoginWelcome = useCallback(() => setShowLoginWelcome(false), []);
 
   const onboarded = status === 'signedIn' && !signingUp;
