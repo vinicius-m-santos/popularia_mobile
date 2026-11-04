@@ -54,27 +54,29 @@ jobs:
             Você é o code review obrigatório da Popularia, um app Expo/React Native.
             Siga o REVIEW.md deste repositório e as regras de CLAUDE.md/AGENTS.md.
 
-            Revise APENAS as mudanças deste pull request contra a base `${{ github.base_ref }}`.
-            Use `git diff origin/${{ github.base_ref }}...HEAD` para ver o diff completo
-            e leia o contexto dos arquivos alterados quando precisar.
+            Escopo fechado: revise APENAS `git diff origin/${{ github.base_ref }}...HEAD`.
+            - Comece rodando `git diff --stat origin/${{ github.base_ref }}...HEAD`
+              e `git diff origin/${{ github.base_ref }}...HEAD`.
+            - Não explore o repositório inteiro, não rode testes e não use Glob/Grep.
+            - Leia no máximo 10 arquivos, apenas os alterados e, se necessário, um
+              arquivo diretamente importado por eles. Use o contexto do diff quando bastar.
+            - Assim que tiver evidência suficiente, PARE e retorne o JSON do schema.
+              Não continue investigando depois que os achados estiverem claros.
 
-            Procure, em ordem de prioridade:
-            1. bugs de comportamento, regressão e perda de dados;
-            2. falhas de segurança, autorização e exposição de dados;
-            3. contrato com a API e mudanças que quebram o backend/mobile;
-            4. testes ausentes ou fracos para o comportamento alterado;
-            5. violações das regras de design e navegação do CLAUDE.md/AGENTS.md;
-            6. problemas de acessibilidade, teclado e layout em telas pequenas.
+            Procure, em ordem:
+            1. bugs de comportamento/regressão e perda de dados;
+            2. segurança, autorização e exposição de dados;
+            3. contrato com API/backend;
+            4. testes ausentes para comportamento alterado;
+            5. violações claras de CLAUDE.md/AGENTS.md;
+            6. acessibilidade, teclado e layout em tela pequena.
 
-            Não reporte o que o ESLint, o TypeScript ou o Jest já pegam.
-            Não invente arquivos ou linhas: use apenas caminhos e linhas do diff.
-            Seja específico e proponha a correção em `suggestion`.
-
-            Retorne o resultado no schema JSON solicitado. Use `blocker` ou `major`
-            somente quando o merge realmente não deve acontecer sem correção.
+            Não reporte o que ESLint/TypeScript/Jest já pegam. Não invente arquivos ou
+            linhas: use apenas caminhos e linhas do diff. Use `blocker`/`major` somente
+            quando o merge realmente não deve acontecer sem correção.
           claude_args: |
-            --max-turns 40
-            --allowedTools "Read,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
+            --max-turns 30
+            --allowedTools "Read,Bash(git diff:*),Bash(git status:*)"
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["approve","request_changes"]},"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string","enum":["blocker","major","minor","nit"]},"file":{"type":"string"},"line":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"suggestion":{"type":"string"}},"required":["severity","file","title","body"]}}},"required":["verdict","summary","findings"]}'
 
   gate:
