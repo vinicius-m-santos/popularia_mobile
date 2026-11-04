@@ -65,9 +65,9 @@ test.describe('cadastro e onboarding', () => {
 
     // Etapa 3: assuntos
     await expect(page).toHaveURL(/\/boas-vindas\/assuntos$/);
-    await expect(visibleHeading(page, /O que move/)).toBeVisible();
+    await expect(visibleHeading(page, /O QUE MOVE/)).toBeVisible();
     await page.getByRole('checkbox', { name: 'Educação' }).click();
-    await expect(page.getByText('1 de 7')).toBeVisible();
+    await expect(page.getByText('1 DE 3')).toBeVisible();
     await visibleButton(page, 'Continuar').click();
 
     // Etapa 4: comunas (lista vazia no mock, mas o caminho para o feed existe)

@@ -16,10 +16,11 @@ import { useAccount, useMe } from '@/features/account/account-context';
 import { describeError } from '@/lib/errors';
 import { goBack, openPlatformModeration } from '@/lib/routes';
 
-type AccountItem = { path: string; title: string; description: string; icon: IconName };
+type AccountItem = { path: string; href?: string; title: string; description: string; icon: IconName };
 
 const ACCOUNT_ITEMS: AccountItem[] = [
   { path: 'meus-dados', title: 'Meus dados', description: 'Nome, @, endereço, bio e senha', icon: 'user' },
+  { path: 'interesses', href: '/interesses', title: 'Interesses', description: 'Assuntos que movem seu feed', icon: 'heart' },
   { path: 'privacidade', title: 'Privacidade', description: 'Perfil público, privado e solicitações', icon: 'shield' },
   { path: 'bloqueados', title: 'Pessoas bloqueadas', description: 'Gerencie quem você bloqueou', icon: 'block' },
 ];
@@ -151,7 +152,7 @@ function SettingsRow({ item, last = false }: { item: AccountItem; last?: boolean
       title={item.title}
       description={item.description}
       last={last}
-      onPress={() => router.push((`/conta/${item.path}`) as never)}
+      onPress={() => router.push((item.href ?? `/conta/${item.path}`) as never)}
     />
   );
 }
