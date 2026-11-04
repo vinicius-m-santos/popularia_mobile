@@ -39,7 +39,7 @@ export default function FeedScreen() {
   const listRef = useRef<FlashListRef<FeedItem>>(null);
   useScrollToTop(listRef);
   const [tab, setTab] = useState<FeedTab>('para-voce');
-  const { joinedComunaIds, followedUserIds } = useInteractions();
+  const { joinedComunaIds, followedUserIds, isOn } = useInteractions();
   const { show: showToast } = useToast();
   // "Minhas comunas" recarrega quando a pessoa entra ou sai de uma comuna.
   const joinedKey = tab === 'minhas' ? joinedComunaIds.join(',') : '';
@@ -59,6 +59,11 @@ export default function FeedScreen() {
   const feedKey = DEMO_MODE && tab === 'seguindo' ? ['feed', tab, joinedKey, followedKey] : ['feed', tab, joinedKey];
   const feed = useCachedPages({ queryKey: feedKey, load, ...contentPolicy.feed });
   const { refreshError } = feed;
+  // Pessoas bloqueadas somem antes de agrupar os dias: assim nenhuma regra de dia fica órfã.
+  const items = useMemo(
+    () => feed.items.filter((item) => !isOn('mutedUsers', item.author.handle)),
+    [feed.items, isOn],
+  );
   const tabs = useMemo<FeedTab[]>(() => ['para-voce', 'seguindo', 'minhas', 'perto'], []);
   const tabIndex = tabs.indexOf(tab);
   const changeBySwipe = useCallback((direction: 1 | -1) => {
@@ -87,10 +92,10 @@ export default function FeedScreen() {
     extraData={visibility.visibleIds}
     onViewableItemsChanged={visibility.onViewableItemsChanged}
     viewabilityConfig={mediaViewabilityConfig}
-    data={feed.items}
+    data={items}
     keyExtractor={(item) => item.id}
     renderItem={({ item, index }) => {
-      const previous = index > 0 ? feed.items[index - 1] : null;
+      const previous = index > 0 ? items[index - 1] : null;
       const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
       return <>
         {newDay ? <DayRule label={formatDayRule(item.createdAt)} /> : <View style={styles.separator} />}
