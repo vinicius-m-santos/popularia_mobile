@@ -4,6 +4,8 @@ import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import { SvgXml } from 'react-native-svg';
 
 import { AppText } from '@/components/app-text';
@@ -52,6 +54,7 @@ function SocialButton({ label, icon, onPress, disabled }: SocialProps) {
 /** Login por e-mail ou provedores sociais, com rodapé fixo e ações de recuperação/criação. */
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
   const { signIn, signInWithGoogle, signInWithApple, startSignup } = useAccount();
   const toast = useToast();
   const [email, setEmail] = useState('');
@@ -274,7 +277,10 @@ export default function LoginScreen() {
           </Pressable>
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 26) }]}>
+        <View style={[styles.footer, {
+          paddingTop: keyboardVisible ? 8 : 14,
+          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 26),
+        }]}>
           {formError ? (
             <View style={styles.formError} accessibilityLiveRegion="polite" accessibilityRole="alert">
               <Icon name="alert" size={18} color={LOGIN.redText} />
@@ -294,11 +300,13 @@ export default function LoginScreen() {
               {busy ? <ActivityIndicator color={LOGIN.buttonText} /> : <Icon name="arrowRight" size={18} color={LOGIN.buttonText} />}
             </Pressable>
           </View>
-          <Pressable onPress={createAccount} accessibilityRole="link" accessibilityLabel="Ainda não tem conta? Criar conta" style={styles.createLink}>
-            <AppText style={styles.createText}>
-              Ainda não tem conta? <AppText style={styles.createStrong}>Criar conta</AppText>
-            </AppText>
-          </Pressable>
+          {!keyboardVisible ? (
+            <Pressable onPress={createAccount} accessibilityRole="link" accessibilityLabel="Ainda não tem conta? Criar conta" style={styles.createLink}>
+              <AppText style={styles.createText}>
+                Ainda não tem conta? <AppText style={styles.createStrong}>Criar conta</AppText>
+              </AppText>
+            </Pressable>
+          ) : null}
         </View>
       </KeyboardView>
     </Screen>
