@@ -414,6 +414,9 @@ ações, os alinhamentos e o comportamento com conteúdo real. Inspecione també
 fonte ampliada, acentos, títulos longos e os estados de carregamento, vazio e erro.
 
 - Não trate um teste automatizado como validação visual no aparelho. Declare o que não foi conferido.
+- A suíte E2E (`npm run test:e2e`, ver `docs/e2e.md`) cobre entrada inicial, login/cadastro,
+  onboarding, documentos legais e guardas de sessão. Amplie-a junto com a feature; ela não
+  substitui a inspeção visual nem a validação no aparelho.
 - Para mudanças em descoberta/busca, confira acesso aos itens fora da amostra, preservação do termo
   e assunto, seleção de categoria, carregamento, erro/retry e paginação. Prints de sucesso não
   substituem esses cenários. Limpe temporizadores de cache nos testes para que o processo encerre.
