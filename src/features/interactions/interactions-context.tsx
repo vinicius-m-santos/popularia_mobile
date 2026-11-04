@@ -31,7 +31,7 @@ export type ToggleKind =
   | 'joinedComunas'
   | 'notifyComunas'
   | 'readNotifications'
-  /** Pessoas silenciadas ou bloqueadas: as publicações delas somem do feed. */
+  /** Pessoas silenciadas ou bloqueadas, pelo @handle: as publicações delas somem do feed. */
   | 'mutedUsers';
 
 /** Na API o servidor é a fonte da verdade; só o modo demonstração soma a contagem local. */

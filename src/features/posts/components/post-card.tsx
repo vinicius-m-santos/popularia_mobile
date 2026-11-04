@@ -62,7 +62,8 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
       ? () => nav.openProfile('me')
       : undefined;
 
-  if (!showMuted && isOn('mutedUsers', author.id)) return null;
+  if (!showMuted && isOn('mutedUsers', author.handle)) return null;
+  const topCommentMuted = topCommentAuthor ? isOn('mutedUsers', topCommentAuthor.handle) : false;
 
   const hasTitle = !!item.title?.trim();
   const bodyBlock = item.text.trim().length > 0 || (item.images && item.images.length > 0) ? (
@@ -226,7 +227,7 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
         </Pressable>
       ) : null}
 
-      {topComment && topCommentAuthor ? (
+      {topComment && topCommentAuthor && !topCommentMuted ? (
         <Pressable
           onPress={open}
           style={({ pressed }) => [styles.topComment, pressed && styles.pressed]}

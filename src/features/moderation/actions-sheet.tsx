@@ -160,7 +160,7 @@ function SheetBody(props: BodyProps) {
   if (step === 'menu') {
     const savedPost = knownPost(target.id);
     const saved = DEMO_MODE ? isOn('savedPosts', target.id) : readSaved(target.id, savedPost?.viewer?.saved);
-    const muted = isOn('mutedUsers', target.author.id);
+    const muted = isOn('mutedUsers', target.author.handle);
     return (
       <View>
         {isMine && target.kind === 'post' ? (
@@ -218,7 +218,7 @@ function SheetBody(props: BodyProps) {
             icon="mute"
             label={muted ? `Deixar de silenciar @${handle}` : `Silenciar @${handle}`}
             onPress={() => {
-              const on = toggle('mutedUsers', target.author.id);
+              const on = toggle('mutedUsers', target.author.handle);
               close();
               toast.show(
                 on
@@ -245,7 +245,8 @@ function SheetBody(props: BodyProps) {
           try {
             await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: blocked ? 'DELETE' : 'PUT' });
             setBlocked(handle, !blocked);
-            setOn('mutedUsers', [target.author.id], !blocked);
+            setOn('mutedUsers', [target.author.handle], !blocked);
+            if (blocked) void queryClient.invalidateQueries({ queryKey: ['feed'] });
             close();
             toast.show(blocked ? `@${handle} desbloqueado.` : 'Pessoa bloqueada no serviço.');
           }
@@ -368,7 +369,7 @@ function SheetBody(props: BodyProps) {
     try {
       if (!DEMO_MODE) await apiRequest(`/me/blocks/${encodeURIComponent(handle)}`, { auth: true, method: 'PUT' });
       setBlocked(handle, true);
-      setOn('mutedUsers', [target.author.id], true);
+      setOn('mutedUsers', [target.author.handle], true);
       setBlock(true);
       toast.show(`@${handle} bloqueado.`);
     } catch (e) {
