@@ -15,7 +15,7 @@ import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
 import { AuthEmailField, AuthPasswordField } from './components/auth-fields';
 import { AuthFooter } from './components/auth-footer';
-import { OnboardingProgress } from './components/onboarding-chrome';
+import { OnboardingHeader } from './components/onboarding-chrome';
 import { SocialAuthButtons } from './components/social-auth-buttons';
 
 const SIGNUP = {
@@ -81,7 +81,7 @@ export default function AccountScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 54) }]}>
-          <OnboardingProgress step={1} />
+          <OnboardingHeader step={1} />
 
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>CRIAR CONTA</Text>
           <Text style={styles.subtitle}>Leva menos de um minuto.</Text>
@@ -140,8 +140,8 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 24 },
-  title: { marginTop: 12, paddingTop: 4, fontFamily: Fonts.anton, fontSize: 58, lineHeight: 66, textTransform: 'uppercase', color: SIGNUP.ink },
-  subtitle: { marginTop: 6, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: SIGNUP.ink },
+  title: { marginTop: 18, paddingTop: 4, fontFamily: Fonts.anton, fontSize: 50, lineHeight: 64, textTransform: 'uppercase', color: SIGNUP.ink },
+  subtitle: { marginTop: 8, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: SIGNUP.ink },
   social: { marginTop: 20 },
   divider: { marginTop: 18, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   dividerLine: { flex: 1, height: 1.5, backgroundColor: SIGNUP.line },

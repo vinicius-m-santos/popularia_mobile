@@ -35,6 +35,8 @@ jest.mock('@/features/account/account-context', () => ({
 describe('cadastro etapa 1', () => {
   it('mantém o formulário com erros de campo e só avança com credenciais válidas', async () => {
     await render(<AccountScreen />);
+    const progress = screen.getByLabelText('Etapa 1 de 4');
+    expect(progress.props.accessibilityValue).toEqual({ min: 0, max: 4, now: 1 });
 
     await fireEvent.press(screen.getByLabelText('Continuar'));
     await waitFor(() => expect(screen.getByText('Preencha o e-mail')).toBeTruthy());

@@ -21,7 +21,7 @@ import { ApiError, describeError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 
 import { checkHandleAvailable } from './api';
-import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
+import { OnboardingFooter, OnboardingHeader } from './components/onboarding-chrome';
 import { useSuggestedHandle } from './use-suggested-handle';
 
 const SETUP = {
@@ -204,7 +204,7 @@ export default function SetupScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 54) }]}>
-          <OnboardingProgress step={2} />
+          <OnboardingHeader step={2} />
 
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>COMO VOCÊ QUER{'\n'}APARECER?</Text>
           <Text style={styles.subtitle}>Só o essencial. Dá pra mudar depois.</Text>

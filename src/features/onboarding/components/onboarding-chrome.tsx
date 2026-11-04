@@ -13,6 +13,11 @@ const ONBOARDING = { red: '#BF3326', ink: '#15120F', paper: '#FBF7EF', cream: '#
 /** Etapas do cadastro depois das boas-vindas: conta, perfil, assuntos e comunas. */
 export const ONBOARDING_STEPS = 4;
 
+/** Cabeçalho único das etapas: usar este wrapper evita divergência de layout entre 1, 2, 3 e 4. */
+export function OnboardingHeader({ step }: { step: number }) {
+  return <View style={styles.header}><OnboardingProgress step={step} /></View>;
+}
+
 /** Voltar e barra de progresso segmentada ("2 de 4"). */
 export function OnboardingProgress({ step }: { step: number }) {
   return (
@@ -82,6 +87,7 @@ export function OnboardingFooter({ label, onPress, hint, count, accessibilityHin
 }
 
 const styles = StyleSheet.create({
+  header: { width: '100%' },
   progress: {
     flexDirection: 'row',
     alignItems: 'center',
