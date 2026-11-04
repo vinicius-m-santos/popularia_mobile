@@ -83,7 +83,9 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     fontFamily: Fonts.anton,
     fontSize: 40,
-    lineHeight: 48,
+    // Título em duas linhas com cedilha ("LICENÇAS"): o leading precisa passar de 1.3
+    // para o descendente não encostar na linha de baixo.
+    lineHeight: 54,
     textTransform: 'uppercase',
     color: P.ink,
   },
