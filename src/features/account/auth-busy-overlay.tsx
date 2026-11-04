@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, BackHandler, Modal, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Spacing } from '@/constants/theme';
 
-/** Cobre a árvore durante login, cadastro ou saída: nenhum toque ou gesto navega no meio. */
+/**
+ * Cobre a árvore durante login, cadastro ou saída.
+ * É uma View absoluta, não um Modal nativo: um Modal desmontado no meio da troca
+ * de sessão pode deixar uma janela transparente presa e bloquear todos os toques.
+ */
 export function AuthBusyOverlay({ label }: { label: string }) {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
@@ -12,12 +16,10 @@ export function AuthBusyOverlay({ label }: { label: string }) {
   }, []);
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={() => undefined}>
-      <View style={styles.overlay} accessibilityViewIsModal accessibilityLiveRegion="polite" accessibilityRole="progressbar" accessibilityLabel={label}>
-        <ActivityIndicator size="large" color={Colors.red} />
-        <AppText variant="bodyStrong" style={styles.label}>{label}</AppText>
-      </View>
-    </Modal>
+    <View style={styles.overlay} accessibilityViewIsModal accessibilityLiveRegion="polite" accessibilityRole="progressbar" accessibilityLabel={label}>
+      <ActivityIndicator size="large" color={Colors.red} />
+      <AppText variant="bodyStrong" style={styles.label}>{label}</AppText>
+    </View>
   );
 }
 

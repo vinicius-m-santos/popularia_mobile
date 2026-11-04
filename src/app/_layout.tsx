@@ -166,7 +166,7 @@ function RootStack() {
 
   return (
     <View style={{ flex: 1 }}>
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream }, gestureEnabled: !authBusy }}>
       <Stack.Screen name="abrir-link" />
       <Stack.Screen name="link-indisponivel" />
       <Stack.Screen name="aceite-legal" />
