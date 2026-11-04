@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ImageStyle } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View, type ImageStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -11,7 +11,6 @@ import { useAccount } from '@/features/account/account-context';
 
 const WELCOME = {
   red: '#BF3326',
-  rays: '#AD2C21',
   paper: '#FBF7EF',
   ink: '#15120F',
   buttonText: '#F2EADB',
@@ -24,7 +23,7 @@ const POINTS = [
   'Converse, se organize e construa junto',
 ];
 
-/** Boas-vindas (referência 390×844): fundo vermelho, raios, cartaz editorial e criação de conta. */
+/** Boas-vindas (referência 390×844): cartaz editorial, sem rolagem. */
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -37,11 +36,16 @@ export default function WelcomeScreen() {
     }, []),
   );
 
-  // Em telas baixas, o título desce para 64 e a tela inteira rola.
-  const titleSize = height < 700 ? 64 : Math.min(76, Math.round(width * 0.195));
-  // Anton precisa de headroom; line-height apertado corta o topo das maiúsculas.
-  const titleLineHeight = Math.max(Math.round(titleSize * 1.1), titleSize + 8);
+  const compact = height < 820;
+  const veryCompact = height < 700;
+  const baseTitle = veryCompact ? 54 : compact ? 60 : 68;
+  const titleSize = Math.min(baseTitle, Math.round(width * 0.185));
+  // Anton tem o topo do desenho acima da caixa da linha; o piso de +8 e o
+  // padding impedem o corte que acontecia com line-height apertado.
+  const titleLineHeight = titleSize + 14;
   const raysHeight = Math.round((width * 240) / 390);
+  const top = compact ? Math.max(insets.top + 8, 44) : Math.max(insets.top + 11, 58);
+  const bottom = compact ? Math.max(insets.bottom, 18) : Math.max(insets.bottom, 30);
 
   const signup = () => {
     startSignup();
@@ -61,19 +65,12 @@ export default function WelcomeScreen() {
         pointerEvents="none"
         importantForAccessibility="no-hide-descendants"
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}
-        bounces={false}
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: Math.max(insets.top + 11, 58), paddingBottom: Math.max(insets.bottom, 30) },
-        ]}>
-        <View style={styles.brand} accessible accessibilityRole="image" accessibilityLabel="Popularia">
+      <View style={[styles.content, { paddingTop: top, paddingBottom: bottom }]}>
+        <View style={[styles.brand, compact && styles.brandCompact]} accessible accessibilityRole="image" accessibilityLabel="Popularia">
           <Image fadeDuration={0} source={require('@/assets/branding/logo-creme.png')} style={styles.logo} resizeMode="contain" accessible={false} />
         </View>
 
-        <View style={styles.middle}>
+        <View style={[styles.middle, compact && styles.middleCompact]}>
           <View style={styles.kickerRow}>
             <View style={styles.kicker}>
               <View style={styles.kickerSquare} />
@@ -87,36 +84,36 @@ export default function WelcomeScreen() {
           </View>
 
           <AppText
-            style={[styles.title, { fontSize: titleSize, lineHeight: titleLineHeight }]}
+            style={[styles.title, { fontSize: titleSize, lineHeight: titleLineHeight }, compact && styles.titleCompact]}
             accessibilityRole="header"
             maxFontSizeMultiplier={1.1}>
             A REDE É{'\n'}DE QUEM{'\n'}PARTICIPA.
           </AppText>
 
-          <View style={styles.points}>
+          <View style={[styles.points, compact && styles.pointsCompact]}>
             {POINTS.map((point, index) => (
-              <View key={point} style={styles.point}>
+              <View key={point} style={[styles.point, compact && styles.pointCompact]}>
                 <Text style={styles.pointNumber} maxFontSizeMultiplier={1.2}>{String(index + 1).padStart(2, '0')}</Text>
-                <Text style={styles.pointText} maxFontSizeMultiplier={1.2}>{point}</Text>
+                <Text style={[styles.pointText, compact && styles.pointTextCompact]} maxFontSizeMultiplier={1.2}>{point}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, compact && styles.actionsCompact]}>
           <View style={styles.buttonWrap}>
             <View pointerEvents="none" style={styles.buttonShadow} />
             <Pressable
               onPress={signup}
               accessibilityRole="button"
               accessibilityLabel="Criar minha conta"
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+              style={({ pressed }) => [styles.button, compact && styles.buttonCompact, pressed && styles.buttonPressed]}>
               <Text style={styles.buttonLabel} maxFontSizeMultiplier={1.2}>CRIAR MINHA CONTA</Text>
               <Icon name="arrowRight" size={18} color={WELCOME.buttonText} />
             </Pressable>
           </View>
 
-          <Pressable onPress={login} accessibilityRole="link" accessibilityLabel="Já tem conta? Entrar" style={styles.loginLink}>
+          <Pressable onPress={login} accessibilityRole="link" accessibilityLabel="Já tem conta? Entrar" style={[styles.loginLink, compact && styles.loginLinkCompact]}>
             <Text style={styles.loginText} maxFontSizeMultiplier={1.2}>
               Já tem conta? <Text style={styles.loginStrong}>Entrar</Text>
             </Text>
@@ -129,7 +126,7 @@ export default function WelcomeScreen() {
             <Text style={styles.legalLink} accessibilityRole="link" onPress={() => legal('privacidade')}>Política de Privacidade</Text>.
           </Text>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -137,16 +134,18 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: WELCOME.red, overflow: 'hidden' },
   rays: { position: 'absolute', top: 0, left: 0, backgroundColor: 'transparent' } as ImageStyle,
-  scroll: {
-    flexGrow: 1,
+  content: {
+    flex: 1,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: 24,
   },
   brand: { minHeight: 44, justifyContent: 'center', alignItems: 'flex-start' },
+  brandCompact: { minHeight: 36 },
   logo: { width: 139, height: 34 } as ImageStyle,
-  middle: { flex: 1, justifyContent: 'center', paddingTop: 24, paddingBottom: 12 },
+  middle: { flex: 1, justifyContent: 'center', paddingTop: 12, paddingBottom: 6 },
+  middleCompact: { paddingTop: 8, paddingBottom: 4 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   kicker: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   kickerSquare: { width: 9, height: 9, backgroundColor: WELCOME.paper },
@@ -154,18 +153,25 @@ const styles = StyleSheet.create({
   stampOuter: { borderWidth: 2, borderColor: WELCOME.paper, borderRadius: 6, padding: 1, transform: [{ translateY: -6 }, { rotate: '-7deg' }] },
   stampInner: { borderWidth: 2, borderColor: WELCOME.paper, borderRadius: 3, paddingVertical: 3, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   stampText: { fontFamily: Fonts.anton, fontSize: 15, lineHeight: 19, letterSpacing: 0.75, textTransform: 'uppercase', color: WELCOME.paper, textAlign: 'center' },
-  title: { marginTop: 22, fontFamily: Fonts.anton, color: WELCOME.paper, textTransform: 'uppercase' },
-  points: { marginTop: 30, borderTopWidth: 2, borderTopColor: WELCOME.paper },
-  point: { flexDirection: 'row', alignItems: 'baseline', gap: 14, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: WELCOME.paper },
+  title: { marginTop: 14, paddingTop: 4, includeFontPadding: true, fontFamily: Fonts.anton, color: WELCOME.paper, textTransform: 'uppercase' },
+  titleCompact: { marginTop: 10 },
+  points: { marginTop: 16, borderTopWidth: 2, borderTopColor: WELCOME.paper },
+  pointsCompact: { marginTop: 12 },
+  point: { flexDirection: 'row', alignItems: 'baseline', gap: 14, paddingVertical: 9, borderBottomWidth: 2, borderBottomColor: WELCOME.paper },
+  pointCompact: { paddingVertical: 7 },
   pointNumber: { width: 22, fontFamily: Fonts.monoSemibold, fontSize: 12, lineHeight: 16, color: WELCOME.paper },
   pointText: { flex: 1, fontFamily: Fonts.bold, fontSize: 17, lineHeight: 23, color: WELCOME.paper },
-  actions: { gap: 6 },
+  pointTextCompact: { fontSize: 16, lineHeight: 22 },
+  actions: { gap: 4 },
+  actionsCompact: { gap: 3 },
   buttonWrap: { position: 'relative' },
   buttonShadow: { position: 'absolute', top: 3, left: 3, width: '100%', height: '100%', borderRadius: 6, backgroundColor: WELCOME.shadow },
   button: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 12, borderWidth: 2, borderColor: WELCOME.ink, borderRadius: 6, backgroundColor: WELCOME.ink },
+  buttonCompact: { minHeight: 52 },
   buttonPressed: { transform: [{ translateX: 2 }, { translateY: 2 }] },
   buttonLabel: { fontFamily: Fonts.anton, fontSize: 22, lineHeight: 26, letterSpacing: 0.88, textTransform: 'uppercase', color: WELCOME.buttonText },
-  loginLink: { minHeight: 48, marginTop: 6, alignItems: 'center', justifyContent: 'center' },
+  loginLink: { minHeight: 48, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+  loginLinkCompact: { minHeight: 42, marginTop: 2 },
   loginText: { fontFamily: Fonts.regular, fontSize: 16, lineHeight: 22, color: WELCOME.paper, textAlign: 'center' },
   loginStrong: { fontFamily: Fonts.extrabold, textDecorationLine: 'underline' },
   legal: { marginTop: 2, fontFamily: Fonts.regular, fontSize: 12, lineHeight: 18, color: WELCOME.paper, textAlign: 'center' },
