@@ -71,8 +71,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Popularia acessa suas fotos e v\u00eddeos apenas quando voc\u00ea escolhe uma m\u00eddia para publicar.",
-          "cameraPermission": false,
+          "photosPermission": "Popularia acessa suas fotos e vídeos apenas quando você escolhe uma mídia para publicar.",
+          "cameraPermission": "A Popularia usa a câmera para você tirar uma foto de perfil.",
           "microphonePermission": false
         }
       ],
