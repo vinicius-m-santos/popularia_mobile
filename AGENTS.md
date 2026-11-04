@@ -25,6 +25,12 @@ For code changes, run lint and typecheck before declaring the task done. Documen
 
 Para trabalhar em frentes paralelas (worktrees, workspaces do DSH, um Metro por vez, dono dos arquivos compartilhados), veja `docs/parallel-work.md`.
 
+## Git e branches
+
+- Trabalhe em uma branch própria a partir da `main`: `feature/<feature-name>`, em inglês, minúsculo e com hífens (por exemplo `feature/about-and-legal`). Não faça commit direto na `main`.
+- Commits em inglês no formato `feat(<branch-name>): <mensagem>`. O escopo é o nome da branch sem o prefixo `feature/`: a branch `feature/about-and-legal` gera `feat(about-and-legal): ...`.
+- Suba a branch com `git push -u origin <branch>` e abra o PR contra a `main` para revisão.
+
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.

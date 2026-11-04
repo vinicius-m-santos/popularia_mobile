@@ -1,1 +1,1 @@
-export { LegalDocumentScreen as default } from '@/features/legal/legal-document-screen';
+export { SobreELegalScreen as default } from '@/features/legal/sobre-e-legal-screen';
