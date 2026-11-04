@@ -14,6 +14,7 @@ import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
 import { ApiError, describeError } from '@/lib/errors';
 import { goBack } from '@/lib/routes';
+import { SobreELegalLink } from '@/features/legal/sobre-e-legal-link';
 import { AuthEmailField, AuthPasswordField } from './components/auth-fields';
 import { AuthFooter } from './components/auth-footer';
 import { SocialAuthButtons } from './components/social-auth-buttons';
@@ -139,9 +140,7 @@ export default function LoginScreen() {
           contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 54) }]}>
           <View style={styles.topBar}>
             <IconButton icon="back" size={22} accessibilityLabel="Voltar" onPress={goBack} />
-            <Pressable onPress={() => router.push('/sobre-e-legal')} accessibilityRole="link" accessibilityLabel="Sobre e legal" style={styles.topLegal}>
-              <Text style={styles.topLegalText}>SOBRE E LEGAL</Text>
-            </Pressable>
+            <SobreELegalLink />
           </View>
 
           <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>ENTRAR</AppText>
@@ -214,8 +213,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: -10 },
-  topLegal: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10 },
-  topLegalText: { fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 16, letterSpacing: 0.88, textTransform: 'uppercase', color: LOGIN.secondary },
   title: { marginTop: 12, paddingTop: 4, fontFamily: Fonts.anton, fontSize: 58, lineHeight: 66, textTransform: 'uppercase', color: LOGIN.ink },
   subtitle: { marginTop: 6, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: LOGIN.ink },
   social: { marginTop: 20 },

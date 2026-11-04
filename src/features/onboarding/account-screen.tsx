@@ -9,7 +9,7 @@ import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
-import { LegalAppLink } from '@/features/legal/legal-links';
+import { SobreELegalLink } from '@/features/legal/sobre-e-legal-link';
 import { describeError } from '@/lib/errors';
 import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
@@ -122,7 +122,7 @@ export default function AccountScreen() {
             textContentType="newPassword"
           />
 
-          <View style={styles.legal}><LegalAppLink /></View>
+          <View style={styles.legal}><SobreELegalLink /></View>
         </ScrollView>
 
         <AuthFooter
