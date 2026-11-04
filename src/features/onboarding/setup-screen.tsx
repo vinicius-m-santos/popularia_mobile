@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
@@ -68,6 +68,15 @@ export default function SetupScreen() {
   const [countries, setCountries] = useState<Country[]>(DEMO_MODE ? [{ code: 'BR', name: 'Brasil' }] : []);
   const [countryError, setCountryError] = useState('');
   const handleRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const fieldY = useRef({ name: 0, handle: 0, bio: 0 });
+
+  const scrollToField = (key: 'name' | 'handle' | 'bio') => {
+    // Espera o teclado começar a animar para o campo não parar atrás do rodapé.
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, fieldY.current[key] - 16), animated: true });
+    }, 80);
+  };
 
   const nameMissing = profile.name.trim() === '';
   const handleShort = profile.handle.length < 3;
@@ -197,6 +206,7 @@ export default function SetupScreen() {
     <Screen edges={['left', 'right']} backgroundColor={SETUP.bg}>
       <KeyboardView style={styles.flex} keyboardVerticalOffset={0}>
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
@@ -232,7 +242,7 @@ export default function SetupScreen() {
             </View>
           </Pressable>
 
-          <View style={[styles.field, styles.firstField]}>
+          <View style={[styles.field, styles.firstField]} onLayout={(event: LayoutChangeEvent) => { fieldY.current.name = event.nativeEvent.layout.y; }}>
             <TextField
               appearance="setup"
               label="Nome"
@@ -244,13 +254,14 @@ export default function SetupScreen() {
               textContentType="name"
               returnKeyType="next"
               onSubmitEditing={() => handleRef.current?.focus()}
+              onFocus={() => scrollToField('name')}
               error={(submitted && nameMissing) || !!fieldErrors.displayName}
               hint={submitted && nameMissing ? 'Preencha seu nome' : fieldErrors.displayName || undefined}
               hintColor={SETUP.redText}
             />
           </View>
 
-          <View style={styles.field}>
+          <View style={styles.field} onLayout={(event: LayoutChangeEvent) => { fieldY.current.handle = event.nativeEvent.layout.y; }}>
             <TextField
               appearance="setup"
               label="Nome de usuário"
@@ -265,6 +276,7 @@ export default function SetupScreen() {
               returnKeyType="next"
               maxLength={HANDLE_MAX_LENGTH}
               onSubmitEditing={() => setCountryOpen(true)}
+              onFocus={() => scrollToField('handle')}
               inputRef={handleRef}
               error={handleError}
             />
@@ -323,7 +335,7 @@ export default function SetupScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.field, styles.bioField]}>
+          <View style={[styles.field, styles.bioField]} onLayout={(event: LayoutChangeEvent) => { fieldY.current.bio = event.nativeEvent.layout.y; }}>
             <TextField
               appearance="setup"
               label="Bio"
@@ -334,6 +346,7 @@ export default function SetupScreen() {
               multiline
               multilineHeight={88}
               maxLength={BIO_MAX_LENGTH}
+              onFocus={() => scrollToField('bio')}
             />
           </View>
         </ScrollView>
