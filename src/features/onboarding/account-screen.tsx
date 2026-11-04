@@ -1,144 +1,94 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import { useRef, useState, type ComponentRef } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
-import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
-import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
-import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
+import { LegalAppLink } from '@/features/legal/legal-links';
 import { describeError } from '@/lib/errors';
 import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
-import { LegalAppLink } from '@/features/legal/legal-links';
+import { AuthEmailField, AuthPasswordField } from './components/auth-fields';
+import { AuthFooter } from './components/auth-footer';
+import { OnboardingProgress } from './components/onboarding-chrome';
 import { SocialAuthButtons } from './components/social-auth-buttons';
-import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
 
-type Mode = 'cadastro' | 'entrar';
+const SIGNUP = {
+  bg: '#F2EADB',
+  ink: '#15120F',
+  redText: '#A3261C',
+  secondary: '#5E554A',
+  line: '#D9CFBF',
+} as const;
 
-/**
- * Criar conta ou entrar (etapa 1 do cadastro).
- * - Cadastro: e-mail e senha ficam só na memória até a etapa 2, que cria a conta na API.
- * - Entrar: login real (POST /auth/login); a sessão fica guardada com segurança no aparelho.
- * Sem API configurada (modo demonstração), nada é enviado e o login entra no perfil fictício.
- * Não pedimos CPF: a conta não precisa de documento civil.
- */
+/** Etapa 1 do cadastro: credenciais, com o mesmo visual e componentes do login. */
 export default function AccountScreen() {
-  const { modo } = useLocalSearchParams<{ modo?: string }>();
-  const mode: Mode = modo === 'entrar' ? 'entrar' : 'cadastro';
-  const signup = mode === 'cadastro';
-  const { startSignup, setSignupCredentials, signIn, signInWithGoogle, signInWithApple } = useAccount();
+  const insets = useSafeAreaInsets();
+  const { setSignupCredentials, signInWithGoogle, signInWithApple } = useAccount();
   const toast = useToast();
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
   const [socialBusy, setSocialBusy] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
 
-  const emailError = !email.trim()
-    ? 'Informe seu e-mail'
-    : !isValidEmail(email)
-      ? 'Confira o e-mail: falta algo como “@” ou “.com”'
-      : null;
-  const passwordError =
-    password.length < PASSWORD_MIN_LENGTH ? `A senha precisa de pelo menos ${PASSWORD_MIN_LENGTH} caracteres` : null;
+  const emailError = !email.trim() ? 'Preencha o e-mail' : !isValidEmail(email) ? 'Confira o e-mail' : undefined;
+  const passwordError = !password ? 'Preencha a senha' : password.length < PASSWORD_MIN_LENGTH ? `A senha precisa de pelo menos ${PASSWORD_MIN_LENGTH} caracteres` : undefined;
   const valid = !emailError && !passwordError;
 
-  const switchMode = () => {
-    setSubmitted(false);
-    setServerError(null);
-    if (signup) {
-      router.setParams({ modo: 'entrar' });
-    } else {
-      startSignup();
-      router.setParams({ modo: 'cadastro' });
-    }
+  const submit = () => {
+    setSubmitted(true);
+    if (!valid) return;
+    setSignupCredentials(email, password);
+    router.push('/boas-vindas/perfil');
+  };
+
+  const switchToLogin = () => {
+    router.setParams({ modo: 'entrar' });
   };
 
   const handleGoogle = async () => {
-    if (socialBusy || busy) return;
+    if (socialBusy) return;
     if (DEMO_MODE) { toast.show('Google indisponível no modo demonstração.'); return; }
     setSocialBusy(true);
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      toast.show(describeError(error));
-    } finally {
-      setSocialBusy(false);
-    }
+    try { await signInWithGoogle(); }
+    catch (error) { toast.show(describeError(error)); }
+    finally { setSocialBusy(false); }
   };
 
   const handleApple = async () => {
-    if (socialBusy || busy) return;
+    if (socialBusy) return;
     if (DEMO_MODE) { toast.show('Apple indisponível no modo demonstração.'); return; }
     setSocialBusy(true);
-    try {
-      await signInWithApple();
-    } catch (error) {
-      toast.show(describeError(error));
-    } finally {
-      setSocialBusy(false);
-    }
-  };
-
-  const submit = async () => {
-    if (busyRef.current) return;
-    setServerError(null);
-    if (!valid) {
-      setSubmitted(true);
-      toast.show('Confira os campos destacados.');
-      return;
-    }
-    if (signup) {
-      setSignupCredentials(email, password);
-      router.push('/boas-vindas/perfil');
-      return;
-    }
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      // Ao entrar, o guarda de rotas leva ao feed sozinho.
-      await signIn(email, password);
-      if (DEMO_MODE) toast.show('Modo demonstração: você entrou no perfil fictício.');
-    } catch (error) {
-      setServerError(describeError(error));
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
+    try { await signInWithApple(); }
+    catch (error) { toast.show(describeError(error)); }
+    finally { setSocialBusy(false); }
   };
 
   return (
-    <Screen edges={['top', 'left', 'right']}>
+    <Screen edges={['left', 'right']} backgroundColor={SIGNUP.bg}>
       <KeyboardView style={styles.flex}>
-        {signup ? (
+        <ScrollView
+          style={styles.flex}
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 54) }]}>
           <OnboardingProgress step={1} />
-        ) : (
-          <View style={styles.backRow}>
-            <IconButton icon="back" accessibilityLabel="Voltar" onPress={() => router.back()} />
-          </View>
-        )}
-        <ScrollView style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          <View>
-            <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>
-              {signup ? 'Crie sua conta' : 'Entrar'}
-            </AppText>
-            <AppText style={styles.sub} color={Colors.inkSoft}>
-              {signup ? 'Leva menos de um minuto.' : <>Bom te ver de novo <AppText style={styles.camarada} color={Colors.red}>camarada.</AppText></>}
-            </AppText>
-          </View>
+
+          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>CRIAR CONTA</Text>
+          <Text style={styles.subtitle}>Leva menos de um minuto.</Text>
 
           <View style={styles.social}>
             <SocialAuthButtons
-              disabled={socialBusy || busy}
+              disabled={socialBusy}
               onGoogle={() => { void handleGoogle(); }}
               onApple={() => { void handleApple(); }}
             />
@@ -146,87 +96,41 @@ export default function AccountScreen() {
 
           <View style={styles.divider} accessible={false}>
             <View style={styles.dividerLine} />
-            <AppText variant="label" color={Colors.muted} style={styles.dividerText}>
-              ou com e-mail
-            </AppText>
+            <Text style={styles.dividerText}>OU COM E-MAIL</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          <TextField
-            label="E-mail"
+          <AuthEmailField
             value={email}
-            onChangeText={setEmail}
-            placeholder="voce@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType={signup ? 'username' : 'emailAddress'}
+            onChangeText={(value) => { setEmail(value); setSubmitted(false); }}
+            error={submitted ? emailError : undefined}
+            onSubmitEditing={() => passwordRef.current?.focus()}
             returnKeyType="next"
-            hint={submitted && emailError ? emailError : undefined}
-            hintColor={Colors.red}
           />
 
-          <TextField
-            label="Senha"
+          <AuthPasswordField
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(value) => { setPassword(value); setSubmitted(false); }}
+            showPassword={showPassword}
+            onToggleShow={() => setShowPassword((current) => !current)}
+            error={submitted ? passwordError : undefined}
+            onSubmitEditing={submit}
+            inputRef={passwordRef}
             placeholder={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres`}
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete={signup ? 'new-password' : 'current-password'}
-            textContentType={signup ? 'newPassword' : 'password'}
-            hint={(password.length > 0 || submitted) && passwordError ? passwordError : (serverError ?? undefined)}
-            hintColor={Colors.red}
-            accessory={
-              <Pressable
-                onPress={() => setShowPassword((v) => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                hitSlop={8}
-                style={styles.reveal}>
-                <AppText style={styles.revealLabel} color={Colors.red}>
-                  {showPassword ? 'Ocultar' : 'Mostrar'}
-                </AppText>
-              </Pressable>
-            }
+            returnKeyType="go"
+            autoComplete="new-password"
+            textContentType="newPassword"
           />
 
-          {!signup ? (
-            <Pressable
-              onPress={() => (DEMO_MODE ? toast.show('Recuperar senha chega numa próxima etapa.') : router.push('/boas-vindas/recuperar'))}
-              accessibilityRole="button"
-              style={styles.forgot}>
-              <AppText style={styles.linkLabel} color={Colors.red}>
-                Esqueci minha senha
-              </AppText>
-            </Pressable>
-          ) : null}
-
-          <View style={styles.legalLink}><LegalAppLink /></View>
-          <View style={styles.switchRow}>
-            <AppText style={styles.switchText} color={Colors.inkSoft}>
-              {signup ? 'Já tem conta?' : 'Ainda não tem conta?'}
-            </AppText>
-            <Pressable onPress={switchMode} accessibilityRole="button" style={styles.switchButton}>
-              <AppText style={styles.linkLabel} color={Colors.red}>
-                {signup ? 'Entrar' : 'Criar conta'}
-              </AppText>
-            </Pressable>
-          </View>
+          <View style={styles.legal}><LegalAppLink /></View>
         </ScrollView>
-        <OnboardingFooter
-          disabled={busy || !valid}
-          label={busy ? 'Entrando…' : signup ? 'Continuar' : 'Entrar'}
+
+        <AuthFooter
+          label="Continuar"
           onPress={submit}
-          hint={
-            DEMO_MODE
-              ? 'Modo demonstração: nenhuma conta é criada ou verificada, e nada sai deste aparelho.'
-              : signup
-                ? 'Na próxima etapa você escolhe como aparecer. Depois enviamos um código para o seu e-mail.'
-                : undefined
-          }
+          secondaryText="Já tem conta?"
+          secondaryAction="Entrar"
+          onSecondary={switchToLogin}
         />
       </KeyboardView>
     </Screen>
@@ -234,89 +138,13 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  backRow: {
-    paddingTop: 2,
-    paddingBottom: Spacing.two,
-    paddingLeft: 6,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingTop: 6,
-    paddingHorizontal: Spacing.five + 2,
-    paddingBottom: Spacing.six,
-    gap: Spacing.five,
-  },
-  legalLink: {
-    alignItems: 'center',
-    marginTop: -Spacing.two,
-  },
-  title: {
-    fontFamily: Fonts.condensed,
-    fontSize: 50,
-    lineHeight: 46,
-    paddingTop: 6,
-    textTransform: 'uppercase',
-  },
-  sub: {
-    marginTop: Spacing.two,
-    fontSize: 15.5,
-    lineHeight: 21,
-  },
-  camarada: {
-    fontFamily: Fonts.bold,
-  },
-  social: {},
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two + 2,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#BFAF94',
-  },
-  dividerText: {
-    fontSize: 10.5,
-  },
-  reveal: {
-    minHeight: 44,
-    paddingHorizontal: Spacing.one,
-    justifyContent: 'center',
-  },
-  revealLabel: {
-    fontFamily: Fonts.extrabold,
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  forgot: {
-    alignSelf: 'flex-start',
-    minHeight: 32,
-    justifyContent: 'center',
-    marginTop: -Spacing.two,
-  },
-  linkLabel: {
-    fontFamily: Fonts.extrabold,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  switchText: {
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  switchButton: {
-    minHeight: 40,
-    justifyContent: 'center',
-  },
+  flex: { flex: 1 },
+  content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 24 },
+  title: { marginTop: 12, paddingTop: 4, fontFamily: Fonts.anton, fontSize: 58, lineHeight: 66, textTransform: 'uppercase', color: SIGNUP.ink },
+  subtitle: { marginTop: 6, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: SIGNUP.ink },
+  social: { marginTop: 20 },
+  divider: { marginTop: 18, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dividerLine: { flex: 1, height: 1.5, backgroundColor: SIGNUP.line },
+  dividerText: { fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 15, letterSpacing: 1.1, color: SIGNUP.secondary },
+  legal: { alignItems: 'center', marginTop: 18 },
 });
