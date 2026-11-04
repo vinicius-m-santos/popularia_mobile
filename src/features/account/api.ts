@@ -31,6 +31,8 @@ export type MeDto = {
   /** false para contas criadas via Google/Apple sem senha definida. */
   hasPassword: boolean;
   legalAccepted: boolean;
+  /** true depois que a pessoa fechou o card de boas-vindas no feed. */
+  welcomeDismissed?: boolean;
   followerCount: number;
   followingCount?: number;
   /** Foto atual. Null quando a conta ainda usa as iniciais. */
@@ -123,7 +125,7 @@ export type RegistrationInput = {
   interests?: TopicId[];
 };
 
-export type ProfilePatch = Partial<Pick<MeDto, 'displayName' | 'bio' | 'interests' | 'isPrivate' | 'handle'>> & { city?: string; state?: string; country?: string; countryCode?: string; stateIbgeCode?: string; municipalityIbgeCode?: string };
+export type ProfilePatch = Partial<Pick<MeDto, 'displayName' | 'bio' | 'interests' | 'isPrivate' | 'handle' | 'welcomeDismissed'>> & { city?: string; state?: string; country?: string; countryCode?: string; stateIbgeCode?: string; municipalityIbgeCode?: string };
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await apiRequest('/me/password', { method: 'POST', body: { currentPassword, newPassword }, auth: true });

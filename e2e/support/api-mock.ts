@@ -35,6 +35,7 @@ export type MockMe = {
   pendingOnboarding: boolean;
   hasPassword: boolean;
   legalAccepted: boolean;
+  welcomeDismissed?: boolean;
   followerCount: number;
   followingCount: number;
   avatarUrl: string | null;
