@@ -82,6 +82,8 @@ type AccountValue = {
   signIn: (email: string, password: string) => Promise<void>;
   /** Provedor usado no onboarding social, para o selo da etapa 2. */
   socialProvider: 'google' | 'apple' | null;
+  /** Cadastro social ainda não criado no backend; concluído na etapa 2. */
+  pendingSocialSignup: accountApi.PendingSocialSignupDto | null;
   /** Registra o aceite legal de uma conta social pendente antes de concluir o perfil. */
   acceptLegalNow: () => Promise<void>;
   /** Autentica via Google (nativo). Após validação no backend, inicia sessão Popularia. */
@@ -126,6 +128,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [showLoginWelcome, setShowLoginWelcome] = useState(false);
   const [authBusy, setAuthBusy] = useState<string | null>(null);
   const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
+  const [pendingSocialSignup, setPendingSocialSignup] = useState<accountApi.PendingSocialSignupDto | null>(null);
   // E-mail e senha da etapa 1: só na memória, apagados assim que o cadastro é enviado.
   const credentials = useRef<{ email: string; password: string } | null>(null);
 
@@ -238,6 +241,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setInterests([]);
     setDraft(DEMO_MODE ? DEMO_PROFILE : EMPTY_PROFILE);
     setSocialProvider(null);
+    setPendingSocialSignup(null);
     setSigningUp(true);
   }, [replaceAll]);
 
@@ -310,6 +314,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const { startSession } = await import('@/lib/api/client');
       await startSession(tokens);
       setSocialProvider(provider);
+      setPendingSocialSignup(null);
       resetAll();
       const me = await accountApi.getMe();
       if (tokens.onboardingRequired) {
@@ -327,6 +332,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [applyAccount, resetAll],
   );
 
+  const beginPendingSocialSignup = useCallback(async (pending: accountApi.PendingSocialSignupDto) => {
+    resetAll();
+    credentials.current = null;
+    setInterests([]);
+    setSigningUp(true);
+    setShowWelcome(false);
+    setShowLoginWelcome(false);
+    setSocialProvider(pending.provider);
+    setPendingSocialSignup(pending);
+    setDraft({ ...EMPTY_PROFILE, name: pending.displayName ?? '' });
+    const { router } = await import('expo-router');
+    router.push('/boas-vindas/perfil');
+  }, [resetAll]);
+
   const signInWithGoogle = useCallback(async () => {
     const { GoogleSignin, statusCodes } = await import('@react-native-google-signin/google-signin');
     try {
@@ -335,12 +354,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const idToken = data?.idToken;
       if (!idToken) throw new Error('Token Google ausente.');
       await runAuth('Entrando…', async () => {
-        const tokens = await accountApi.socialLogin({
+        const result = await accountApi.socialLogin({
           provider: 'google',
           idToken,
           deviceLabel: deviceLabel(),
         });
-        await applySocialSession(tokens, 'google');
+        if (result.status === 'pending_signup') await beginPendingSocialSignup(result);
+        else await applySocialSession(result, 'google');
       });
     } catch (error: unknown) {
       // Cancelamento pelo usuário não é um erro crítico.
@@ -351,7 +371,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         (error as { code: string }).code === statusCodes.SIGN_IN_CANCELLED;
       if (!isCancel) throw error;
     }
-  }, [applySocialSession, runAuth]);
+  }, [applySocialSession, beginPendingSocialSignup, runAuth]);
 
   const signInWithApple = useCallback(async () => {
     const AppleAuthentication = await import('expo-apple-authentication');
@@ -372,14 +392,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const parts = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean);
       const displayName = parts.length > 0 ? parts.join(' ') : undefined;
       await runAuth('Entrando…', async () => {
-        const tokens = await accountApi.socialLogin({
+        const result = await accountApi.socialLogin({
           provider: 'apple',
           idToken: identityToken,
           nonce: rawNonce,
           displayName,
           deviceLabel: deviceLabel(),
         });
-        await applySocialSession(tokens, 'apple');
+        if (result.status === 'pending_signup') await beginPendingSocialSignup(result);
+        else await applySocialSession(result, 'apple');
       });
     } catch (error: unknown) {
       // ERR_REQUEST_CANCELED é cancelamento pela pessoa: não é erro crítico.
@@ -390,7 +411,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         (error as { code: string }).code === 'ERR_REQUEST_CANCELED';
       if (!isCancel) throw error;
     }
-  }, [applySocialSession, runAuth]);
+  }, [applySocialSession, beginPendingSocialSignup, runAuth]);
 
   const acceptLegalNow = useCallback(async () => {
     if (DEMO_MODE) return;
@@ -399,6 +420,32 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const completeSocialOnboarding = useCallback(async () => {
     if (DEMO_MODE) return;
+    if (pendingSocialSignup) {
+      await runAuth('Criando sua conta…', async () => {
+        const tokens = await accountApi.completeSocialSignup({
+          pendingSignupToken: pendingSocialSignup.pendingSignupToken,
+          handle: draft.handle.trim(),
+          displayName: draft.name.trim(),
+          bio: draft.bio.trim() || undefined,
+          city: draft.city.trim() || undefined,
+          state: draft.state.trim() || undefined,
+          country: draft.country.trim() || undefined,
+          countryCode: draft.countryCode || undefined,
+          stateIbgeCode: draft.stateIbgeCode || undefined,
+          municipalityIbgeCode: draft.municipalityIbgeCode || undefined,
+          interests: interests.length > 0 ? interests : undefined,
+          legalAccepted: true,
+          legalVersion: accountApi.LEGAL_VERSION,
+          deviceLabel: deviceLabel(),
+        });
+        const { startSession } = await import('@/lib/api/client');
+        await startSession(tokens);
+        setPendingSocialSignup(null);
+        applyAccount(await accountApi.getMe());
+        setSigningUp(false);
+      });
+      return;
+    }
     await runAuth('Concluindo seu cadastro…', async () => {
       const me = await accountApi.completeOnboarding({
         handle: draft.handle.trim(),
@@ -415,7 +462,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       applyAccount(me);
       setSigningUp(false);
     });
-  }, [applyAccount, draft, interests, runAuth]);
+  }, [applyAccount, draft, interests, pendingSocialSignup, runAuth]);
 
   const signOut = useCallback(
     async (everywhere = false) => {
@@ -480,6 +527,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       completeSocialOnboarding,
       finishSignup,
       socialProvider,
+      pendingSocialSignup,
       acceptLegalNow,
       signIn,
       signInWithGoogle,
@@ -510,6 +558,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       completeSocialOnboarding,
       finishSignup,
       socialProvider,
+      pendingSocialSignup,
       acceptLegalNow,
       signIn,
       signInWithGoogle,

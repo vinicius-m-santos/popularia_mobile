@@ -48,6 +48,7 @@ export type SocialLoginInput = {
 };
 
 export type SocialTokensDto = {
+  status: 'authenticated';
   tokenType: 'Bearer';
   accessToken: string;
   accessTokenExpiresIn: number;
@@ -55,6 +56,34 @@ export type SocialTokensDto = {
   refreshTokenExpiresIn: number;
   sessionId: string;
   onboardingRequired: boolean;
+};
+
+export type PendingSocialSignupDto = {
+  status: 'pending_signup';
+  pendingSignupToken: string;
+  provider: SocialProvider;
+  email: string | null;
+  displayName: string | null;
+  expiresAt: string;
+};
+
+export type SocialLoginResult = SocialTokensDto | PendingSocialSignupDto;
+
+export type CompleteSocialSignupInput = {
+  pendingSignupToken: string;
+  handle: string;
+  displayName: string;
+  bio?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  countryCode?: string;
+  stateIbgeCode?: string;
+  municipalityIbgeCode?: string;
+  interests?: TopicId[];
+  legalAccepted: true;
+  legalVersion: string;
+  deviceLabel?: string;
 };
 
 export type CompleteOnboardingInput = {
@@ -163,8 +192,12 @@ export async function isHandleAvailable(handle: string): Promise<boolean> {
   return result.available;
 }
 
-export async function socialLogin(input: SocialLoginInput): Promise<SocialTokensDto> {
-  return apiRequest<SocialTokensDto>('/auth/social', { method: 'POST', body: input });
+export async function socialLogin(input: SocialLoginInput): Promise<SocialLoginResult> {
+  return apiRequest<SocialLoginResult>('/auth/social', { method: 'POST', body: input });
+}
+
+export function completeSocialSignup(input: CompleteSocialSignupInput): Promise<SocialTokensDto> {
+  return apiRequest<SocialTokensDto>('/auth/social/complete', { method: 'POST', body: input });
 }
 
 export function completeOnboarding(input: CompleteOnboardingInput): Promise<MeDto> {

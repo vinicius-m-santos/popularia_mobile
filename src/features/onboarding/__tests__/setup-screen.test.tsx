@@ -1,7 +1,9 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import SetupScreen from '../setup-screen';
+
+let mockPending: { status: 'pending_signup'; pendingSignupToken: string; provider: 'google'; email: string; displayName: string; expiresAt: string } | null = null;
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 jest.mock('react-native-safe-area-context', () => {
@@ -32,6 +34,9 @@ jest.mock('@/features/account/account-context', () => {
         completeSignupProfile: jest.fn(),
         completeSocialOnboarding: jest.fn(),
         replaceAvatarUrl: jest.fn(),
+        socialProvider: mockPending?.provider ?? null,
+        pendingSocialSignup: mockPending,
+        acceptLegalNow: jest.fn(),
       };
     },
     useMe: () => ({ avatarUrl: null }),
@@ -52,4 +57,25 @@ describe('cadastro etapa 2', () => {
     expect(screen.getByText('Tirar foto')).toBeTruthy();
     expect(screen.getByText('Escolher da galeria')).toBeTruthy();
   });
+
+  it('mostra o selo do provedor e o aceite na versão social', async () => {
+    mockPending = {
+      status: 'pending_signup',
+      pendingSignupToken: 'token',
+      provider: 'google',
+      email: 'vini@gmail.com',
+      displayName: 'Vini',
+      expiresAt: '2026-11-05T00:00:00Z',
+    };
+
+    await render(<SetupScreen />);
+
+    expect(screen.getByText(/ENTRANDO COM GOOGLE · vini@gmail.com/)).toBeTruthy();
+    expect(screen.getByText(/Criar conta/i)).toBeTruthy();
+    expect(screen.getByLabelText(/Tenho 18 anos ou mais/)).toBeTruthy();
+  });
+});
+
+afterEach(() => {
+  mockPending = null;
 });

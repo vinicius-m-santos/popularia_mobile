@@ -51,10 +51,10 @@ type HandleCheck = { handle: string; available: boolean | null };
 /** Etapa 2: identidade, @ e país. A conta só é criada ao tocar em Continuar. */
 export default function SetupScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl, socialProvider, acceptLegalNow } = useAccount();
+  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl, socialProvider, pendingSocialSignup, acceptLegalNow } = useAccount();
   const me = useMe();
   const toast = useToast();
-  const isSocialOnboarding = account?.pendingOnboarding === true;
+  const isSocialOnboarding = !!pendingSocialSignup || account?.pendingOnboarding === true;
 
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -182,7 +182,7 @@ export default function SetupScreen() {
     setFieldErrors({});
     try {
       if (isSocialOnboarding) {
-        await acceptLegalNow();
+        if (account) await acceptLegalNow();
         await completeSocialOnboarding();
         await uploadDraftAvatar();
         router.push('/boas-vindas/assuntos');
@@ -236,7 +236,7 @@ export default function SetupScreen() {
             <View style={styles.providerBadge}>
               <View style={styles.providerDot} />
               <Text style={styles.providerText} numberOfLines={1}>
-                ENTRANDO COM {socialProvider === 'google' ? 'GOOGLE' : 'APPLE'} · {account?.email}
+                ENTRANDO COM {socialProvider === 'google' ? 'GOOGLE' : 'APPLE'} · {pendingSocialSignup?.email ?? account?.email}
               </Text>
             </View>
           ) : null}
