@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { SectionList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,7 +9,6 @@ import { Screen } from '@/components/screen';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { FONT_LICENSES, LIBRARY_LICENSES, type LicenseEntry } from '@/features/legal/licenses.generated';
 import { LegalPaint as P } from '@/features/legal/legal-theme';
-import { goBack } from '@/lib/routes';
 
 const SECTIONS: { title: string; data: LicenseEntry[] }[] = [
   { title: 'Fontes', data: FONT_LICENSES },
@@ -24,7 +24,7 @@ export function LicensesScreen() {
   return (
     <Screen edges={['left', 'right']} backgroundColor={P.bg}>
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top + 10, 54) }]}>
-        <IconButton icon="back" size={22} accessibilityLabel="Voltar" onPress={goBack} color={P.ink} />
+        <IconButton icon="back" size={22} accessibilityLabel="Voltar" onPress={() => router.replace('/sobre-e-legal')} color={P.ink} />
       </View>
       <SectionList
         sections={SECTIONS}
