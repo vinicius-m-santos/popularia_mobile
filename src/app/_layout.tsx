@@ -159,8 +159,8 @@ function RootStack() {
       <Stack.Screen name="sobre-e-legal" />
       <Stack.Screen name="licencas" />
       <Stack.Screen name="documento-legal/[id]" />
+      <Stack.Screen name="(tabs)" />
       <Stack.Protected guard={onboarded}>
-        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="avisos" />
         <Stack.Screen name="biblioteca" />
         <Stack.Screen name="praca/[id]" options={{ gestureEnabled: false }} />

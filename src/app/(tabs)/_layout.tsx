@@ -1,6 +1,8 @@
+import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 
 import { TabBar } from '@/components/tab-bar';
+import { useAccount } from '@/features/account/account-context';
 import { Colors } from '@/constants/theme';
 
 /**
@@ -8,6 +10,12 @@ import { Colors } from '@/constants/theme';
  * personalizada com o botão "Criar" no centro.
  */
 export default function TabsLayout() {
+  const { onboarded } = useAccount();
+
+  // A rota / é a tela inicial do app. Sem sessão, ela redireciona para as boas-vindas
+  // em vez de deixar o router escolher outra rota pública como fallback.
+  if (!onboarded) return <Redirect href="/boas-vindas" />;
+
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
