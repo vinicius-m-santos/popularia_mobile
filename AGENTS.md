@@ -30,6 +30,7 @@ Para trabalhar em frentes paralelas (worktrees, workspaces do DSH, um Metro por 
 - Trabalhe em uma branch própria a partir da `main`: `feature/<feature-name>`, em inglês, minúsculo e com hífens (por exemplo `feature/about-and-legal`). Não faça commit direto na `main`.
 - Commits em inglês no formato `feat(<branch-name>): <mensagem>`. O escopo é o nome da branch sem o prefixo `feature/`: a branch `feature/about-and-legal` gera `feat(about-and-legal): ...`.
 - Suba a branch com `git push -u origin <branch>` e abra o PR contra a `main` para revisão.
+- **Sempre faça rebase em conflitos**: quando a `main` avançar ou houver conflito com a branch, rebase a branch sobre `origin/main` (nunca merge da `main` na feature), resolva os conflitos, valide e suba novamente com `git push --force-with-lease`.
 
 ## Navigation & Routing
 
