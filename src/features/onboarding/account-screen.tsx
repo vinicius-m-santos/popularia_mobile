@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -9,13 +8,14 @@ import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
-import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
 import { describeError } from '@/lib/errors';
 import { isValidEmail, PASSWORD_MIN_LENGTH } from '@/lib/validation';
 
 import { LegalAppLink } from '@/features/legal/legal-links';
+import { SocialAuthButtons } from './components/social-auth-buttons';
 import { OnboardingFooter, OnboardingProgress } from './components/onboarding-chrome';
 
 type Mode = 'cadastro' | 'entrar';
@@ -40,8 +40,6 @@ export default function AccountScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [appleAvailable, setAppleAvailable] = useState(false);
-  useEffect(() => { if (Platform.OS === 'ios') AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false)); }, []);
   const [socialBusy, setSocialBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -67,6 +65,7 @@ export default function AccountScreen() {
 
   const handleGoogle = async () => {
     if (socialBusy || busy) return;
+    if (DEMO_MODE) { toast.show('Google indisponível no modo demonstração.'); return; }
     setSocialBusy(true);
     try {
       await signInWithGoogle();
@@ -79,6 +78,7 @@ export default function AccountScreen() {
 
   const handleApple = async () => {
     if (socialBusy || busy) return;
+    if (DEMO_MODE) { toast.show('Apple indisponível no modo demonstração.'); return; }
     setSocialBusy(true);
     try {
       await signInWithApple();
@@ -137,21 +137,11 @@ export default function AccountScreen() {
           </View>
 
           <View style={styles.social}>
-            <SocialButton
-              label={socialBusy ? 'Aguarde…' : 'Continuar com Google'}
-              mark="G"
-              onPress={DEMO_MODE ? () => toast.show('Google indisponível no modo demonstração.') : handleGoogle}
+            <SocialAuthButtons
               disabled={socialBusy || busy}
+              onGoogle={() => { void handleGoogle(); }}
+              onApple={() => { void handleApple(); }}
             />
-            {Platform.OS === 'ios' && appleAvailable ? (
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={6}
-                style={{ height: 48, width: '100%', opacity: socialBusy || busy ? 0.5 : 1 }}
-                onPress={DEMO_MODE ? () => toast.show('Apple indisponível no modo demonstração.') : handleApple}
-              />
-            ) : null}
           </View>
 
           <View style={styles.divider} accessible={false}>
@@ -243,32 +233,6 @@ export default function AccountScreen() {
   );
 }
 
-type SocialProps = {
-  label: string;
-  onPress: () => void;
-  mark?: string;
-  disabled?: boolean;
-};
-
-function SocialButton({ label, onPress, mark, disabled }: SocialProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      style={({ pressed }) => [styles.socialButton, (pressed || disabled) && styles.pressed]}>
-      {mark ? (
-        <View style={styles.socialMark} accessible={false}>
-          <AppText style={styles.socialMarkText} maxFontSizeMultiplier={1}>
-            {mark}
-          </AppText>
-        </View>
-      ) : null}
-      <AppText style={styles.socialLabel}>{label}</AppText>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -306,42 +270,7 @@ const styles = StyleSheet.create({
   camarada: {
     fontFamily: Fonts.bold,
   },
-  social: {
-    gap: Spacing.two,
-  },
-  socialButton: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two + 2,
-    borderRadius: Radius.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    backgroundColor: Colors.paper,
-  },
-  pressed: {
-    opacity: 0.75,
-  },
-  socialMark: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  socialMarkText: {
-    fontFamily: Fonts.extrabold,
-    fontSize: 12,
-    lineHeight: 15,
-  },
-  socialLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 15,
-    lineHeight: 20,
-  },
+  social: {},
   divider: {
     flexDirection: 'row',
     alignItems: 'center',

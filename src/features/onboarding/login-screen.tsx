@@ -1,12 +1,10 @@
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { router, useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useRef, useState, type ComponentRef } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
-import { SvgXml } from 'react-native-svg';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
@@ -19,6 +17,7 @@ import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
 import { ApiError, describeError } from '@/lib/errors';
 import { goBack } from '@/lib/routes';
+import { SocialAuthButtons } from './components/social-auth-buttons';
 import { isValidEmail } from '@/lib/validation';
 
 const LOGIN = {
@@ -32,24 +31,6 @@ const LOGIN = {
   line: '#D9CFBF',
   buttonText: '#FBF7EF',
 } as const;
-
-const APPLE_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#15120F" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>`;
-
-type SocialProps = { label: string; icon: ReactNode; onPress: () => void; disabled?: boolean };
-
-function SocialButton({ label, icon, onPress, disabled }: SocialProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.socialButton, (pressed || disabled) && styles.socialMuted]}>
-      <View style={styles.socialIcon}>{icon}</View>
-      <AppText style={styles.socialLabel}>{label}</AppText>
-    </Pressable>
-  );
-}
 
 /** Login por e-mail ou provedores sociais, com rodapé fixo e ações de recuperação/criação. */
 export default function LoginScreen() {
@@ -66,16 +47,11 @@ export default function LoginScreen() {
   const [authFailed, setAuthFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [socialBusy, setSocialBusy] = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState(Platform.OS === 'ios');
   const busyRef = useRef(false);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
 
   useFocusEffect(useCallback(() => { setStatusBarStyle('dark'); return () => setStatusBarStyle('dark'); }, []));
 
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false));
-  }, []);
 
   const clearFormError = () => {
     if (!formError && !authFailed) return;
@@ -180,30 +156,11 @@ export default function LoginScreen() {
           <AppText style={styles.subtitle}>Que bom te ver de novo.</AppText>
 
           <View style={styles.social} accessibilityLabel="Entrar com provedor">
-            <SocialButton
-              label="Continuar com Google"
-              icon={<Image source={require('@/assets/onboarding/google-g.png')} style={styles.socialLogo} resizeMode="contain" />}
-              onPress={() => { void handleGoogle(); }}
+            <SocialAuthButtons
               disabled={busy || socialBusy}
+              onGoogle={() => { void handleGoogle(); }}
+              onApple={() => { void handleApple(); }}
             />
-            {Platform.OS === 'ios' && appleAvailable ? (
-              <View pointerEvents={busy || socialBusy ? 'none' : 'auto'} style={busy || socialBusy ? styles.socialMuted : undefined}>
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
-                  cornerRadius={6}
-                  style={styles.appleButton}
-                  onPress={() => { void handleApple(); }}
-                />
-              </View>
-            ) : (
-              <SocialButton
-                label="Continuar com a Apple"
-                icon={<SvgXml xml={APPLE_SVG} width={20} height={20} />}
-                onPress={() => { void handleApple(); }}
-                disabled={busy || socialBusy}
-              />
-            )}
           </View>
 
           <View style={styles.divider} accessible={false}>
@@ -327,13 +284,7 @@ const styles = StyleSheet.create({
   topLegalText: { fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 16, letterSpacing: 0.88, textTransform: 'uppercase', color: LOGIN.secondary },
   title: { marginTop: 12, paddingTop: 4, fontFamily: Fonts.anton, fontSize: 58, lineHeight: 66, textTransform: 'uppercase', color: LOGIN.ink },
   subtitle: { marginTop: 6, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: LOGIN.ink },
-  social: { marginTop: 20, gap: 10 },
-  socialButton: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderWidth: 2, borderColor: LOGIN.ink, borderRadius: 6, backgroundColor: LOGIN.surface },
-  socialIcon: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  socialLogo: { width: 20, height: 20 },
-  socialLabel: { fontFamily: Fonts.bold, fontSize: 16, lineHeight: 22, color: LOGIN.ink },
-  socialMuted: { opacity: 0.55 },
-  appleButton: { height: 52, width: '100%' },
+  social: { marginTop: 20 },
   divider: { marginTop: 18, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   dividerLine: { flex: 1, height: 1.5, backgroundColor: LOGIN.line },
   dividerText: { fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 15, letterSpacing: 1.1, color: LOGIN.secondary },
