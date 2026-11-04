@@ -349,6 +349,12 @@ export type ReportTarget = {
   comunaId: string | null;
   /** Trecho exibido para a moderação. */
   excerpt: string;
+  /** Título curto exibido no cartão da confirmação, como o título ou a pergunta da enquete. */
+  title?: string;
+  /** A publicação denunciada é uma enquete, para a etiqueta do cartão. */
+  poll?: boolean;
+  /** Nome da comuna de origem, quando houver, para o cartão da confirmação. */
+  comunaName?: string;
   /** Onde está o conteúdo, como "Comentário em “Simulado do sábado”". */
   where: string;
   /** Conteúdo da própria pessoa, segundo o servidor (ausente nos mocks: compara o ID "me"). */
