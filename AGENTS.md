@@ -51,6 +51,21 @@ Docs: https://docs.expo.dev/eas/index.md
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
 - Mudança de funcionalidade é mudança de fluxo: ao alterar um contrato usado em mais de uma entrada (por exemplo, geração de @), valide todos os consumidores — cadastro comum, onboarding social, perfil/edição, API e testes — e confirme que o comportamento aparece na tela onde a pessoa o espera. Backend implementado não significa funcionalidade entregue no app.
 
+## Validação de fluxo com Playwright (obrigatória)
+
+Toda feature que altera navegação, rotas, autenticação, onboarding ou um formulário só pode ser declarada concluída depois de **navegar pelo fluxo no app rodando** com Playwright, além dos testes unitários. Compilar, passar no Jest e acertar o typecheck não provam que a tela abre no lugar certo nem que o voltar funciona.
+
+Antes de encerrar:
+
+1. Suba o Expo web usando o Metro existente desta worktree; não inicie um segundo Metro.
+2. Navegue pelo fluxo implementado do começo ao fim, incluindo o ponto de entrada real (`/` ou deep link), não apenas a rota interna isolada.
+3. Repita os fluxos anexos que compartilham rota, layout, guarda de sessão, componente ou contrato alterado.
+4. Cubra, quando aplicável: sessão ausente, restaurando, autenticada e onboarding pendente; abertura inicial; voltar/hardware back; sair da tela; deep link; recarregar a página; e o caminho de erro.
+5. Confirme a URL final e o conteúdo visível, não só que não houve crash. Para um loop de navegação, navegue pelo menos dois passos para trás e confirme que não retorna à tela anterior.
+6. Registre no relatório o que foi navegado e o que não foi possível validar (ex.: Google/Apple nativo, teclado, câmera). Não declare validação no aparelho sem aparelho.
+
+Artefatos de Playwright (screenshots, traces, vídeos) são evidência local e não devem ser versionados. A automação E2E deve ser ampliada junto com a feature quando a suíte existir; até lá, a navegação manual via Playwright é obrigatória.
+
 ## Design rules
 
 - Read `CLAUDE.md` for the design direction refined with the user in the Public Library, Explore, Praças, and the Início feed, including hierarchy, typography, spacing, discovery previews, sticky search controls, social cards, square cards, day rules, media framing, and deferred Library scalability work. Apply those criteria to new or requested work; do not automatically migrate other screens or change shared defaults.
