@@ -10,7 +10,7 @@ import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
 import { getLegalDocument, type LegalBlock, type LegalSection } from '@/features/legal/legal-documents';
-import { LegalPaint as P, LegalRedShadow } from '@/features/legal/legal-theme';
+import { LegalHardShadow, LegalPaint as P, LegalRedShadow } from '@/features/legal/legal-theme';
 import { openSupportMail } from '@/features/legal/support';
 import { goBack } from '@/lib/routes';
 
@@ -159,13 +159,28 @@ function Block({ block }: { block: LegalBlock }) {
       return (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={block.label}
-          onPress={() => router.push({ pathname: '/documento-legal/[id]', params: { id: block.documentId } } as never)}
-          style={({ pressed }) => [styles.linkCard, pressed && styles.pressed]}>
-          <AppText style={styles.linkCardText}>{block.label}</AppText>
-          <Icon name="chevronRight" size={16} color={P.ink} />
+          accessibilityLabel={block.text}
+          onPress={() => router.push({ pathname: '/documento-legal/[id]', params: { id: block.target } } as never)}
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}>
+          <AppText style={styles.linkCardText}>{block.text}</AppText>
+          <Icon name="chevronRight" size={16} color={P.ink} strokeWidth={2.8} />
         </Pressable>
       );
+
+    case 'badge_card': {
+      const spokenBadge = block.badge === '18+' ? '18 ou mais' : block.badge;
+      return (
+        <View
+          style={styles.badgeCard}
+          accessible
+          accessibilityLabel={`${spokenBadge}. ${block.text.replace(/\*\*/g, '')}`}>
+          <View style={styles.badgeSeal}>
+            <AppText style={styles.badgeSealText}>{block.badge}</AppText>
+          </View>
+          <InlineText text={block.text} style={styles.badgeText} />
+        </View>
+      );
+    }
   }
 }
 
@@ -269,9 +284,10 @@ function blockTopMargin(blocks: LegalBlock[], index: number): number {
     case 'chips':
     case 'chips_private':
     case 'chips_no':
+    case 'badge_card':
       return 12;
     case 'paragraph':
-      return !previous ? 10 : afterChips ? 14 : 12;
+      return !previous ? 10 : afterChips || previous?.type === 'highlight' ? 14 : 12;
     case 'list':
       return afterChips ? 14 : 12;
     case 'notice':
@@ -506,8 +522,43 @@ const styles = StyleSheet.create({
   highlightText: {
     fontFamily: Fonts.extrabold,
     fontSize: 18,
-    lineHeight: 28,
+    lineHeight: 26,
     color: P.surface,
+  },
+  badgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 2,
+    borderColor: P.ink,
+    borderRadius: 6,
+    backgroundColor: P.surface,
+  },
+  badgeSeal: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: P.ink,
+    borderRadius: 4,
+    backgroundColor: P.yellow,
+  },
+  badgeSealText: {
+    fontFamily: Fonts.anton,
+    fontSize: 16,
+    lineHeight: 24,
+    color: P.ink,
+  },
+  badgeText: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    lineHeight: 23,
+    color: P.ink,
   },
   linkCard: {
     minHeight: 52,
@@ -531,6 +582,10 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  linkCardPressed: {
+    transform: [{ translateX: 2 }, { translateY: 2 }],
+    boxShadow: LegalHardShadow,
   },
   support: {
     marginTop: 30,

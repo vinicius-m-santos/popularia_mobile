@@ -83,6 +83,18 @@ describe('documento legal', () => {
     expect(screen.getByLabelText('Quer pedir algo sobre seus dados? Fale com o suporte')).toBeTruthy();
   });
 
+  it('mostra o selo 18+ com leitura por extenso', async () => {
+    await render(<LegalDocumentPage id="termos" />);
+    expect(screen.getByText('18+')).toBeTruthy();
+    expect(screen.getByLabelText('18 ou mais. O beta é destinado a maiores de 18 anos.')).toBeTruthy();
+  });
+
+  it('o link_card de dados abre a política de privacidade', async () => {
+    await render(<LegalDocumentPage id="termos" />);
+    fireEvent.press(screen.getByLabelText('Como tratamos seus dados'));
+    expect(mockedPush).toHaveBeenCalledWith({ pathname: '/documento-legal/[id]', params: { id: 'privacidade' } });
+  });
+
   it('documento desconhecido não quebra a tela', async () => {
     await render(<LegalDocumentPage id="inexistente" />);
     expect(screen.getByText('Documento não encontrado.')).toBeTruthy();

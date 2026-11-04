@@ -18,7 +18,8 @@ export type LegalBlock =
   | { type: 'notice'; text: string; icon?: 'info' | 'pin' }
   | { type: 'alert'; title?: string; text: string }
   | { type: 'highlight'; text: string }
-  | { type: 'link_card'; label: string; documentId: string };
+  | { type: 'link_card'; text: string; target: string }
+  | { type: 'badge_card'; badge: string; text: string };
 
 export type LegalSection = { title: string; blocks: LegalBlock[] };
 
@@ -97,18 +98,23 @@ const DOCUMENTS: Record<string, LegalDocument> = {
 
   termos: {
     title: 'Termos de Uso',
-    intro: 'O que você pode esperar do Popularia e o que o Popularia espera de você.',
+    intro: 'O Popularia reúne pessoas em perfis, Comunas, Praças e Bibliotecas. Este é o combinado pra usar.',
     backLabel: 'Sobre e legal',
     sections: [
       {
-        title: 'O que é a Popularia',
+        title: 'Quem pode usar',
         blocks: [
-          { type: 'paragraph', text: 'O Popularia reúne pessoas em perfis, Comunas, Praças e Bibliotecas. O beta é destinado a maiores de 18 anos.' },
+          { type: 'badge_card', badge: '18+', text: 'O beta é destinado a **maiores de 18 anos**.' },
+        ],
+      },
+      {
+        title: 'Sua conta',
+        blocks: [
           {
             type: 'list',
             items: [
-              'Proteja suas credenciais e use apenas identidades que você controla.',
-              'Sua conta é pessoal: não compartilhe o acesso com outras pessoas.',
+              'Proteja suas credenciais: senha e códigos são só seus.',
+              'Use apenas identidades que você controla.',
             ],
           },
         ],
@@ -116,34 +122,35 @@ const DOCUMENTS: Record<string, LegalDocument> = {
       {
         title: 'Seu conteúdo',
         blocks: [
-          { type: 'paragraph', text: 'Você continua titular dos direitos do que publica.' },
-          { type: 'highlight', text: 'Seu conteúdo é seu. O Popularia só mostra o que você autoriza.' },
-          { type: 'paragraph', text: 'Ao publicar, você concede ao Popularia autorização limitada para operar o serviço e mostrar o conteúdo às pessoas autorizadas.' },
+          { type: 'highlight', text: 'O que você publica continua seu.' },
+          { type: 'paragraph', text: 'Você continua titular dos direitos do seu conteúdo. Ao publicar, autoriza o Popularia, de forma limitada, a operar o serviço e mostrar o conteúdo às pessoas autorizadas.' },
         ],
       },
       {
-        title: 'Convivência',
+        title: 'Moderação',
         blocks: [
-          { type: 'paragraph', text: 'As regras valem em qualquer espaço do app, inclusive nas comunas e na Biblioteca.' },
-          { type: 'link_card', label: 'Ler as Regras da Comunidade', documentId: 'regras' },
+          { type: 'paragraph', text: 'Podemos remover conteúdo ou restringir contas pra proteger a comunidade.' },
+          { type: 'link_card', text: 'Ler as Regras da Comunidade', target: 'regras' },
         ],
       },
       {
-        title: 'Conta e encerramento',
+        title: 'Excluir sua conta',
         blocks: [
-          { type: 'paragraph', text: 'Podemos remover conteúdo ou restringir contas para proteger a comunidade.' },
-          { type: 'alert', title: 'Excluir a conta é definitivo', text: 'A exclusão apaga seu perfil, suas publicações e seus documentos pessoais. A ação não pode ser desfeita.' },
-          { type: 'paragraph', text: 'A Política de Privacidade explica o tratamento dos dados e como pedir revisão.' },
-          { type: 'link_card', label: 'Ler a Política de Privacidade', documentId: 'privacidade' },
-        ],
-      },
-      {
-        title: 'Mudanças nestas regras',
-        blocks: [
-          { type: 'notice', text: 'Se estes termos mudarem, avisamos no app antes de valerem.' },
+          { type: 'paragraph', text: 'Você pode excluir sua conta quando quiser, pelo aplicativo:' },
+          {
+            type: 'path',
+            segments: [
+              { kind: 'chip', text: 'Conta' },
+              { kind: 'arrow' },
+              { kind: 'chip', text: 'Excluir conta', danger: true },
+            ],
+            href: '/conta/exclusao',
+          },
+          { type: 'link_card', text: 'Como tratamos seus dados', target: 'privacidade' },
         ],
       },
     ],
+    supportCard: { label: 'Ficou com dúvida?', title: 'Fale com o suporte' },
   },
 
   privacidade: {
