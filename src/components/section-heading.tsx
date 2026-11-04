@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
@@ -16,15 +16,19 @@ type SectionHeadingProps = {
   trailing?: React.ReactNode;
   /** Escala e alvos de toque da direção refinada, sem alterar consumidores antigos. */
   appearance?: 'default' | 'editorial';
+  /** Cor do marcador quando a tela pede um vermelho específico. */
+  markerColor?: string;
+  /** Ajuste explícito do rótulo sem duplicar o componente em uma tela. */
+  labelStyle?: StyleProp<TextStyle>;
 };
 
 /** Título de seção com quadradinho vermelho e, opcionalmente, um link à direita. */
-export function SectionHeading({ label, actionLabel, onAction, actionIcon, trailing, appearance = 'default' }: SectionHeadingProps) {
+export function SectionHeading({ label, actionLabel, onAction, actionIcon, trailing, appearance = 'default', markerColor, labelStyle }: SectionHeadingProps) {
   const editorial = appearance === 'editorial';
   return (
     <View style={[styles.row, editorial && styles.editorialRow]}>
       <View accessibilityRole="header" style={{ flex: 1, minWidth: 0 }}>
-        <Kicker label={label} textStyle={editorial ? styles.editorialLabel : undefined} />
+        <Kicker label={label} squareColor={markerColor} textStyle={editorial ? [styles.editorialLabel, labelStyle] : labelStyle} />
       </View>
       {trailing ?? (actionLabel && onAction ? (
         <Pressable

@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -24,11 +24,13 @@ import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { formatPeople } from '@/lib/format';
 import { queryClient } from '@/lib/query/client';
 import { goBack, useNav } from '@/lib/routes';
-import type { Comuna, Topic } from '@/types/models';
+import type { Comuna, FeedItem, Topic } from '@/types/models';
 
 import { getDiscoveryData, searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
+import { ComunasToKnowSection, suggestedComunas } from './comunas-carousel';
 import { DiscoveryEventRow } from './discovery-event-row';
 import { DiscoveryPostRow } from './discovery-post-row';
+import { selectTrendingPosts, TrendingNowSection, TrendingNowSkeleton } from './trending-now';
 
 const FILTERS: { key: DiscoveryFilter; label: string; action: string }[] = [
   { key: 'all', label: 'Tudo', action: 'Ver todas' },
@@ -42,7 +44,7 @@ const PREVIEW_LIMIT = 3;
 const TOPIC_PREVIEW_LIMIT = 6;
 
 type DiscoveryRow =
-  | { key: string; kind: 'controls' | 'topics' | 'library' }
+  | { key: string; kind: 'controls' | 'topics' | 'library' | 'trending' | 'trending-skeleton' | 'comuna-carousel' }
   | { key: string; kind: 'section'; label: string; filter?: DiscoveryFilter; action?: string }
   | { key: string; kind: 'hit'; entry: DiscoveryEntry }
   | { key: string; kind: 'state'; content: ReactNode };
@@ -60,7 +62,7 @@ export function TopicScreen() {
 function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const me = useMe();
   const nav = useNav();
-  const { interests } = useAccount();
+  const { interests, profile } = useAccount();
   const interestKey = (interests ?? []).join(',');
   const load = useCallback(() => {
     // Recarrega as prioridades quando interesses mudam no perfil.
@@ -68,6 +70,14 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
     return getDiscoveryData(me.id, topicId);
   }, [me.id, topicId, interestKey]);
   const data = useAsyncData(load);
+  const trending = useMemo(
+    () => data.data ? selectTrendingPosts([...data.data.posts, ...data.data.recentPosts]) : [],
+    [data.data],
+  );
+  const suggestions = useMemo(
+    () => data.data && !topicId ? suggestedComunas(data.data.comunas, interests ?? [], profile.city) : [],
+    [data.data, topicId, interests, profile.city],
+  );
   const { reload } = data;
   const list = useRef<FlatList<DiscoveryRow>>(null);
   useScrollToTop(list);
@@ -150,11 +160,14 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const addState = (key: string, content: ReactNode) => rows.push({ key, kind: 'state', content });
   if (data.status === 'error') addState('discovery-error', <StateView kind="error" message="Não conseguimos atualizar a descoberta." onRetry={reload} />);
   if (!data.data) {
-    if (data.status === 'loading') addState('discovery-loading', <StateView kind="loading" message="Carregando descoberta" />);
+    if (data.status === 'loading') {
+      if (showHome) rows.push({ key: 'trending-loading', kind: 'trending-skeleton' });
+      else addState('discovery-loading', <StateView kind="loading" message="Carregando descoberta" />);
+    }
   } else if (topicId && !topic) {
     addState('unknown-topic', <StateView kind="empty" title="Assunto não encontrado" />);
   } else if (showHome) {
-    rows.push(...discoveryRows(data.data, topic, topicDocumentItems));
+    rows.push(...discoveryRows(data.data, topic, topicDocumentItems, trending, suggestions));
   } else if (short) {
     addState('short-query', <StateView kind="empty" title="Continue escrevendo" message="Use pelo menos três letras ou números seguidos para buscar." />);
   } else if (!settled || result.isPending || result.isPlaceholderData) {
@@ -214,6 +227,14 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
             <SectionHeading appearance="editorial" label={item.label} actionLabel={item.filter ? item.action ?? 'Ver todas' : undefined} onAction={item.filter ? () => changeFilter(item.filter!) : undefined} />
           </View>;
           if (item.kind === 'hit') return <View style={styles.hit}><DiscoveryHit entry={item.entry} topics={data.data?.topics ?? []} nav={nav} /></View>;
+          if (item.kind === 'trending') return <TrendingNowSection posts={trending} onOpenPost={(post) => nav.openPost(post.id)} onSeeAll={() => changeFilter('posts')} />;
+          if (item.kind === 'trending-skeleton') return <TrendingNowSkeleton />;
+          if (item.kind === 'comuna-carousel') return <ComunasToKnowSection
+            comunas={data.data?.comunas ?? []}
+            interests={interests ?? []}
+            city={profile.city}
+            onOpenComuna={(comuna) => nav.openComuna(comuna.id)}
+            onSeeAll={() => changeFilter('comunas')} />;
           if (item.kind === 'topics') return <View style={styles.topicsSection}>
             <SectionHeading appearance="editorial" label="Assuntos" actionLabel={(data.data?.topics.length ?? 0) > TOPIC_PREVIEW_LIMIT ? 'Ver todos' : undefined} onAction={() => setTopicsOpen(true)} />
             <TopicLinks topics={(data.data?.topics ?? []).slice(0, TOPIC_PREVIEW_LIMIT)} onSelect={openTopic} />
@@ -238,21 +259,26 @@ function hitRows(entries: DiscoveryEntry[]): DiscoveryRow[] {
 }
 
 /** A entrada apresenta amostras; as categorias continuam dando acesso aos resultados completos. */
-function discoveryRows(data: DiscoveryData, topic?: Topic, topicDocuments: DiscoveryEntry[] = []): DiscoveryRow[] {
+function discoveryRows(data: DiscoveryData, topic: Topic | undefined, topicDocuments: DiscoveryEntry[], trending: FeedItem[], suggestions: Comuna[]): DiscoveryRow[] {
   const rows: DiscoveryRow[] = [];
   const add = (label: string, filter: DiscoveryFilter, entries: DiscoveryEntry[], action?: string) => {
     if (!entries.length) return;
     rows.push({ key: `section-${label}`, kind: 'section', label, filter, ...(action ? { action } : {}) });
     rows.push(...hitRows(entries.slice(0, PREVIEW_LIMIT)));
   };
-  add(topic ? 'Em destaque' : 'Discussões em destaque', 'posts', data.posts.map((value) => ({ id: value.id, kind: 'posts', value })));
-  if (!topic && data.topics.length) rows.push({ key: 'topics', kind: 'topics' });
-  add('Pessoas para acompanhar', 'people', data.people.map((value) => ({ id: value.id, kind: 'people', value })));
-  add(topic ? 'Comunas' : 'Comunas para conhecer', 'comunas', data.comunas.map((value) => ({ id: value.id, kind: 'comunas', value })));
-  if (topic) add('Documentos', 'documents', topicDocuments, 'Ver todos');
   const recent = data.recentPosts.filter((post) => !data.posts.some((featured) => featured.id === post.id));
-  add('Publicações recentes', 'posts', recent.map((value) => ({ id: value.id, kind: 'posts', value })));
-  if (!topic) rows.push({ key: 'library', kind: 'library' });
+  if (topic) {
+    add('Em destaque', 'posts', data.posts.map((value) => ({ id: value.id, kind: 'posts', value })));
+    add('Comunas', 'comunas', data.comunas.map((value) => ({ id: value.id, kind: 'comunas', value })));
+    add('Documentos', 'documents', topicDocuments, 'Ver todos');
+    add('Publicações recentes', 'posts', recent.map((value) => ({ id: value.id, kind: 'posts', value })));
+  } else {
+    if (trending.length) rows.push({ key: 'trending', kind: 'trending' });
+    if (data.topics.length) rows.push({ key: 'topics', kind: 'topics' });
+    if (suggestions.length) rows.push({ key: 'comuna-carousel', kind: 'comuna-carousel' });
+    add('Pessoas para acompanhar', 'people', data.people.map((value) => ({ id: value.id, kind: 'people', value })));
+    rows.push({ key: 'library', kind: 'library' });
+  }
   if (!data.posts.length && !data.people.length && !data.comunas.length && !recent.length && !topicDocuments.length) rows.push({ key: 'discovery-empty', kind: 'state', content: <>
     <StateView kind="empty" title="Ainda não há muita coisa por aqui." message="Outros assuntos e comunas estão à sua espera." />
     {topic ? <PillButton label="Descobrir outros assuntos" variant="outline" onPress={() => router.navigate('/explorar')} /> : null}
