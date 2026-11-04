@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/app-text';
 import { BottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
@@ -229,7 +230,7 @@ export default function SetupScreen() {
           }]}>
           <OnboardingHeader step={2} />
 
-          <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>COMO VOCÊ QUER{'\n'}APARECER?</Text>
+          <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>COMO VOCÊ QUER{'\n'}APARECER?</AppText>
           <Text style={styles.subtitle}>Só o essencial. Dá pra mudar depois.</Text>
 
           <Pressable
@@ -419,7 +420,7 @@ function StatusIcon({ error = false }: { error?: boolean }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 24 },
-  title: { marginTop: 18, paddingTop: 4, fontFamily: Fonts.anton, fontSize: 50, lineHeight: 64, textTransform: 'uppercase', color: SETUP.ink },
+  title: { marginTop: 18, paddingTop: 4, includeFontPadding: true, fontFamily: Fonts.anton, fontSize: 50, lineHeight: 76, textTransform: 'uppercase', color: SETUP.ink },
   subtitle: { marginTop: 8, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: SETUP.subtitle },
   photoRow: { marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 16 },
   photoSquare: { width: 84, height: 84, borderRadius: 6, borderWidth: 2, borderStyle: 'dashed', borderColor: SETUP.ink, backgroundColor: SETUP.surface, alignItems: 'center', justifyContent: 'center' },
