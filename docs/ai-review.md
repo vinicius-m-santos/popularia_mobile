@@ -152,6 +152,15 @@ JSON
 - **Falha do serviço**: se o Claude ou o token falhar, o check falha (fail
   closed). Reexecute o job; não mergeie com o check vermelho.
 
+## Bootstrap do workflow
+
+O Claude Code Action recusa executar no PR que cria ou altera o próprio
+`.github/workflows/claude-review.yml` (validação de segurança do GitHub: o
+workflow precisa ser idêntico ao da branch padrão). Por isso o PR de bootstrap
+é mergeado com `AI review` temporariamente fora do ruleset; depois do merge o
+check volta e os PRs seguintes são revisados normalmente. Não remova o check
+para PRs normais.
+
 ## Validação local
 
 ```bash
