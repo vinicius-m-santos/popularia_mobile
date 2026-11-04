@@ -37,7 +37,7 @@ type Step = 'menu' | 'reason' | 'details' | 'done';
 
 type ActionsSheetValue = {
   /** Abre o menu "⋯" do conteúdo. `reason` pula o menu e começa na escolha do motivo. */
-  open: (target: ReportTarget, start?: 'menu' | 'reason', options?: { onDeleted?: () => void }) => void;
+  open: (target: ReportTarget, start?: 'menu' | 'reason', options?: { onDeleted?: () => void; hideShare?: boolean }) => void;
 };
 
 const ActionsSheetContext = createContext<ActionsSheetValue | null>(null);
@@ -52,6 +52,7 @@ const TITLES: Record<ReportTarget['kind'], string> = {
 export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<ReportTarget | null>(null);
   const [onDeleted, setOnDeleted] = useState<(() => void) | undefined>();
+  const [hideShare, setHideShare] = useState(false);
   const [step, setStep] = useState<Step>('menu');
   const [reasonCode, setReasonCode] = useState('');
   const [details, setDetails] = useState('');
@@ -59,9 +60,10 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [result, setResult] = useState<{ protocol: string; inMyQueue: boolean } | null>(null);
   const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
 
-  const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu', options?: { onDeleted?: () => void }) => {
+  const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu', options?: { onDeleted?: () => void; hideShare?: boolean }) => {
     setTarget(next);
     setOnDeleted(() => options?.onDeleted);
+    setHideShare(options?.hideShare ?? false);
     setStep(start);
     setReasonCode('');
     setDetails('');
@@ -69,7 +71,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
     setResult(null);
   }, []);
 
-  const close = useCallback(() => { setTarget(null); setOnDeleted(undefined); }, []);
+  const close = useCallback(() => { setTarget(null); setOnDeleted(undefined); setHideShare(false); }, []);
   const value = useMemo(() => ({ open }), [open]);
 
   return (
@@ -93,6 +95,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
             setBlocked={(handle, blocked) => setBlockedHandles((items) => blocked ? [...new Set([...items, handle])] : items.filter((item) => item !== handle))}
             close={close}
             onDeleted={onDeleted}
+            hideShare={hideShare}
           />
         ) : null}
       </BottomSheet>
@@ -122,10 +125,11 @@ type BodyProps = {
   setBlocked: (handle: string, blocked: boolean) => void;
   close: () => void;
   onDeleted?: () => void;
+  hideShare: boolean;
 };
 
 function SheetBody(props: BodyProps) {
-  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close, onDeleted } =
+  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, result, setResult, blocked, setBlocked, close, onDeleted, hideShare } =
     props;
   const toast = useToast();
   const me = useMe();
@@ -224,7 +228,7 @@ function SheetBody(props: BodyProps) {
             }}
           />
         ) : null}
-        <MenuItem icon="shareNodes" label={target.kind === 'comment' ? 'Compartilhar comentário' : target.kind === 'profile' ? 'Compartilhar perfil' : 'Compartilhar publicação'} onPress={async () => {
+        {!hideShare ? <MenuItem icon="shareNodes" label={target.kind === 'comment' ? 'Compartilhar comentário' : target.kind === 'profile' ? 'Compartilhar perfil' : 'Compartilhar publicação'} onPress={async () => {
           try {
             const shareTarget = target.kind === 'comment'
               ? { kind: 'post' as const, id: target.postId ?? target.id }
@@ -232,7 +236,7 @@ function SheetBody(props: BodyProps) {
             await shareDestination(shareTarget);
             close();
           } catch { toast.show('Não conseguimos compartilhar este conteúdo.'); }
-        }} />
+        }} /> : null}
         {target.kind === 'profile' ? <MenuItem icon="link" label="Copiar link" onPress={async () => {
           try { await Clipboard.setStringAsync(canonicalUrl({ kind: 'profile', id: target.id })); close(); toast.show('Link copiado.'); }
           catch { toast.show('Este conteúdo ainda não possui um link público.'); }

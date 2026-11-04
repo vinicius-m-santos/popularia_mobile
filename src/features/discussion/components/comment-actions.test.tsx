@@ -113,6 +113,19 @@ describe('menu da publicação', () => {
     expect(screen.queryByText('Denunciar publicação')).toBeNull();
   });
 
+  it('não repete o compartilhar no menu quando o cabeçalho já tem o ícone', async () => {
+    const own = { ...post, authorId: 'me', author: { id: 'me', name: 'Eu', handle: 'eu', initials: 'EU', tone: 'red' as const }, viewer: { isAuthor: true, canComment: true, canDelete: true } };
+    function PostOpener() {
+      const sheet = useActionsSheet();
+      return <Pressable accessibilityRole="button" accessibilityLabel="Abrir menu do post" onPress={() => sheet.open(postTarget(own), 'menu', { hideShare: true })} />;
+    }
+    const tree = ({ children }: { children: ReactNode }) => <ActionsSheetProvider>{children}</ActionsSheetProvider>;
+    await render(<PostOpener />, { wrapper: tree });
+    await fireEvent.press(screen.getByLabelText('Abrir menu do post'));
+    expect(screen.getByText('Salvar publicação')).toBeTruthy();
+    expect(screen.queryByText('Compartilhar publicação')).toBeNull();
+  });
+
   it('ao excluir a publicação volta ao feed raiz, sem tela de 404', async () => {
     const own = { ...post, authorId: 'me', author: { id: 'me', name: 'Eu', handle: 'eu', initials: 'EU', tone: 'red' as const }, viewer: { isAuthor: true, canComment: true, canDelete: true } };
     function PostOpener() {

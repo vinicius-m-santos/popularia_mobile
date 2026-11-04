@@ -255,7 +255,7 @@ export default function DiscussionScreen() {
   return (
     <Screen edges={['top', 'left', 'right']}>
       <KeyboardView style={styles.flex}>
-        <DiscussionHeader comuna={post.comuna} onMore={() => sheet.open(postTarget(post))} />
+        <DiscussionHeader comuna={post.comuna} onMore={() => sheet.open(postTarget(post), 'menu', { hideShare: true })} />
         <FlatList
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
