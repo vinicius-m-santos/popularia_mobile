@@ -30,8 +30,17 @@ jobs:
           fetch-depth: 0
 
       # A rubrica não pode ser alterada pelo próprio PR que está sendo revisado.
+      # Arquivos novos (como o REVIEW.md deste PR) ainda não existem na base e
+      # ficam com a versão do PR até o merge.
       - name: Usar as regras de review da base
-        run: git checkout "origin/${{ github.base_ref }}" -- REVIEW.md CLAUDE.md AGENTS.md
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          for file in REVIEW.md CLAUDE.md AGENTS.md; do
+            if git cat-file -e "origin/$BASE_REF:$file" 2>/dev/null; then
+              git checkout "origin/$BASE_REF" -- "$file"
+            fi
+          done
 
       - name: Revisar o PR com o Claude
         id: claude
@@ -80,6 +89,15 @@ jobs:
           # O gate roda a versão confiável da base, não a versão alterada no PR.
           ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 1
+
+      # Bootstrap: no PR que introduz o gate o arquivo ainda não existe na base.
+      # Depois do merge, a base sempre vence e o PR não consegue alterar o gate.
+      - name: Garantir o gate confiável
+        run: |
+          if [ ! -f scripts/ai-review-gate.mjs ]; then
+            git fetch --depth=1 origin "${{ github.event.pull_request.head.sha }}"
+            git checkout "${{ github.event.pull_request.head.sha }}" -- scripts/ai-review-gate.mjs
+          fi
 
       - name: Publicar veredito e bloquear se necessário
         env:
