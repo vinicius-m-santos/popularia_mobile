@@ -154,6 +154,7 @@ function RootStack() {
       <Stack.Screen name="abrir-link" />
       <Stack.Screen name="link-indisponivel" />
       <Stack.Screen name="sobre-e-legal" />
+      <Stack.Screen name="licencas" />
       <Stack.Screen name="documento-legal/[id]" />
       <Stack.Protected guard={onboarded}>
         <Stack.Screen name="(tabs)" />
