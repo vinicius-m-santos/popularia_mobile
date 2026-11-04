@@ -1,6 +1,9 @@
 import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
+
+import type { FlashListRef } from '@shopify/flash-list';
+import { useScrollToTop } from 'expo-router';
 
 import { DayRule } from '@/components/day-rule';
 import { Screen } from '@/components/screen';
@@ -19,7 +22,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { PostCard } from '@/features/posts/components/post-card';
 import { describeError } from '@/lib/errors';
 import { dayKey, formatDayRule } from '@/lib/format';
-import type { FeedTab } from '@/types/models';
+import type { FeedItem, FeedTab } from '@/types/models';
 
 const EMPTY_MESSAGES: Record<FeedTab, { title: string; message: string }> = {
   'para-voce': { title: 'Nenhuma publicação ainda', message: 'Bora interagir? Compartilhe uma ideia e puxe a conversa.' },
@@ -33,6 +36,8 @@ const UNAVAILABLE = { title: 'Em breve', message: '"Perto de mim" chega numa pr�
 /** Feed principal (design 1a). */
 export default function FeedScreen() {
   const visibility = useListVisibility();
+  const listRef = useRef<FlashListRef<FeedItem>>(null);
+  useScrollToTop(listRef);
   const [tab, setTab] = useState<FeedTab>('para-voce');
   const { joinedComunaIds, followedUserIds } = useInteractions();
   const { show: showToast } = useToast();
@@ -75,6 +80,7 @@ export default function FeedScreen() {
   }, [refreshError, showToast]);
 
   const body = <PopulariaList
+    ref={listRef}
     // Cada aba é uma lista própria: trocar de aba recomeça do topo, em vez de herdar a rolagem.
     key={tab}
     state={feed}

@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
@@ -70,6 +70,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const data = useAsyncData(load);
   const { reload } = data;
   const list = useRef<FlatList<DiscoveryRow>>(null);
+  useScrollToTop(list);
   const titleHeight = useRef(0);
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');

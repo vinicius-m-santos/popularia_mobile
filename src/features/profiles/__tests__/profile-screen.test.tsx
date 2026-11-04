@@ -46,6 +46,7 @@ jest.mock('@/constants/config', () => {
 
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn(), navigate: jest.fn(), canGoBack: () => true },
+  useScrollToTop: () => undefined,
   useLocalSearchParams: () => ({ id: mockProfileId }),
   useFocusEffect: (callback: () => void) => {
     const React = jest.requireActual<typeof import('react')>('react');

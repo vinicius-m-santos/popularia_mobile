@@ -16,6 +16,7 @@ const mockOpenPost = jest.fn();
 let mockTopicId = 'tec';
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), navigate: jest.fn() },
+  useScrollToTop: () => undefined,
   useLocalSearchParams: () => ({ id: mockTopicId }),
   useFocusEffect: (callback: () => void) => {
     const React = jest.requireActual<typeof import('react')>('react');

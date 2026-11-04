@@ -10,6 +10,7 @@ jest.mock('expo-router', () => {
   const { useEffect: useEffectHook } = jest.requireActual<typeof import('react')>('react');
   return {
     router: { push: jest.fn(), navigate: jest.fn() },
+    useScrollToTop: () => undefined,
     useFocusEffect: (callback: () => void | (() => void)) => useEffectHook(() => {
       mockFocusCallbacks.push(callback);
       return callback();

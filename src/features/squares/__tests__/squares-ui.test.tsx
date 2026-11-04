@@ -27,7 +27,7 @@ jest.mock('@/features/interactions/interactions-context', () => ({ useInteractio
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
-  return { router: { push: jest.fn(), navigate: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => ({ id: 'square1' }), useSegments: () => ['(tabs)', 'pracas'], useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) };
+  return { router: { push: jest.fn(), navigate: jest.fn(), back: jest.fn(), canGoBack: () => true }, useScrollToTop: () => undefined, useLocalSearchParams: () => ({ id: 'square1' }), useSegments: () => ['(tabs)', 'pracas'], useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) };
 });
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');

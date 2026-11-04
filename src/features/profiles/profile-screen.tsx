@@ -7,7 +7,7 @@ import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { accessDenied, contentPolicy, queryClient } from '@/lib/query/client';
 import { mergeById } from '@/lib/pagination';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -191,6 +191,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const scrollY = useRef(0);
   const previousPageKey = useRef<ProfileTabKey | null>(null);
   const listRef = useRef<FlashListRef<ProfileRow>>(null);
+  useScrollToTop(listRef);
   const tabsOffset = useRef(0);
   const overlayVisible = useRef(false);
   const overlayTranslate = useSharedValue(-PROFILE_TABS_HEIGHT);

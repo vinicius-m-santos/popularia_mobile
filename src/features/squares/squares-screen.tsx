@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
@@ -31,6 +31,8 @@ export default function SquaresScreen() {
 
 function ConnectedSquares() {
   const [query, setQuery] = useState('');
+  const listRef = useRef<FlatList<Row>>(null);
+  useScrollToTop(listRef);
   const [term, setTerm] = useState('');
   useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
   const mine = usePaginatedData(useCallback((cursor: string | null) => listSquares('mine', cursor, term), [term]));
@@ -69,6 +71,7 @@ function ConnectedSquares() {
   return (
     <Screen>
       <FlatList
+        ref={listRef}
         testID="squares-list"
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
