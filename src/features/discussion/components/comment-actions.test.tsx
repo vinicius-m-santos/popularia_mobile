@@ -5,6 +5,7 @@ import { Pressable } from 'react-native';
 
 import { ActionsSheetProvider, useActionsSheet } from '@/features/moderation/actions-sheet';
 import { commentTarget, postTarget } from '@/features/moderation/targets';
+import { router } from 'expo-router';
 import { apiRequest } from '@/lib/api/client';
 import { queryClient } from '@/lib/query/client';
 import type { CommentWithAuthor, FeedItem } from '@/types/models';
@@ -33,6 +34,7 @@ jest.mock('@/lib/routes', () => ({ useNav: () => ({ openComuna: jest.fn(), openP
 jest.mock('@/features/links/share', () => ({ shareDestination: jest.fn() }));
 jest.mock('@/features/links/destinations', () => ({ canonicalUrl: () => 'https://popularia.test/p' }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), dismissAll: jest.fn(), replace: jest.fn() } }));
 
 const api = jest.mocked(apiRequest);
 
@@ -109,6 +111,22 @@ describe('menu da publicação', () => {
     expect(screen.getByText('Editar publicação')).toBeTruthy();
     expect(screen.getByText('Excluir publicação')).toBeTruthy();
     expect(screen.queryByText('Denunciar publicação')).toBeNull();
+  });
+
+  it('ao excluir a publicação volta ao feed raiz, sem tela de 404', async () => {
+    const own = { ...post, authorId: 'me', author: { id: 'me', name: 'Eu', handle: 'eu', initials: 'EU', tone: 'red' as const }, viewer: { isAuthor: true, canComment: true, canDelete: true } };
+    function PostOpener() {
+      const sheet = useActionsSheet();
+      return <Pressable accessibilityRole="button" accessibilityLabel="Abrir menu do post" onPress={() => sheet.open(postTarget(own))} />;
+    }
+    const tree = ({ children }: { children: ReactNode }) => <ActionsSheetProvider>{children}</ActionsSheetProvider>;
+    api.mockResolvedValueOnce(undefined);
+    await render(<PostOpener />, { wrapper: tree });
+    await fireEvent.press(screen.getByLabelText('Abrir menu do post'));
+    await fireEvent.press(screen.getByText('Excluir publicação'));
+    await waitFor(() => expect(router.dismissAll).toHaveBeenCalledTimes(1));
+    expect(router.replace).toHaveBeenCalledWith('/');
+    expect(mockShow).toHaveBeenCalledWith('Publicação excluída.');
   });
 });
 });

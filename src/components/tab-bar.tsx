@@ -41,7 +41,13 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
 
         const onPress = () => {
           const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
+          if (event.defaultPrevented) return;
+          if (focused) {
+            // Tocar na aba ativa volta ao topo dela, padrão dos apps com pilha por aba.
+            router.dismissAll();
+            return;
+          }
+          navigateToTab(route.key);
         };
 
         return (

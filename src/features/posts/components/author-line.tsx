@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { SingleLineText } from '@/components/single-line-text';
 import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
@@ -18,11 +19,14 @@ type AuthorLineProps = {
   onPress?: () => void;
   /** No cartão de publicação a identidade é um selo quadrado, como no mock do feed. */
   appearance?: 'default' | 'card';
+  /** Na publicação aberta o avatar segue o padrão quadrado dos cartões. */
+  avatarShape?: 'circle' | 'square';
 };
 
-export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress, appearance = 'default' }: AuthorLineProps) {
+export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress, appearance = 'default', avatarShape = 'circle' }: AuthorLineProps) {
   const card = appearance === 'card';
   const size = card ? 42 : avatarSize;
+  const square = card || avatarShape === 'square';
   return (
     <View style={[styles.row, card && styles.rowCard]}>
       <Pressable
@@ -39,13 +43,13 @@ export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress, a
           size={size}
           userId={author.id}
           imageUrl={author.avatarUrl}
-          shape={card ? 'square' : 'circle'}
-          outline={card}
-          font={card ? 'anton' : 'condensed'}
+          shape={square ? 'square' : 'circle'}
+          outline={square}
+          font={square ? 'anton' : 'condensed'}
         />
         <View style={styles.text}>
           <View style={styles.nameRow}>
-            <AppText style={[styles.name, card && styles.nameCard]}>{author.name}</AppText>
+            <SingleLineText style={[styles.name, card && styles.nameCard]}>{author.name}</SingleLineText>
             {author.badge ? <Badge label={author.badge} /> : null}
           </View>
           <AppText variant="caption" style={card ? styles.metaCard : undefined} numberOfLines={1}>
@@ -85,7 +89,6 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
     gap: 6,
   },
   name: {

@@ -6,7 +6,7 @@ import type { ComponentProps } from 'react';
 import { FeedHeader } from '@/features/feed/components/feed-header';
 import { TabBar } from '../tab-bar';
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useSegments: () => ['(tabs)', '(inicio)'] }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), dismissAll: jest.fn() }, useSegments: () => ['(tabs)', '(inicio)'] }));
 let mockUnread = 0;
 jest.mock('@/features/notifications/use-unread-count', () => ({ useUnreadCount: () => mockUnread }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -32,6 +32,21 @@ describe('badge de avisos', () => {
     expect(router.push).toHaveBeenCalledWith('/avisos');
     if (count > 0) expect(screen.getByText(count > 99 ? '99+' : String(count))).toBeTruthy();
     else expect(screen.queryByText('0')).toBeNull();
+  });
+});
+
+describe('navegação das abas', () => {
+  it('tocar na aba ativa volta ao topo da pilha', async () => {
+    await render(<TabBar {...props} />);
+    await fireEvent.press(screen.getByLabelText('(inicio)'));
+    expect(router.dismissAll).toHaveBeenCalledTimes(1);
+    expect(props.navigateToTab).not.toHaveBeenCalled();
+  });
+
+  it('trocar de aba usa navigateToTab sem empilhar a aba atual', async () => {
+    await render(<TabBar {...props} />);
+    await fireEvent.press(screen.getByLabelText('explorar'));
+    expect(props.navigateToTab).toHaveBeenCalledWith('explorar');
   });
 });
 

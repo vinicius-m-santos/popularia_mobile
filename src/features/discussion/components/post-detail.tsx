@@ -9,8 +9,6 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { usePostActions } from '@/features/interactions/use-post-actions';
 import { chamadoCardFor } from '@/features/events/chamado-data';
 import { ChamadoCard } from '@/features/events/chamado-card';
-import { useActionsSheet } from '@/features/moderation/actions-sheet';
-import { postTarget } from '@/features/moderation/targets';
 import { FollowButton } from '@/features/profiles/components/follow-button';
 import { shareDestination } from '@/features/links/share';
 import { useToast } from '@/components/toast';
@@ -35,7 +33,6 @@ type PostDetailProps = {
 export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
   const actions = usePostActions(post);
   const toast = useToast();
-  const sheet = useActionsSheet();
   const chamado = chamadoCardFor(post);
   const share = () => { shareDestination({ kind: 'post', id: post.id }).catch(() => toast.show('Este conteúdo ainda não possui um link público.')); };
 
@@ -45,10 +42,10 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         <AuthorLine
           author={post.author}
           avatarSize={44}
+          avatarShape="square"
           trailing={<View style={styles.authorActions}>
             {post.viewer?.isAuthor ? null : <FollowButton user={post.author} />}
             <IconButton icon="share" size={20} accessibilityLabel="Compartilhar publicação" onPress={share} />
-            <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={() => sheet.open(postTarget(post))} />
           </View>}
         />
         {chamado ? (

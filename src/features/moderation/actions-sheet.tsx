@@ -168,8 +168,11 @@ function SheetBody(props: BodyProps) {
             setBusy(true);
             try {
               if (!DEMO_MODE) await deletePost(target.id);
-              await queryClient.invalidateQueries();
               close();
+              // A publicação aberta some junto; a pessoa volta ao feed, não a uma tela de 404.
+              router.dismissAll();
+              router.replace('/');
+              void queryClient.invalidateQueries();
               toast.show('Publicação excluída.');
             } catch (error) {
               toast.show(`Não foi possível excluir a publicação. ${describeError(error)}`);

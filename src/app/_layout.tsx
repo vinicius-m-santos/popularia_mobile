@@ -15,7 +15,7 @@ import { router, Stack, usePathname, type ErrorBoundaryProps } from 'expo-router
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
+import { AppState, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Screen } from '@/components/screen';
@@ -23,6 +23,7 @@ import { StateView } from '@/components/state-view';
 import { ToastProvider } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { AccountProvider, useAccount } from '@/features/account/account-context';
+import { AuthBusyOverlay } from '@/features/account/auth-busy-overlay';
 import { InteractionsProvider } from '@/features/interactions/interactions-context';
 import { ActionsSheetProvider } from '@/features/moderation/actions-sheet';
 import { ModerationProvider } from '@/features/moderation/moderation-context';
@@ -122,7 +123,7 @@ function AccountSurfaces({ children }: { children: ReactNode }) {
  * A splash fica na tela enquanto a sessão guardada no aparelho é retomada.
  */
 function RootStack() {
-  const { onboarded, status, account, showLoginWelcome } = useAccount();
+  const { onboarded, status, account, showLoginWelcome, authBusy } = useAccount();
   const pathname = usePathname();
   const restoring = status === 'restoring';
 
@@ -164,6 +165,7 @@ function RootStack() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.cream } }}>
       <Stack.Screen name="abrir-link" />
       <Stack.Screen name="link-indisponivel" />
@@ -196,5 +198,7 @@ function RootStack() {
         <Stack.Screen name="boas-vindas" />
       </Stack.Protected>
     </Stack>
+    {authBusy ? <AuthBusyOverlay label={authBusy} /> : null}
+    </View>
   );
 }

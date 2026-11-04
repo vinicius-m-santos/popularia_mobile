@@ -43,3 +43,45 @@ it('limpa conta, rascunho e cache mesmo se a revogação de logout falhar', asyn
   expect(result.current.profile.bio).toBe('');
   expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
 });
+
+
+it('mostra a mensagem editorial ao concluir o cadastro', async () => {
+  jest.mocked(getMe).mockResolvedValue({
+    id: 'conta-nova', displayName: 'Pessoa', handle: 'pessoa', bio: '',
+    interests: [], city: null, state: null, country: null, countryCode: 'BR',
+    stateIbgeCode: null, municipalityIbgeCode: null,
+    email: 'nova@example.test', emailVerified: false, platformRole: 'user',
+    createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z',
+    pendingOnboarding: false, hasPassword: true, legalAccepted: true, followerCount: 0,
+  });
+  const { result } = await renderHook(useAccount, {
+    wrapper: ({ children }: { children: ReactNode }) => <AccountProvider>{children}</AccountProvider>,
+  });
+  await waitFor(() => expect(result.current.status).toBe('signedIn'));
+  await act(async () => { result.current.finishSignup(); });
+  expect(result.current.showLoginWelcome).toBe(true);
+  expect(result.current.showWelcome).toBe(true);
+});
+
+it('expõe a barreira visual durante a saída', async () => {
+  jest.mocked(getMe).mockResolvedValue({
+    id: 'conta-saindo', displayName: 'Pessoa', handle: 'pessoa', bio: '',
+    interests: [], city: null, state: null, country: null, countryCode: 'BR',
+    stateIbgeCode: null, municipalityIbgeCode: null,
+    email: 'saindo@example.test', emailVerified: true, platformRole: 'user',
+    createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z',
+    pendingOnboarding: false, hasPassword: true, legalAccepted: true, followerCount: 0,
+  });
+  let finishLogout: (() => void) | undefined;
+  jest.mocked(logout).mockReturnValue(new Promise<void>((resolve) => { finishLogout = resolve; }));
+  const { result } = await renderHook(useAccount, {
+    wrapper: ({ children }: { children: ReactNode }) => <AccountProvider>{children}</AccountProvider>,
+  });
+  await waitFor(() => expect(result.current.status).toBe('signedIn'));
+  let pending: Promise<void> | undefined;
+  await act(async () => { pending = result.current.signOut(); });
+  expect(result.current.authBusy).toBe('Saindo…');
+  await act(async () => { finishLogout?.(); await pending; });
+  await waitFor(() => expect(result.current.authBusy).toBeNull());
+  expect(result.current.status).toBe('signedOut');
+});

@@ -744,8 +744,8 @@ const styles = StyleSheet.create({
   },
   name: {
     fontFamily: Fonts.anton,
-    fontSize: 46,
-    lineHeight: 54,
+    fontSize: 38,
+    lineHeight: 46,
     letterSpacing: -0.4,
     textTransform: 'uppercase',
     paddingTop: 2,

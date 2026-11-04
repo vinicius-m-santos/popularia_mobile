@@ -12,10 +12,10 @@ export default function TabsLayout() {
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.cream } }}>
-      <Tabs.Screen name="(inicio)" options={{ title: 'Início' }} />
-      <Tabs.Screen name="explorar" options={{ title: 'Explorar' }} />
-      <Tabs.Screen name="pracas" options={{ title: 'Praças' }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
+      <Tabs.Screen name="(inicio)" options={{ title: 'Início', popToTopOnBlur: true }} />
+      <Tabs.Screen name="explorar" options={{ title: 'Explorar', popToTopOnBlur: true }} />
+      <Tabs.Screen name="pracas" options={{ title: 'Praças', popToTopOnBlur: true }} />
+      <Tabs.Screen name="perfil" options={{ title: 'Perfil', popToTopOnBlur: true }} />
     </Tabs>
   );
 }

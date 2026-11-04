@@ -9,7 +9,7 @@ import { queryClient } from '@/lib/query/client';
  * quando a API está configurada. Algumas partes viram cache do que o servidor
  * respondeu nesta sessão:
  * - `joinedComunas`: participação confirmada pela API depois de entrar ou sair de uma comuna;
- * - `commentCounts`: maior contagem de comentários conhecida por publicação;
+ * - `commentCounts`: última contagem de comentários conhecida por publicação;
  * - `postsVersion`: muda quando a pessoa publica, para as listas recarregarem.
  * `resetAll` limpa tudo ao entrar ou sair da conta.
  */
@@ -34,12 +34,17 @@ export type ToggleKind =
   /** Pessoas silenciadas ou bloqueadas: as publicações delas somem do feed. */
   | 'mutedUsers';
 
+/** A contagem local manda: exclusões precisam baixar o número que veio do servidor. */
+export function displayedCommentCount(serverCount: number, knownCount: number | undefined): number {
+  return knownCount ?? serverCount;
+}
+
 type State = Record<ToggleKind, Record<string, boolean>> & {
   /** Comentários escritos nesta sessão (não enviados a lugar nenhum). */
   localComments: Comment[];
   /** Publicações criadas nesta sessão, da mais nova para a mais antiga (só no modo demonstração). */
   localPosts: Post[];
-  /** Na API: maior contagem de comentários vista por publicação (inclui os enviados agora). */
+  /** Na API: última contagem conhecida por publicação (inclui enviados e excluídos nesta sessão). */
   commentCounts: Record<string, number>;
   postsVersion: number;
 };
@@ -124,9 +129,9 @@ type InteractionsValue = {
   addComment: (input: { postId: string; parentId: string | null; text: string; mentions?: Comment['mentions'] }) => Comment;
   localPosts: Post[];
   addPost: (input: { comunaId: string | null; text: string; title?: string | null; poll?: Post['poll']; mentions?: Post['mentions'] }) => Post;
-  /** Na API: contagem exibida = a maior entre a do servidor e a última conhecida nesta sessão. */
+  /** Na API: usa a última contagem conhecida; o servidor só vale quando ainda não há registro local. */
   commentCountOf: (postId: string, serverCount: number) => number;
-  /** Registra uma contagem vista no servidor ou atualizada depois de comentar (nunca diminui). */
+  /** Registra uma contagem vista no servidor ou atualizada depois de comentar/excluir. */
   noteCommentCount: (postId: string, count: number) => void;
   /** Muda quando a pessoa publica na API: as listas de publicações recarregam. */
   postsVersion: number;
@@ -214,7 +219,7 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const commentCountOf = useCallback(
-    (postId: string, serverCount: number) => Math.max(serverCount, state.commentCounts[postId] ?? 0),
+    (postId: string, serverCount: number) => displayedCommentCount(serverCount, state.commentCounts[postId]),
     [state.commentCounts],
   );
   const noteCommentCount = useCallback(

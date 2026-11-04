@@ -97,6 +97,8 @@ type AccountValue = {
   /** Mensagem exibida entre um login concluído e a entrada no app. */
   showLoginWelcome: boolean;
   dismissLoginWelcome: () => void;
+  /** Rótulo da operação de autenticação em andamento; bloqueia a navegação enquanto existir. */
+  authBusy: string | null;
 };
 
 const AccountContext = createContext<AccountValue | null>(null);
@@ -118,6 +120,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [signingUp, setSigningUp] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showLoginWelcome, setShowLoginWelcome] = useState(false);
+  const [authBusy, setAuthBusy] = useState<string | null>(null);
   // E-mail e senha da etapa 1: só na memória, apagados assim que o cadastro é enviado.
   const credentials = useRef<{ email: string; password: string } | null>(null);
 
@@ -127,6 +130,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setDraft(profileOf(me));
     setInterests(me.interests);
     setStatus('signedIn');
+  }, []);
+
+  /** Executa uma operação de sessão com uma barreira visual que impede navegação no meio. */
+  const runAuth = useCallback(async (label: string, task: () => Promise<void>): Promise<void> => {
+    setAuthBusy((current) => current ?? label);
+    try {
+      await task();
+    } finally {
+      setAuthBusy(null);
+    }
   }, []);
 
   const resetToSignedOut = useCallback(() => {
@@ -231,28 +244,32 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const fields = { displayName: draft.name.trim(), bio: draft.bio.trim(), city: draft.city.trim(), state: draft.state.trim(), country: draft.country.trim(), countryCode: draft.countryCode, stateIbgeCode: draft.stateIbgeCode, municipalityIbgeCode: draft.municipalityIbgeCode };
     if (account) {
       // Já criada (a pessoa voltou para esta etapa): só atualiza o perfil.
-      applyAccount(await accountApi.updateMe(fields));
+      await runAuth('Salvando seu perfil…', async () => { applyAccount(await accountApi.updateMe(fields)); });
       return;
     }
-    const creds = credentials.current;
-    if (!creds) throw new Error('Volte e informe e-mail e senha.');
-    await accountApi.register({ ...creds, ...fields, handle: draft.handle });
-    try {
-      await accountApi.login(creds.email, creds.password, deviceLabel());
-    } catch (error) {
-      // O cadastro responde igual para e-mail já usado; o login é que falha.
-      if (error instanceof ApiError && error.status === 401) {
-        throw new ApiError(401, '/errors/email-in-use', 'Não foi possível criar a conta com este e-mail. Se ele já tem conta, entre ou recupere a senha.');
+    await runAuth('Criando sua conta…', async () => {
+      const creds = credentials.current;
+      if (!creds) throw new Error('Volte e informe e-mail e senha.');
+      await accountApi.register({ ...creds, ...fields, handle: draft.handle });
+      try {
+        await accountApi.login(creds.email, creds.password, deviceLabel());
+      } catch (error) {
+        // O cadastro responde igual para e-mail já usado; o login é que falha.
+        if (error instanceof ApiError && error.status === 401) {
+          throw new ApiError(401, '/errors/email-in-use', 'Não foi possível criar a conta com este e-mail. Se ele já tem conta, entre ou recupere a senha.');
+        }
+        throw error;
       }
-      throw error;
-    }
-    credentials.current = null;
-    applyAccount(await accountApi.getMe());
-  }, [account, applyAccount, draft]);
+      credentials.current = null;
+      applyAccount(await accountApi.getMe());
+    });
+  }, [account, applyAccount, draft, runAuth]);
 
   const finishSignup = useCallback(() => {
     setSigningUp(false);
     setShowWelcome(true);
+    // A mensagem editorial fecha o cadastro comum e o onboarding social novo.
+    setShowLoginWelcome(true);
     if (DEMO_MODE) setStatus('signedIn');
   }, []);
 
@@ -269,14 +286,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setStatus('signedIn');
         return;
       }
-      await accountApi.login(email, password, deviceLabel());
-      resetAll();
-      setSigningUp(false);
-      setShowWelcome(false);
-      setShowLoginWelcome(true);
-      applyAccount(await accountApi.getMe());
+      await runAuth('Entrando…', async () => {
+        await accountApi.login(email, password, deviceLabel());
+        resetAll();
+        setSigningUp(false);
+        setShowWelcome(false);
+        applyAccount(await accountApi.getMe());
+        setShowLoginWelcome(true);
+      });
     },
-    [applyAccount, replaceAll, resetAll],
+    [applyAccount, replaceAll, resetAll, runAuth],
   );
 
   // Após social login: inicia sessão Popularia e, se necessário, abre o onboarding de handle.
@@ -306,13 +325,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     try {
       await GoogleSignin.hasPlayServices();
       const { data } = await GoogleSignin.signIn();
-      if (!data?.idToken) throw new Error('Token Google ausente.');
-      const tokens = await accountApi.socialLogin({
-        provider: 'google',
-        idToken: data.idToken,
-        deviceLabel: deviceLabel(),
+      const idToken = data?.idToken;
+      if (!idToken) throw new Error('Token Google ausente.');
+      await runAuth('Entrando…', async () => {
+        const tokens = await accountApi.socialLogin({
+          provider: 'google',
+          idToken,
+          deviceLabel: deviceLabel(),
+        });
+        await applySocialSession(tokens);
       });
-      await applySocialSession(tokens);
     } catch (error: unknown) {
       // Cancelamento pelo usuário não é um erro crítico.
       const isCancel =
@@ -322,7 +344,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         (error as { code: string }).code === statusCodes.SIGN_IN_CANCELLED;
       if (!isCancel) throw error;
     }
-  }, [applySocialSession]);
+  }, [applySocialSession, runAuth]);
 
   const signInWithApple = useCallback(async () => {
     const AppleAuthentication = await import('expo-apple-authentication');
@@ -338,17 +360,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         ],
         nonce: hashedNonce,
       });
-      if (!credential.identityToken) throw new Error('Token Apple ausente.');
+      const identityToken = credential.identityToken;
+      if (!identityToken) throw new Error('Token Apple ausente.');
       const parts = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean);
       const displayName = parts.length > 0 ? parts.join(' ') : undefined;
-      const tokens = await accountApi.socialLogin({
-        provider: 'apple',
-        idToken: credential.identityToken,
-        nonce: rawNonce,
-        displayName,
-        deviceLabel: deviceLabel(),
+      await runAuth('Entrando…', async () => {
+        const tokens = await accountApi.socialLogin({
+          provider: 'apple',
+          idToken: identityToken,
+          nonce: rawNonce,
+          displayName,
+          deviceLabel: deviceLabel(),
+        });
+        await applySocialSession(tokens);
       });
-      await applySocialSession(tokens);
     } catch (error: unknown) {
       // ERR_REQUEST_CANCELED é cancelamento pela pessoa: não é erro crítico.
       const isCancel =
@@ -358,44 +383,49 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         (error as { code: string }).code === 'ERR_REQUEST_CANCELED';
       if (!isCancel) throw error;
     }
-  }, [applySocialSession]);
+  }, [applySocialSession, runAuth]);
 
   const completeSocialOnboarding = useCallback(async () => {
     if (DEMO_MODE) return;
-    const me = await accountApi.completeOnboarding({
-      handle: draft.handle.trim(),
-      displayName: draft.name.trim(),
-      bio: draft.bio.trim() || undefined,
-      city: draft.city.trim() || undefined,
-      state: draft.state.trim() || undefined,
-      country: draft.country.trim() || undefined,
-      countryCode: draft.countryCode || undefined,
-      stateIbgeCode: draft.stateIbgeCode || undefined,
-      municipalityIbgeCode: draft.municipalityIbgeCode || undefined,
-      interests: interests.length > 0 ? interests : undefined,
+    await runAuth('Concluindo seu cadastro…', async () => {
+      const me = await accountApi.completeOnboarding({
+        handle: draft.handle.trim(),
+        displayName: draft.name.trim(),
+        bio: draft.bio.trim() || undefined,
+        city: draft.city.trim() || undefined,
+        state: draft.state.trim() || undefined,
+        country: draft.country.trim() || undefined,
+        countryCode: draft.countryCode || undefined,
+        stateIbgeCode: draft.stateIbgeCode || undefined,
+        municipalityIbgeCode: draft.municipalityIbgeCode || undefined,
+        interests: interests.length > 0 ? interests : undefined,
+      });
+      applyAccount(me);
+      setSigningUp(false);
     });
-    applyAccount(me);
-    setSigningUp(false);
-    setShowWelcome(true);
-  }, [applyAccount, draft, interests]);
+  }, [applyAccount, draft, interests, runAuth]);
 
   const signOut = useCallback(
     async (everywhere = false) => {
-      try {
-        if (!DEMO_MODE) await accountApi.logout(everywhere);
-      } finally {
-        // A API já apaga os tokens no finally; erro de revogação não pode deixar
-        // a árvore autenticada e os dados da pessoa anterior na tela.
-        resetToSignedOut();
-      }
+      await runAuth('Saindo…', async () => {
+        try {
+          if (!DEMO_MODE) await accountApi.logout(everywhere);
+        } finally {
+          // A API já apaga os tokens no finally; erro de revogação não pode deixar
+          // a árvore autenticada e os dados da pessoa anterior na tela.
+          resetToSignedOut();
+        }
+      });
     },
-    [resetToSignedOut],
+    [resetToSignedOut, runAuth],
   );
 
   const deleteAccount = useCallback(async (proof: accountApi.DeletionProof) => {
-    await accountApi.deleteAccount(proof);
-    resetToSignedOut();
-  }, [resetToSignedOut]);
+    await runAuth('Excluindo sua conta…', async () => {
+      await accountApi.deleteAccount(proof);
+      resetToSignedOut();
+    });
+  }, [resetToSignedOut, runAuth]);
 
   const reloadAccount = useCallback(async () => {
     if (!DEMO_MODE) applyAccount(await accountApi.getMe());
@@ -449,6 +479,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       dismissWelcome,
       showLoginWelcome,
       dismissLoginWelcome,
+      authBusy,
     }),
     [
       status,
@@ -476,6 +507,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       dismissWelcome,
       showLoginWelcome,
       dismissLoginWelcome,
+      authBusy,
     ],
   );
 
