@@ -1,0 +1,104 @@
+name: Claude fix
+
+on:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: ai-fix-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  fix:
+    name: Claude fix
+    if: |
+      github.event.label.name == 'ai:fix' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # O checkout padrão do pull_request é o merge commit. O fix precisa
+      # trabalhar na branch real do PR para conseguir dar push.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Corrigir os achados bloqueantes
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Este PR tem achados bloqueantes no AI review. Corrija APENAS os achados
+            `blocker` e `major`; não amplie o escopo.
+
+            Leia o REVIEW.md e o comentário mais recente do gate:
+            `gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | select(.body | contains("<!-- ai-review-gate -->")) | .body'`
+
+            Regras:
+            - não altere `.github/workflows`, secrets, branch protection nem o
+              contrato público da API sem necessidade comprovada;
+            - preserve as regras de design do CLAUDE.md (tipografia, raios,
+              espaçamento, ações editoriais) e o comportamento existente;
+            - se um achado exigir decisão de produto, não invente: comente o que
+              falta e pare;
+            - rode `npm run lint`, `npm run typecheck` e
+              `npm test -- --ci --maxWorkers=2` antes de commitar;
+            - não rode o Playwright/E2E aqui: o CI roda depois do push;
+            - se os testes falharem, corrija e rode de novo. Só faça commit quando
+              os três passarem.
+
+            Faça commit com `fix(ai-review): <resumo>` e dê push na branch do PR.
+            O push dispara Quality, Playwright e o AI review novamente.
+          claude_args: |
+            --max-turns 60
+            --allowedTools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh:*)"
+          track_progress: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Confirmar que o Claude commitou e deu push
+        if: success()
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git fetch origin "$BRANCH"
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")" ]; then
+            echo "::error::O Claude não criou um commit novo. O PR não foi corrigido."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD "origin/$BRANCH"; then
+            echo "::error::O commit do Claude não chegou à branch remota do PR."
+            exit 1
+          fi
+
+      - name: Verificar tudo de novo depois do fix
+        if: success()
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test -- --ci --maxWorkers=2
+
+      - name: Remover a label ai:fix
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR" --remove-label "ai:fix" || true

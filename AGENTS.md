@@ -25,6 +25,23 @@ For code changes, run lint and typecheck before declaring the task done. Documen
 
 Para trabalhar em frentes paralelas (worktrees, workspaces do DSH, um Metro por vez, dono dos arquivos compartilhados), veja `docs/parallel-work.md`.
 
+## Gate antes de commit e de PR
+
+Nenhum commit ou push pode acontecer com lint, TypeScript ou testes vermelhos.
+
+```bash
+npm run check:fast   # ESLint + TypeScript (usado pelo hook de commit)
+npm run check        # ESLint + TypeScript + Jest
+npm run test:e2e     # Playwright, quando a mudança tocar fluxo/navegação
+```
+
+Se algo falhar, corrija e rode de novo; não use `--no-verify`. O hook
+`.claude/hooks/pre-commit-check.sh` bloqueia `git commit` com lint ou TypeScript
+vermelhos. O CI exige os checks **Quality**, **Playwright** e **AI review**.
+O review automático segue `REVIEW.md`; a label **`ai:fix`** pede ao Claude para
+corrigir os achados bloqueantes, rodar lint/typecheck/Jest, commitar e dar push —
+o que dispara o CI e o review novamente. Só mergeie com todos verdes.
+
 ## Git e branches
 
 - Trabalhe em uma branch própria a partir da `main`: `feature/<feature-name>`, em inglês, minúsculo e com hífens (por exemplo `feature/about-and-legal`). Não faça commit direto na `main`.

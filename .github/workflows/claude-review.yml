@@ -1,0 +1,93 @@
+name: AI review
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  review:
+    name: Claude review
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      structured: ${{ steps.claude.outputs.structured_output }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A rubrica não pode ser alterada pelo próprio PR que está sendo revisado.
+      - name: Usar as regras de review da base
+        run: git checkout "origin/${{ github.base_ref }}" -- REVIEW.md CLAUDE.md AGENTS.md
+
+      - name: Revisar o PR com o Claude
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # O push do fix é feito pelo Claude App; sem isso o evento de
+          # synchronize seria rejeitado pelo check de ator do action.
+          allowed_bots: 'claude[bot]'
+          prompt: |
+            Você é o code review obrigatório da Popularia, um app Expo/React Native.
+            Siga o REVIEW.md deste repositório e as regras de CLAUDE.md/AGENTS.md.
+
+            Revise APENAS as mudanças deste pull request contra a base `${{ github.base_ref }}`.
+            Use `git diff origin/${{ github.base_ref }}...HEAD` para ver o diff completo
+            e leia o contexto dos arquivos alterados quando precisar.
+
+            Procure, em ordem de prioridade:
+            1. bugs de comportamento, regressão e perda de dados;
+            2. falhas de segurança, autorização e exposição de dados;
+            3. contrato com a API e mudanças que quebram o backend/mobile;
+            4. testes ausentes ou fracos para o comportamento alterado;
+            5. violações das regras de design e navegação do CLAUDE.md/AGENTS.md;
+            6. problemas de acessibilidade, teclado e layout em telas pequenas.
+
+            Não reporte o que o ESLint, o TypeScript ou o Jest já pegam.
+            Não invente arquivos ou linhas: use apenas caminhos e linhas do diff.
+            Seja específico e proponha a correção em `suggestion`.
+
+            Retorne o resultado no schema JSON solicitado. Use `blocker` ou `major`
+            somente quando o merge realmente não deve acontecer sem correção.
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Read,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["approve","request_changes"]},"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string","enum":["blocker","major","minor","nit"]},"file":{"type":"string"},"line":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"suggestion":{"type":"string"}},"required":["severity","file","title","body"]}}},"required":["verdict","summary","findings"]}'
+
+  gate:
+    name: AI review
+    needs: review
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O gate roda a versão confiável da base, não a versão alterada no PR.
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 1
+
+      - name: Publicar veredito e bloquear se necessário
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_RESULT: ${{ needs.review.result }}
+          REVIEW_JSON: ${{ needs.review.outputs.structured }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: node scripts/ai-review-gate.mjs
