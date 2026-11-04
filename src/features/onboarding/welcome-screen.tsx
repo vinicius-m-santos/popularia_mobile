@@ -38,11 +38,12 @@ export default function WelcomeScreen() {
 
   const compact = height < 820;
   const veryCompact = height < 700;
-  const baseTitle = veryCompact ? 54 : compact ? 60 : 68;
+  const baseTitle = veryCompact ? 50 : compact ? 56 : 60;
   const titleSize = Math.min(baseTitle, Math.round(width * 0.185));
   // Anton tem o topo do desenho acima da caixa da linha; o piso de +8 e o
   // padding impedem o corte que acontecia com line-height apertado.
-  const titleLineHeight = titleSize + 14;
+  // O acento do É sobe acima do desenho da linha; 26px de headroom evitam o corte.
+  const titleLineHeight = titleSize + 26;
   const raysHeight = Math.round((width * 240) / 390);
   const top = compact ? Math.max(insets.top + 8, 44) : Math.max(insets.top + 11, 58);
   const bottom = compact ? Math.max(insets.bottom, 18) : Math.max(insets.bottom, 30);
