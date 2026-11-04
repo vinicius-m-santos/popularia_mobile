@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 
 /** Convites curtos: o feed propõe uma abertura diferente a cada dia, sem repetir a mesma frase. */
@@ -31,11 +31,16 @@ export function ComposerPrompt({ placeholder, appearance = 'feed' }: { placehold
       accessibilityRole="button"
       accessibilityLabel="Criar publicação"
       style={({ pressed }) => [styles.box, profile && styles.boxProfile, pressed && styles.pressed]}>
-      {profile
-        ? <View style={styles.tile}>
-            <AppText style={styles.tileInitials} color={Colors.cream} maxFontSizeMultiplier={1}>{me.initials}</AppText>
-          </View>
-        : <Avatar initials={me.initials} tone={me.tone} size={32} shape="square" outline font="anton" userId={me.id} imageUrl={me.avatarUrl} />}
+      <Avatar
+        initials={me.initials}
+        tone={me.tone}
+        size={profile ? 38 : 32}
+        shape="square"
+        outline
+        font="anton"
+        userId={me.id}
+        imageUrl={me.avatarUrl}
+      />
       <AppText style={[styles.placeholder, profile && styles.placeholderProfile]} color={Colors.muted} numberOfLines={1}>
         {prompt}
       </AppText>
@@ -74,15 +79,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderRadius: 6,
   },
-  tile: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.ink,
-  },
-  tileInitials: { fontFamily: Fonts.anton, fontSize: 18, lineHeight: 22 },
   placeholder: {
     flex: 1,
     fontSize: 15.5,
