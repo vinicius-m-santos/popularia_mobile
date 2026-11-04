@@ -13,6 +13,7 @@ import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
+import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import { BIO_MAX_LENGTH, useAccount, useMe } from '@/features/account/account-context';
 import { pickProfileImage, type PickedImage } from '@/features/media/pick-image';
 import { uploadAvatar } from '@/features/media/upload-image';
@@ -49,6 +50,7 @@ type HandleCheck = { handle: string; available: boolean | null };
 /** Etapa 2: identidade, @ e país. A conta só é criada ao tocar em Continuar. */
 export default function SetupScreen() {
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
   const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl } = useAccount();
   const me = useMe();
   const toast = useToast();
@@ -69,13 +71,17 @@ export default function SetupScreen() {
   const [countryError, setCountryError] = useState('');
   const handleRef = useRef<ComponentRef<typeof TextInput>>(null);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-  const fieldY = useRef({ name: 0, handle: 0, bio: 0 });
+  const fieldLayout = useRef({ name: { y: 0, height: 0 }, handle: { y: 0, height: 0 }, bio: { y: 0, height: 0 } });
+  const viewportRef = useRef(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   const scrollToField = (key: 'name' | 'handle' | 'bio') => {
-    // Espera o teclado começar a animar para o campo não parar atrás do rodapé.
+    // Espera o teclado terminar de ajustar a área visível e centraliza o campo nela.
     setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, fieldY.current[key] - 16), animated: true });
-    }, 80);
+      const { y, height } = fieldLayout.current[key];
+      const centerOffset = height / 2 - viewportRef.current / 2;
+      scrollRef.current?.scrollTo({ y: Math.max(0, y + centerOffset), animated: true });
+    }, 350);
   };
 
   const nameMissing = profile.name.trim() === '';
@@ -207,12 +213,20 @@ export default function SetupScreen() {
       <KeyboardView style={styles.flex} keyboardVerticalOffset={0}>
         <ScrollView
           ref={scrollRef}
+          onLayout={(event: LayoutChangeEvent) => {
+            const next = event.nativeEvent.layout.height;
+            viewportRef.current = next;
+            setViewportHeight((current) => (current === next ? current : next));
+          }}
           style={styles.flex}
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 10, 54) }]}>
+          contentContainerStyle={[styles.content, {
+            paddingTop: Math.max(insets.top + 10, 54),
+            paddingBottom: keyboardVisible ? viewportHeight / 2 + 24 : 24,
+          }]}>
           <OnboardingHeader step={2} />
 
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>COMO VOCÊ QUER{'\n'}APARECER?</Text>
@@ -242,7 +256,7 @@ export default function SetupScreen() {
             </View>
           </Pressable>
 
-          <View style={[styles.field, styles.firstField]} onLayout={(event: LayoutChangeEvent) => { fieldY.current.name = event.nativeEvent.layout.y; }}>
+          <View style={[styles.field, styles.firstField]} onLayout={(event: LayoutChangeEvent) => { fieldLayout.current.name = event.nativeEvent.layout; }}>
             <TextField
               appearance="setup"
               label="Nome"
@@ -261,7 +275,7 @@ export default function SetupScreen() {
             />
           </View>
 
-          <View style={styles.field} onLayout={(event: LayoutChangeEvent) => { fieldY.current.handle = event.nativeEvent.layout.y; }}>
+          <View style={styles.field} onLayout={(event: LayoutChangeEvent) => { fieldLayout.current.handle = event.nativeEvent.layout; }}>
             <TextField
               appearance="setup"
               label="Nome de usuário"
@@ -335,7 +349,7 @@ export default function SetupScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.field, styles.bioField]} onLayout={(event: LayoutChangeEvent) => { fieldY.current.bio = event.nativeEvent.layout.y; }}>
+          <View style={[styles.field, styles.bioField]} onLayout={(event: LayoutChangeEvent) => { fieldLayout.current.bio = event.nativeEvent.layout; }}>
             <TextField
               appearance="setup"
               label="Bio"
