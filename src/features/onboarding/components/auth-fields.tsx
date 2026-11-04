@@ -1,6 +1,8 @@
 import { useState, type ComponentRef, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { Icon } from '@/components/icon';
+
 import { Fonts } from '@/constants/theme';
 
 const AUTH = {
@@ -101,7 +103,7 @@ export function AuthPasswordField({ value, onChangeText, showPassword, onToggleS
           accessibilityLabel={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
           accessibilityState={{ selected: showPassword }}
           style={styles.showButton}>
-          <Text style={styles.showLabel}>{showPassword ? 'Ocultar' : 'Mostrar'}</Text>
+          <Icon name={showPassword ? 'eyeOff' : 'eye'} size={20} color={AUTH.ink} />
         </Pressable>
       </View>
       {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
@@ -114,8 +116,7 @@ const styles = StyleSheet.create({
   label: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 23, color: AUTH.ink },
   box: { position: 'relative', height: 52, marginTop: 6, flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderRadius: 6, backgroundColor: AUTH.surface, paddingHorizontal: 14 },
   input: { flex: 1, height: 48, paddingVertical: 0, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: AUTH.ink, outlineWidth: 0 },
-  passwordInput: { paddingRight: 92 },
-  showButton: { position: 'absolute', right: 4, top: 4, height: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  showLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 20, color: AUTH.ink, textDecorationLine: 'underline' },
+  passwordInput: { paddingRight: 52 },
+  showButton: { position: 'absolute', right: 4, top: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   error: { marginTop: 5, fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22, color: AUTH.redText },
 });

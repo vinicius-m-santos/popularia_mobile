@@ -195,6 +195,7 @@ const ICONS = {
   filter: { strokeWidth: 2.1, body: <Path d="M3.5 5h17l-6.5 7.5V20l-4-2v-5.5z" /> },
   download: { strokeWidth: 2.1, body: <><Path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" /><Path d="M4.5 20.5h15" /></> },
   eye: { strokeWidth: 2.1, body: <><Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><Circle cx={12} cy={12} r={2.8} /></> },
+  eyeOff: { strokeWidth: 2.1, body: <><Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><Circle cx={12} cy={12} r={2.8} /><Path d="M4 4l16 16" /></> },
   print: { strokeWidth: 2, body: <><Path d="M7 8V3.5h10V8M7 17H4.5V8h15v9H17" /><Rect x={7} y={14} width={10} height={7} /><Path d="M17 11h.01" /></> },
   block: { strokeWidth: 2.1, body: <><Circle cx={12} cy={12} r={9} /><Path d="m5.7 5.7 12.6 12.6" /></> },
   logout: { strokeWidth: 2.1, body: <><Path d="M14 4h5v16h-5" /><Path d="M10 8l-4 4 4 4M6 12h9" /></> },
