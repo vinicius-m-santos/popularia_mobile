@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { SingleLineText } from '@/components/single-line-text';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon, type IconName } from '@/components/icon';
@@ -209,7 +210,7 @@ export function ComunaHero({ comuna, onChanged, postCountLabel = '0' }: { comuna
 
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          <AppText accessibilityRole="header" style={styles.title}>{comuna.name}</AppText>
+          <SingleLineText accessibilityRole="header" style={styles.title}>{comuna.name}</SingleLineText>
           <AppText style={styles.meta} color={Colors.inkSoft}>
             c/{comuna.handle} · {comuna.place} · desde {comuna.foundedYear}
           </AppText>

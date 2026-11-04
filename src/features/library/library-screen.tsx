@@ -1,4 +1,5 @@
 import { AppText } from '@/components/app-text';
+import { SingleLineText } from '@/components/single-line-text';
 import { BottomSheet, InsideBottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { ChipRow } from '@/components/chip';
 import { RadioMark } from '@/components/choice-marks';
@@ -171,7 +172,7 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
               onPress={() => setTopicSheet(true)}
               style={({ pressed }) => [styles.topicFilter, !!topic && styles.topicFilterActive, pressed && styles.actionPressed]}>
               <Icon name="filter" size={18} />
-              <AppText style={styles.topicFilterLabel} numberOfLines={1}>{topic ? allTopics.find((item) => item.id === topic)?.shortLabel ?? 'Assunto' : 'Assunto'}</AppText>
+              <SingleLineText style={styles.topicFilterLabel}>{topic ? allTopics.find((item) => item.id === topic)?.shortLabel ?? 'Assunto' : 'Assunto'}</SingleLineText>
             </Pressable>
           </View>
           <View style={styles.collectionResults}>
@@ -373,7 +374,7 @@ const styles = StyleSheet.create({
   collectionSearchBox: { flex: 1, minWidth: 0, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm },
   topicFilter: { minHeight: 52, maxWidth: 120, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
   topicFilterActive: { backgroundColor: Colors.strawLight },
-  topicFilterLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
+  topicFilterLabel: { flexShrink: 1, minWidth: 0, fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
   collectionAddAction: { alignSelf: 'stretch', minHeight: 52, borderRadius: Radius.sm, borderWidth: 2 },
   collectionResults: { paddingTop: Spacing.two },
   editorialHero: { paddingHorizontal: Spacing.five, paddingTop: Spacing.two, paddingBottom: Spacing.three, gap: Spacing.three },

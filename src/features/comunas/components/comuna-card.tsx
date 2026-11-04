@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { SingleLineText } from '@/components/single-line-text';
 import { StripedPlaceholder } from '@/components/striped-placeholder';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { formatPeople } from '@/lib/format';
@@ -37,9 +38,9 @@ export function RecommendationCard({ comuna, topics, interests }: Recommendation
       <View style={styles.wideBody}>
         <View style={styles.titleRow}>
           <View style={styles.titleText}>
-            <AppText style={styles.wideName} accessibilityRole="header">
+            <SingleLineText style={styles.wideName} accessibilityRole="header">
               {comuna.name}
-            </AppText>
+            </SingleLineText>
             <AppText style={styles.mono} color={Colors.muted}>
               {formatPeople(comuna.memberCount)} membros · {comuna.place}
             </AppText>

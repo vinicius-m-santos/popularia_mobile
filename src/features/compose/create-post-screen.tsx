@@ -37,6 +37,7 @@ import { deviceTimeZone, formatPoster, parseWall, zonedWallToIso } from '@/featu
 import { wallStringsToPickerDate } from '@/features/events/date-picker-field';
 import { comunaEventsKey, type ComunaEvent } from '@/features/events/types';
 import { CallSchedulePicker } from './call-schedule-picker';
+import { callBlockedComunaNames } from './call-permissions';
 import { searchPlaces, type PlaceSuggestion } from './place-search';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
@@ -214,7 +215,9 @@ export default function CreatePostScreen() {
     : mode === 'poll'
       ? poll !== null
       : callReady;
-  const canPublish = modeReady && !publishing && destinationsReady;
+  const callBlockedNames = mode === 'call' ? callBlockedComunaNames(publishTargets) : [];
+  const callBlocked = callBlockedNames.length > 0;
+  const canPublish = modeReady && !publishing && destinationsReady && !callBlocked;
   const comunaTargetCount = publishTargets.filter((target) => target.kind === 'comuna').length;
   const includesProfile = publishTargets.some((target) => target.kind === 'perfil');
   const where = comunaTargetCount === 0
@@ -442,7 +445,7 @@ export default function CreatePostScreen() {
     : mode === 'poll'
       ? destination.comuna.visibility === 'private' ? 'Só membros votam' : 'Pública · qualquer pessoa vota'
       : destination.comuna.visibility === 'private' ? 'Só membros veem' : 'Pública · qualquer pessoa vê';
-  const destinationSubtitle = mode === 'call' && capacityMode === 'spots' ? `em ${where} · ${capacity >= 1000 ? '+1000' : capacity} vagas` : `em ${where}`;
+  const destinationSubtitle = callBlocked ? 'só a moderação pode convocar' : mode === 'call' && capacityMode === 'spots' ? `em ${where} · ${capacity >= 1000 ? '+1000' : capacity} vagas` : `em ${where}`;
   const publishLabel = mode === 'call' ? 'Convocar' : mode === 'poll' ? 'Publicar enquete' : 'Publicar';
   const mineIds = new Set(joined.map((c) => c.id));
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -529,7 +532,7 @@ export default function CreatePostScreen() {
                 <AppText style={styles.destinationName} numberOfLines={1}>{publishTargets.length > 1 ? `${publishTargets.length} locais` : destination.kind === 'perfil' ? 'Meu perfil' : `c/ ${destination.comuna.name}`}</AppText>
                 <View style={styles.visibilityRow}>
                   <Icon name={destination.kind === 'comuna' && destination.comuna.visibility === 'private' ? 'lock' : 'globe'} size={15} color={Colors.inkSoft} />
-                  <AppText variant="caption" numberOfLines={1} style={styles.visibilityText}>{publishTargets.length > 1 ? `${publishTargets.length} comunas` : visibilityText}</AppText>
+                  <AppText variant="caption" numberOfLines={1} style={[styles.visibilityText, callBlocked && styles.visibilityBlocked]}>{callBlocked ? 'Só a moderação convoca' : publishTargets.length > 1 ? `${publishTargets.length} comunas` : visibilityText}</AppText>
                 </View>
               </View>
               <View style={styles.changeDestination}>
@@ -802,6 +805,13 @@ export default function CreatePostScreen() {
           </> : null}
         </ScrollView>
 
+        {mode === 'call' && callBlocked ? (
+          <View style={styles.callBlockedBanner} accessibilityLiveRegion="polite" accessibilityRole="alert">
+            <Icon name="shield" size={18} color={Colors.red} />
+            <AppText style={styles.callBlockedText}>Só a moderação de {callBlockedNames.map((name) => `c/ ${name}`).join(', ')} pode convocar. Escolha outra comuna ou publique no seu perfil.</AppText>
+          </View>
+        ) : null}
+
         {!keyboardVisible ? (
           <Pressable
             accessibilityRole="button"
@@ -1008,6 +1018,9 @@ const styles = StyleSheet.create({
   destinationName: { fontFamily: Fonts.extrabold, fontSize: 17, lineHeight: 25 },
   visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   visibilityText: { flexShrink: 1, fontSize: 12.5, lineHeight: 21 },
+  visibilityBlocked: { color: Colors.red, fontFamily: Fonts.bold },
+  callBlockedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginHorizontal: Spacing.five, marginBottom: Spacing.two, padding: Spacing.three, borderWidth: 1.5, borderColor: Colors.red, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+  callBlockedText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 20, color: Colors.ink },
   changeDestination: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: Spacing.one },
   changeLabel: { fontFamily: Fonts.bold, fontSize: 13.5, lineHeight: 21, textDecorationLine: 'underline' },
   typeGrid: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, overflow: 'hidden', backgroundColor: Colors.paper },

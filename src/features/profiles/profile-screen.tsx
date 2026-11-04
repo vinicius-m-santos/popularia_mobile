@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEven
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
+import { SingleLineText } from '@/components/single-line-text';
 import { Badge } from '@/components/badge';
 import { DayRule } from '@/components/day-rule';
 import { EditorialAction } from '@/components/editorial-action';
@@ -298,9 +299,9 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                     <Badge label={user.badge} tone="red" />
                   </View>
                 ) : null}
-                <AppText style={styles.name} accessibilityRole="header" numberOfLines={3}>
+                <SingleLineText style={styles.name} accessibilityRole="header">
                   {user.name}
-                </AppText>
+                </SingleLineText>
                 <AppText variant="label" style={styles.handle}>
                   @{user.handle}
                 </AppText>

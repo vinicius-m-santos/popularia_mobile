@@ -31,7 +31,10 @@ export function ComunaCover({ comuna, canEdit }: ComunaCoverProps) {
   const lock = `cover:${comuna.id}`;
 
   const send = async (image: PickedImage) => {
-    if (!tryLockImageUpload(lock)) return;
+    if (!tryLockImageUpload(lock)) {
+      toast.show('Aguarde o envio da capa atual terminar.');
+      return;
+    }
     setPreview(image.uri);
     setUploading(true);
     try {
@@ -40,6 +43,7 @@ export function ComunaCover({ comuna, canEdit }: ComunaCoverProps) {
       try { await Image.prefetch(url); } catch { /* a capa local continua até a URL nova entrar */ }
       setUploaded({ base, url });
       setPreview(null);
+      toast.show('Capa atualizada.');
     } catch (error) {
       setPreview(null);
       toast.show(describeError(error));
