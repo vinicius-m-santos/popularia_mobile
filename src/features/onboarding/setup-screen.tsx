@@ -21,6 +21,7 @@ import { BrazilLocationFields } from '@/features/locations/brazil-location-field
 import { getCountries, type Country } from '@/features/locations/api';
 import { ApiError, describeError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
+import { LegalConsentCard } from '@/features/legal/legal-consent-card';
 
 import { checkHandleAvailable } from './api';
 import { OnboardingFooter, OnboardingHeader } from './components/onboarding-chrome';
@@ -50,7 +51,7 @@ type HandleCheck = { handle: string; available: boolean | null };
 /** Etapa 2: identidade, @ e país. A conta só é criada ao tocar em Continuar. */
 export default function SetupScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl } = useAccount();
+  const { profile, updateProfile, account, completeSignupProfile, completeSocialOnboarding, replaceAvatarUrl, socialProvider, acceptLegalNow } = useAccount();
   const me = useMe();
   const toast = useToast();
   const isSocialOnboarding = account?.pendingOnboarding === true;
@@ -64,6 +65,7 @@ export default function SetupScreen() {
   const [photoRemoved, setPhotoRemoved] = useState(false);
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [countryQuery, setCountryQuery] = useState('');
   const [countries, setCountries] = useState<Country[]>(DEMO_MODE ? [{ code: 'BR', name: 'Brasil' }] : []);
@@ -118,7 +120,7 @@ export default function SetupScreen() {
   const handleTaken = !handleShort && !ownHandle && checked?.available === false;
   const handleAvailable = ownHandle || checked?.available === true;
   const handleError = handleShort && (profile.handle.length > 0 || submitted) || handleTaken;
-  const canContinue = !nameMissing && !handleShort && !handleTaken && handleAvailable && !!profile.countryCode && !busy && !photoBusy;
+  const canContinue = !nameMissing && !handleShort && !handleTaken && handleAvailable && !!profile.countryCode && !locationMissing && !busy && !photoBusy && (!isSocialOnboarding || accepted);
 
   const countryLabel = countries.find((country) => country.code === profile.countryCode)?.name ?? profile.country ?? 'Brasil';
   const countryOptions = useMemo(() => {
@@ -180,6 +182,7 @@ export default function SetupScreen() {
     setFieldErrors({});
     try {
       if (isSocialOnboarding) {
+        await acceptLegalNow();
         await completeSocialOnboarding();
         await uploadDraftAvatar();
         router.push('/boas-vindas/assuntos');
@@ -228,6 +231,15 @@ export default function SetupScreen() {
 
           <AppText style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.1}>COMO VOCÊ QUER{'\n'}APARECER?</AppText>
           <Text style={styles.subtitle}>Só o essencial. Dá pra mudar depois.</Text>
+
+          {isSocialOnboarding && socialProvider ? (
+            <View style={styles.providerBadge}>
+              <View style={styles.providerDot} />
+              <Text style={styles.providerText} numberOfLines={1}>
+                ENTRANDO COM {socialProvider === 'google' ? 'GOOGLE' : 'APPLE'} · {account?.email}
+              </Text>
+            </View>
+          ) : null}
 
           <Pressable
             onPress={() => setPhotoSheetOpen(true)}
@@ -360,9 +372,11 @@ export default function SetupScreen() {
               onFocus={() => scrollToField('bio')}
             />
           </View>
+
+          {isSocialOnboarding ? <LegalConsentCard accepted={accepted} onToggle={() => setAccepted((current) => !current)} /> : null}
         </ScrollView>
 
-        <OnboardingFooter label={busy ? 'Criando conta…' : 'Continuar'} onPress={() => { void next(); }} disabled={!canContinue} />
+        <OnboardingFooter label={busy ? 'Criando conta…' : isSocialOnboarding ? 'Criar conta' : 'Continuar'} onPress={() => { void next(); }} disabled={!canContinue} />
       </KeyboardView>
 
       <BottomSheet visible={photoSheetOpen} onClose={() => setPhotoSheetOpen(false)} title="Foto de perfil" scrollable={false}>
@@ -418,6 +432,9 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 24 },
   title: { marginTop: 18, paddingTop: 4, includeFontPadding: true, fontFamily: Fonts.anton, fontSize: 50, lineHeight: 76, textTransform: 'uppercase', color: SETUP.ink },
   subtitle: { marginTop: 8, fontFamily: Fonts.regular, fontSize: 17, lineHeight: 24, color: SETUP.subtitle },
+  providerBadge: { minHeight: 44, marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface },
+  providerDot: { width: 18, height: 18, borderWidth: 2, borderStyle: 'dashed', borderColor: SETUP.ink, borderRadius: 9 },
+  providerText: { flex: 1, fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 16, letterSpacing: 0.7, color: SETUP.ink, textTransform: 'uppercase' },
   photoRow: { marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 16 },
   photoSquare: { width: 84, height: 84, borderRadius: 6, borderWidth: 2, borderStyle: 'dashed', borderColor: SETUP.ink, backgroundColor: SETUP.surface, alignItems: 'center', justifyContent: 'center' },
   photoSquareFilled: { borderStyle: 'solid', overflow: 'visible' },

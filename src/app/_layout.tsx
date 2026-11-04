@@ -133,7 +133,8 @@ function RootStack() {
     SplashScreen.hideAsync();
   }, []);
 
-  const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted;
+  // Contas sociais em onboarding aceitam na própria etapa 2; não passam pela tela legal.
+  const needsLegal = status === 'signedIn' && account !== null && !account.legalAccepted && !account.pendingOnboarding;
 
   useEffect(() => {
     if (restoring) return;

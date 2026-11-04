@@ -82,6 +82,10 @@ type AccountValue = {
   /** Encerra o cadastro e mostra o aviso "Seu feed está pronto" no feed. */
   finishSignup: () => void;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Provedor usado no onboarding social, para o selo da etapa 2. */
+  socialProvider: 'google' | 'apple' | null;
+  /** Registra o aceite legal de uma conta social pendente antes de concluir o perfil. */
+  acceptLegalNow: () => Promise<void>;
   /** Autentica via Google (nativo). Após validação no backend, inicia sessão Popularia. */
   signInWithGoogle: () => Promise<void>;
   /** Autentica via Apple (nativo, apenas iOS). Após validação no backend, inicia sessão Popularia. */
@@ -123,6 +127,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showLoginWelcome, setShowLoginWelcome] = useState(false);
   const [authBusy, setAuthBusy] = useState<string | null>(null);
+  const [socialProvider, setSocialProvider] = useState<'google' | 'apple' | null>(null);
   // E-mail e senha da etapa 1: só na memória, apagados assim que o cadastro é enviado.
   const credentials = useRef<{ email: string; password: string } | null>(null);
   const legalAcceptedDraft = useRef(false);
@@ -236,6 +241,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     legalAcceptedDraft.current = false;
     setInterests([]);
     setDraft(DEMO_MODE ? DEMO_PROFILE : EMPTY_PROFILE);
+    setSocialProvider(null);
     setSigningUp(true);
   }, [replaceAll]);
 
@@ -309,9 +315,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   // Após social login: inicia sessão Popularia e, se necessário, abre o onboarding de handle.
   const applySocialSession = useCallback(
-    async (tokens: SocialTokensDto) => {
+    async (tokens: SocialTokensDto, provider: 'google' | 'apple') => {
       const { startSession } = await import('@/lib/api/client');
       await startSession(tokens);
+      setSocialProvider(provider);
       resetAll();
       const me = await accountApi.getMe();
       if (tokens.onboardingRequired) {
@@ -342,7 +349,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           idToken,
           deviceLabel: deviceLabel(),
         });
-        await applySocialSession(tokens);
+        await applySocialSession(tokens, 'google');
       });
     } catch (error: unknown) {
       // Cancelamento pelo usuário não é um erro crítico.
@@ -381,7 +388,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           displayName,
           deviceLabel: deviceLabel(),
         });
-        await applySocialSession(tokens);
+        await applySocialSession(tokens, 'apple');
       });
     } catch (error: unknown) {
       // ERR_REQUEST_CANCELED é cancelamento pela pessoa: não é erro crítico.
@@ -393,6 +400,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       if (!isCancel) throw error;
     }
   }, [applySocialSession, runAuth]);
+
+  const acceptLegalNow = useCallback(async () => {
+    if (DEMO_MODE) return;
+    applyAccount(await accountApi.acceptLegal());
+  }, [applyAccount]);
 
   const completeSocialOnboarding = useCallback(async () => {
     if (DEMO_MODE) return;
@@ -477,6 +489,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       completeSignupProfile,
       completeSocialOnboarding,
       finishSignup,
+      socialProvider,
+      acceptLegalNow,
       signIn,
       signInWithGoogle,
       signInWithApple,
@@ -506,6 +520,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       completeSignupProfile,
       completeSocialOnboarding,
       finishSignup,
+      socialProvider,
+      acceptLegalNow,
       signIn,
       signInWithGoogle,
       signInWithApple,
