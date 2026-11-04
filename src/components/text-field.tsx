@@ -19,7 +19,9 @@ type TextFieldProps = Omit<ComponentProps<typeof TextInput>, 'style'> & {
   /** Botão dentro do campo, à direita, como "Mostrar" senha. */
   accessory?: ReactNode;
   /** Variante sem cantos arredondados e com rótulo mono para formulários editoriais. */
-  appearance?: 'default' | 'editorial';
+  appearance?: 'default' | 'editorial' | 'setup';
+  /** Borda de erro além da mensagem de hint. */
+  error?: boolean;
   /** Altura mínima da caixa quando `multiline` estiver ativo. */
   multilineHeight?: number;
   /** Exibe uma prévia truncada em uma linha quando o campo simples perde o foco. */
@@ -50,6 +52,7 @@ export function TextField({
   truncateWhenBlurred = false,
   onFocus,
   onBlur,
+  error = false,
   ...inputProps
 }: TextFieldProps) {
   const inSheet = useContext(InsideBottomSheet);
@@ -62,14 +65,14 @@ export function TextField({
   return (
     <View style={styles.field}>
       <View style={styles.labelRow}>
-        <AppText style={[styles.label, appearance === 'editorial' && styles.editorialLabel]}>{label}</AppText>
+        <AppText style={[styles.label, appearance === 'editorial' && styles.editorialLabel, appearance === 'setup' && styles.setupLabel]}>{label}</AppText>
         {labelAside ? (
           <AppText style={[styles.aside, appearance === 'editorial' && styles.editorialAside]} color={Colors.muted}>
             {labelAside}
           </AppText>
         ) : null}
       </View>
-      <View style={[styles.box, appearance === 'editorial' && styles.editorialBox, isMultiline && styles.boxMultiline, isMultiline && multilineHeight ? { minHeight: multilineHeight } : null, focused && styles.boxFocused]}>
+      <View style={[styles.box, appearance === 'editorial' && styles.editorialBox, appearance === 'setup' && styles.setupBox, error && styles.boxError, isMultiline && styles.boxMultiline, isMultiline && multilineHeight ? { minHeight: multilineHeight } : null, focused && !error && styles.boxFocused]}>
         {prefix ? (
           <AppText style={styles.prefix} color={Colors.muted} accessible={false}>
             {prefix}
@@ -150,6 +153,9 @@ const styles = StyleSheet.create({
   editorialBox: {
     borderRadius: 0,
   },
+  setupLabel: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 23 },
+  setupBox: { minHeight: 52, borderWidth: 2, borderRadius: 6, paddingHorizontal: 14 },
+  boxError: { borderColor: '#A3261C' },
   boxMultiline: {
     alignItems: 'flex-start',
     paddingVertical: 12,

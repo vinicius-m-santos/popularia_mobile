@@ -8,6 +8,7 @@ import { BottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInpu
 import { EditorialAction } from '@/components/editorial-action';
 import { Icon } from '@/components/icon';
 import { KeyboardView } from '@/components/keyboard-view';
+import { TextField } from '@/components/text-field';
 import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { Fonts, MaxContentWidth } from '@/constants/theme';
@@ -56,7 +57,6 @@ export default function SetupScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [focused, setFocused] = useState<'name' | 'handle' | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [check, setCheck] = useState<HandleCheck | null>(null);
   const [avatarDraft, setAvatarDraft] = useState<PickedImage | null>(null);
@@ -234,49 +234,41 @@ export default function SetupScreen() {
           </Pressable>
 
           <View style={[styles.field, styles.firstField]}>
-            <Text style={styles.label}>Nome</Text>
-            <TextInput
+            <TextField
+              appearance="setup"
+              label="Nome"
               value={profile.name}
               onChangeText={(name) => { updateProfile({ name }); setFieldErrors((current) => ({ ...current, displayName: '' })); }}
-              onFocus={() => setFocused('name')}
-              onBlur={() => setFocused(null)}
               placeholder="Como te chamam"
-              placeholderTextColor={SETUP.placeholder}
               autoCapitalize="words"
               autoComplete="name"
               textContentType="name"
               returnKeyType="next"
               onSubmitEditing={() => handleRef.current?.focus()}
-              accessibilityLabel="Nome"
-              style={[styles.input, (focused === 'name' ? styles.inputFocused : null), submitted && nameMissing && styles.inputError]}
+              error={(submitted && nameMissing) || !!fieldErrors.displayName}
+              hint={submitted && nameMissing ? 'Preencha seu nome' : fieldErrors.displayName || undefined}
+              hintColor={SETUP.redText}
             />
-            {submitted && nameMissing ? <Text style={styles.error}>Preencha seu nome</Text> : null}
-            {fieldErrors.displayName ? <Text style={styles.error}>{fieldErrors.displayName}</Text> : null}
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Nome de usuário</Text>
-            <View style={[styles.handleBox, handleError && styles.handleBoxError, focused === 'handle' && !handleError && styles.handleBoxFocused]}>
-              <Text style={styles.prefix}>@</Text>
-              <TextInput
-                ref={handleRef}
-                value={profile.handle}
-                onChangeText={(value) => { updateProfile({ handle: sanitizeHandle(value) }); setFieldErrors((current) => ({ ...current, handle: '' })); }}
-                onFocus={() => setFocused('handle')}
-                onBlur={() => setFocused(null)}
-                placeholder="seu.nome"
-                placeholderTextColor={SETUP.placeholder}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="username"
-                textContentType="username"
-                returnKeyType="next"
-                maxLength={HANDLE_MAX_LENGTH}
-                onSubmitEditing={() => setCountryOpen(true)}
-                accessibilityLabel="Nome de usuário"
-                style={styles.handleInput}
-              />
-            </View>
+            <TextField
+              appearance="setup"
+              label="Nome de usuário"
+              prefix="@"
+              value={profile.handle}
+              onChangeText={(value) => { updateProfile({ handle: sanitizeHandle(value) }); setFieldErrors((current) => ({ ...current, handle: '' })); }}
+              placeholder="seu.nome"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
+              textContentType="username"
+              returnKeyType="next"
+              maxLength={HANDLE_MAX_LENGTH}
+              onSubmitEditing={() => setCountryOpen(true)}
+              inputRef={handleRef}
+              error={handleError}
+            />
             <View style={styles.handleStatus} accessibilityLiveRegion="polite">
               {handleShort && (profile.handle.length > 0 || submitted) ? (
                 <>
@@ -333,19 +325,16 @@ export default function SetupScreen() {
           ) : null}
 
           <View style={[styles.field, styles.bioField]}>
-            <View style={styles.bioLabelRow}>
-              <Text style={styles.label}>Bio</Text>
-              <Text style={styles.bioCount}>opcional · {profile.bio.length}/{BIO_MAX_LENGTH}</Text>
-            </View>
-            <TextInput
+            <TextField
+              appearance="setup"
+              label="Bio"
+              labelAside={`opcional · ${profile.bio.length}/${BIO_MAX_LENGTH}`}
               value={profile.bio}
               onChangeText={(bio) => updateProfile({ bio })}
               placeholder="O que você faz, onde atua, o que te move"
-              placeholderTextColor={SETUP.placeholder}
               multiline
+              multilineHeight={88}
               maxLength={BIO_MAX_LENGTH}
-              accessibilityLabel="Bio"
-              style={[styles.input, styles.bioInput]}
             />
           </View>
         </ScrollView>
@@ -419,15 +408,7 @@ const styles = StyleSheet.create({
   field: { marginTop: 14 },
   firstField: { marginTop: 22 },
   label: { fontFamily: Fonts.bold, fontSize: 15, lineHeight: 23, color: SETUP.ink },
-  input: { height: 52, marginTop: 6, paddingHorizontal: 14, paddingVertical: 0, borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: SETUP.ink, outlineWidth: 0, textAlignVertical: 'center', includeFontPadding: false },
-  inputFocused: { borderColor: SETUP.red },
-  inputError: { borderColor: SETUP.redText },
   error: { marginTop: 5, fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22, color: SETUP.redText },
-  handleBox: { height: 52, marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 14, borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface },
-  handleBoxFocused: { borderColor: SETUP.red },
-  handleBoxError: { borderColor: SETUP.redText },
-  prefix: { fontFamily: Fonts.bold, fontSize: 16, lineHeight: 24, color: SETUP.placeholder },
-  handleInput: { flex: 1, height: 48, paddingVertical: 0, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: SETUP.ink, outlineWidth: 0, textAlignVertical: 'center', includeFontPadding: false },
   handleStatus: { minHeight: 24, marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusIcon: { width: 18, height: 18, borderRadius: 4, backgroundColor: SETUP.ink, alignItems: 'center', justifyContent: 'center' },
   statusIconError: { backgroundColor: SETUP.redText },
@@ -438,11 +419,8 @@ const styles = StyleSheet.create({
   countryField: { marginTop: 14 },
   locationField: { marginTop: 14, gap: 12 },
   bioField: { marginTop: 14 },
-  bioLabelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  bioCount: { fontFamily: Fonts.regular, fontSize: 13, lineHeight: 20, color: SETUP.secondary },
   select: { height: 52, marginTop: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface },
   selectValue: { flex: 1, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: SETUP.ink },
-  bioInput: { height: 88, paddingTop: 10, paddingBottom: 10, textAlignVertical: 'top', includeFontPadding: false },
   sheetActions: { gap: 8, paddingBottom: 16 },
   countrySearch: { minHeight: 48, marginHorizontal: 4, marginBottom: 8, paddingHorizontal: 14, borderWidth: 2, borderColor: SETUP.ink, borderRadius: 6, backgroundColor: SETUP.surface, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 24, color: SETUP.ink },
   countryOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#D9CFBF' },
