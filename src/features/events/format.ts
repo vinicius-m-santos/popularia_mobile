@@ -143,14 +143,17 @@ type CivilDate = { year: number; month: number; day: number; hour: number; minut
  */
 function civilFromIso(iso: string): CivilDate | null {
   const text = iso.trim();
-  const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(text);
+  const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?<offset>Z|[+-]\d{2}:?\d{2})?$/.exec(text);
   if (!match) {
     // Qualquer outro formato válido para `Date` ainda mostra dia e mês.
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) return null;
     return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(), hour: date.getHours(), minute: date.getMinutes() };
   }
-  if (match[7] && match[7] !== 'Z') {
+  // Grupo nomeado: o offset já foi o grupo 6 (não 7) e o horário só aparecia
+  // certo em BRT; em UTC o cartão mostrava 22h para um chamado de 19h.
+  const offset = match.groups?.offset;
+  if (offset && offset !== 'Z') {
     return {
       year: Number(match[1]),
       month: Number(match[2]),
