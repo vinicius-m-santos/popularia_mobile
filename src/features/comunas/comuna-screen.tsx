@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { PillButton } from '@/components/pill-button';
+import { PopulariaList } from '@/components/list/popularia-list';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
@@ -23,7 +24,7 @@ import { RulesList } from '@/features/comunas/components/rules-list';
 import { movePinnedPost, pinnedPostsKey, useComunaPinPending } from '@/features/comunas/pins';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
-import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe } from '@/features/profiles/profile-tab-swipe';
+import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from '@/features/profiles/profile-tab-swipe';
 import { PostCard } from '@/features/posts/components/post-card';
 import { preparePost } from '@/features/posts/queries';
 import { rememberPost } from '@/features/posts/save';
@@ -31,12 +32,14 @@ import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
 import { queryClient } from '@/lib/query/client';
 import { useNav } from '@/lib/routes';
+import type { FeedItem } from '@/types/models';
 
 type ComunaTab = 'posts' | 'biblioteca' | 'regras' | 'membros';
 
@@ -47,6 +50,41 @@ const TABS: TabOption<ComunaTab>[] = [
   { key: 'membros', label: 'Membros' },
 ];
 const TAB_KEYS = TABS.map((t) => t.key);
+const TABS_HEIGHT = 44;
+
+/** Índice da barra de abas em `rows`: ela fica fixa ao rolar (sticky header da FlashList). */
+const TABS_ROW_INDEX = 1;
+// Estáveis entre renders: a FlashList reavalia os headers fixos quando essas props mudam.
+const STICKY_HEADER_INDICES = [TABS_ROW_INDEX];
+const STICKY_HEADER_CONFIG = { hideRelatedCell: true };
+
+/**
+ * Linhas da lista: cabeçalho e abas são células estáveis (a FlashList fixa a de índice 1);
+ * as publicações são recicladas. `kind` alimenta o `getItemType`.
+ */
+type ComunaRow =
+  | { kind: 'hero'; id: string }
+  | { kind: 'tabs'; id: string }
+  | { kind: 'intro'; id: string }
+  | { kind: 'empty'; id: string }
+  | { kind: 'post'; id: string; item: FeedItem; index: number; dayLabel?: string }
+  | { kind: 'rules'; id: string }
+  | { kind: 'members'; id: string };
+
+const ROW_IDS = {
+  hero: 'comuna-hero',
+  tabs: 'comuna-tabs',
+  intro: 'comuna-posts-intro',
+  empty: 'comuna-posts-empty',
+  rules: 'comuna-rules',
+  members: 'comuna-members',
+} as const;
+
+/** Publicação com o gesto de swipe da aba cedendo aos controles nativos do vídeo. */
+function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
+  const mediaGesture = useProfileTabPanGesture();
+  return <PostCard {...props} mediaGesture={mediaGesture} />;
+}
 
 /** Página da comuna (design 1b). */
 export default function ComunaScreen() {
@@ -54,14 +92,20 @@ export default function ComunaScreen() {
   // "Ver regras da comuna" (depois de uma denúncia) abre direto na aba Regras.
   const [tab, setTab] = useState<ComunaTab>(TABS.some((t) => t.key === aba) ? (aba as ComunaTab) : 'posts');
   const insets = useSafeAreaInsets();
+  const visibility = useListVisibility();
 
   const loadComuna = useCallback(() => getComuna(id), [id]);
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
   const comuna = useAsyncData(loadComuna);
   const posts = usePaginatedData(loadPosts);
   // Modo demonstração: publicações feitas neste aparelho aparecem no topo, antes das dos mocks.
-  const localPosts = useLocalFeedItems((p) => p.comunaId === id);
-  const postItems = mergeById(localPosts, posts.items);
+  const localPosts = useLocalFeedItems();
+  // `useLocalFeedItems()` sem filtro é estável entre renders; filtrar aqui evita recriar
+  // as linhas a cada mudança de viewability durante a rolagem.
+  const postItems = useMemo(
+    () => mergeById(localPosts.filter((p) => p.comunaId === id), posts.items),
+    [id, localPosts, posts.items],
+  );
   const { show: showToast } = useToast();
   const nav = useNav();
   const { postsVersion, membershipOf, setOn } = useInteractions();
@@ -111,6 +155,27 @@ export default function ComunaScreen() {
     }, [reloadComuna]),
   );
 
+  const rows = useMemo<ComunaRow[]>(() => {
+    const next: ComunaRow[] = [
+      { kind: 'hero', id: ROW_IDS.hero },
+      { kind: 'tabs', id: ROW_IDS.tabs },
+    ];
+    if (tab === 'posts') {
+      next.push({ kind: 'intro', id: ROW_IDS.intro });
+      // Comuna privada sem participação: o recado substitui publicações e paginação.
+      if (privateOutside) return next;
+      if (posts.status === 'success' && postItems.length === 0) next.push({ kind: 'empty', id: ROW_IDS.empty });
+      postItems.forEach((item, index) => {
+        const previous = index > 0 ? postItems[index - 1] : null;
+        const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
+        next.push({ kind: 'post', id: item.id, item, index, ...(newDay ? { dayLabel: formatDayRule(item.createdAt) } : {}) });
+      });
+      return next;
+    }
+    next.push(tab === 'regras' ? { kind: 'rules', id: ROW_IDS.rules } : { kind: 'members', id: ROW_IDS.members });
+    return next;
+  }, [postItems, posts.status, privateOutside, tab]);
+
   // Ao recarregar, os dados anteriores continuam na tela.
   if (comuna.status === 'loading' && !comuna.data) {
     return (
@@ -143,7 +208,7 @@ export default function ComunaScreen() {
           <LibraryPane scope="comuna" comuna={id} canAdd={canAddDocument} profileContext
             header={<View style={{ backgroundColor: Colors.cream }}>
               <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={`${postItems.length}${posts.hasMore ? '+' : ''}`} />
-              <ProfileTabs options={TABS} value={tab} onChange={setTab} height={44} />
+              <ProfileTabs options={TABS} value={tab} onChange={setTab} height={TABS_HEIGHT} />
               {canAddDocument ? <View style={styles.libraryActions}>
                 <EditorialAction label="Adicionar PDF à biblioteca" icon="plus" tone="red" onPress={() => router.push({ pathname: '/biblioteca/enviar', params: { comuna: id } })} />
               </View> : null}
@@ -153,87 +218,142 @@ export default function ComunaScreen() {
     </ProfileTabSwipe>;
   }
 
+  const postCountLabel = `${postItems.length}${posts.hasMore ? '+' : ''}`;
+  const postsIntro = (
+    <View style={styles.column}>
+      <SquareEntry key={`${id}-${data.viewerRole}-${data.status}`} slug={id} />
+      {privateOutside ? (
+        <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
+      ) : (
+        <>
+          {!DEMO_MODE ? <NextEvent slug={id} /> : null}
+          {DEMO_MODE && data.pinned ? <PinnedCard title={data.pinned.title} text={data.pinned.text} /> : null}
+          {!DEMO_MODE ? (
+            <PinnedPosts
+              items={pins.data ?? []}
+              status={pins.isError ? 'error' : pins.isPending ? 'loading' : 'success'}
+              canReorder={data.status !== 'archived' && !!data.viewerPermissions?.canModerateContent}
+              pending={pinPending}
+              onRetry={() => { void pins.refetch(); }}
+              onOpen={(postId) => {
+                const item = (pins.data ?? []).find((pin) => pin.id === postId);
+                if (item) preparePost(item);
+                nav.openPost(postId);
+              }}
+              onMove={(postId, position) => { void movePinnedPost(id, postId, position, showToast); }}
+            />
+          ) : null}
+          {posts.status === 'loading' ? <StateView kind="loading" message="Carregando publicações" /> : null}
+          {posts.status === 'error' ? <PostsError error={posts.error} onRetry={posts.refresh} /> : null}
+        </>
+      )}
+    </View>
+  );
+
+  const postsEmpty = (
+    <View style={styles.column}>
+      <View style={styles.emptyState}>
+        <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma publicação ainda.</AppText>
+        <AppText variant="caption" style={styles.emptyCaption}>Seja a primeira pessoa a abrir a conversa, camarada.</AppText>
+      </View>
+    </View>
+  );
+
+  const footer = tab === 'posts' && !privateOutside ? (
+    <ProfileSwipeContent>
+      <View style={styles.column}>
+        {posts.loadMoreError ? (
+          <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
+        ) : posts.hasMore ? (
+          <PillButton
+            label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'}
+            onPress={posts.loadMore}
+            disabled={posts.loadingMore}
+            variant="outline"
+            style={styles.more}
+          />
+        ) : null}
+      </View>
+    </ProfileSwipeContent>
+  ) : null;
+
   return (
     // Faixa escura atrás da barra de status; o conteúdo rola abaixo dela.
     <ProfileTabSwipe tabs={TAB_KEYS} active={tab} onChange={setTab}>
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} stickyHeaderIndices={[1]} style={styles.scrollView} contentContainerStyle={styles.scroll}>
-        <View style={styles.column}>
-          {comuna.status === 'error' ? <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} /> : null}
-          <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={`${postItems.length}${posts.hasMore ? '+' : ''}`} />
-        </View>
-        <View style={styles.tabs}>
-          <View style={styles.column}>
-            <ProfileTabs options={TABS} value={tab} onChange={setTab} height={44} />
-          </View>
-        </View>
-        <ProfileSwipeContent><View style={styles.column}>
-          {tab === 'posts' ? <SquareEntry key={`${id}-${data.viewerRole}-${data.status}`} slug={id} /> : null}
-          {tab === 'posts' && privateOutside ? (
-            <StateView kind="empty" title="Comuna privada" message="Só quem participa vê as publicações." />
-          ) : tab === 'posts' ? (
-            <>
-              {!DEMO_MODE ? <NextEvent slug={id} /> : null}
-              {DEMO_MODE && data.pinned ? <PinnedCard title={data.pinned.title} text={data.pinned.text} /> : null}
-              {!DEMO_MODE ? (
-                <PinnedPosts
-                  items={pins.data ?? []}
-                  status={pins.isError ? 'error' : pins.isPending ? 'loading' : 'success'}
-                  canReorder={data.status !== 'archived' && !!data.viewerPermissions?.canModerateContent}
-                  pending={pinPending}
-                  onRetry={() => { void pins.refetch(); }}
-                  onOpen={(postId) => {
-                    const item = (pins.data ?? []).find((pin) => pin.id === postId);
-                    if (item) preparePost(item);
-                    nav.openPost(postId);
-                  }}
-                  onMove={(postId, position) => { void movePinnedPost(id, postId, position, showToast); }}
-                />
-              ) : null}
-              {posts.status === 'loading' ? <StateView kind="loading" message="Carregando publicações" /> : null}
-              {posts.status === 'error' ? <PostsError error={posts.error} onRetry={posts.refresh} /> : null}
-              {posts.status === 'success' && postItems.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma publicação ainda.</AppText>
-                  <AppText variant="caption" style={styles.emptyCaption}>Seja a primeira pessoa a abrir a conversa, camarada.</AppText>
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <PopulariaList<ComunaRow>
+          data={rows}
+          keyExtractor={(row) => row.id}
+          getItemType={(row) => row.kind === 'post'
+            ? `${row.item.poll ? 'poll' : 'text'}:${row.item.attachment?.type ?? (row.item.document ? 'document' : 'plain')}`
+            : row.kind}
+          stickyHeaderIndices={STICKY_HEADER_INDICES}
+          stickyHeaderConfig={STICKY_HEADER_CONFIG}
+          extraData={visibility.visibleIds}
+          onViewableItemsChanged={visibility.onViewableItemsChanged}
+          viewabilityConfig={mediaViewabilityConfig}
+          performanceListId={`comuna:${id}:${tab}`}
+          contentContainerStyle={styles.scroll}
+          ListHeaderComponent={comuna.status === 'error' ? (
+            <View style={styles.column}>
+              <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} />
+            </View>
+          ) : null}
+          ListFooterComponent={footer}
+          renderItem={({ item }) => {
+            if (item.kind === 'hero') {
+              return (
+                <View style={styles.column}>
+                  <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={postCountLabel} />
                 </View>
-              ) : null}
-              {postItems.map((item, index) => {
-                const previous = index > 0 ? postItems[index - 1] : null;
-                const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
-                return (
-                  <View key={item.id}>
-                    {newDay ? <ComunaDayRule label={formatDayRule(item.createdAt)} /> : <View style={styles.postRule} />}
-                    <PostCard item={item} showRule={false} showComuna={false} />
+              );
+            }
+            if (item.kind === 'tabs') {
+              return (
+                <View style={styles.tabs}>
+                  <View style={styles.column}>
+                    <ProfileTabs options={TABS} value={tab} onChange={setTab} height={TABS_HEIGHT} />
                   </View>
-                );
-              })}
-              {posts.loadMoreError ? (
-                <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
-              ) : posts.hasMore ? (
-                <PillButton
-                  label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'}
-                  onPress={posts.loadMore}
-                  disabled={posts.loadingMore}
-                  variant="outline"
-                  style={styles.more}
-                />
-              ) : null}
-            </>
-          ) : null}
-          {tab === 'regras' ? (
-            <RulesList rules={data.rules} moderationNote={data.moderationNote} moderators={data.moderators} />
-          ) : null}
-          {tab === 'membros' ? (
-            DEMO_MODE ? (
-              <MembersList members={data.members} totalLabel={formatPeople(data.memberCount)} />
-            ) : (
-              <ServerMembersList comuna={data} />
-            )
-          ) : null}
-        </View></ProfileSwipeContent>
-      </ScrollView>
-    </View>
+                </View>
+              );
+            }
+            if (item.kind === 'post') {
+              return (
+                <ProfileSwipeContent>
+                  <View style={styles.column}>
+                    {item.dayLabel ? <ComunaDayRule label={item.dayLabel} /> : <View style={styles.postRule} />}
+                    <SwipeAwarePostCard
+                      item={item.item}
+                      mediaVisible={visibility.visibleIds.has(item.id)}
+                      showRule={false}
+                      showComuna={false}
+                    />
+                  </View>
+                </ProfileSwipeContent>
+              );
+            }
+            return (
+              <ProfileSwipeContent>
+                {item.kind === 'intro' ? postsIntro
+                  : item.kind === 'empty' ? postsEmpty
+                    : item.kind === 'rules' ? (
+                      <View style={styles.column}>
+                        <RulesList rules={data.rules} moderationNote={data.moderationNote} moderators={data.moderators} />
+                      </View>
+                    ) : (
+                      <View style={styles.column}>
+                        {DEMO_MODE ? (
+                          <MembersList members={data.members} totalLabel={formatPeople(data.memberCount)} />
+                        ) : (
+                          <ServerMembersList comuna={data} />
+                        )}
+                      </View>
+                    )}
+              </ProfileSwipeContent>
+            );
+          }}
+        />
+      </View>
     </ProfileTabSwipe>
   );
 }
@@ -267,9 +387,6 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: Colors.cream,
-  },
-  scrollView: {
     backgroundColor: Colors.cream,
   },
   scroll: {
