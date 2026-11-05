@@ -77,6 +77,7 @@ export class PosterCache {
   /** Reservas existem mesmo antes do pôster: quem exibe se protege da evicção. */
   private readonly reservations = new Map<string, number>();
   private readonly inFlight = new Map<string, Promise<VideoThumbnail | null>>();
+  private readonly inFlightEpoch = new Map<string, number>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private generationEpoch = 0;
   private readonly counters = {
@@ -144,7 +145,7 @@ export class PosterCache {
       .then(generate)
       .then(
         (poster) => {
-          this.inFlight.delete(mediaId);
+          this.settleGeneration(mediaId, epoch);
           if (!poster) {
             this.counters.generationFailures += 1;
             this.emit('generation-failure', mediaId);
@@ -163,13 +164,14 @@ export class PosterCache {
           return canonical;
         },
         () => {
-          this.inFlight.delete(mediaId);
+          this.settleGeneration(mediaId, epoch);
           this.counters.generationFailures += 1;
           this.emit('generation-failure', mediaId);
           return null;
         },
       );
     this.inFlight.set(mediaId, promise);
+    this.inFlightEpoch.set(mediaId, epoch);
     return promise;
   }
 
@@ -216,6 +218,7 @@ export class PosterCache {
     this.generationEpoch += 1;
     this.entries.clear();
     this.inFlight.clear();
+    this.inFlightEpoch.clear();
     this.counters.clears += 1;
     for (const mediaId of [...this.listeners.keys()]) this.notify(mediaId, null);
     this.emit('clear', null);
@@ -232,6 +235,16 @@ export class PosterCache {
       retained,
       ...this.counters,
     };
+  }
+
+  /**
+   * Remove a geração em voo apenas se ela ainda for a dona da entrada. Depois
+   * de `clear`, uma geração antiga não pode apagar a promise de uma nova.
+   */
+  private settleGeneration(mediaId: string, epoch: number): void {
+    if (this.inFlightEpoch.get(mediaId) !== epoch) return;
+    this.inFlight.delete(mediaId);
+    this.inFlightEpoch.delete(mediaId);
   }
 
   private release(mediaId: string): void {

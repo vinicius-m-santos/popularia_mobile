@@ -137,6 +137,33 @@ describe('geração concorrente, falha e ciclo de vida', () => {
     expect(cache.stats()).toMatchObject({ size: 1, stores: 1, generationRequests: 3 });
   });
 
+  it('não deixa a geração antiga apagar a geração nova depois de clear', async () => {
+    const cache = new PosterCache();
+    let resolveOld!: (poster: VideoThumbnail | null) => void;
+    const old = cache.load('a', () => new Promise<VideoThumbnail | null>((done) => { resolveOld = done; }));
+    await flushMicrotasks();
+
+    cache.clear();
+    let resolveNew!: (poster: VideoThumbnail | null) => void;
+    const fresh = cache.load('a', () => new Promise<VideoThumbnail | null>((done) => { resolveNew = done; }));
+    await flushMicrotasks();
+
+    resolveOld(thumbnail('old'));
+    await expect(old).resolves.toBeNull();
+
+    // A promise nova continua registrada: outra instância ainda deduplica nela.
+    const duplicateGenerate = jest.fn(async () => thumbnail('dup'));
+    const shared = cache.load('a', duplicateGenerate);
+    await flushMicrotasks();
+    expect(duplicateGenerate).not.toHaveBeenCalled();
+
+    const newPoster = thumbnail('new');
+    resolveNew(newPoster);
+    await expect(fresh).resolves.toBe(newPoster);
+    await expect(shared).resolves.toBe(newPoster);
+    expect(cache.peek('a')).toBe(newPoster);
+  });
+
   it('descarta geração atrasada quando outra instância já publicou o pôster canônico', async () => {
     const cache = new PosterCache();
     const canonical = thumbnail('canonical');

@@ -76,7 +76,7 @@ evicções. Nenhum dado é enviado à rede.
 
 ## Testes
 
-`src/features/posts/__tests__/poster-cache.test.ts` (13 testes
+`src/features/posts/__tests__/poster-cache.test.ts` (14 testes
 determinísticos):
 
 - 120 vídeos percorridos: o cache estabiliza em 16 entradas e 104 são
@@ -87,7 +87,7 @@ determinísticos):
 - duas instâncias compartilham **uma** geração;
 - falha/rejeição/resultado vazio não envenenam o cache e permitem nova tentativa;
 - geração atrasada depois de um pôster canônico é descartada;
-- `clear` invalida geração em voo e preserva reservas de componentes montados;
+- `clear` invalida geração em voo, preserva reservas de componentes montados e não deixa a geração antiga apagar a nova;
 - assinantes recebem o pôster e o fallback da limpeza;
 - snapshot de performance expõe os contadores.
 
@@ -103,7 +103,7 @@ Validação executada:
 - `npm run check:fast`: ESLint e TypeScript passaram.
 - Suítes focadas (mídia, feed, vídeo, tópicos, salvos, diagnóstico, conta):
   passaram.
-- `npm run check`: **111 suítes / 636 testes passaram**.
+- `npm run check`: **111 suítes / 637 testes passaram**.
 - E2E de autenticação e saída (`e2e/specs/auth.spec.ts`): **4/4 passaram**.
   A primeira execução a frio estourou o timeout de 120 s enquanto o Metro
   compilava o bundle; a repetição com `--timeout=600000` e o bundle aquecido
@@ -161,5 +161,8 @@ pilha nativa.
 - Gerar thumbnail ainda ocorre na montagem do player visível. Falhas não têm
   cooldown; a próxima montagem tenta de novo. Um cooldown exigiria relógio e
   política de retry, deliberadamente fora desta entrega.
+- `clear()` avisa os assinantes e deixa um player que continuasse montado sem
+  pôster até remontar. No fluxo atual isso só acontece no logout, que troca a
+  árvore de navegação; não foi adicionado um regenerador pós-clear.
 - A abertura de uma publicação por cima da lista mantém o player da lista
   montado, como documentado no POP-21; este card não alterou navegação/foco.
