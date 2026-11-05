@@ -1,17 +1,20 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
+import { PillButton } from '@/components/pill-button';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, Radius, Shadows } from '@/constants/theme';
-import { useMe } from '@/features/account/account-context';
+import { useAccount, useMe } from '@/features/account/account-context';
 import { putAttendance } from '@/features/events/api';
 import { callCapacitySummary, callSchedule, countdownLabel, mapsQueryUrl } from '@/features/events/format';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { ApiError } from '@/lib/errors';
 import type { EventCapacityMode, User } from '@/types/models';
 
 /** Tudo que o cartão precisa, já resolvido a partir de um chamado fictício ou da API. */
@@ -241,12 +244,34 @@ export function ChamadoCard({ data }: { data: ChamadoCardData }) {
           )}
         </View>
 
+        {attendance.verificationPrompt ? (
+          <View style={styles.verifyNotice} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <AppText style={styles.verifyNoticeText}>
+              Confirme seu e-mail para marcar presença neste chamado.
+            </AppText>
+            <PillButton
+              label="Verificar e-mail"
+              icon="check"
+              size="sm"
+              variant="outline"
+              onPress={() => {
+                attendance.dismissVerificationPrompt();
+                router.push('/verificar-email');
+              }}
+              accessibilityLabel="Verificar e-mail"
+              accessibilityHint="Abre a confirmação de e-mail"
+              style={styles.verifyNoticeAction}
+            />
+          </View>
+        ) : null}
+
         <View style={styles.ctaRow}>
           <Pressable
             onPress={confirm}
             disabled={closed || attendance.busy || (full && !attendance.going)}
             accessibilityRole="button"
             accessibilityLabel={attendance.going ? `Cancelar presença: ${data.title}` : `Eu vou: ${data.title}`}
+            accessibilityHint={attendance.verificationRequired ? 'Confirme seu e-mail para marcar presença neste chamado.' : undefined}
             accessibilityState={{ selected: attendance.going, disabled: closed || attendance.busy || (full && !attendance.going), busy: attendance.busy }}
             style={({ pressed }) => [
               styles.cta,
@@ -269,6 +294,7 @@ export function ChamadoCard({ data }: { data: ChamadoCardData }) {
             disabled={closed || attendance.busy}
             accessibilityRole="button"
             accessibilityLabel={attendance.maybe ? `Cancelar talvez: ${data.title}` : `Talvez: ${data.title}`}
+            accessibilityHint={attendance.verificationRequired ? 'Confirme seu e-mail para marcar presença neste chamado.' : undefined}
             accessibilityState={{ selected: attendance.maybe, disabled: closed || attendance.busy, busy: attendance.busy }}
             style={({ pressed }) => [
               styles.cta,
@@ -373,8 +399,13 @@ function whoLabel(names: string[], extra: number, goingCount: number): string {
 /** Presença do chamado no feed: local para tocar na hora, confirmada no servidor quando há API. */
 export function useChamadoAttendance(data: ChamadoCardData) {
   const { isOn, setOn } = useInteractions();
+  const { account, reloadAccount } = useAccount();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // A restrição é conhecida pela conta em memória; a API ainda pode recusar uma
+  // confirmação desatualizada, por isso o aviso também é ligado no erro 403.
+  const verificationRequired = !DEMO_MODE && account !== null && !account.emailVerified;
+  const [verificationPrompt, setVerificationPrompt] = useState(false);
   const serverGoing = data.viewerAttendance === 'going';
   const serverMaybe = data.viewerAttendance === 'maybe';
   const going = isOn('goingEvents', data.id);
@@ -411,6 +442,14 @@ export function useChamadoAttendance(data: ChamadoCardData) {
 
   const setAttendance = async (next: 'going' | 'maybe' | null) => {
     if (busy) return;
+    // Bloqueio já conhecido: nada de requisição ou atualização otimista. O cartão
+    // mostra a causa e o caminho para confirmar o e-mail.
+    if (verificationRequired) {
+      setVerificationPrompt(true);
+      return;
+    }
+    // Se o aviso era de uma restrição já resolvida, a nova tentativa o recolhe.
+    if (verificationPrompt) setVerificationPrompt(false);
     const previous = { going, maybe };
     const nextGoing = next === 'going';
     const nextMaybe = next === 'maybe';
@@ -423,9 +462,16 @@ export function useChamadoAttendance(data: ChamadoCardData) {
     setBusy(true);
     try {
       await putAttendance(data.id, next ?? 'not_going');
-    } catch {
+    } catch (error) {
       setOn('goingEvents', [data.id], previous.going);
       setOn('maybeEvents', [data.id], previous.maybe);
+      if (error instanceof ApiError && error.type === '/errors/email-not-verified') {
+        // A conta em memória estava desatualizada: recarrega para os próximos toques
+        // já conhecerem a restrição, sem esconder a causa atrás do erro genérico.
+        setVerificationPrompt(true);
+        void reloadAccount().catch(() => {});
+        return;
+      }
       toast.show('Não foi possível atualizar sua presença. Tente de novo.');
     } finally {
       if (alive.current) setBusy(false);
@@ -436,6 +482,9 @@ export function useChamadoAttendance(data: ChamadoCardData) {
     going,
     maybe,
     busy,
+    verificationRequired,
+    verificationPrompt,
+    dismissVerificationPrompt: () => setVerificationPrompt(false),
     // A contagem do servidor já inclui a própria pessoa quando ela confirmou lá.
     goingCount: Math.max(0, data.goingCount + (going ? 1 : 0) - (serverGoing ? 1 : 0)),
     maybeCount: Math.max(0, data.maybeCount + (maybe ? 1 : 0) - (serverMaybe ? 1 : 0)),
@@ -805,6 +854,24 @@ const styles = StyleSheet.create({
   },
   barFillMet: {
     backgroundColor: Colors.ink,
+  },
+  verifyNotice: {
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.inkSoft,
+    backgroundColor: Colors.strawLight,
+  },
+  verifyNoticeText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: Colors.ink,
+  },
+  verifyNoticeAction: {
+    borderRadius: Radius.sm,
   },
   ctaRow: {
     flexDirection: 'row',
