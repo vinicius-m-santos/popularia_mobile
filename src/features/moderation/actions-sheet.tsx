@@ -25,7 +25,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { deletePost } from '@/features/posts/api';
 import { queryClient } from '@/lib/query/client';
 import { isPinLocked, pinPost, pinStoreVersion, readPinned, subscribePinStore, unpinPost } from '@/features/comunas/pins';
-import { knownPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
+import { knownPost, readSaved, readSavedSnapshot, subscribeSavedPost, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
 import type { ReportTarget } from '@/types/models';
 
@@ -144,7 +144,11 @@ function SheetBody(props: BodyProps) {
   const toast = useToast();
   const me = useMe();
   const { isOn, toggle, setOn } = useInteractions();
-  useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
+  // O menu mostra um alvo por vez: acompanhar o store global faria o sheet
+  // re-renderizar quando qualquer outro cartão fosse salvo.
+  const subscribeSavedTarget = useCallback((listener: () => void) => subscribeSavedPost(target.id, listener), [target.id]);
+  const savedSnapshot = useCallback(() => readSavedSnapshot(target.id), [target.id]);
+  useSyncExternalStore(subscribeSavedTarget, savedSnapshot, savedSnapshot);
   useSyncExternalStore(subscribePinStore, pinStoreVersion, pinStoreVersion);
   const { submitReport } = useModeration();
   const sending = useRef(false);

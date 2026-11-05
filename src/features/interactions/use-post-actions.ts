@@ -1,13 +1,13 @@
-import { useSyncExternalStore, useEffect, useRef } from 'react';
+import { useSyncExternalStore, useCallback, useEffect, useRef } from 'react';
 
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { getFollowing, setFollowing, type FollowState } from '@/features/profiles/api';
 import { isFollowLocked, lockFollow, patchFollowCaches, readRequested, restoreFollowCaches, setRequestedFlag, snapshotFollowCaches, subscribeFollowStore, unlockFollow, followStoreVersion, type FollowFlags } from '@/features/profiles/follow-cache';
-import { lockReaction, patchReactionCaches, reactionsVersion, readReaction, restoreReactionCaches, snapshotReactionCaches, subscribeReactions, unlockReaction, writeReaction, type Reaction, type ReactionKind } from '@/features/posts/reactions';
+import { lockReaction, patchReactionCaches, readReaction, readReactionSnapshot, restoreReactionCaches, snapshotReactionCaches, subscribePostReactions, unlockReaction, writeReaction, type Reaction, type ReactionKind } from '@/features/posts/reactions';
 import { setPostEcho, setPostSupport } from '@/features/posts/api';
-import { rememberPost, readSaved, savedStoreVersion, subscribeSavedStore, toggleSavedPost } from '@/features/posts/save';
+import { readSaved, readSavedSnapshot, rememberPost, subscribeSavedPost, toggleSavedPost } from '@/features/posts/save';
 import type { CommunityEvent, FeedItem } from '@/types/models';
 
 import { useInteractions, withLocal } from './interactions-context';
@@ -23,8 +23,16 @@ export function usePostActions(post: FeedItem) {
   const { account } = useAccount();
   const toast = useToast();
   rememberPost(post);
-  useSyncExternalStore(subscribeSavedStore, savedStoreVersion, savedStoreVersion);
-  useSyncExternalStore(subscribeReactions, reactionsVersion, reactionsVersion);
+  // Assinatura por ID: uma reação ou salvamento em outro cartão não re-renderiza este.
+  // O snapshot é primitivo (salvar) ou um objeto estável (reações); quando não muda,
+  // useSyncExternalStore descarta a notificação.
+  const subscribeSaved = useCallback((listener: () => void) => subscribeSavedPost(post.id, listener), [post.id]);
+  const savedSnapshot = useCallback(() => readSavedSnapshot(post.id), [post.id]);
+  useSyncExternalStore(subscribeSaved, savedSnapshot, savedSnapshot);
+
+  const subscribeReactions = useCallback((listener: () => void) => subscribePostReactions(post.id, listener), [post.id]);
+  const reactionsSnapshot = useCallback(() => readReactionSnapshot(post.id), [post.id]);
+  useSyncExternalStore(subscribeReactions, reactionsSnapshot, reactionsSnapshot);
 
   const localSupport = isOn('supportedPosts', post.id);
   const localEcho = isOn('echoedPosts', post.id);

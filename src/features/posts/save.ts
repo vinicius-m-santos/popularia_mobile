@@ -5,6 +5,8 @@ import { setPostSaved } from '@/features/posts/api';
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
 
+import { createPostSubscription } from './post-subscriptions';
+
 /** Listas que guardam a publicação inteira. A comuna e a busca usam o mesmo sinal em memória. */
 const POST_ROOTS = new Set(['feed', 'profile-posts', 'post', 'post-preview']);
 
@@ -15,21 +17,23 @@ type Snapshot = { queryKey: QueryKey; data: unknown };
 const overrides = new Map<string, boolean>();
 const known = new Map<string, FeedItem>();
 const locks = new Set<string>();
-let version = 0;
-const listeners = new Set<() => void>();
+const subscriptions = createPostSubscription();
 
-function emit() {
-  version += 1;
-  for (const listener of listeners) listener();
+function emitSaved(postId: string) {
+  subscriptions.notify(postId);
 }
 
-export function subscribeSavedStore(listener: () => void) {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
+/** Assina só o cartão desta publicação; uma alteração em outro ID não o acorda. */
+export function subscribeSavedPost(postId: string, listener: () => void) {
+  return subscriptions.subscribe(postId, listener);
 }
 
-export function savedStoreVersion() {
-  return version;
+/**
+ * Snapshot referencialmente estável do salvamento desta sessão.
+ * `undefined` significa "sem alteração local: use o valor do servidor".
+ */
+export function readSavedSnapshot(postId: string): boolean | undefined {
+  return overrides.get(postId);
 }
 
 /** O toque desta sessão vale mais do que um cartão que ainda não recarregou. */
@@ -50,19 +54,19 @@ export function resetSavedSession() {
   overrides.clear();
   known.clear();
   locks.clear();
-  emit();
+  subscriptions.notifyAll();
 }
 
 function lock(postId: string) {
   if (locks.has(postId)) return false;
   locks.add(postId);
-  emit();
+  emitSaved(postId);
   return true;
 }
 
 function unlock(postId: string) {
   if (!locks.delete(postId)) return;
-  emit();
+  emitSaved(postId);
 }
 
 function isFeedItem(value: unknown): value is FeedItem {
@@ -154,7 +158,7 @@ function apply(post: FeedItem, saved: boolean) {
   overrides.set(post.id, saved);
   const next = withSaved(post, saved);
   known.set(post.id, next);
-  emit();
+  emitSaved(post.id);
   queryClient.setQueriesData({ predicate: (query) => POST_ROOTS.has(String(query.queryKey[0])) }, (current) => replaceSaved(current, post.id, saved));
   queryClient.setQueriesData({ queryKey: SAVED_POSTS_QUERY_KEY }, (current) => saved ? prependSaved(current, next) : removeSaved(current, post.id));
 }
@@ -177,7 +181,7 @@ export async function toggleSavedPost(post: FeedItem, notify: (message: string) 
     restore(snapshots);
     overrides.set(post.id, previous);
     known.set(post.id, withSaved(post, previous));
-    emit();
+    emitSaved(post.id);
     notify('Não conseguimos atualizar seus salvos. Tente novamente.');
     return false;
   } finally {
