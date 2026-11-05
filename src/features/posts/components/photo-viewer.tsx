@@ -3,26 +3,24 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
-import Animated, { cancelAnimation, clamp, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, clamp, ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { Colors, Spacing } from '@/constants/theme';
 
+import { clampPan, panLimit, pinchZoom, type ViewerGeometry } from './photo-viewer-geometry';
+
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
 /** Distância e velocidade a partir das quais arrastar sem zoom descarta a foto. */
 const DISMISS_DISTANCE = 110;
 const DISMISS_VELOCITY = 900;
-
-type Fold = { viewportWidth: number; viewportHeight: number; fitWidth: number; fitHeight: number };
-
-/** Limite de deslocamento para a imagem já ampliada não sair do quadro. */
-function panLimit(scale: number, fit: number, viewport: number): number {
-  'worklet';
-  return Math.max(0, (fit * scale - viewport) / 2);
-}
+// Assentar e duplo toque são transições automáticas: com movimento reduzido no
+// sistema, o Reanimated aplica o valor final sem animar.
+const SETTLE = { duration: 180, reduceMotion: ReduceMotion.System };
+const DOUBLE_TAP_SETTLE = { duration: 220, reduceMotion: ReduceMotion.System };
 
 /**
  * Foto em tela cheia sobre tinta, dentro da área útil (nunca sob o recorte),
@@ -37,13 +35,16 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
   height?: number;
 }) {
   const insets = useSafeAreaInsets();
-  const [fold, setFold] = useState<Fold>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
-  const geometry = useSharedValue<Fold>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
+  const [fold, setFold] = useState<ViewerGeometry>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
+  const geometry = useSharedValue<ViewerGeometry>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const baseX = useSharedValue(0);
   const baseY = useSharedValue(0);
+  // Foco dos dedos capturado no início da pinça, relativo à área útil.
+  const pinchFocalX = useSharedValue(-1);
+  const pinchFocalY = useSharedValue(-1);
   // Instante do último movimento (pinça ou arrasto): gesto de movimento nunca vira toque duplo.
   const lastMoveAt = useSharedValue(0);
 
@@ -54,10 +55,11 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     scale.value = 1;
     translateX.value = 0; translateY.value = 0;
     baseX.value = 0; baseY.value = 0;
+    pinchFocalX.value = -1; pinchFocalY.value = -1;
     onClose();
   };
 
-  const measure = (next: Fold) => {
+  const measure = (next: ViewerGeometry) => {
     geometry.value = next;
     setFold((previous) => (
       previous.viewportWidth === next.viewportWidth
@@ -75,6 +77,14 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     const fitWidth = ratio > viewportRatio ? layoutWidth : layoutHeight * ratio;
     const fitHeight = fitWidth / ratio;
     measure({ viewportWidth: layoutWidth, viewportHeight: layoutHeight, fitWidth, fitHeight });
+    // Girar o aparelho muda a área útil e pode encolher o limite: recoloca a
+    // imagem dentro das bordas sem animar junto com a rotação.
+    const nextX = clampPan(translateX.value, scale.value, fitWidth, layoutWidth);
+    const nextY = clampPan(translateY.value, scale.value, fitHeight, layoutHeight);
+    if (nextX !== translateX.value || nextY !== translateY.value) {
+      translateX.value = nextX; translateY.value = nextY;
+      baseX.value = nextX; baseY.value = nextY;
+    }
   };
 
   const pinch = usePinchGesture({
@@ -83,37 +93,57 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     // gesto fazia o recolhimento rápido "bater" no mínimo e voltar.
     onBegin: () => {
       'worklet';
+      // Zera o foco: se a plataforma não entregar o ponto no `onActivate`, a
+      // pinça cai no centro em vez de reaproveitar o foco do gesto anterior.
+      pinchFocalX.value = -1;
+      pinchFocalY.value = -1;
       cancelAnimation(scale);
       cancelAnimation(translateX);
       cancelAnimation(translateY);
+    },
+    // O foco é o ponto entre os dedos no começo da pinça. Ele fica parado na
+    // tela; a translação compensa cada mudança de escala em volta dele.
+    onActivate: (event) => {
+      'worklet';
+      pinchFocalX.value = event.focalX;
+      pinchFocalY.value = event.focalY;
     },
     onUpdate: (event) => {
       'worklet';
       lastMoveAt.value = Date.now();
       const view = geometry.value;
-      const next = clamp(scale.value * event.scaleChange, 1, MAX_ZOOM);
-      scale.value = next;
-      const limitX = panLimit(next, view.fitWidth, view.viewportWidth);
-      const limitY = panLimit(next, view.fitHeight, view.viewportHeight);
-      translateX.value = clamp(translateX.value, -limitX, limitX);
-      translateY.value = clamp(translateY.value, -limitY, limitY);
+      const focalX = pinchFocalX.value >= 0 ? pinchFocalX.value : view.viewportWidth / 2;
+      const focalY = pinchFocalY.value >= 0 ? pinchFocalY.value : view.viewportHeight / 2;
+      const next = pinchZoom(
+        scale.value,
+        translateX.value,
+        translateY.value,
+        focalX,
+        focalY,
+        event.scaleChange,
+        view,
+        MAX_ZOOM,
+      );
+      scale.value = next.scale;
+      translateX.value = next.translateX;
+      translateY.value = next.translateY;
     },
     onDeactivate: () => {
       'worklet';
       lastMoveAt.value = Date.now();
       // Sempre assenta: abaixo do mínimo volta a 1, acima mantém o quadro dentro dos limites.
       if (scale.value <= 1.02) {
-        scale.value = withTiming(1, { duration: 180 });
-        translateX.value = withTiming(0, { duration: 180 });
-        translateY.value = withTiming(0, { duration: 180 });
+        scale.value = withTiming(1, SETTLE);
+        translateX.value = withTiming(0, SETTLE);
+        translateY.value = withTiming(0, SETTLE);
         baseX.value = 0; baseY.value = 0;
       } else {
         const view = geometry.value;
-        const limitX = panLimit(scale.value, view.fitWidth, view.viewportWidth);
-        const limitY = panLimit(scale.value, view.fitHeight, view.viewportHeight);
-        translateX.value = withTiming(clamp(translateX.value, -limitX, limitX));
-        translateY.value = withTiming(clamp(translateY.value, -limitY, limitY));
-        baseX.value = translateX.value; baseY.value = translateY.value;
+        const nextX = clampPan(translateX.value, scale.value, view.fitWidth, view.viewportWidth);
+        const nextY = clampPan(translateY.value, scale.value, view.fitHeight, view.viewportHeight);
+        translateX.value = withTiming(nextX, SETTLE);
+        translateY.value = withTiming(nextY, SETTLE);
+        baseX.value = nextX; baseY.value = nextY;
       }
     },
   });
@@ -149,8 +179,8 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
         runOnJS(close)();
         return;
       }
-      translateX.value = withTiming(0, { duration: 180 });
-      translateY.value = withTiming(0, { duration: 180 });
+      translateX.value = withTiming(0, SETTLE);
+      translateY.value = withTiming(0, SETTLE);
       baseX.value = 0; baseY.value = 0;
     },
   });
@@ -172,9 +202,9 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
       const limitY = panLimit(next, view.fitHeight, view.viewportHeight);
       const targetX = next === 1 ? 0 : clamp(-(next - 1) * (event.x - view.viewportWidth / 2), -limitX, limitX);
       const targetY = next === 1 ? 0 : clamp(-(next - 1) * (event.y - view.viewportHeight / 2), -limitY, limitY);
-      scale.value = withTiming(next, { duration: 220 });
-      translateX.value = withTiming(targetX, { duration: 220 });
-      translateY.value = withTiming(targetY, { duration: 220 });
+      scale.value = withTiming(next, DOUBLE_TAP_SETTLE);
+      translateX.value = withTiming(targetX, DOUBLE_TAP_SETTLE);
+      translateY.value = withTiming(targetY, DOUBLE_TAP_SETTLE);
       baseX.value = targetX; baseY.value = targetY;
     },
   });
@@ -189,6 +219,7 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
         <View
           style={styles.viewport}
           collapsable={false}
+          testID="photo-viewer-viewport"
           onLayout={(event) => onLayout(event.nativeEvent.layout.width, event.nativeEvent.layout.height)}>
           <GestureDetector gesture={gesture}>
             <View style={styles.fill} collapsable={false}>
