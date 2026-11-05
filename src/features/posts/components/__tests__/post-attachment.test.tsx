@@ -103,6 +103,46 @@ describe('vídeo em listas', () => {
     expect(posterCache.stats().size).toBe(0);
   });
 
+  it('tenta uma vez de novo quando a geração compartilhada falha', async () => {
+    mockGenerateThumbnails
+      .mockRejectedValueOnce(new Error('player liberado'))
+      .mockResolvedValueOnce([thumbnail('retry')]);
+    const before = posterCache.stats();
+    const view = await render(<>
+      <PostAttachment media={video} />
+      <PostAttachment media={video} />
+    </>);
+
+    await waitFor(() => expect(mockGenerateThumbnails).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(posterCache.stats().size).toBe(1));
+    const after = posterCache.stats();
+    expect(after.generationRequests - before.generationRequests).toBe(2);
+    expect(after.generationFailures - before.generationFailures).toBe(1);
+    expect(after.dedupedGenerations - before.dedupedGenerations).toBe(1);
+    expect(after.stores - before.stores).toBe(1);
+
+    // A tentativa extra não abre um ciclo: nenhuma terceira chamada.
+    await act(async () => { await Promise.resolve(); });
+    expect(mockGenerateThumbnails).toHaveBeenCalledTimes(2);
+    await view.unmount();
+  });
+
+  it('não repete a geração compartilhada mais de uma vez', async () => {
+    mockGenerateThumbnails
+      .mockRejectedValueOnce(new Error('primeira falha'))
+      .mockRejectedValueOnce(new Error('segunda falha'));
+    const view = await render(<>
+      <PostAttachment media={video} />
+      <PostAttachment media={video} />
+    </>);
+
+    await waitFor(() => expect(mockGenerateThumbnails).toHaveBeenCalledTimes(2));
+    await act(async () => { await Promise.resolve(); });
+    expect(mockGenerateThumbnails).toHaveBeenCalledTimes(2);
+    expect(posterCache.stats().size).toBe(0);
+    await view.unmount();
+  });
+
   it('compartilha uma geração concorrente entre duas instâncias da mesma mídia', async () => {
     let resolve!: (thumbnails: VideoThumbnail[]) => void;
     mockGenerateThumbnails.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));

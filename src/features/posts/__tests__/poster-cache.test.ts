@@ -119,6 +119,21 @@ describe('geração concorrente, falha e ciclo de vida', () => {
     });
   });
 
+  it('informa quando a geração foi compartilhada com outra instância', async () => {
+    const cache = new PosterCache();
+    const result = thumbnail('a');
+    let resolve!: (poster: VideoThumbnail | null) => void;
+    const generate = jest.fn(() => new Promise<VideoThumbnail | null>((done) => { resolve = done; }));
+
+    const first = cache.loadWithOutcome('a', generate);
+    const second = cache.loadWithOutcome('a', generate);
+    await flushMicrotasks();
+    resolve(result);
+
+    await expect(first).resolves.toEqual({ poster: result, shared: false });
+    await expect(second).resolves.toEqual({ poster: result, shared: true });
+  });
+
   it('trata falha e resultado vazio como ausência de pôster sem envenenar o cache', async () => {
     const cache = new PosterCache();
     const failing = jest.fn(async (): Promise<VideoThumbnail | null> => { throw new Error('codec'); });

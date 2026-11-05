@@ -216,14 +216,26 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   }, [player]);
 
   // O primeiro quadro vira pôster: cobre o vídeo antes de carregar e fica quando ele sai da tela.
-  // `load` deduplica duas instâncias da mesma mídia e trata falha como ausência de pôster.
+  // `loadWithOutcome` deduplica duas instâncias da mesma mídia. Se a geração veio de
+  // outra instância e falhou, esta tenta uma única vez com o próprio player.
   useEffect(() => {
     // Gerar miniatura ainda não existe no player web; o pôster é opcional.
     if (Platform.OS === 'web') return;
-    void posterCache.load(media.id, async () => {
+    let alive = true;
+    let retried = false;
+    const generate = async () => {
       const [thumbnail] = await player.generateThumbnailsAsync(0);
       return thumbnail ?? null;
-    });
+    };
+    const attempt = () => {
+      void posterCache.loadWithOutcome(media.id, generate).then(({ poster, shared }) => {
+        if (!alive || poster || !shared || retried) return;
+        retried = true;
+        attempt();
+      });
+    };
+    attempt();
+    return () => { alive = false; };
   }, [media.id, player]);
 
   const toggle = () => {

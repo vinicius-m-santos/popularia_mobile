@@ -42,6 +42,11 @@ Novo módulo `src/features/posts/poster-cache.ts`:
 - **Concorrência.** `load` deduplica gerações em andamento da mesma mídia: duas
   instâncias (por exemplo, feed e detalhe) compartilham a mesma promise. Uma
   geração atrasada não substitui o pôster canônico já publicado.
+- **Falha compartilhada.** Se a geração veio de outra instância e resolveu
+  `null`, a instância que apenas entrou na geração tenta **uma vez** com o
+  próprio player. A originadora não repete, e a flag local impede que a
+  tentativa extra vire loop. Se o componente desmontar antes, a tentativa não
+  acontece.
 - **Falha segura.** Rejeição, resultado vazio ou thumbnail ausente resolvem
   `null`, não entram no cache e não derrubam o vídeo. A próxima montagem pode
   tentar de novo; não há retry automático em loop.
@@ -76,7 +81,7 @@ evicções. Nenhum dado é enviado à rede.
 
 ## Testes
 
-`src/features/posts/__tests__/poster-cache.test.ts` (14 testes
+`src/features/posts/__tests__/poster-cache.test.ts` (15 testes
 determinísticos):
 
 - 120 vídeos percorridos: o cache estabiliza em 16 entradas e 104 são
@@ -84,26 +89,28 @@ determinísticos):
 - LRU real: o item usado recentemente sobrevive, o menos recente sai;
 - hit não chama o gerador;
 - pôster reservado não é evictado e o excesso é corrigido na liberação;
-- duas instâncias compartilham **uma** geração;
+- duas instâncias compartilham **uma** geração e o outcome informa `shared`;
 - falha/rejeição/resultado vazio não envenenam o cache e permitem nova tentativa;
+- geração compartilhada com falha ganha **uma** nova tentativa da instância montada, sem terceira chamada;
 - geração atrasada depois de um pôster canônico é descartada;
 - `clear` invalida geração em voo, preserva reservas de componentes montados e não deixa a geração antiga apagar a nova;
 - assinantes recebem o pôster e o fallback da limpeza;
 - snapshot de performance expõe os contadores.
 
-`post-attachment.test.tsx` ganhou quatro casos de integração:
+`post-attachment.test.tsx` ganhou seis casos de integração:
 
 - pôster em cache não regenera e continua disponível ao sair da viewport;
 - pôster não é herdado quando a célula é reciclada para outra mídia;
 - falha de geração mantém o vídeo e o cache vazio;
-- duas instâncias da mesma mídia geram uma única vez.
+- duas instâncias da mesma mídia geram uma única vez;
+- falha compartilhada tenta uma vez de novo e não vira loop quando a segunda falha.
 
 Validação executada:
 
 - `npm run check:fast`: ESLint e TypeScript passaram.
 - Suítes focadas (mídia, feed, vídeo, tópicos, salvos, diagnóstico, conta):
   passaram.
-- `npm run check`: **111 suítes / 637 testes passaram**.
+- `npm run check`: **111 suítes / 640 testes passaram**.
 - E2E de autenticação e saída (`e2e/specs/auth.spec.ts`): **4/4 passaram**.
   A primeira execução a frio estourou o timeout de 120 s enquanto o Metro
   compilava o bundle; a repetição com `--timeout=600000` e o bundle aquecido

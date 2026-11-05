@@ -47,6 +47,12 @@ export type PosterCacheEvent = {
   capacity: number;
 };
 
+export type PosterLoadOutcome = {
+  poster: VideoThumbnail | null;
+  /** `true` quando esta chamada entrou numa geração já em andamento. */
+  shared: boolean;
+};
+
 export type PosterCacheStats = {
   capacity: number;
   size: number;
@@ -122,12 +128,21 @@ export class PosterCache {
    * mídia compartilham a mesma promise; falha resolve `null` para o fallback.
    */
   load(mediaId: string, generate: () => Promise<VideoThumbnail | null>): Promise<VideoThumbnail | null> {
+    return this.loadWithOutcome(mediaId, generate).then((outcome) => outcome.poster);
+  }
+
+  /**
+   * Igual a `load`, mas informa se esta chamada entrou numa geração que já
+   * estava em andamento. O componente usa isso para tentar uma única vez de
+   * novo quando a geração compartilhada falhou no player de outra instância.
+   */
+  loadWithOutcome(mediaId: string, generate: () => Promise<VideoThumbnail | null>): Promise<PosterLoadOutcome> {
     const cached = this.entries.get(mediaId);
     if (cached) {
       this.counters.hits += 1;
       this.touch(mediaId);
       this.emit('hit', mediaId);
-      return Promise.resolve(cached.poster);
+      return Promise.resolve({ poster: cached.poster, shared: false });
     }
 
     this.counters.misses += 1;
@@ -135,7 +150,7 @@ export class PosterCache {
     if (pending) {
       this.counters.dedupedGenerations += 1;
       this.emit('dedupe', mediaId);
-      return pending;
+      return pending.then((poster) => ({ poster, shared: true }));
     }
 
     this.counters.generationRequests += 1;
@@ -172,7 +187,7 @@ export class PosterCache {
       );
     this.inFlight.set(mediaId, promise);
     this.inFlightEpoch.set(mediaId, epoch);
-    return promise;
+    return promise.then((poster) => ({ poster, shared: false }));
   }
 
   /**
