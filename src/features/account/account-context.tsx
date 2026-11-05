@@ -20,6 +20,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { findUser } from '@/features/lookup';
 import { posterCache } from '@/features/posts/poster-cache';
 import { hasStoredSession, onSessionEnded, refreshSession } from '@/lib/api/client';
+import { clearAvatarCache } from '@/lib/avatar-cache';
 import { ApiError } from '@/lib/errors';
 import { clearSentryUser, setSentryUser } from '@/lib/monitoring';
 import { initialsOf } from '@/lib/format';
@@ -153,6 +154,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const resetToSignedOut = useCallback(() => {
     queryClient.clear();
+    // Fotos publicadas pela conta anterior não passam para a próxima.
+    clearAvatarCache();
     // Miniaturas de vídeos vistos pela conta anterior não passam para a próxima.
     posterCache.clear();
     credentials.current = null;

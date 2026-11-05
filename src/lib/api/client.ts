@@ -1,3 +1,4 @@
+import { clearAvatarCache } from '@/lib/avatar-cache';
 import { queryClient } from '@/lib/query/client';
 /**
  * Cliente HTTP da API: URL base, JSON, tempo limite, conversão de erros e sessão.
@@ -70,6 +71,7 @@ export function onSessionEnded(listener: (() => void) | null): void {
 
 export async function startSession(tokens: TokensDto): Promise<void> {
   queryClient.clear();
+  clearAvatarCache();
   sessionGeneration += 1;
   storeTokens(tokens);
   await persistSession(() => saveRefreshToken(tokens.refreshToken));
@@ -85,6 +87,7 @@ function storeTokens(tokens: TokensDto): void {
 /** Apaga os tokens deste aparelho (memória e armazenamento seguro). */
 export async function clearSession(): Promise<void> {
   queryClient.clear();
+  clearAvatarCache();
   sessionGeneration += 1;
   accessToken = null;
   sessionId = null;
