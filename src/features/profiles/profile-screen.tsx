@@ -92,7 +92,7 @@ export default function ProfileScreen() {
   const profile = { data: accessDenied(profileQuery.error) ? null : profileQuery.data,
     status: profileQuery.isPending ? 'loading' : profileQuery.isError ? 'error' : 'success',
     error: profileQuery.error, reload: profileQuery.refetch };
-  const posts = useCachedPages({ queryKey: ['profile-posts', author], load: loadPosts, ...contentPolicy.profile, enabled: !!author });
+  const posts = useCachedPages({ queryKey: ['profile-posts', author], load: loadPosts, performanceScope: 'profile', ...contentPolicy.profile, enabled: !!author });
   const comunas = useAsyncData(loadComunas);
   const reloadProfile = profileQuery.refetch;
   const reloadPosts = posts.refresh;

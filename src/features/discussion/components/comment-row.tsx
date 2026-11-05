@@ -9,6 +9,7 @@ import { IconButton } from '@/components/icon-button';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { PostBody } from '@/features/posts/components/post-body';
 import { formatCount, formatRelative, plural } from '@/lib/format';
+import { withPerformanceProfiler } from '@/lib/performance/profiler';
 
 import { MAX_VISUAL_DEPTH, type ThreadRow } from '../thread';
 
@@ -26,7 +27,7 @@ type CommentRowProps = {
 };
 
 /** Comentário com recuo e trilho à esquerda conforme a profundidade (design 1c). */
-export const CommentRow = memo(function CommentRow({
+function CommentRowView({
   row,
   authorLabel,
   supported,
@@ -114,7 +115,9 @@ export const CommentRow = memo(function CommentRow({
       </View>
     </View>
   );
-});
+}
+
+export const CommentRow = memo(withPerformanceProfiler('CommentRow', CommentRowView));
 
 type CollapseButtonProps = {
   id: string;

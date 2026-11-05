@@ -57,7 +57,7 @@ export default function FeedScreen() {
   // Na API a chave não inclui quem a pessoa segue: o cache é atualizado no follow.
   // No modo demonstração o servidor não existe, então a chave recarrega a lista.
   const feedKey = DEMO_MODE && tab === 'seguindo' ? ['feed', tab, joinedKey, followedKey] : ['feed', tab, joinedKey];
-  const feed = useCachedPages({ queryKey: feedKey, load, ...contentPolicy.feed });
+  const feed = useCachedPages({ queryKey: feedKey, load, performanceScope: 'feed', ...contentPolicy.feed });
   const { refreshError } = feed;
   // Pessoas bloqueadas somem antes de agrupar os dias: assim nenhuma regra de dia fica órfã.
   const items = useMemo(
@@ -89,6 +89,7 @@ export default function FeedScreen() {
     // Cada aba é uma lista própria: trocar de aba recomeça do topo, em vez de herdar a rolagem.
     key={tab}
     state={feed}
+    performanceListId={`feed:${tab}`}
     extraData={visibility.visibleIds}
     onViewableItemsChanged={visibility.onViewableItemsChanged}
     viewabilityConfig={mediaViewabilityConfig}

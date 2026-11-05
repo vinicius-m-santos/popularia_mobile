@@ -40,7 +40,7 @@ export function ContentReportQueue({ slug, heading }: { slug: string | null; hea
     [slug, bucket],
   );
   const key = slug === null ? platformReportsKey(bucket) : comunaReportsKey(slug, bucket);
-  const page = useCachedPages({ queryKey: key, load, ...contentPolicy.post });
+  const page = useCachedPages({ queryKey: key, load, performanceScope: 'moderation', ...contentPolicy.post });
   const toast = useToast();
   const lock = useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);

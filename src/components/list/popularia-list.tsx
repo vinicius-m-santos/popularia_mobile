@@ -4,6 +4,7 @@ import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-nativ
 
 import { StateView } from '@/components/state-view';
 import { Colors, Spacing } from '@/constants/theme';
+import { recordListLoad } from '@/lib/performance';
 import { PopulariaListSkeleton } from './popularia-list-skeleton';
 
 export type ListState = {
@@ -23,11 +24,13 @@ type Props<T> = FlashListProps<T> & {
   emptyTitle?: string;
   emptyMessage?: string;
   loadingComponent?: ReactElement;
+  /** Nome da lista no relatório de performance (POP-5). */
+  performanceListId?: string;
 };
 
 /** Defaults editoriais; a API da FlashList continua disponível para cada tela. */
 export function PopulariaList<T>({ state, emptyTitle = 'Nada por aqui', emptyMessage,
-  loadingComponent, ListEmptyComponent, ListFooterComponent, ...props }: Props<T>) {
+  loadingComponent, ListEmptyComponent, ListFooterComponent, performanceListId, onLoad, ...props }: Props<T>) {
   const empty = !props.data?.length;
   const footer = isValidElement(ListFooterComponent) ? ListFooterComponent : ListFooterComponent ? createElement(ListFooterComponent) : null;
   return <FlashList
@@ -36,6 +39,10 @@ export function PopulariaList<T>({ state, emptyTitle = 'Nada por aqui', emptyMes
     automaticallyAdjustsScrollIndicatorInsets={false}
     keyboardShouldPersistTaps="handled"
     keyboardDismissMode="on-drag"
+    onLoad={(info) => {
+      if (performanceListId) recordListLoad(performanceListId, info.elapsedTimeInMs, props.data?.length ?? 0);
+      onLoad?.(info);
+    }}
     onEndReachedThreshold={0.4}
     onEndReached={state?.hasMore && !state.loadingMore && !state.loadMoreError && !state.isRefreshing ? state.loadMore : undefined}
     refreshControl={state ? <RefreshControl refreshing={state.isRefreshing} onRefresh={state.refresh} tintColor={Colors.red} colors={[Colors.red]} /> : undefined}

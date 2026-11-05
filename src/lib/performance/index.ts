@@ -1,0 +1,437 @@
+/**
+ * Instrumentação local de performance (POP-5).
+ *
+ * Regras:
+ * - Fechada por padrão. Só liga com `EXPO_PUBLIC_PERFORMANCE_INSTRUMENTATION=1`
+ *   e nunca em produção (`EXPO_PUBLIC_APP_ENV=production`), mesmo se a flag
+ *   pública for ligada por engano.
+ * - Sem rede, sem upload, sem PII: guarda apenas caminhos de API sem query
+ *   string, contadores e durações. Nada é enviado ao Sentry.
+ * - Memória limitada: as listas são circulares e a agregação de commits é por
+ *   instância montada. `resetPerformanceSession` limpa tudo.
+ * - Sem timer, polling ou log por frame: os registros acontecem nos pontos de
+ *   medição (Profiler, cliente HTTP, onLoad e eventos do player).
+ */
+
+import { Platform } from 'react-native';
+
+export type PerformanceAction = 'initial' | 'refresh' | 'pagination' | 'user' | 'session' | 'other';
+export type PerformanceScope = { screen: string; action: PerformanceAction };
+export type RequestOutcome = 'success' | 'error' | 'aborted';
+export type ProfilePhase = 'mount' | 'update' | 'nested-update';
+
+export type PerformanceRequestRecord = {
+  id: string;
+  path: string;
+  method: string;
+  scope: PerformanceScope;
+  attempts: number;
+  attemptDurationsMs: number[];
+  durationMs: number;
+  status: number | null;
+  outcome: RequestOutcome;
+};
+
+export type PerformanceCommitRecord = {
+  component: string;
+  instanceId: string;
+  commits: number;
+  mountCommits: number;
+  updateCommits: number;
+  totalActualMs: number;
+  maxActualMs: number;
+  lastActualMs: number;
+  totalBaseMs: number;
+};
+
+export type PerformanceListRecord = {
+  list: string;
+  elapsedTimeInMs: number;
+  itemCount: number;
+  atMs: number;
+};
+
+export type PerformanceVideoEvent =
+  | 'mount'
+  | 'unmount'
+  | 'play'
+  | 'pause'
+  | 'first-frame'
+  | 'error';
+
+export type PerformanceVideoRecord = {
+  event: PerformanceVideoEvent;
+  mediaId: string;
+  valueMs?: number;
+  atMs: number;
+};
+
+export type PerformanceScreenSummary = {
+  count: number;
+  errors: number;
+  aborted: number;
+  refreshCount: number;
+  durationMs: number;
+};
+
+export type PerformanceSnapshot = {
+  enabled: boolean;
+  sessionId: string | null;
+  startedAt: string | null;
+  durationMs: number;
+  platform: string;
+  appEnvironment: string;
+  development: boolean;
+  requests: PerformanceRequestRecord[];
+  requestsByScreen: Record<string, PerformanceScreenSummary>;
+  commits: PerformanceCommitRecord[];
+  lists: PerformanceListRecord[];
+  video: {
+    events: PerformanceVideoRecord[];
+    mountedNow: number;
+    playingNow: number;
+    firstFrameCount: number;
+    firstFrameTotalMs: number;
+    firstFrameMaxMs: number;
+  };
+  counters: {
+    logicalRequests: number;
+    httpAttempts: number;
+    profilerCommits: number;
+    listLoads: number;
+    videoMounts: number;
+  };
+  dropped: number;
+};
+
+export type RequestTrace = {
+  id: string;
+  path: string;
+  method: string;
+  scope: PerformanceScope;
+  startedAt: number;
+  attempts: number;
+  attemptDurationsMs: number[];
+  lastOutcome: RequestOutcome;
+  lastStatus: number | null;
+};
+
+const MAX_REQUEST_RECORDS = 400;
+const MAX_COMMIT_INSTANCES = 400;
+const MAX_LIST_RECORDS = 100;
+const MAX_VIDEO_RECORDS = 300;
+const MAX_ATTEMPT_DURATIONS = 10;
+
+const DEFAULT_SCOPE: PerformanceScope = { screen: 'unknown', action: 'other' };
+
+type SessionState = {
+  id: string;
+  startedAt: string;
+  startedMonotonic: number;
+  requests: PerformanceRequestRecord[];
+  httpAttempts: number;
+  commits: Map<string, PerformanceCommitRecord>;
+  lists: PerformanceListRecord[];
+  video: PerformanceVideoRecord[];
+  videoMounted: Set<string>;
+  videoPlaying: Set<string>;
+  firstFrameTotalMs: number;
+  firstFrameMaxMs: number;
+  firstFrameCount: number;
+  listLoads: number;
+  videoMounts: number;
+  dropped: number;
+};
+
+let session: SessionState | null = null;
+let sessionCounter = 0;
+let requestCounter = 0;
+let enabledOverride: boolean | null = null;
+let currentScope: PerformanceScope | null = null;
+
+/** `performance.now()` quando existe; Date.now() como fallback (Jest/Node antigo). */
+export function performanceNow(): number {
+  const perf = typeof globalThis === 'undefined' ? undefined : globalThis.performance;
+  return perf && typeof perf.now === 'function' ? perf.now() : Date.now();
+}
+
+export function performanceAppEnvironment(): string {
+  return process.env.EXPO_PUBLIC_APP_ENV ?? 'development';
+}
+
+export function performanceInstrumentationEnabled(): boolean {
+  // Produção nunca instrumenta, nem com a flag pública ligada por engano.
+  if (performanceAppEnvironment() === 'production') return false;
+  if (enabledOverride !== null) return enabledOverride;
+  return process.env.EXPO_PUBLIC_PERFORMANCE_INSTRUMENTATION === '1';
+}
+
+/** Só para testes e para o harness de QA. Em produção continua bloqueado. */
+export function setPerformanceInstrumentationOverride(value: boolean | null): void {
+  enabledOverride = value;
+  if (!performanceInstrumentationEnabled()) {
+    session = null;
+    return;
+  }
+  ensureSession();
+}
+
+function ensureSession(): SessionState | null {
+  if (!performanceInstrumentationEnabled()) return null;
+  if (!session) session = newSession();
+  return session;
+}
+
+function newSession(): SessionState {
+  sessionCounter += 1;
+  return {
+    id: `perf-${sessionCounter.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    startedAt: new Date().toISOString(),
+    startedMonotonic: performanceNow(),
+    requests: [],
+    httpAttempts: 0,
+    commits: new Map(),
+    lists: [],
+    video: [],
+    videoMounted: new Set(),
+    videoPlaying: new Set(),
+    firstFrameTotalMs: 0,
+    firstFrameMaxMs: 0,
+    firstFrameCount: 0,
+    listLoads: 0,
+    videoMounts: 0,
+    dropped: 0,
+  };
+}
+
+function pushBounded<T>(items: T[], item: T, limit: number, state: SessionState): void {
+  if (items.length >= limit) {
+    items.shift();
+    state.dropped += 1;
+  }
+  items.push(item);
+}
+
+/** Reinicia a coleta (ex.: entre duas repetições do mesmo cenário). */
+export function resetPerformanceSession(): void {
+  session = performanceInstrumentationEnabled() ? newSession() : null;
+  currentScope = null;
+  requestCounter = 0;
+}
+
+/**
+ * Executa `fn` capturando o escopo de tela/ação para requests iniciados de forma
+ * síncrona ali dentro. O escopo é lido no começo de cada request, não no fim,
+ * para que uma navegação durante a espera não atribua a resposta à tela errada.
+ */
+export function runWithPerformanceScope<T>(scope: PerformanceScope, fn: () => T): T {
+  const previous = currentScope;
+  currentScope = scope;
+  try {
+    return fn();
+  } finally {
+    currentScope = previous;
+  }
+}
+
+function safePath(path: string): string {
+  // Remove query string e fragmento: tokens, cursores e filtros não entram na medição.
+  const withoutQuery = path.split('?')[0].split('#')[0];
+  return withoutQuery.length > 0 ? withoutQuery.slice(0, 160) : '/unknown';
+}
+
+export function createRequestTrace(path: string, method: string, scope?: PerformanceScope): RequestTrace | null {
+  if (!performanceInstrumentationEnabled()) return null;
+  ensureSession();
+  requestCounter += 1;
+  return {
+    id: `req-${requestCounter.toString(36)}`,
+    path: safePath(path),
+    method,
+    scope: scope ?? currentScope ?? DEFAULT_SCOPE,
+    startedAt: performanceNow(),
+    attempts: 0,
+    attemptDurationsMs: [],
+    lastOutcome: 'success',
+    lastStatus: null,
+  };
+}
+
+/** Registra uma tentativa HTTP real (inclui retry de sessão e transfer nativo). */
+export function recordRequestAttempt(trace: RequestTrace | null, durationMs: number, outcome: RequestOutcome, status: number | null): void {
+  if (!trace || !session) return;
+  trace.attempts += 1;
+  trace.lastOutcome = outcome;
+  trace.lastStatus = status;
+  if (trace.attemptDurationsMs.length < MAX_ATTEMPT_DURATIONS) {
+    trace.attemptDurationsMs.push(Math.max(0, Math.round(durationMs * 100) / 100));
+  }
+  session.httpAttempts += 1;
+}
+
+export function finishRequest(trace: RequestTrace | null, outcome: RequestOutcome): void {
+  // Sem tentativa HTTP não houve request: não inventa um registro para uma
+  // renovação que nem chegou a sair por falta de sessão.
+  if (!trace || !session || trace.attempts === 0) return;
+  const finalOutcome: RequestOutcome = outcome === 'error'
+    ? (trace.lastOutcome === 'aborted' ? 'aborted' : 'error')
+    : (trace.lastStatus !== null && trace.lastStatus >= 400 ? 'error' : outcome);
+  pushBounded(session.requests, {
+    id: trace.id,
+    path: trace.path,
+    method: trace.method,
+    scope: { ...trace.scope },
+    attempts: Math.max(1, trace.attempts),
+    attemptDurationsMs: [...trace.attemptDurationsMs],
+    durationMs: Math.max(0, Math.round((performanceNow() - trace.startedAt) * 100) / 100),
+    status: trace.lastStatus,
+    outcome: finalOutcome,
+  }, MAX_REQUEST_RECORDS, session);
+}
+
+export function recordProfileCommit(input: {
+  component: string;
+  instanceId: string;
+  phase: ProfilePhase;
+  actualDurationMs: number;
+  baseDurationMs: number;
+}): void {
+  if (!session) return;
+  const key = `${input.component}#${input.instanceId}`;
+  const existing = session.commits.get(key);
+  if (!existing) {
+    if (session.commits.size >= MAX_COMMIT_INSTANCES) {
+      session.dropped += 1;
+      return;
+    }
+    session.commits.set(key, {
+      component: input.component,
+      instanceId: input.instanceId,
+      commits: 0,
+      mountCommits: 0,
+      updateCommits: 0,
+      totalActualMs: 0,
+      maxActualMs: 0,
+      lastActualMs: 0,
+      totalBaseMs: 0,
+    });
+  }
+  const record = session.commits.get(key)!;
+  const actual = Math.max(0, Math.round(input.actualDurationMs * 100) / 100);
+  record.commits += 1;
+  if (input.phase === 'mount') record.mountCommits += 1;
+  else record.updateCommits += 1;
+  record.totalActualMs += actual;
+  record.lastActualMs = actual;
+  record.maxActualMs = Math.max(record.maxActualMs, actual);
+  record.totalBaseMs += Math.max(0, Math.round(input.baseDurationMs * 100) / 100);
+}
+
+/** `FlashList.onLoad`: tempo até desenhar os itens. Não é FPS nem TTI. */
+export function recordListLoad(list: string, elapsedTimeInMs: number, itemCount: number): void {
+  if (!session) return;
+  session.listLoads += 1;
+  pushBounded(session.lists, {
+    list,
+    elapsedTimeInMs: Math.max(0, Math.round(elapsedTimeInMs * 100) / 100),
+    itemCount,
+    atMs: Math.round(performanceNow() - session.startedMonotonic),
+  }, MAX_LIST_RECORDS, session);
+}
+
+function recordVideoEvent(event: PerformanceVideoEvent, mediaId: string, valueMs?: number): void {
+  if (!session) return;
+  pushBounded(session.video, {
+    event,
+    mediaId,
+    ...(valueMs === undefined ? {} : { valueMs: Math.max(0, Math.round(valueMs * 100) / 100) }),
+    atMs: Math.round(performanceNow() - session.startedMonotonic),
+  }, MAX_VIDEO_RECORDS, session);
+}
+
+export function recordVideoMount(mediaId: string): void {
+  if (!session) return;
+  session.videoMounts += 1;
+  session.videoMounted.add(mediaId);
+  recordVideoEvent('mount', mediaId);
+}
+
+export function recordVideoUnmount(mediaId: string): void {
+  if (!session) return;
+  session.videoMounted.delete(mediaId);
+  session.videoPlaying.delete(mediaId);
+  recordVideoEvent('unmount', mediaId);
+}
+
+export function recordVideoPlay(mediaId: string): void {
+  if (!session) return;
+  session.videoPlaying.add(mediaId);
+  recordVideoEvent('play', mediaId);
+}
+
+export function recordVideoPause(mediaId: string): void {
+  if (!session) return;
+  session.videoPlaying.delete(mediaId);
+  recordVideoEvent('pause', mediaId);
+}
+
+export function recordVideoFirstFrame(mediaId: string, elapsedMs: number): void {
+  if (!session) return;
+  session.firstFrameCount += 1;
+  session.firstFrameTotalMs += Math.max(0, elapsedMs);
+  session.firstFrameMaxMs = Math.max(session.firstFrameMaxMs, elapsedMs);
+  recordVideoEvent('first-frame', mediaId, elapsedMs);
+}
+
+export function recordVideoError(mediaId: string): void {
+  recordVideoEvent('error', mediaId);
+}
+
+export function getPerformanceSnapshot(): PerformanceSnapshot {
+  const requests = session ? session.requests.map((record) => ({ ...record, scope: { ...record.scope }, attemptDurationsMs: [...record.attemptDurationsMs] })) : [];
+  const requestsByScreen: Record<string, PerformanceScreenSummary> = {};
+  for (const record of requests) {
+    const summary = requestsByScreen[record.scope.screen] ??= { count: 0, errors: 0, aborted: 0, refreshCount: 0, durationMs: 0 };
+    summary.count += 1;
+    summary.durationMs += record.durationMs;
+    if (record.outcome === 'error') summary.errors += 1;
+    if (record.outcome === 'aborted') summary.aborted += 1;
+    if (record.scope.action === 'refresh') summary.refreshCount += 1;
+  }
+  const commits = session ? [...session.commits.values()].map((record) => ({ ...record })) : [];
+  const profilerCommits = commits.reduce((total, record) => total + record.commits, 0);
+  return {
+    enabled: performanceInstrumentationEnabled(),
+    sessionId: session?.id ?? null,
+    startedAt: session?.startedAt ?? null,
+    durationMs: session ? Math.max(0, Math.round(performanceNow() - session.startedMonotonic)) : 0,
+    platform: Platform.OS,
+    appEnvironment: performanceAppEnvironment(),
+    development: typeof __DEV__ === 'undefined' ? false : __DEV__,
+    requests,
+    requestsByScreen,
+    commits,
+    lists: session ? session.lists.map((record) => ({ ...record })) : [],
+    video: {
+      events: session ? session.video.map((record) => ({ ...record })) : [],
+      mountedNow: session?.videoMounted.size ?? 0,
+      playingNow: session?.videoPlaying.size ?? 0,
+      firstFrameCount: session?.firstFrameCount ?? 0,
+      firstFrameTotalMs: session?.firstFrameTotalMs ?? 0,
+      firstFrameMaxMs: session?.firstFrameMaxMs ?? 0,
+    },
+    counters: {
+      logicalRequests: requests.length,
+      httpAttempts: session?.httpAttempts ?? 0,
+      profilerCommits,
+      listLoads: session?.listLoads ?? 0,
+      videoMounts: session?.videoMounts ?? 0,
+    },
+    dropped: session?.dropped ?? 0,
+  };
+}
+
+/** Export local para colar num relatório; não faz upload de nada. */
+export function exportPerformanceSnapshot(): string {
+  return JSON.stringify(getPerformanceSnapshot(), null, 2);
+}

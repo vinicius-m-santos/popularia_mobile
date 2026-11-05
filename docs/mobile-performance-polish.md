@@ -2,6 +2,10 @@
 
 Data: 29/10/2026. Escopo: mobile, sem alteração de endpoints ou regras de negócio.
 
+> Baseline instrumentado e roteiro reproduzível de medição (POP-5):
+> `docs/mobile-performance-baseline.md`. Contadores só ligam com
+> `EXPO_PUBLIC_PERFORMANCE_INSTRUMENTATION=1`, nunca em produção.
+
 ## Auditoria antes das mudanças
 
 | Fluxo / arquivos | Implementação encontrada | Decisão nesta entrega |

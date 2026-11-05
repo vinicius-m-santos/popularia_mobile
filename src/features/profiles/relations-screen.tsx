@@ -32,7 +32,7 @@ export default function RelationsScreen() {
     if (!id) return Promise.resolve({ items: [] as User[], nextCursor: null });
     return getRelationPage(kind, id, cursor, signal);
   }, [id, kind]);
-  const list = useCachedPages({ queryKey: ['relations', kind, id ?? ''], load, ...contentPolicy.profile, enabled: !!id });
+  const list = useCachedPages({ queryKey: ['relations', kind, id ?? ''], load, performanceScope: 'relations', ...contentPolicy.profile, enabled: !!id });
   const copy = COPY[kind];
   const privateList = list.error instanceof ApiError && list.error.type === '/errors/follow-list-private';
 
