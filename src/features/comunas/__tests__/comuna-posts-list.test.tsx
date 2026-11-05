@@ -132,8 +132,10 @@ jest.mock('@/features/library/library-screen', () => {
 jest.mock('@/features/posts/components/post-card', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { useMediaVisible } = jest.requireActual<typeof import('@/hooks/use-list-visibility')>('@/hooks/use-list-visibility');
   const g = globalThis as { __comunaMounts?: Map<string, number> };
-  function MockPostCard({ item, mediaVisible }: { item: FeedItem; mediaVisible?: boolean }) {
+  function MockPostCard({ item }: { item: FeedItem }) {
+    const mediaVisible = useMediaVisible(item.id);
     React.useEffect(() => {
       if (g.__comunaMounts) g.__comunaMounts.set(item.id, (g.__comunaMounts.get(item.id) ?? 0) + 1);
     }, [item.id]);

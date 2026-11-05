@@ -1,5 +1,5 @@
 import { shareDestination } from '@/features/links/share';
-import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { useListVisibility, MediaVisibilityProvider, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
 import { useQuery } from '@tanstack/react-query';
 import type { FlashListRef } from '@shopify/flash-list';
 import { PopulariaList } from '@/components/list/popularia-list';
@@ -174,7 +174,6 @@ type ContentProps = {
 };
 
 function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState, refreshing, onRefresh }: ContentProps) {
-  const visibility = useListVisibility();
   const toast = useToast();
   const nav = useNav();
   const sheet = useActionsSheet();
@@ -225,6 +224,8 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     setTab(next);
   }, [setOverlayVisible, tab, tabs]);
   const pageKey = tabs.some((item) => item.key === tab) ? tab : 'posts';
+  // A lista de publicações só existe na aba de posts; a viewport acompanha a aba.
+  const visibility = useListVisibility(pageKey);
   const onListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
     const previous = scrollY.current;
@@ -467,45 +468,46 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />} />
     </ProfileSwipeContent>
   ) : (
-    <PopulariaList<ProfileRow>
-      ref={listRef}
-      data={rows}
-      extraData={visibility.visibleIds}
-      onViewableItemsChanged={visibility.onViewableItemsChanged}
-      viewabilityConfig={mediaViewabilityConfig}
-      keyExtractor={(row) => row.id}
-      getItemType={(row) => row.kind === 'post' ? (row.item.poll ? 'post-poll' : 'post') : row.kind}
-      refreshing={refreshing} onRefresh={onRefresh}
-      onScroll={onListScroll}
-      scrollEventThrottle={16}
-      contentContainerStyle={styles.scroll}
-      onEndReached={pageKey === 'posts' && !posts.loadMoreError ? posts.loadMore : undefined}
-      renderItem={({ item }) => {
-        const node = item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
-          ? <View style={styles.column}>
-              {item.dayLabel ? <DayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
-              <SwipeAwarePostCard item={item.item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} showMuted />
-            </View>
-          : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} counts={item.counts} /></View>;
-        if (item.kind === 'identity' || item.kind === 'tabs') return node;
-        return <ProfileSwipeContent>{node}</ProfileSwipeContent>;
-      }}
-      ListFooterComponent={pageKey === 'posts' || pageKey === 'media' ? <ProfileSwipeContent><View style={styles.column}>
-        {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
-        {pageKey === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
-        {pageKey === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
-        {pageKey === 'media' && rows.length === 3 && posts.status === 'success' ? (
-          posts.hasMore ? <AppText style={styles.emptyText} color={Colors.muted}>Nenhuma mídia nesta página. Carregue mais publicações para continuar.</AppText> : (
-            <View style={styles.emptyState}>
-              <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma imagem ou vídeo publicado ainda.</AppText>
-              <AppText variant="caption" style={styles.emptyCaption}>Quando você publicar uma foto ou vídeo, ele aparece aqui.</AppText>
-            </View>
-          )
-        ) : null}
-        {posts.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
-          : posts.hasMore ? <PillButton label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'} variant="outline" disabled={posts.loadingMore} onPress={posts.loadMore} /> : null}
-      </View></ProfileSwipeContent> : undefined}
-    />
+    <MediaVisibilityProvider visibility={visibility}>
+      <PopulariaList<ProfileRow>
+        ref={listRef}
+        data={rows}
+        onViewableItemsChanged={visibility.onViewableItemsChanged}
+        viewabilityConfig={mediaViewabilityConfig}
+        keyExtractor={(row) => row.id}
+        getItemType={(row) => row.kind === 'post' ? (row.item.poll ? 'post-poll' : 'post') : row.kind}
+        refreshing={refreshing} onRefresh={onRefresh}
+        onScroll={onListScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={styles.scroll}
+        onEndReached={pageKey === 'posts' && !posts.loadMoreError ? posts.loadMore : undefined}
+        renderItem={({ item }) => {
+          const node = item.kind === 'identity' ? identity : item.kind === 'tabs' ? tabBar : item.kind === 'content' ? content : item.kind === 'post'
+            ? <View style={styles.column}>
+                {item.dayLabel ? <DayRule label={item.dayLabel} /> : item.index > 0 ? <View style={styles.postRule} /> : null}
+                <SwipeAwarePostCard item={item.item} showRule={false} showMuted />
+              </View>
+            : <View style={styles.column}><ProfileMediaGrid posts={item.items} onOpen={nav.openPost} counts={item.counts} /></View>;
+          if (item.kind === 'identity' || item.kind === 'tabs') return node;
+          return <ProfileSwipeContent>{node}</ProfileSwipeContent>;
+        }}
+        ListFooterComponent={pageKey === 'posts' || pageKey === 'media' ? <ProfileSwipeContent><View style={styles.column}>
+          {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
+          {pageKey === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
+          {pageKey === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
+          {pageKey === 'media' && rows.length === 3 && posts.status === 'success' ? (
+            posts.hasMore ? <AppText style={styles.emptyText} color={Colors.muted}>Nenhuma mídia nesta página. Carregue mais publicações para continuar.</AppText> : (
+              <View style={styles.emptyState}>
+                <AppText style={styles.emptyTitle} color={Colors.muted}>Nenhuma imagem ou vídeo publicado ainda.</AppText>
+                <AppText variant="caption" style={styles.emptyCaption}>Quando você publicar uma foto ou vídeo, ele aparece aqui.</AppText>
+              </View>
+            )
+          ) : null}
+          {posts.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais publicações." onRetry={posts.loadMore} />
+            : posts.hasMore ? <PillButton label={posts.loadingMore ? 'Carregando…' : 'Carregar mais publicações'} variant="outline" disabled={posts.loadingMore} onPress={posts.loadMore} /> : null}
+        </View></ProfileSwipeContent> : undefined}
+      />
+    </MediaVisibilityProvider>
   );
   return (
     <Screen>

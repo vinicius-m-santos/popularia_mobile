@@ -12,6 +12,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { usePostActions } from '@/features/interactions/use-post-actions';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
+import { useMediaVisible } from '@/hooks/use-list-visibility';
 import { formatCount, formatRelative } from '@/lib/format';
 import { withPerformanceProfiler } from '@/lib/performance/profiler';
 import { useNav } from '@/lib/routes';
@@ -33,7 +34,8 @@ type PostCardProps = {
   /**
    * Só monta o player quando a lista confirma que o item está na viewport.
    * O default é seguro: um cartão montado fora de uma lista (ou sem viewability)
-   * não inicia reprodução.
+   * não inicia reprodução. Quando omitido, o cartão assina a viewport pelo
+   * `postId` no provider da lista; um valor explícito vence a assinatura.
    */
   mediaVisible?: boolean;
   /** Linha divisória no topo (todos menos o primeiro). */
@@ -53,7 +55,8 @@ type PostCardProps = {
  * depois quem publicou, com foto e nome. O selo do tipo (Chamado, Enquete) fica na mesma
  * linha do destino, como no desenho do feed.
  */
-function PostCardView({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = false, mediaGesture }: PostCardProps) {
+function PostCardView({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible: mediaVisibleOverride, mediaGesture }: PostCardProps) {
+  const mediaVisible = useMediaVisible(item.id, mediaVisibleOverride);
   const { author, comuna, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();

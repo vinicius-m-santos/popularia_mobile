@@ -32,7 +32,7 @@ import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
+import { mediaViewabilityConfig, MediaVisibilityProvider, useListVisibility } from '@/hooks/use-list-visibility';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
@@ -92,14 +92,10 @@ export default function ComunaScreen() {
   // "Ver regras da comuna" (depois de uma denúncia) abre direto na aba Regras.
   const [tab, setTab] = useState<ComunaTab>(TABS.some((t) => t.key === aba) ? (aba as ComunaTab) : 'posts');
   const insets = useSafeAreaInsets();
-  const visibility = useListVisibility();
-  const { clear: clearVisibility } = visibility;
-  // Trocar de aba desmonta a lista de publicações. A viewport da janela anterior
-  // não vale para a próxima montagem: sem limpar, um vídeo que estava visível
-  // antes voltaria a tocar antes de a nova viewability confirmar o cartão.
-  useEffect(() => {
-    if (tab !== 'posts') clearVisibility();
-  }, [tab, clearVisibility]);
+  // Trocar de aba ou de comuna remonta a lista. A viewport é local a esse par:
+  // os IDs da janela anterior não valem para a próxima montagem e não devem
+  // montar players antes de a nova viewability confirmar os cartões.
+  const visibility = useListVisibility(`${id}:${tab}`);
 
   const loadComuna = useCallback(() => getComuna(id), [id]);
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
@@ -288,78 +284,78 @@ export default function ComunaScreen() {
     // Faixa escura atrás da barra de status; o conteúdo rola abaixo dela.
     <ProfileTabSwipe tabs={TAB_KEYS} active={tab} onChange={setTab}>
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <PopulariaList<ComunaRow>
-          data={rows}
-          keyExtractor={(row) => row.id}
-          getItemType={(row) => row.kind === 'post'
-            ? `${row.item.poll ? 'poll' : 'text'}:${row.item.attachment?.type ?? (row.item.document ? 'document' : 'plain')}`
-            : row.kind}
-          stickyHeaderIndices={STICKY_HEADER_INDICES}
-          stickyHeaderConfig={STICKY_HEADER_CONFIG}
-          extraData={visibility.visibleIds}
-          onViewableItemsChanged={visibility.onViewableItemsChanged}
-          viewabilityConfig={mediaViewabilityConfig}
-          performanceListId={`comuna:${id}:${tab}`}
-          contentContainerStyle={styles.scroll}
-          ListHeaderComponent={comuna.status === 'error' ? (
-            <View style={styles.column}>
-              <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} />
-            </View>
-          ) : null}
-          ListFooterComponent={footer}
-          renderItem={({ item }) => {
-            if (item.kind === 'hero') {
-              return (
-                <View style={styles.column}>
-                  <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={postCountLabel} />
-                </View>
-              );
-            }
-            if (item.kind === 'tabs') {
-              return (
-                <View style={styles.tabs}>
+        <MediaVisibilityProvider visibility={visibility}>
+          <PopulariaList<ComunaRow>
+            data={rows}
+            keyExtractor={(row) => row.id}
+            getItemType={(row) => row.kind === 'post'
+              ? `${row.item.poll ? 'poll' : 'text'}:${row.item.attachment?.type ?? (row.item.document ? 'document' : 'plain')}`
+              : row.kind}
+            stickyHeaderIndices={STICKY_HEADER_INDICES}
+            stickyHeaderConfig={STICKY_HEADER_CONFIG}
+            onViewableItemsChanged={visibility.onViewableItemsChanged}
+            viewabilityConfig={mediaViewabilityConfig}
+            performanceListId={`comuna:${id}:${tab}`}
+            contentContainerStyle={styles.scroll}
+            ListHeaderComponent={comuna.status === 'error' ? (
+              <View style={styles.column}>
+                <StateView kind="error" message="Não conseguimos atualizar a comuna." onRetry={comuna.reload} />
+              </View>
+            ) : null}
+            ListFooterComponent={footer}
+            renderItem={({ item }) => {
+              if (item.kind === 'hero') {
+                return (
                   <View style={styles.column}>
-                    <ProfileTabs options={TABS} value={tab} onChange={setTab} height={TABS_HEIGHT} />
+                    <ComunaHero comuna={data} onChanged={comuna.reload} postCountLabel={postCountLabel} />
                   </View>
-                </View>
-              );
-            }
-            if (item.kind === 'post') {
+                );
+              }
+              if (item.kind === 'tabs') {
+                return (
+                  <View style={styles.tabs}>
+                    <View style={styles.column}>
+                      <ProfileTabs options={TABS} value={tab} onChange={setTab} height={TABS_HEIGHT} />
+                    </View>
+                  </View>
+                );
+              }
+              if (item.kind === 'post') {
+                return (
+                  <ProfileSwipeContent>
+                    <View style={styles.column}>
+                      {item.dayLabel ? <ComunaDayRule label={item.dayLabel} /> : <View style={styles.postRule} />}
+                      <SwipeAwarePostCard
+                        item={item.item}
+                        showRule={false}
+                        showComuna={false}
+                      />
+                    </View>
+                  </ProfileSwipeContent>
+                );
+              }
               return (
                 <ProfileSwipeContent>
-                  <View style={styles.column}>
-                    {item.dayLabel ? <ComunaDayRule label={item.dayLabel} /> : <View style={styles.postRule} />}
-                    <SwipeAwarePostCard
-                      item={item.item}
-                      mediaVisible={visibility.visibleIds.has(item.id)}
-                      showRule={false}
-                      showComuna={false}
-                    />
-                  </View>
+                  {item.kind === 'intro' ? postsIntro
+                    : item.kind === 'empty' ? postsEmpty
+                      : item.kind === 'rules' ? (
+                        <View style={styles.column}>
+                          <RulesList rules={data.rules} moderationNote={data.moderationNote} moderators={data.moderators} />
+                        </View>
+                      ) : (
+                        <View style={styles.column}>
+                          {DEMO_MODE ? (
+                            <MembersList members={data.members} totalLabel={formatPeople(data.memberCount)} />
+                          ) : (
+                            <ServerMembersList comuna={data} />
+                          )}
+                        </View>
+                      )}
                 </ProfileSwipeContent>
               );
-            }
-            return (
-              <ProfileSwipeContent>
-                {item.kind === 'intro' ? postsIntro
-                  : item.kind === 'empty' ? postsEmpty
-                    : item.kind === 'rules' ? (
-                      <View style={styles.column}>
-                        <RulesList rules={data.rules} moderationNote={data.moderationNote} moderators={data.moderators} />
-                      </View>
-                    ) : (
-                      <View style={styles.column}>
-                        {DEMO_MODE ? (
-                          <MembersList members={data.members} totalLabel={formatPeople(data.memberCount)} />
-                        ) : (
-                          <ServerMembersList comuna={data} />
-                        )}
-                      </View>
-                    )}
-              </ProfileSwipeContent>
-            );
-          }}
-        />
+            }}
+          />
+        </MediaVisibilityProvider>
       </View>
     </ProfileTabSwipe>
   );

@@ -1,4 +1,4 @@
-import { useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { MediaVisibilityProvider, useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
@@ -35,10 +35,12 @@ const UNAVAILABLE = { title: 'Em breve', message: '"Perto de mim" chega numa pr�
 
 /** Feed principal (design 1a). */
 export default function FeedScreen() {
-  const visibility = useListVisibility();
+  const [tab, setTab] = useState<FeedTab>('para-voce');
+  // A viewport é local à aba: ao trocar de aba a lista remonta e os IDs da janela
+  // anterior não podem montar players antes da nova viewability.
+  const visibility = useListVisibility(tab);
   const listRef = useRef<FlashListRef<FeedItem>>(null);
   useScrollToTop(listRef);
-  const [tab, setTab] = useState<FeedTab>('para-voce');
   const { joinedComunaIds, followedUserIds, isOn } = useInteractions();
   const { show: showToast } = useToast();
   // "Minhas comunas" recarrega quando a pessoa entra ou sai de uma comuna.
@@ -84,31 +86,40 @@ export default function FeedScreen() {
     if (refreshError) showToast(`Não foi possível atualizar o feed. ${describeError(refreshError)}`);
   }, [refreshError, showToast]);
 
-  const body = <PopulariaList
-    ref={listRef}
-    // Cada aba é uma lista própria: trocar de aba recomeça do topo, em vez de herdar a rolagem.
-    key={tab}
-    state={feed}
-    performanceListId={`feed:${tab}`}
-    extraData={visibility.visibleIds}
-    onViewableItemsChanged={visibility.onViewableItemsChanged}
-    viewabilityConfig={mediaViewabilityConfig}
-    data={items}
-    keyExtractor={(item) => item.id}
-    renderItem={({ item, index }) => {
-      const previous = index > 0 ? items[index - 1] : null;
-      const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
-      return <>
-        {newDay ? <DayRule label={formatDayRule(item.createdAt)} /> : <View style={styles.separator} />}
-        <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={false} />
-      </>;
-    }}
-    getItemType={(item) => `${item.poll ? 'poll' : 'text'}:${item.attachment?.type ?? (item.document ? 'document' : 'plain')}`}
-    ListHeaderComponent={<>{tab === 'para-voce' ? <WelcomeBanner /> : null}<HomeProgress /><ComposerPrompt /></>}
-    emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
-    emptyMessage={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).message}
-    contentContainerStyle={styles.list}
-  />;
+  // `renderItem` não depende da viewport: os cartões assinam o próprio `postId`.
+  const renderItem = useCallback(({ item, index }: { item: FeedItem; index: number }) => {
+    const previous = index > 0 ? items[index - 1] : null;
+    const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
+    return <>
+      {newDay ? <DayRule label={formatDayRule(item.createdAt)} /> : <View style={styles.separator} />}
+      <PostCard item={item} showRule={false} />
+    </>;
+  }, [items]);
+  const getItemType = useCallback((item: FeedItem) => (
+    `${item.poll ? 'poll' : 'text'}:${item.attachment?.type ?? (item.document ? 'document' : 'plain')}`
+  ), []);
+
+  const body = (
+    <MediaVisibilityProvider visibility={visibility}>
+      <PopulariaList
+        ref={listRef}
+        // Cada aba é uma lista própria: trocar de aba recomeça do topo, em vez de herdar a rolagem.
+        key={tab}
+        state={feed}
+        performanceListId={`feed:${tab}`}
+        onViewableItemsChanged={visibility.onViewableItemsChanged}
+        viewabilityConfig={mediaViewabilityConfig}
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        getItemType={getItemType}
+        ListHeaderComponent={<>{tab === 'para-voce' ? <WelcomeBanner /> : null}<HomeProgress /><ComposerPrompt /></>}
+        emptyTitle={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).title}
+        emptyMessage={(isFeedTabAvailable(tab) ? EMPTY_MESSAGES[tab] : UNAVAILABLE).message}
+        contentContainerStyle={styles.list}
+      />
+    </MediaVisibilityProvider>
+  );
 
   return (
     <Screen>
