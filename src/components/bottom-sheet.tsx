@@ -5,7 +5,7 @@ import { Keyboard, Modal, StyleSheet, useWindowDimensions, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 
 export { BottomSheetFlatList as PopulariaBottomSheetFlatList, BottomSheetScrollView as PopulariaBottomSheetScrollView, BottomSheetTextInput as PopulariaBottomSheetTextInput } from '@gorhom/bottom-sheet';
 export const InsideBottomSheet = createContext(false);
@@ -40,17 +40,54 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   const report = appearance === 'report';
   const sheet = useRef<GorhomBottomSheet>(null);
   const [mounted, setMounted] = useState(visible);
+  const visibleRef = useRef(visible);
+  /** O Gorhom ignora snapToIndex antes de calcular o layout; só abrimos depois da medição. */
+  const measuredRef = useRef(false);
+  const openedRef = useRef(false);
+  const openFrame = useRef<number | null>(null);
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
+
+  const cancelScheduledOpen = useCallback(() => {
+    if (openFrame.current !== null) {
+      cancelAnimationFrame(openFrame.current);
+      openFrame.current = null;
+    }
+  }, []);
+
+  const scheduleOpen = useCallback(() => {
+    cancelScheduledOpen();
+    openFrame.current = requestAnimationFrame(() => {
+      openFrame.current = null;
+      if (!visibleRef.current || openedRef.current) return;
+      sheet.current?.snapToIndex(0);
+    });
+  }, [cancelScheduledOpen]);
+
+  const handleContentReady = useCallback(() => {
+    measuredRef.current = true;
+    if (visibleRef.current && !openedRef.current) scheduleOpen();
+  }, [scheduleOpen]);
+
   const close = useCallback(() => { if (dismissible) sheet.current?.close(); }, [dismissible]);
   useEffect(() => {
+    visibleRef.current = visible;
     if (visible) {
-      // Mantém o Modal nativo montado até a animação de saída do Gorhom terminar.
+      // Monta primeiro; a abertura é disparada depois que o conteúdo reporta layout.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMounted(true);
-      sheet.current?.snapToIndex(0);
-    } else sheet.current?.close();
-  }, [visible]);
+      if (measuredRef.current) scheduleOpen();
+      return;
+    }
+    cancelScheduledOpen();
+    openedRef.current = false;
+    sheet.current?.close();
+  }, [visible, scheduleOpen, cancelScheduledOpen]);
+  useEffect(() => {
+    if (visible && mounted && measuredRef.current) scheduleOpen();
+  }, [visible, mounted, scheduleOpen]);
+  useEffect(() => () => cancelScheduledOpen(), [cancelScheduledOpen]);
+
   const backdrop = useCallback((props: BottomSheetBackdropProps) => <BottomSheetBackdrop {...props}
     appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.55}
     pressBehavior={dismissible ? 'close' : 'none'} accessibilityRole="button" accessibilityLabel="Fechar" accessibilityHint="Fecha esta folha" />,
@@ -59,7 +96,7 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
     accessible accessibilityRole="adjustable" accessibilityLabel={accessibilityLabel ?? title ?? 'Opções'} accessibilityHint="Arraste para baixo para fechar"
     accessibilityActions={[{ name: 'escape', label: 'Fechar' }, { name: 'decrement', label: 'Fechar' }]}
     onAccessibilityAction={close} onAccessibilityEscape={close}>
-    <View style={[styles.handle, creation && styles.creationHandle, report && styles.reportHandle]} />
+    <View testID="bottom-sheet-handle" style={[styles.handle, creation && styles.creationHandle, report && styles.reportHandle]} />
     {title ? <AppText style={styles.title} accessibilityRole="header">{title}</AppText> : null}
   </View>, [title, accessibilityLabel, close, creation, report]);
   const paddingBottom = report
@@ -69,10 +106,19 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   const contentStyle = StyleSheet.flatten([styles.content, creation ? styles.creationContent : null, report ? styles.reportContent : null, { paddingBottom }]);
   const backgroundStyle = StyleSheet.flatten([styles.background, creation ? styles.creationBackground : null, report ? styles.reportBackground : null, surface === 'cream' ? styles.creamBackground : null]);
   if (!mounted) return null;
-  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close}>
+  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close} testID="bottom-sheet-modal">
     <GestureHandlerRootView style={styles.overlay}>
     <GorhomBottomSheet ref={sheet}
-    onClose={() => { Keyboard.dismiss(); setMounted(false); if (visible) onClose(); }}
+    onClose={() => {
+      Keyboard.dismiss();
+      cancelScheduledOpen();
+      measuredRef.current = false;
+      openedRef.current = false;
+      // Mantém o Modal nativo montado até a animação de saída do Gorhom terminar.
+      setMounted(false);
+      if (visible) onClose();
+    }}
+    onChange={(index) => { if (index >= 0) openedRef.current = true; }}
     enablePanDownToClose={dismissible}
     enableHandlePanningGesture={dismissible}
     enableContentPanningGesture={contentPanningGesture}
@@ -86,9 +132,9 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
     backgroundStyle={backgroundStyle}
     style={{ marginHorizontal: Math.max(0, (width - MaxContentWidth) / 2) }}>
     <InsideBottomSheet.Provider value>
-      {virtualized ? <View style={[styles.list, { paddingBottom }]}>{children}</View>
-        : scrollable ? <BottomSheetScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={contentStyle}>{children}</BottomSheetScrollView>
-          : <BottomSheetView style={contentStyle}>{children}</BottomSheetView>}
+      {virtualized ? <View testID="bottom-sheet-virtualized" style={[styles.list, { paddingBottom }]} onLayout={handleContentReady}>{children}</View>
+        : scrollable ? <BottomSheetScrollView testID="bottom-sheet-scroll" bounces={false} keyboardShouldPersistTaps="handled" onContentSizeChange={handleContentReady} contentContainerStyle={contentStyle}>{children}</BottomSheetScrollView>
+          : <BottomSheetView testID="bottom-sheet-content" style={contentStyle} onLayout={handleContentReady}>{children}</BottomSheetView>}
     </InsideBottomSheet.Provider>
   </GorhomBottomSheet>
     </GestureHandlerRootView>
@@ -121,8 +167,10 @@ const styles = StyleSheet.create({
   reportContent: { paddingHorizontal: 20, gap: 0 },
   list: { flex: 1, paddingHorizontal: Spacing.five, gap: Spacing.two },
   dragHeader: { minHeight: 48, paddingTop: 10, paddingBottom: Spacing.three, paddingHorizontal: Spacing.five, gap: Spacing.three },
-  creationDragHeader: { minHeight: 15, paddingTop: 10, paddingBottom: 0, paddingHorizontal: 0, gap: 0 },
-  reportDragHeader: { minHeight: 0, paddingTop: 10, paddingBottom: 8, paddingHorizontal: 0, gap: 0 },
+  // A área de arraste do Gorhom é a altura do handleComponent. 44 garante o alvo mínimo
+  // sem aumentar a alça visível (48 × 5 na criação e na denúncia).
+  creationDragHeader: { minHeight: MinTouchTarget, paddingTop: 10, paddingBottom: 0, paddingHorizontal: 0, gap: 0 },
+  reportDragHeader: { minHeight: MinTouchTarget, paddingTop: 10, paddingBottom: 8, paddingHorizontal: 0, gap: 0 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.strawDark },
   creationHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: Colors.ink },
   reportHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: '#15120F' },

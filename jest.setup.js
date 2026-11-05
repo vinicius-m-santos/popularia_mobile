@@ -76,12 +76,15 @@ jest.mock('@gorhom/bottom-sheet', () => {
   const React = require('react');
   const { View, Pressable } = require('react-native');
   const official = require('@gorhom/bottom-sheet/mock');
+  // Espiões para os testes verificarem a ordem de abertura e o fechamento.
+  const snapToIndex = jest.fn();
+  const close = jest.fn();
   const Sheet = React.forwardRef(({ children, handleComponent: Handle, onClose, ...props }, ref) => {
-    React.useImperativeHandle(ref, () => ({ close: () => onClose?.(), snapToIndex: () => {} }));
+    React.useImperativeHandle(ref, () => ({ close: () => { close(); onClose?.(); }, snapToIndex }));
     return React.createElement(View, { ...props, testID: 'gorhom-sheet' },
       Handle ? React.createElement(Handle) : null,
       React.createElement(Pressable, { accessibilityLabel: 'Fechar', onPress: () => { if (props.enablePanDownToClose) onClose?.(); } }),
       children);
   });
-  return { ...official, __esModule: true, default: Sheet };
+  return { ...official, __esModule: true, default: Sheet, __snapToIndex: snapToIndex, __close: close };
 });
