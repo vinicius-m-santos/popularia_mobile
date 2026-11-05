@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
+import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClientProvider } from '@tanstack/react-query';
 
@@ -9,7 +10,7 @@ import { queryClient } from '@/lib/query/client';
 import { getGamification } from '../api';
 import { DEMO_GAMIFICATION } from '../demo';
 import { acknowledgeGamification, missionFeedback } from '../feedback';
-import ProgressScreen, { HomeProgress, HomeProgressCard, ProfileProgressLink, ProgressBody } from '../progress-screen';
+import ProgressScreen, { HOME_PROGRESS_SLOT_MIN_HEIGHT, HomeProgress, HomeProgressCard, ProfileProgressLink, ProgressBody } from '../progress-screen';
 import { gamificationQueryKey, levelFraction, streakLabel, type GamificationState } from '../types';
 
 jest.mock('expo-router', () => ({
@@ -99,6 +100,33 @@ describe('progresso', () => {
     expect(screen.getByText('Abrindo seu progresso')).toBeTruthy();
     await act(async () => { resolve(sample); });
     expect(await screen.findByText('Nível 2')).toBeTruthy();
+  });
+
+  it('reserva a mesma área do progresso desde o primeiro frame', async () => {
+    let resolve: (state: GamificationState) => void = () => {};
+    jest.mocked(getGamification).mockReturnValue(new Promise((done) => { resolve = done; }));
+    await render(host(<HomeProgress />));
+
+    const reservedHeight = StyleSheet.flatten(screen.getByTestId('home-progress-slot').props.style).minHeight;
+    expect(reservedHeight).toBe(HOME_PROGRESS_SLOT_MIN_HEIGHT);
+    expect(screen.getByLabelText('Carregando progresso')).toBeTruthy();
+    expect(screen.getAllByTestId('home-progress-skeleton-row', { includeHiddenElements: true })).toHaveLength(3);
+    expect(screen.queryByText(/^\d+\/\d+$/)).toBeNull();
+
+    await act(async () => { resolve(sample); });
+    expect(await screen.findByLabelText('3 dias seguidos, 1 de 3 missões hoje. Ver progresso')).toBeTruthy();
+    expect(screen.queryByTestId('home-progress-skeleton')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByTestId('home-progress-slot').props.style).minHeight).toBe(reservedHeight);
+  });
+
+  it('mantém a área reservada quando o dia tem menos missões', async () => {
+    const oneMission = { ...sample, missions: sample.missions.slice(0, 1) };
+    jest.mocked(getGamification).mockResolvedValue(oneMission);
+    await render(host(<HomeProgress />));
+
+    expect(await screen.findByLabelText('3 dias seguidos, 1 de 1 missão hoje. Ver progresso')).toBeTruthy();
+    expect(screen.getByText('1/1')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByTestId('home-progress-slot').props.style).minHeight).toBe(HOME_PROGRESS_SLOT_MIN_HEIGHT);
   });
 
   it('permite tentar de novo quando a leitura falha', async () => {

@@ -17,6 +17,22 @@ import { ProgressHelpSheet } from './help-sheet';
 import { levelFraction, streakLabel, type GamificationMission, type GamificationState } from './types';
 import { useGamification } from './use-gamification';
 
+/** O servidor oferece até três missões por dia; o slot reserva esse máximo. */
+const HOME_PROGRESS_MISSION_ROWS = 3;
+const HOME_PROGRESS_BORDER = 2;
+const HOME_PROGRESS_HEAD_LINE_HEIGHT = 30;
+const HOME_PROGRESS_ROW_LINE_HEIGHT = 23;
+const HOME_PROGRESS_HEAD_HEIGHT = HOME_PROGRESS_HEAD_LINE_HEIGHT + Spacing.two * 2 + HOME_PROGRESS_BORDER;
+const HOME_PROGRESS_ROW_HEIGHT = HOME_PROGRESS_ROW_LINE_HEIGHT + Spacing.two * 2 + HOME_PROGRESS_BORDER;
+
+/**
+ * Altura do bloco de progresso no feed. Skeleton e cartão usam as mesmas medidas;
+ * o piso de três missões evita que a chegada da gamificação empurre a lista.
+ * Fontes ampliadas continuam crescendo o conteúdo em vez de serem cortadas.
+ */
+export const HOME_PROGRESS_SLOT_MIN_HEIGHT =
+  HOME_PROGRESS_BORDER * 2 + HOME_PROGRESS_HEAD_HEIGHT + HOME_PROGRESS_ROW_HEIGHT * HOME_PROGRESS_MISSION_ROWS;
+
 export function ProgressBody({ state }: { state: GamificationState }) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -68,6 +84,7 @@ export function HomeProgressCard({ state, onPress }: { state: GamificationState;
   return (
     <View style={styles.progressShadow}>
       <Pressable
+        testID="home-progress-card"
         onPress={onPress}
         accessibilityRole="button"
         accessibilityHint="Abre o progresso"
@@ -85,18 +102,51 @@ export function HomeProgressCard({ state, onPress }: { state: GamificationState;
   );
 }
 
+/** Mesmas medidas do cartão, sem texto: ocupa o slot desde o primeiro frame. */
+function HomeProgressSkeleton() {
+  return (
+    <View
+      testID="home-progress-skeleton"
+      accessible
+      accessibilityLabel="Carregando progresso"
+      accessibilityState={{ busy: true }}
+      style={styles.progressShadow}>
+      <View style={styles.progressCard} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={styles.progressHead}>
+          <View style={[styles.skeletonBar, styles.skeletonStreak]} />
+          <View style={[styles.skeletonBar, styles.skeletonFraction]} />
+        </View>
+        {Array.from({ length: HOME_PROGRESS_MISSION_ROWS }, (_, index) => (
+          <View
+            key={index}
+            testID="home-progress-skeleton-row"
+            style={[styles.missionRow, index < HOME_PROGRESS_MISSION_ROWS - 1 && styles.missionRowDivider]}>
+            <View style={[styles.missionCheck, styles.skeletonCheck]} />
+            <View style={[styles.skeletonBar, styles.skeletonMission]} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function HomeProgress() {
   const progress = useGamification();
-  if (progress.isError) {
+  if (progress.isError && !progress.data) {
     return (
       <Pressable onPress={() => { void progress.refetch(); }} accessibilityRole="button" style={styles.error}>
         <AppText variant="caption">Progresso indisponível. Toque para tentar de novo.</AppText>
       </Pressable>
     );
   }
-  if (!progress.data) return null;
 
-  return <HomeProgressCard state={progress.data} onPress={() => router.push('/progresso')} />;
+  return (
+    <View testID="home-progress-slot" style={styles.progressSlot}>
+      {progress.data
+        ? <HomeProgressCard state={progress.data} onPress={() => router.push('/progresso')} />
+        : <HomeProgressSkeleton />}
+    </View>
+  );
 }
 
 export function ProfileProgressLink({ level, streak, fraction, onPress }: { level: number; streak: number; fraction: number; onPress: () => void }) {
@@ -141,9 +191,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   // No feed, a sequência e as missões do dia viram um cartão de status, como no mock.
-  progressShadow: {
+  progressSlot: {
     marginTop: Spacing.four,
     marginHorizontal: Spacing.four,
+    minHeight: HOME_PROGRESS_SLOT_MIN_HEIGHT,
+  },
+  progressShadow: {
     borderRadius: Radius.md,
     shadowColor: Colors.ink,
     shadowOffset: { width: 3, height: 3 },
@@ -152,7 +205,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   progressCard: {
-    borderWidth: 2,
+    borderWidth: HOME_PROGRESS_BORDER,
     borderColor: Colors.ink,
     borderRadius: Radius.md,
     backgroundColor: Colors.paper,
@@ -165,7 +218,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    borderBottomWidth: 2,
+    borderBottomWidth: HOME_PROGRESS_BORDER,
     borderBottomColor: Colors.ink,
   },
   progressStreak: {
@@ -179,7 +232,7 @@ const styles = StyleSheet.create({
   progressFraction: {
     fontFamily: Fonts.anton,
     fontSize: 22,
-    lineHeight: 30,
+    lineHeight: HOME_PROGRESS_HEAD_LINE_HEIGHT,
   },
   missionRow: {
     minHeight: 40,
@@ -190,7 +243,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   missionRowDivider: {
-    borderBottomWidth: 2,
+    borderBottomWidth: HOME_PROGRESS_BORDER,
     borderBottomColor: Colors.ink,
     borderStyle: 'dashed',
   },
@@ -207,11 +260,31 @@ const styles = StyleSheet.create({
   missionCheckOn: {
     backgroundColor: Colors.ink,
   },
+  skeletonBar: {
+    borderRadius: 2,
+    backgroundColor: Colors.straw,
+  },
+  skeletonStreak: {
+    flex: 1,
+    height: 14,
+  },
+  skeletonFraction: {
+    width: 42,
+    height: HOME_PROGRESS_HEAD_LINE_HEIGHT,
+  },
+  skeletonMission: {
+    flex: 1,
+    height: HOME_PROGRESS_ROW_LINE_HEIGHT,
+  },
+  skeletonCheck: {
+    borderColor: Colors.strawDark,
+    backgroundColor: Colors.strawLight,
+  },
   missionLabel: {
     flex: 1,
     fontFamily: Fonts.bold,
     fontSize: 15,
-    lineHeight: 23,
+    lineHeight: HOME_PROGRESS_ROW_LINE_HEIGHT,
     color: Colors.ink,
   },
   missionLabelDone: {
