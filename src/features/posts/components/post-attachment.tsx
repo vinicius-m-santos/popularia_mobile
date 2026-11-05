@@ -1,7 +1,7 @@
 import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import type { VideoPlayer } from 'expo-video';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
 
@@ -32,21 +32,23 @@ function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
 /**
  * Lê o pôster do cache enquanto o componente está montado.
  *
- * A reserva impede que a evicção remova o quadro em uso. A assinatura cobre a
- * geração que termina depois de o player sair da viewport: o `VideoPoster`
- * passa da listra para o primeiro quadro sem precisar remontar.
+ * `useSyncExternalStore` relê o cache quando outra instância publica o primeiro
+ * quadro ou quando o componente é reaproveitado com outra mídia. A reserva
+ * impede que a evicção remova o quadro em uso; o `onStoreChange` imediato cobre
+ * um pôster que tenha chegado entre o render e a assinatura.
  */
 function usePoster(mediaId: string) {
-  const [poster, setPoster] = useState(() => posterCache.peek(mediaId));
-  useEffect(() => {
+  const subscribe = useCallback((onStoreChange: () => void) => {
     const release = posterCache.retain(mediaId);
-    const unsubscribe = posterCache.subscribe(mediaId, setPoster);
+    const unsubscribe = posterCache.subscribe(mediaId, onStoreChange);
+    onStoreChange();
     return () => {
       unsubscribe();
       release();
     };
   }, [mediaId]);
-  return poster;
+  const getSnapshot = useCallback(() => posterCache.peek(mediaId), [mediaId]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export function PostAttachment({ media, localUri, visible = true, chrome, framed = false }: {
