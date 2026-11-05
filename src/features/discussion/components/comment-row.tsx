@@ -20,10 +20,10 @@ type CommentRowProps = {
   supported: boolean;
   supportCount: number;
   onSupport: (id: string) => void;
-  onReply?: (row: ThreadRow) => void;
+  onReply?: (commentId: string) => void;
   onToggleCollapse: (id: string) => void;
   /** Abre o menu "⋯" (silenciar, denunciar). */
-  onMore: (row: ThreadRow) => void;
+  onMore: (commentId: string) => void;
 };
 
 /** Comentário com recuo e trilho à esquerda conforme a profundidade (design 1c). */
@@ -91,7 +91,7 @@ function CommentRowView({
           </Pressable>
           {onReply ? (
             <Pressable
-              onPress={() => onReply(row)}
+              onPress={() => onReply(comment.id)}
               accessibilityRole="button"
               accessibilityLabel={`Responder a ${comment.author.name}`}
               style={styles.action}>
@@ -109,7 +109,7 @@ function CommentRowView({
             size={18}
             color={Colors.muted}
             accessibilityLabel={`Mais opções do comentário de ${comment.author.name}`}
-            onPress={() => onMore(row)}
+            onPress={() => onMore(comment.id)}
           />
         </View>
       </View>
@@ -117,7 +117,26 @@ function CommentRowView({
   );
 }
 
-export const CommentRow = memo(withPerformanceProfiler('CommentRow', CommentRowView));
+/**
+ * Compara o conteúdo da linha, não a identidade do objeto `ThreadRow`.
+ * A árvore é reconstruída quando a ordem por apoio muda; comparar o objeto inteiro
+ * acordaria todos os irmãos por causa de uma única linha apoiada.
+ */
+function sameCommentRowProps(previous: CommentRowProps, next: CommentRowProps): boolean {
+  return previous.row.comment === next.row.comment
+    && previous.row.depth === next.row.depth
+    && previous.row.replyCount === next.row.replyCount
+    && previous.row.collapsed === next.row.collapsed
+    && previous.authorLabel === next.authorLabel
+    && previous.supported === next.supported
+    && previous.supportCount === next.supportCount
+    && previous.onSupport === next.onSupport
+    && previous.onReply === next.onReply
+    && previous.onToggleCollapse === next.onToggleCollapse
+    && previous.onMore === next.onMore;
+}
+
+export const CommentRow = memo(withPerformanceProfiler('CommentRow', CommentRowView), sameCommentRowProps);
 
 type CollapseButtonProps = {
   id: string;
