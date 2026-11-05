@@ -64,6 +64,9 @@ Contadores disponíveis no snapshot:
 Escopos de request são atribuídos no início de cada chamada. As listas paginadas
 passam `performanceScope` (`feed`, `profile`, `topic`, `saved-posts`,
 `moderation`, `relations`); requisições sem escopo aparecem como `unknown`.
+A lista de publicações da comuna registra `onLoad` com o ID
+`comuna:<slug>:<aba>` (por exemplo `comuna:hortas:posts`), para separar a leitura
+de cada aba no relatório.
 
 ### Profiler e builds
 
