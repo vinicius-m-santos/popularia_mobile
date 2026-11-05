@@ -1,9 +1,9 @@
 /**
- * POP-20: o cartão só monta o player quando a lista confirma que ele está na viewport.
+ * POP-20/POP-30: o cartão só monta o player quando a lista confirma que ele está na viewport.
  *
- * A lista de tópicos e a de salvos passam `mediaVisible` por `postId`; aqui medimos
- * o efeito no cartão real: nenhum player fora da viewport, no máximo um tocando e
- * o player desmontado ao rolar para fora.
+ * Nas listas, o cartão assina a viewport pelo `postId`; aqui a prop explícita
+ * isola o efeito no cartão real: nenhum player fora da viewport, no máximo um
+ * tocando e o player desmontado ao rolar para fora.
  */
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { render, screen, waitFor } from '@testing-library/react-native';

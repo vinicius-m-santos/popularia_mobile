@@ -14,9 +14,10 @@ import { getTopicInfo, listTopicPosts } from '@/features/hashtags/api';
 import { validDestination } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
 import { useCachedPages } from '@/hooks/use-cached-pages';
-import { mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
+import { MediaVisibilityProvider, mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
 import { contentPolicy, queryClient } from '@/lib/query/client';
 import { goBack } from '@/lib/routes';
+import type { FeedItem } from '@/types/models';
 
 export function TopicScreen() {
   const params = useLocalSearchParams<{ slug: string }>();
@@ -26,35 +27,37 @@ export function TopicScreen() {
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listTopicPosts(slug, cursor, signal), [slug]);
   const page = useCachedPages({ queryKey: ['topic-posts', slug], load, enabled: valid, performanceScope: 'topic', ...contentPolicy.feed });
   // Só o cartão na viewport monta o player; o restante continua no pôster.
-  const visibility = useListVisibility();
+  const visibility = useListVisibility(slug);
+  const renderItem = useCallback(({ item, index }: { item: FeedItem; index: number }) => (
+    <PostCard item={item} showRule={index > 0} />
+  ), []);
   if (!valid) return <View style={styles.screen}><StateView kind="empty" title="Tópico indisponível" message="Este link não corresponde a um tópico." /></View>;
   return <View style={styles.screen}>
-    <PopulariaList
-      data={page.items}
-      state={page}
-      extraData={visibility.visibleIds}
-      onViewableItemsChanged={visibility.onViewableItemsChanged}
-      viewabilityConfig={mediaViewabilityConfig}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={styles.content}
-      emptyTitle="Sem publicações visíveis"
-      emptyMessage="Ainda não há publicações deste tópico que você possa ver."
-      ListHeaderComponent={<View>
-        <View style={styles.chrome}>
-          <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-          <View style={styles.divider} />
-          <AppText variant="label" style={styles.chromeTitle}>Tópico</AppText>
-          {!DEMO_MODE && valid ? <IconButton icon="shareNodes" accessibilityLabel="Compartilhar tópico" onPress={() => { void shareDestination({ kind: 'hashtag', id: slug }); }} /> : <View style={styles.spacer} />}
-        </View>
-        <View style={styles.heading}>
-          <AppText style={styles.name}>#{info.data?.displayName ?? slug}</AppText>
-          <AppText style={styles.intro}>Publicações sobre este assunto</AppText>
-        </View>
-      </View>}
-      renderItem={({ item, index }) => (
-        <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />
-      )}
-    />
+    <MediaVisibilityProvider visibility={visibility}>
+      <PopulariaList
+        data={page.items}
+        state={page}
+        onViewableItemsChanged={visibility.onViewableItemsChanged}
+        viewabilityConfig={mediaViewabilityConfig}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.content}
+        emptyTitle="Sem publicações visíveis"
+        emptyMessage="Ainda não há publicações deste tópico que você possa ver."
+        ListHeaderComponent={<View>
+          <View style={styles.chrome}>
+            <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
+            <View style={styles.divider} />
+            <AppText variant="label" style={styles.chromeTitle}>Tópico</AppText>
+            {!DEMO_MODE && valid ? <IconButton icon="shareNodes" accessibilityLabel="Compartilhar tópico" onPress={() => { void shareDestination({ kind: 'hashtag', id: slug }); }} /> : <View style={styles.spacer} />}
+          </View>
+          <View style={styles.heading}>
+            <AppText style={styles.name}>#{info.data?.displayName ?? slug}</AppText>
+            <AppText style={styles.intro}>Publicações sobre este assunto</AppText>
+          </View>
+        </View>}
+        renderItem={renderItem}
+      />
+    </MediaVisibilityProvider>
   </View>;
 }
 

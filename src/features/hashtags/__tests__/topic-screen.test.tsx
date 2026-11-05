@@ -48,10 +48,12 @@ jest.mock('@/components/list/popularia-list', () => {
 });
 jest.mock('@/features/posts/components/post-card', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { useMediaVisible } = jest.requireActual<typeof import('@/hooks/use-list-visibility')>('@/hooks/use-list-visibility');
   return {
-    PostCard: ({ item, mediaVisible }: { item: FeedItem; mediaVisible?: boolean }) => (
-      <Text testID={`post-${item.id}`}>{mediaVisible ? 'visível' : 'oculta'}</Text>
-    ),
+    PostCard: ({ item }: { item: FeedItem }) => {
+      const mediaVisible = useMediaVisible(item.id);
+      return <Text testID={`post-${item.id}`}>{mediaVisible ? 'visível' : 'oculta'}</Text>;
+    },
   };
 });
 
@@ -113,8 +115,11 @@ describe('tela de tópico', () => {
     await render(<TopicScreen />);
 
     expect(mockListProps?.viewabilityConfig).toBe(mediaViewabilityConfig);
-    expect(mockListProps?.extraData).toBeDefined();
+    // A viewport é assinada por `postId`; a lista não recebe extraData nem
+    // precisa reenviar `renderItem` a cada mudança de janela.
+    expect(mockListProps?.extraData).toBeUndefined();
     expect(mockListProps?.onViewableItemsChanged).toEqual(expect.any(Function));
+    const onViewableItemsChanged = mockListProps?.onViewableItemsChanged;
     expect(screen.getByTestId('post-p15').props.children).toBe('oculta');
     expect(screen.getByTestId('post-p16').props.children).toBe('oculta');
 
@@ -131,5 +136,6 @@ describe('tela de tópico', () => {
     });
     expect(screen.getByTestId('post-p15').props.children).toBe('oculta');
     expect(screen.getByTestId('post-p16').props.children).toBe('visível');
+    expect(mockListProps?.onViewableItemsChanged).toBe(onViewableItemsChanged);
   });
 });

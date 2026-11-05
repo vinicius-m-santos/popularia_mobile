@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { act, render, screen } from '@testing-library/react-native';
 
 import FeedScreen from '@/app/(tabs)/(inicio)/index';
 import type { FeedItem } from '@/types/models';
@@ -34,12 +34,18 @@ const mockFeed = {
   loadMore: jest.fn(),
 };
 
+type MockListProps = {
+  data: FeedItem[];
+  renderItem: (info: { item: FeedItem; index: number }) => React.ReactNode;
+  extraData?: unknown;
+  onViewableItemsChanged?: (info: { viewableItems: { key: string }[] }) => void;
+  viewabilityConfig?: unknown;
+};
+
+let mockListProps: MockListProps | null = null;
+
 jest.mock('expo-router', () => ({ useScrollToTop: () => undefined }));
 jest.mock('@/hooks/use-cached-pages', () => ({ useCachedPages: () => mockFeed }));
-jest.mock('@/hooks/use-list-visibility', () => ({
-  useListVisibility: () => ({ visibleIds: new Set<string>(), onViewableItemsChanged: jest.fn() }),
-  mediaViewabilityConfig: {},
-}));
 jest.mock('@/features/interactions/interactions-context', () => ({
   useInteractions: () => ({
     joinedComunaIds: [],
@@ -54,9 +60,12 @@ jest.mock('@/components/screen', () => {
 jest.mock('@/components/list/popularia-list', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    PopulariaList: ({ data, renderItem }: { data: FeedItem[]; renderItem: (info: { item: FeedItem; index: number }) => React.ReactNode }) => (
-      <View>{data.map((item, index) => <View key={item.id}>{renderItem({ item, index })}</View>)}</View>
-    ),
+    PopulariaList: (props: MockListProps) => {
+      mockListProps = props;
+      return (
+        <View>{props.data.map((item, index) => <View key={item.id}>{props.renderItem({ item, index })}</View>)}</View>
+      );
+    },
   };
 });
 jest.mock('@/components/day-rule', () => {
@@ -65,7 +74,13 @@ jest.mock('@/components/day-rule', () => {
 });
 jest.mock('@/features/posts/components/post-card', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { PostCard: ({ item }: { item: FeedItem }) => <Text>{item.id}</Text> };
+  const { useMediaVisible } = jest.requireActual<typeof import('@/hooks/use-list-visibility')>('@/hooks/use-list-visibility');
+  return {
+    PostCard: ({ item }: { item: FeedItem }) => {
+      const mediaVisible = useMediaVisible(item.id);
+      return <Text testID={`post-${item.id}`}>{`${item.id}:${mediaVisible ? 'visible' : 'hidden'}`}</Text>;
+    },
+  };
 });
 jest.mock('@/features/feed/components/feed-header', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -81,9 +96,36 @@ describe('feed com pessoa bloqueada', () => {
   it('não deixa a regra do dia órfã quando a primeira publicação some', async () => {
     await render(<FeedScreen />);
 
-    expect(screen.queryByText('blocked-today')).toBeNull();
+    expect(screen.queryByTestId('post-blocked-today')).toBeNull();
     expect(screen.queryByText('Hoje')).toBeNull();
-    expect(screen.getByText('visible-yesterday')).toBeTruthy();
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
     expect(screen.getByText('Ontem')).toBeTruthy();
+  });
+
+  it('assina a viewport por postId sem trocar props da lista ao rolar', async () => {
+    await render(<FeedScreen />);
+
+    const firstRenderProps = mockListProps;
+    expect(firstRenderProps).not.toBeNull();
+    expect(firstRenderProps?.extraData).toBeUndefined();
+    expect(firstRenderProps?.onViewableItemsChanged).toEqual(expect.any(Function));
+    expect(firstRenderProps?.viewabilityConfig).toBeDefined();
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
+
+    await act(async () => {
+      firstRenderProps?.onViewableItemsChanged?.({ viewableItems: [{ key: 'visible-yesterday' }] });
+    });
+
+    // Só o cartão que entrou na viewport re-renderiza; a lista mantém as props.
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:visible');
+    expect(mockListProps).toBe(firstRenderProps);
+    expect(mockListProps?.renderItem).toBe(firstRenderProps?.renderItem);
+    expect(mockListProps?.onViewableItemsChanged).toBe(firstRenderProps?.onViewableItemsChanged);
+
+    await act(async () => {
+      firstRenderProps?.onViewableItemsChanged?.({ viewableItems: [] });
+    });
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
+    expect(mockListProps).toBe(firstRenderProps);
   });
 });

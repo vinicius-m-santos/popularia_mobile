@@ -1,8 +1,8 @@
 /**
- * POP-20: a lista de salvos também entrega `mediaVisible` por `postId`.
+ * POP-20/POP-30: a lista de salvos entrega `mediaVisible` por `postId`.
  *
- * O teste isola a composição da lista: o cartão é um duplo que expõe a prop
- * recebida, e a viewability é disparada pelo mesmo contrato usado em produção
+ * O teste isola a composição da lista: o cartão é um duplo que lê a viewport
+ * pelo hook, e a viewability é disparada pelo mesmo contrato usado em produção
  * (`onViewableItemsChanged` + `mediaViewabilityConfig`).
  */
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
@@ -45,10 +45,12 @@ jest.mock('@/components/list/popularia-list', () => {
 });
 jest.mock('@/features/posts/components/post-card', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { useMediaVisible } = jest.requireActual<typeof import('@/hooks/use-list-visibility')>('@/hooks/use-list-visibility');
   return {
-    PostCard: ({ item, mediaVisible }: { item: FeedItem; mediaVisible?: boolean }) => (
-      <Text testID={`post-${item.id}`}>{mediaVisible ? 'visível' : 'oculta'}</Text>
-    ),
+    PostCard: ({ item }: { item: FeedItem }) => {
+      const mediaVisible = useMediaVisible(item.id);
+      return <Text testID={`post-${item.id}`}>{mediaVisible ? 'visível' : 'oculta'}</Text>;
+    },
   };
 });
 
@@ -93,8 +95,10 @@ describe('mídia das publicações salvas', () => {
     await render(<SavedPostsPane onShowDocuments={jest.fn()} />);
 
     expect(mockListProps?.viewabilityConfig).toBe(mediaViewabilityConfig);
-    expect(mockListProps?.extraData).toBeDefined();
+    // Sem `extraData`: cada cartão assina a viewport pelo próprio `postId`.
+    expect(mockListProps?.extraData).toBeUndefined();
     expect(mockListProps?.onViewableItemsChanged).toEqual(expect.any(Function));
+    const onViewableItemsChanged = mockListProps?.onViewableItemsChanged;
     expect(screen.getByTestId('post-s10').props.children).toBe('oculta');
     expect(screen.getByTestId('post-s11').props.children).toBe('oculta');
 
@@ -110,5 +114,6 @@ describe('mídia das publicações salvas', () => {
     });
     expect(screen.getByTestId('post-s10').props.children).toBe('oculta');
     expect(screen.getByTestId('post-s11').props.children).toBe('visível');
+    expect(mockListProps?.onViewableItemsChanged).toBe(onViewableItemsChanged);
   });
 });
