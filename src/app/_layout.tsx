@@ -29,6 +29,7 @@ import { ActionsSheetProvider } from '@/features/moderation/actions-sheet';
 import { ModerationProvider } from '@/features/moderation/moderation-context';
 import { PushRuntime } from '@/features/notifications/push-runtime';
 import { NotificationsProvider } from '@/features/notifications/notifications-context';
+import { performanceDiagnosticsAvailable } from '@/lib/performance';
 import { initSentry } from '@/lib/monitoring';
 import { warmCreationAssets } from '@/features/media/creation-assets';
 
@@ -180,6 +181,10 @@ function RootStack() {
         <Stack.Screen name="eventos/[slug]/novo" />
         <Stack.Screen name="conta" />
         <Stack.Screen name="verificar-email" />
+        <Stack.Protected guard={performanceDiagnosticsAvailable()}>
+          <Stack.Screen name="diagnostico-performance" />
+          <Stack.Screen name="diagnostico-performance-harness" />
+        </Stack.Protected>
       </Stack.Protected>
       <Stack.Protected guard={!onboarded || showLoginWelcome}>
         <Stack.Screen name="boas-vindas" />

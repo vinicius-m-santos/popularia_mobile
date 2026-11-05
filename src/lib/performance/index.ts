@@ -166,6 +166,20 @@ export function performanceInstrumentationEnabled(): boolean {
   return process.env.EXPO_PUBLIC_PERFORMANCE_INSTRUMENTATION === '1';
 }
 
+/**
+ * Tela de diagnóstico (POP-5): existe só em desenvolvimento e staging.
+ *
+ * Não basta olhar para `EXPO_PUBLIC_APP_ENV` porque um build de release sem a
+ * variável cairia no default `development`. Por isso, fora do staging, exige
+ * `__DEV__`. Produção é recusada antes de qualquer outra condição.
+ */
+export function performanceDiagnosticsAvailable(): boolean {
+  const environment = performanceAppEnvironment();
+  if (environment === 'production') return false;
+  if (environment === 'staging') return true;
+  return typeof __DEV__ !== 'undefined' && __DEV__;
+}
+
 /** Só para testes e para o harness de QA. Em produção continua bloqueado. */
 export function setPerformanceInstrumentationOverride(value: boolean | null): void {
   enabledOverride = value;

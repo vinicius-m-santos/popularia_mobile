@@ -19,7 +19,7 @@ export function PerformanceQaHarness() {
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 64 }}>
       {items.map((item) => (
-        // mídia desligada: o cenário mede fanout de like/rolagem sem player concorrente.
+        // vídeos desligados: o cenário mede fanout de like/rolagem sem player concorrente.
         <PostCard key={item.id} item={item} mediaVisible={false} />
       ))}
     </ScrollView>

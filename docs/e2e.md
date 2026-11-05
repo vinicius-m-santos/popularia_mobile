@@ -73,6 +73,7 @@ vez de deixar a tela cair no estado de erro.
 | `explore-sections.spec.ts` | Ordem Em alta → Assuntos → Comunas → Pessoas; card das três publicações em alta; carrossel e participação otimista; card abre a comuna; os dois “Ver todas” trocam a lista. |
 | `session-guards.spec.ts` | Rotas protegidas (`/biblioteca`, `/avisos`, `/conta`, `/perfil`, `/criar`, `/progresso`) sem sessão; login e Sobre e legal públicos; documento legal por link direto com a âncora no voltar. |
 | `report-success.spec.ts` | Denúncia de uma enquete no feed até a confirmação; cartão do conteúdo, link das Regras; contrato de `POST /reports`; bloquear, desfazer, bloquear de novo e confirmar que a publicação sai do feed ao fechar; linha oculta para quem já está bloqueado. Usa `installApiMock(page, {}, { feedItems, blockedHandles })` para semear feed e bloqueios. |
+| `performance-diagnostics.spec.ts` | Conta → Diagnóstico de performance (rota de dev/staging), início da coleta, harness de 20 cartões, navegação pelas abas e retorno com requests registradas; download do JSON com o snapshot da sessão. |
 
 As asserções verificam URL, texto visível, estado do formulário e o contrato observado
 na API (por exemplo, o corpo de `/auth/register` e o PATCH de interesses). Não são

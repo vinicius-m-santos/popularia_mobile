@@ -9,7 +9,7 @@ import { visibleButton, visibleHeading, waitForWelcome } from '../support/flows'
  * começa deslogado — exatamente o estado que estes testes precisam.
  */
 test.describe('guardas de sessão', () => {
-  for (const path of ['/biblioteca', '/avisos', '/conta', '/perfil', '/criar', '/progresso']) {
+  for (const path of ['/biblioteca', '/avisos', '/conta', '/perfil', '/criar', '/progresso', '/diagnostico-performance', '/diagnostico-performance-harness']) {
     test(`rota protegida ${path} sem sessão cai nas boas-vindas`, async ({ page }) => {
       await installApiMock(page);
 

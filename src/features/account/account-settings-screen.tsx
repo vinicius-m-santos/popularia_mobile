@@ -14,6 +14,7 @@ import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { describeError } from '@/lib/errors';
+import { performanceDiagnosticsAvailable } from '@/lib/performance';
 import { goBack, openPlatformModeration } from '@/lib/routes';
 
 type AccountItem = { path: string; href?: string; title: string; description: string; icon: IconName };
@@ -106,6 +107,21 @@ export default function AccountSettingsScreen() {
             ) : null}
           </SettingsGroup>
         </View>
+
+        {performanceDiagnosticsAvailable() ? (
+          <View style={styles.section}>
+            <SectionHeading appearance="editorial" label="Diagnóstico" />
+            <SettingsGroup>
+              <SettingsButton
+                icon="pie"
+                title="Diagnóstico de performance"
+                description="Somente desenvolvimento e staging"
+                last
+                onPress={() => router.push('/diagnostico-performance' as never)}
+              />
+            </SettingsGroup>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <SectionHeading appearance="editorial" label="Sobre" />

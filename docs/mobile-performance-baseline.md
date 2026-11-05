@@ -74,6 +74,98 @@ release. O tempo de primeiro quadro do vídeo vem de `onFirstFrameRender` do
 `VideoView` do `expo-video`; ele é registrado uma vez por instância de player, e
 a remontagem da view na tela cheia não reinicia a contagem.
 
+## Tela de diagnóstico (desenvolvimento e staging)
+
+A rota `/diagnostico-performance` reúne a leitura da instrumentação existente sem
+criar uma segunda coleta. Ela **não existe em produção**: o gate
+`performanceDiagnosticsAvailable()` aceita `EXPO_PUBLIC_APP_ENV=staging` e, fora
+do staging, exige `__DEV__`. Um build de release sem a variável de ambiente não
+abre a tela. A rota também é removida do stack quando o gate está fechado.
+
+Como abrir:
+
+- no app: **Perfil → Conta e sessões → Diagnóstico de performance**;
+- no development/staging, por deep link: `populariamobile://diagnostico-performance`;
+- no web de desenvolvimento: `http://localhost:8081/diagnostico-performance`
+  (ajuste a porta do Metro).
+
+O que a tela faz:
+
+- **Iniciar medição**: liga a instrumentação local e cria uma sessão limpa. É o
+  mesmo gate de `EXPO_PUBLIC_PERFORMANCE_INSTRUMENTATION`, acionado pela tela;
+- **Resetar medição**: zera a sessão sem desligar a instrumentação, para repetir
+  o mesmo cenário;
+- **Exportar JSON**: no iPhone/Android abre a folha de compartilhamento com
+  `popularia-performance-diagnostico.json`; no navegador baixa o arquivo. Sem
+  compartilhamento nativo, copia o JSON para a área de transferência. Nada é
+  enviado para a rede;
+- **Atualizar leitura**: relê o snapshot. A tela também relê ao ganhar foco, então
+  o fluxo normal é iniciar, navegar pelo app e voltar;
+- **Abrir harness de 20 posts**: monta o `PerformanceQaHarness` com o fixture de
+  QA na rota `/diagnostico-performance-harness`, sem precisar de uma entrada
+  temporária no app.
+
+Os números exibidos são exatamente os do snapshot: requests lógicas, tentativas
+HTTP, retries (tentativas extras das requests concluídas), requests por tela,
+commits e `actualDuration` do React Profiler, `onLoad` da FlashList, players
+montados/tocando e TTFF (média e máximo). A tela não calcula FPS, memória, TTI
+nem qualquer métrica que a instrumentação não registre.
+
+### Validar no iPhone
+
+1. Gere um build de desenvolvimento ou staging e instale no iPhone:
+
+   ```bash
+   # development build (precisa do Metro)
+   npx eas-cli build --profile development --platform ios
+   # ou build de staging (não depende do Metro)
+   npx eas-cli build --profile staging --platform ios
+   # TestFlight de staging
+   npx eas-cli build --profile testflight-staging --platform ios
+   ```
+
+   Instale pelo link/QR do EAS ou pelo TestFlight. Em um development build,
+   também é possível usar `npx expo run:ios --device` numa máquina com Xcode.
+
+   Para um development build, suba o Metro com a instrumentação já ligada se
+   quiser capturar a abertura do app:
+
+   ```bash
+   EXPO_PUBLIC_PERFORMANCE_INSTRUMENTATION=1 \
+   EXPO_PUBLIC_APP_ENV=development \
+   npx expo start --dev-client
+   ```
+
+   No staging, o app instalado se chama **Popularia Beta**. A tela aparece mesmo
+   sem a flag de instrumentação; o botão **Iniciar medição** liga a coleta.
+
+2. Abra o app e vá em **Perfil → Conta e sessões → Diagnóstico de performance**.
+   Alternativamente, abra o Safari e digite o deep link
+   `populariamobile://diagnostico-performance`.
+
+3. Toque em **Iniciar medição**. Navegue pelo feed, abra uma publicação, um vídeo
+   e os comentários; volte para a tela de diagnóstico. Confira requests, commits,
+   `onLoad` e TTFF. Use **Resetar medição** entre repetições do mesmo cenário.
+
+4. Toque em **Exportar JSON** e envie o arquivo para Arquivos, AirDrop ou outro
+   destino. O JSON inclui apenas caminhos de API sem query string, contadores,
+   durações, nomes de componentes e IDs de mídia; não inclui conteúdo de posts,
+   tokens nem dados pessoais.
+
+5. Para o cenário de 20 cartões, toque em **Abrir harness de 20 posts**, role,
+   apoie um cartão e volte. Os vídeos ficam desligados nesse harness de propósito, para não disputar players.
+
+Os testes automatizados rodam no computador, não dentro do iPhone: o Jest cobre
+a tela e a instrumentação, e o Playwright cobre o fluxo web. No aparelho, a
+validação é manual, com os passos acima. Validação automatizada (não substitui o
+aparelho):
+
+```bash
+npm run check:fast
+NODE_OPTIONS=--max-old-space-size=512 npx jest src/features/performance src/lib/performance --runInBand
+npx playwright test e2e/specs/performance-diagnostics.spec.ts
+```
+
 ## Dataset reproduzível
 
 `src/features/performance/qa-fixture.ts` gera, de forma determinística:
@@ -83,11 +175,10 @@ a remontagem da view na tela cheia não reinicia a contagem.
 - 3 páginas de 80 itens via cursor;
 - exatamente 20 cartões para o cenário de montagem simultânea.
 
-O harness `PerformanceQaHarness` monta esses 20 cartões. Ele **não é uma rota do
-app**: para medir, monte-o numa entrada de diagnóstico temporária em um
-development build, dentro dos providers normais (conta, interações, moderação,
-toast e query). Depois de medir, remova a entrada temporária. Em produção o
-harness não renderiza nada.
+O harness `PerformanceQaHarness` monta esses 20 cartões na rota
+`/diagnostico-performance-harness`, aberta pela tela de diagnóstico. A rota usa os
+providers normais (conta, interações, moderação, toast e query) e só é registrada
+em desenvolvimento/staging. Em produção o harness não renderiza nada.
 
 Assets:
 
@@ -212,7 +303,9 @@ contadores) também precisam ser consideradas na leitura.
   foi medido.
 - A instrumentação foi validada por testes unitários e de componente em Jest,
   não em device.
-- O harness de 20 cartões não é uma rota; exige entrada temporária de diagnóstico.
+- A tela de diagnóstico e o harness foram validados por testes de componente e
+  E2E web; a execução em iPhone/Android real ainda precisa ser feita por quem
+  tiver o aparelho e a build instalada.
 - Os assets remotos do fixture podem não estar acessíveis no laboratório; nesse
   caso o cenário de mídia é inválido.
 - React Profiler em development não é equivalente a release; a comparação de
