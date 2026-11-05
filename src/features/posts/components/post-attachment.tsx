@@ -176,8 +176,12 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   useEffect(() => {
     if (activePlayer && activePlayer !== player) activePlayer.pause();
     activePlayer = player;
-    // `currentState` começa nulo antes das constantes nativas: só não toca em segundo plano.
-    if (AppState.currentState !== 'background') {
+    // `currentState` começa nulo antes das constantes nativas. Bloqueia os estados
+    // conhecidos sem primeiro plano; o listener abaixo pausa qualquer mudança.
+    const appInBackground = AppState.currentState === 'background'
+      || AppState.currentState === 'inactive'
+      || AppState.currentState === 'extension';
+    if (!appInBackground) {
       playIntentAt.current ??= performanceNow();
       player.play();
     }

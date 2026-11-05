@@ -30,6 +30,11 @@ import { PostPollBlock } from './post-poll';
 
 type PostCardProps = {
   item: FeedItem;
+  /**
+   * Só monta o player quando a lista confirma que o item está na viewport.
+   * O default é seguro: um cartão montado fora de uma lista (ou sem viewability)
+   * não inicia reprodução.
+   */
   mediaVisible?: boolean;
   /** Linha divisória no topo (todos menos o primeiro). */
   showRule?: boolean;
@@ -48,7 +53,7 @@ type PostCardProps = {
  * depois quem publicou, com foto e nome. O selo do tipo (Chamado, Enquete) fica na mesma
  * linha do destino, como no desenho do feed.
  */
-function PostCardView({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true, mediaGesture }: PostCardProps) {
+function PostCardView({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = false, mediaGesture }: PostCardProps) {
   const { author, comuna, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();

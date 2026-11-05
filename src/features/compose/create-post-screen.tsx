@@ -556,7 +556,8 @@ export default function CreatePostScreen() {
 
             {preview ? (
               <View style={styles.previewBox} pointerEvents="none" accessible accessibilityLabel={`Pré-visualização: ${[previewItem.title, previewItem.text].filter(Boolean).join('. ')}`} importantForAccessibility="no-hide-descendants">
-                <PostCard item={previewItem} />
+                {/* Prévia de um cartão único, não uma lista reciclada: mantém o vídeo como no feed. */}
+                <PostCard item={previewItem} mediaVisible />
               </View>
             ) : mode === 'write' ? (
               <View style={styles.editorShadow}>
