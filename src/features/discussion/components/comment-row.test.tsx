@@ -36,6 +36,19 @@ describe('ações de comentário e resposta', () => {
     expect(onSupport).toHaveBeenCalledWith('reply-1');
   });
 
+  it('entrega o id do comentário aos handlers, sem expor o objeto da linha', async () => {
+    const onReply = jest.fn();
+    const onMore = jest.fn();
+    await render(
+      <CommentRow row={row('comment-1', null)} authorLabel={null} supported={false} supportCount={4}
+        onSupport={jest.fn()} onReply={onReply} onToggleCollapse={jest.fn()} onMore={onMore} />,
+    );
+    await fireEvent.press(screen.getByLabelText('Responder a Camila'));
+    expect(onReply).toHaveBeenCalledWith('comment-1');
+    await fireEvent.press(screen.getByLabelText('Mais opções do comentário de Camila'));
+    expect(onMore).toHaveBeenCalledWith('comment-1');
+  });
+
   it('mantém as respostas quando o comentário pai foi removido pela moderação', async () => {
     const removed = comment('comment-1', null);
     removed.status = 'removed';

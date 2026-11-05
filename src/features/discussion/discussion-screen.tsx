@@ -17,7 +17,7 @@ import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { CommentComposer, type ComposerNotice } from '@/features/discussion/components/comment-composer';
 import { CommentRow } from '@/features/discussion/components/comment-row';
 import { PostDetail } from '@/features/discussion/components/post-detail';
-import { buildThread, type CommentSort, type ThreadRow } from '@/features/discussion/thread';
+import { buildThread, type CommentSort } from '@/features/discussion/thread';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { commentTarget, postTarget } from '@/features/moderation/targets';
@@ -100,8 +100,17 @@ export default function DiscussionScreen() {
     const mine: CommentWithAuthor[] = local.map((c) => ({ ...c, author: me }));
     return mergeById(comments.items, mine);
   }, [comments.items, local, me]);
+  const commentsById = useMemo(() => new Map(mergedComments.map((comment) => [comment.id, comment])), [mergedComments]);
   const supportedOf = useCallback((comment: CommentWithAuthor) => supportOverrides[comment.id]?.supported ?? comment.viewerSupported ?? (DEMO_MODE && isOn('supportedComments', comment.id)), [isOn, supportOverrides]);
   const supportCountOf = useCallback((comment: CommentWithAuthor) => supportOverrides[comment.id]?.count ?? comment.supportCount + (supportedOf(comment) ? 1 : 0) - (comment.viewerSupported ? 1 : 0), [supportedOf, supportOverrides]);
+
+  // Os handlers das linhas não podem depender dos objetos efêmeros de comments/discussion:
+  // eles mudam a cada render e trocariam a identidade de todos os `CommentRow`. O ref é
+  // sincronizado no efeito para os handlers lerem o estado mais recente sem se recriar.
+  const latest = useRef({ post, comments, discussion, commentsById, supportedOf, supportCountOf, isOn, toggle, toast, sheet });
+  useEffect(() => {
+    latest.current = { post, comments, discussion, commentsById, supportedOf, supportCountOf, isOn, toggle, toast, sheet };
+  });
 
   const rows = useMemo(() => {
     if (!post) return [];
@@ -114,51 +123,65 @@ export default function DiscussionScreen() {
   }, [post, mergedComments, sort, collapsed, local, sentIds, supportCountOf]);
 
   const onSupport = useCallback(async (commentId: string) => {
-    const comment = mergedComments.find((item) => item.id === commentId);
+    const current = latest.current;
+    const comment = current.commentsById.get(commentId);
     if (!comment || supportPending.current.has(commentId)) return;
     if (DEMO_MODE || commentId.startsWith('local-')) {
-      toggle('supportedComments', commentId);
+      current.toggle('supportedComments', commentId);
       return;
     }
-    const previous = supportedOf(comment);
+    const previous = current.supportedOf(comment);
+    const previousCount = current.supportCountOf(comment);
     const next = !previous;
-    setSupportOverrides((current) => ({ ...current, [commentId]: { ...current[commentId], supported: next } }));
+    // O toque pinta na hora e evita uma segunda notificação se o servidor confirmar o mesmo valor.
+    const optimistic = { supported: next, count: Math.max(0, previousCount + (next ? 1 : -1)) };
+    setSupportOverrides((overrides) => ({ ...overrides, [commentId]: optimistic }));
     supportPending.current.add(commentId);
     try {
       const updated = await setCommentSupport(commentId, next);
-      setSupportOverrides((current) => ({ ...current, [commentId]: { supported: updated.viewerSupported ?? next, count: updated.supportCount } }));
+      const confirmed = { supported: updated.viewerSupported ?? next, count: updated.supportCount };
+      setSupportOverrides((overrides) => {
+        const existing = overrides[commentId];
+        if (existing && existing.supported === confirmed.supported && existing.count === confirmed.count) return overrides;
+        return { ...overrides, [commentId]: confirmed };
+      });
     } catch (error) {
-      setSupportOverrides((current) => ({ ...current, [commentId]: { ...current[commentId], supported: previous } }));
-      toast.show(`Não foi possível ${next ? 'apoiar' : 'remover o apoio'}. ${describeError(error)}`);
+      setSupportOverrides((overrides) => {
+        const existing = overrides[commentId];
+        if (existing && existing.supported === previous && existing.count === previousCount) return overrides;
+        return { ...overrides, [commentId]: { supported: previous, count: previousCount } };
+      });
+      latest.current.toast.show(`Não foi possível ${next ? 'apoiar' : 'remover o apoio'}. ${describeError(error)}`);
     } finally {
       supportPending.current.delete(commentId);
     }
-  }, [mergedComments, supportedOf, toast, toggle]);
+  }, []);
   const onToggleCollapse = useCallback(
     (commentId: string) => setCollapsed((prev) => ({ ...prev, [commentId]: !prev[commentId] })),
     [],
   );
-  const onMore = useCallback(
-    (row: ThreadRow) => {
-      if (!post) return;
-      sheet.open(commentTarget(row.comment, post), 'menu', {
-        onDeleted: () => {
-          comments.update(row.comment.id, (comment) => ({
-            ...comment,
-            status: 'deleted',
-            text: 'Comentário apagado por quem escreveu.',
-            authorId: '',
-            author: { id: '', name: 'Indisponível', handle: '', initials: '', tone: 'cream' },
-          }));
-          void discussion.reload();
-          void queryClient.invalidateQueries({ queryKey: ['feed'] });
-        },
-      });
-    },
-    [comments, discussion, post, sheet],
-  );
-  const onReply = useCallback((row: ThreadRow) => {
-    setReplyTo({ id: row.comment.id, name: row.comment.author.name });
+  const onMore = useCallback((commentId: string) => {
+    const current = latest.current;
+    const comment = current.commentsById.get(commentId);
+    if (!current.post || !comment) return;
+    current.sheet.open(commentTarget(comment, current.post), 'menu', {
+      onDeleted: () => {
+        current.comments.update(commentId, (item) => ({
+          ...item,
+          status: 'deleted',
+          text: 'Comentário apagado por quem escreveu.',
+          authorId: '',
+          author: { id: '', name: 'Indisponível', handle: '', initials: '', tone: 'cream' },
+        }));
+        void current.discussion.reload();
+        void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      },
+    });
+  }, []);
+  const onReply = useCallback((commentId: string) => {
+    const comment = latest.current.commentsById.get(commentId);
+    if (!comment) return;
+    setReplyTo({ id: comment.id, name: comment.author.name });
     inputRef.current?.focus();
   }, []);
 
