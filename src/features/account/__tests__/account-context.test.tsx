@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { queryClient } from '@/lib/query/client';
 import { ApiError } from '@/lib/errors';
+import { posterCache } from '@/features/posts/poster-cache';
 import { AccountProvider, useAccount } from '../account-context';
 import { getMe, logout, updateMe, type MeDto } from '../api';
 
@@ -19,6 +20,7 @@ jest.mock('@/lib/api/client', () => ({
   onSessionEnded: jest.fn(),
 }));
 jest.mock('../api', () => ({ getMe: jest.fn(), logout: jest.fn(), updateMe: jest.fn() }));
+jest.mock('@/features/posts/poster-cache', () => ({ posterCache: { clear: jest.fn() } }));
 
 afterEach(async () => { await cleanup(); queryClient.clear(); });
 
@@ -37,11 +39,13 @@ it('limpa conta, rascunho e cache mesmo se a revogação de logout falhar', asyn
   });
   await waitFor(() => expect(result.current.status).toBe('signedIn'));
   queryClient.setQueryData(['privado'], 'conteúdo anterior');
+  jest.mocked(posterCache.clear).mockClear();
   await act(async () => { await expect(result.current.signOut()).rejects.toThrow('Falha ao revogar'); });
   expect(result.current.status).toBe('signedOut');
   expect(result.current.account).toBeNull();
   expect(result.current.profile.bio).toBe('');
   expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+  expect(posterCache.clear).toHaveBeenCalledTimes(1);
 });
 
 

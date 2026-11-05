@@ -1,7 +1,6 @@
-import type { SharedRefType } from 'expo';
 import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
-import type { VideoPlayer, VideoThumbnail } from 'expo-video';
+import type { VideoPlayer } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
@@ -13,6 +12,7 @@ import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
 import { performanceNow, recordVideoError, recordVideoFirstFrame, recordVideoMount, recordVideoPause, recordVideoPlay, recordVideoUnmount } from '@/lib/performance';
 
+import { posterCache } from '../poster-cache';
 import { PhotoViewer } from './photo-viewer';
 import { VideoViewer, type VideoChrome } from './video-viewer';
 
@@ -24,11 +24,29 @@ import { VideoViewer, type VideoChrome } from './video-viewer';
 let activePlayer: VideoPlayer | null = null;
 /** Som é preferência da sessão, como nos apps de vídeo: vale para o próximo vídeo também. */
 let soundEnabled = false;
-/** Primeiro quadro já gerado, por mídia: volta na hora quando o vídeo sai e entra da tela. */
-const posterCache = new Map<string, VideoThumbnail>();
 
 function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
+}
+
+/**
+ * Lê o pôster do cache enquanto o componente está montado.
+ *
+ * A reserva impede que a evicção remova o quadro em uso. A assinatura cobre a
+ * geração que termina depois de o player sair da viewport: o `VideoPoster`
+ * passa da listra para o primeiro quadro sem precisar remontar.
+ */
+function usePoster(mediaId: string) {
+  const [poster, setPoster] = useState(() => posterCache.peek(mediaId));
+  useEffect(() => {
+    const release = posterCache.retain(mediaId);
+    const unsubscribe = posterCache.subscribe(mediaId, setPoster);
+    return () => {
+      unsubscribe();
+      release();
+    };
+  }, [mediaId]);
+  return poster;
 }
 
 export function PostAttachment({ media, localUri, visible = true, chrome, framed = false }: {
@@ -85,7 +103,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
 
 /** Fora da tela o vídeo não carrega: fica o primeiro quadro já gerado, ou a listra escura. */
 function VideoPoster({ media, framed = false }: { media: PostMediaDto; framed?: boolean }) {
-  const poster = posterCache.get(media.id) ?? null;
+  const poster = usePoster(media.id);
   return <View style={[styles.videoFrame, framed && styles.framed, { aspectRatio: mediaRatio(media) }]}>
     {poster
       ? <Image source={poster} contentFit="cover" style={StyleSheet.absoluteFill} accessible={false} />
@@ -118,7 +136,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const [muted, setMuted] = useState(!soundEnabled);
   const [ended, setEnded] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [poster, setPoster] = useState<SharedRefType<'image'> | null>(() => posterCache.get(media.id) ?? null);
+  const poster = usePoster(media.id);
   const [position, setPosition] = useState(0);
   const [expanded, setExpanded] = useState(false);
   // Um toque que veio de um "segurar para acelerar" não deve pausar o vídeo.
@@ -196,16 +214,14 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   }, [player]);
 
   // O primeiro quadro vira pôster: cobre o vídeo antes de carregar e fica quando ele sai da tela.
+  // `load` deduplica duas instâncias da mesma mídia e trata falha como ausência de pôster.
   useEffect(() => {
     // Gerar miniatura ainda não existe no player web; o pôster é opcional.
-    if (Platform.OS === 'web' || posterCache.has(media.id)) return;
-    let alive = true;
-    void player.generateThumbnailsAsync(0).then(([thumbnail]) => {
-      if (!thumbnail) return;
-      posterCache.set(media.id, thumbnail);
-      if (alive) setPoster(thumbnail);
-    }, () => undefined);
-    return () => { alive = false; };
+    if (Platform.OS === 'web') return;
+    void posterCache.load(media.id, async () => {
+      const [thumbnail] = await player.generateThumbnailsAsync(0);
+      return thumbnail ?? null;
+    });
   }, [media.id, player]);
 
   const toggle = () => {

@@ -313,6 +313,20 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
         </AppText>
       </View>
 
+      <View style={styles.section}>
+        <SectionHeading appearance="editorial" label="Pôsteres de vídeo" />
+        <View style={styles.metricGrid}>
+          <MetricCard testID="metric-poster-cache" label="Cache" value={`${snapshot.posters.size}/${snapshot.posters.capacity}`} detail={`${snapshot.posters.retained} em uso`} />
+          <MetricCard testID="metric-poster-hits" label="Hits" value={String(snapshot.posters.hits)} detail={`${snapshot.posters.misses} misses`} />
+          <MetricCard testID="metric-poster-generations" label="Gerações" value={String(snapshot.posters.generationRequests)} detail={`${snapshot.posters.dedupedGenerations} compartilhadas`} />
+          <MetricCard testID="metric-poster-evictions" label="Evictados" value={String(snapshot.posters.evictions)} detail={`${snapshot.posters.generationFailures} falhas`} />
+          <MetricCard testID="metric-poster-discarded" label="Descartados" value={String(snapshot.posters.discardedGenerations)} detail={`${snapshot.posters.clears} limpezas`} />
+        </View>
+        <AppText variant="caption">
+          Estado do processo, não da sessão. O cache conta miniaturas, não bytes: não é medição de memória.
+        </AppText>
+      </View>
+
       <AppText variant="caption" style={styles.readNote}>
         Leitura às {new Date(readAt).toLocaleTimeString('pt-BR')}
         {snapshot.startedAt ? ` · início ${formatStamp(snapshot.startedAt)}` : ''}

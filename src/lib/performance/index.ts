@@ -74,6 +74,26 @@ export type PerformanceScreenSummary = {
   durationMs: number;
 };
 
+/**
+ * Estado do cache de pôsteres de vídeo (POP-22). É um retrato do processo, não
+ * da sessão de medição: o cache continua existindo quando uma sessão é zerada.
+ * Não é estimativa de memória; `size` é o número de miniaturas retidas.
+ */
+export type PerformancePosterCacheStats = {
+  capacity: number;
+  size: number;
+  retained: number;
+  hits: number;
+  misses: number;
+  stores: number;
+  evictions: number;
+  generationRequests: number;
+  generationFailures: number;
+  dedupedGenerations: number;
+  discardedGenerations: number;
+  clears: number;
+};
+
 export type PerformanceSnapshot = {
   enabled: boolean;
   sessionId: string | null;
@@ -94,6 +114,7 @@ export type PerformanceSnapshot = {
     firstFrameTotalMs: number;
     firstFrameMaxMs: number;
   };
+  posters: PerformancePosterCacheStats;
   counters: {
     logicalRequests: number;
     httpAttempts: number;
@@ -143,11 +164,27 @@ type SessionState = {
   dropped: number;
 };
 
+const EMPTY_POSTER_CACHE_STATS: PerformancePosterCacheStats = {
+  capacity: 0,
+  size: 0,
+  retained: 0,
+  hits: 0,
+  misses: 0,
+  stores: 0,
+  evictions: 0,
+  generationRequests: 0,
+  generationFailures: 0,
+  dedupedGenerations: 0,
+  discardedGenerations: 0,
+  clears: 0,
+};
+
 let session: SessionState | null = null;
 let sessionCounter = 0;
 let requestCounter = 0;
 let enabledOverride: boolean | null = null;
 let currentScope: PerformanceScope | null = null;
+let posterCacheStatsProvider: (() => PerformancePosterCacheStats) | null = null;
 
 /** `performance.now()` quando existe; Date.now() como fallback (Jest/Node antigo). */
 export function performanceNow(): number {
@@ -157,6 +194,14 @@ export function performanceNow(): number {
 
 export function performanceAppEnvironment(): string {
   return process.env.EXPO_PUBLIC_APP_ENV ?? 'development';
+}
+
+/**
+ * O cache de pôsteres registra a própria leitura aqui para aparecer no
+ * snapshot/JSON sem criar dependência de `lib/performance` para a feature.
+ */
+export function registerPosterCacheStatsProvider(provider: (() => PerformancePosterCacheStats) | null): void {
+  posterCacheStatsProvider = provider;
 }
 
 export function performanceInstrumentationEnabled(): boolean {
@@ -414,6 +459,7 @@ export function getPerformanceSnapshot(): PerformanceSnapshot {
   }
   const commits = session ? [...session.commits.values()].map((record) => ({ ...record })) : [];
   const profilerCommits = commits.reduce((total, record) => total + record.commits, 0);
+  const posters = posterCacheStatsProvider?.() ?? EMPTY_POSTER_CACHE_STATS;
   return {
     enabled: performanceInstrumentationEnabled(),
     sessionId: session?.id ?? null,
@@ -434,6 +480,7 @@ export function getPerformanceSnapshot(): PerformanceSnapshot {
       firstFrameTotalMs: session?.firstFrameTotalMs ?? 0,
       firstFrameMaxMs: session?.firstFrameMaxMs ?? 0,
     },
+    posters: { ...posters },
     counters: {
       logicalRequests: requests.length,
       httpAttempts: session?.httpAttempts ?? 0,
