@@ -11,6 +11,7 @@ import { ChamadoCard, type ChamadoCardData } from '@/features/events/chamado-car
 
 jest.mock('@/features/account/account-context', () => ({
   useMe: () => ({ id: 'me', name: 'Camila Rocha', handle: 'camilarocha', initials: 'CR', tone: 'red', avatarUrl: null }),
+  useAccount: () => ({ account: { emailVerified: true }, reloadAccount: jest.fn() }),
 }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 

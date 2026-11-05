@@ -12,7 +12,9 @@ const mockOpenURL = jest.spyOn(Linking, 'openURL');
 
 jest.mock('@/features/account/account-context', () => ({
   useMe: () => ({ id: 'me', name: 'Camila Rocha', handle: 'camilarocha', initials: 'CR', tone: 'red', avatarUrl: null }),
+  useAccount: () => ({ account: { emailVerified: true }, reloadAccount: jest.fn() }),
 }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('@/constants/config', () => {
   const actual = jest.requireActual<typeof import('@/constants/config')>('@/constants/config');
   return { ...actual, DEMO_MODE: true };
