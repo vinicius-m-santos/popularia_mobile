@@ -10,6 +10,14 @@ export function useListVisibility() {
       return previous.size === next.size && [...next].every((id) => previous.has(id)) ? previous : next;
     });
   }, []);
-  return { visibleIds, onViewableItemsChanged };
+  /**
+   * Esquece a viewport atual. Use quando a lista é desmontada (troca de aba) e a
+   * próxima montagem ainda não emitiu viewability: sem isso, IDs da janela
+   * anterior montariam players antes de os cartões estarem visíveis de novo.
+   */
+  const clear = useCallback(() => {
+    setVisibleIds((previous) => (previous.size === 0 ? previous : new Set()));
+  }, []);
+  return { visibleIds, onViewableItemsChanged, clear };
 }
 export const mediaViewabilityConfig = { itemVisiblePercentThreshold: 20, minimumViewTime: 100 };
