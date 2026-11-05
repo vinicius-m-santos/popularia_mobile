@@ -103,6 +103,8 @@ describe('tela de diagnóstico de performance', () => {
     expect(screen.getByText('feed:para-voce')).toBeTruthy();
     expect(screen.getByText('TTFF máximo')).toBeTruthy();
     expect(screen.getAllByText('320 ms').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Pôsteres de vídeo')).toBeTruthy();
+    expect(screen.getByTestId('metric-poster-cache')).toBeTruthy();
     expect(screen.queryByText('/feed?token=segredo')).toBeNull();
   });
 

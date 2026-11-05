@@ -1,8 +1,7 @@
-import type { SharedRefType } from 'expo';
 import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
-import type { VideoPlayer, VideoThumbnail } from 'expo-video';
-import { useEffect, useRef, useState } from 'react';
+import type { VideoPlayer } from 'expo-video';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
 
@@ -13,6 +12,7 @@ import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
 import { performanceNow, recordVideoError, recordVideoFirstFrame, recordVideoMount, recordVideoPause, recordVideoPlay, recordVideoUnmount } from '@/lib/performance';
 
+import { posterCache } from '../poster-cache';
 import { PhotoViewer } from './photo-viewer';
 import { VideoViewer, type VideoChrome } from './video-viewer';
 
@@ -24,11 +24,31 @@ import { VideoViewer, type VideoChrome } from './video-viewer';
 let activePlayer: VideoPlayer | null = null;
 /** Som é preferência da sessão, como nos apps de vídeo: vale para o próximo vídeo também. */
 let soundEnabled = false;
-/** Primeiro quadro já gerado, por mídia: volta na hora quando o vídeo sai e entra da tela. */
-const posterCache = new Map<string, VideoThumbnail>();
 
 function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
+}
+
+/**
+ * Lê o pôster do cache enquanto o componente está montado.
+ *
+ * `useSyncExternalStore` relê o cache quando outra instância publica o primeiro
+ * quadro ou quando o componente é reaproveitado com outra mídia. A reserva
+ * impede que a evicção remova o quadro em uso; o `onStoreChange` imediato cobre
+ * um pôster que tenha chegado entre o render e a assinatura.
+ */
+function usePoster(mediaId: string) {
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    const release = posterCache.retain(mediaId);
+    const unsubscribe = posterCache.subscribe(mediaId, onStoreChange);
+    onStoreChange();
+    return () => {
+      unsubscribe();
+      release();
+    };
+  }, [mediaId]);
+  const getSnapshot = useCallback(() => posterCache.peek(mediaId), [mediaId]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export function PostAttachment({ media, localUri, visible = true, chrome, framed = false }: {
@@ -46,7 +66,7 @@ export function PostAttachment({ media, localUri, visible = true, chrome, framed
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
   if (media.type === 'video') return visible
     ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} framed={framed} />
-    : <VideoPoster media={media} framed={framed} />;
+    : <VideoPoster key={media.id} media={media} framed={framed} />;
   return <PostPhoto key={uri} media={media} uri={uri} framed={framed} />;
 }
 
@@ -85,7 +105,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
 
 /** Fora da tela o vídeo não carrega: fica o primeiro quadro já gerado, ou a listra escura. */
 function VideoPoster({ media, framed = false }: { media: PostMediaDto; framed?: boolean }) {
-  const poster = posterCache.get(media.id) ?? null;
+  const poster = usePoster(media.id);
   return <View style={[styles.videoFrame, framed && styles.framed, { aspectRatio: mediaRatio(media) }]}>
     {poster
       ? <Image source={poster} contentFit="cover" style={StyleSheet.absoluteFill} accessible={false} />
@@ -118,7 +138,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const [muted, setMuted] = useState(!soundEnabled);
   const [ended, setEnded] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [poster, setPoster] = useState<SharedRefType<'image'> | null>(() => posterCache.get(media.id) ?? null);
+  const poster = usePoster(media.id);
   const [position, setPosition] = useState(0);
   const [expanded, setExpanded] = useState(false);
   // Um toque que veio de um "segurar para acelerar" não deve pausar o vídeo.
@@ -196,15 +216,25 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   }, [player]);
 
   // O primeiro quadro vira pôster: cobre o vídeo antes de carregar e fica quando ele sai da tela.
+  // `loadWithOutcome` deduplica duas instâncias da mesma mídia. Se a geração veio de
+  // outra instância e falhou, esta tenta uma única vez com o próprio player.
   useEffect(() => {
     // Gerar miniatura ainda não existe no player web; o pôster é opcional.
-    if (Platform.OS === 'web' || posterCache.has(media.id)) return;
+    if (Platform.OS === 'web') return;
     let alive = true;
-    void player.generateThumbnailsAsync(0).then(([thumbnail]) => {
-      if (!thumbnail) return;
-      posterCache.set(media.id, thumbnail);
-      if (alive) setPoster(thumbnail);
-    }, () => undefined);
+    let retried = false;
+    const generate = async () => {
+      const [thumbnail] = await player.generateThumbnailsAsync(0);
+      return thumbnail ?? null;
+    };
+    const attempt = () => {
+      void posterCache.loadWithOutcome(media.id, generate).then(({ poster, shared }) => {
+        if (!alive || poster || !shared || retried) return;
+        retried = true;
+        attempt();
+      });
+    };
+    attempt();
     return () => { alive = false; };
   }, [media.id, player]);
 

@@ -18,6 +18,7 @@ import { Platform } from 'react-native';
 import { DEMO_MODE, GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from '@/constants/config';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { findUser } from '@/features/lookup';
+import { posterCache } from '@/features/posts/poster-cache';
 import { hasStoredSession, onSessionEnded, refreshSession } from '@/lib/api/client';
 import { ApiError } from '@/lib/errors';
 import { clearSentryUser, setSentryUser } from '@/lib/monitoring';
@@ -152,6 +153,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const resetToSignedOut = useCallback(() => {
     queryClient.clear();
+    // Miniaturas de vídeos vistos pela conta anterior não passam para a próxima.
+    posterCache.clear();
     credentials.current = null;
     clearSentryUser();
     // Participações, contagens e interações locais são desta pessoa: não passam para a próxima.
