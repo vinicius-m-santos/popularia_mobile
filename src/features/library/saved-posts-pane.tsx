@@ -21,7 +21,7 @@ export function LibrarySectionTabs({ value, onChange }: { value: LibrarySection;
 
 export function useSavedPosts() {
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listSavedPosts(cursor, signal), []);
-  return useCachedPages({ queryKey: SAVED_POSTS_QUERY_KEY, load, ...contentPolicy.profile });
+  return useCachedPages({ queryKey: SAVED_POSTS_QUERY_KEY, load, performanceScope: 'saved-posts', ...contentPolicy.profile });
 }
 
 /** Publicações guardadas. O documento original continua na outra seção da Biblioteca. */

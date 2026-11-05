@@ -11,6 +11,7 @@ import { queryClient } from '@/lib/query/client';
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/constants/config';
 import { ApiError, NetworkError } from '@/lib/errors';
 import { captureApiError } from '@/lib/monitoring';
+import { createRequestTrace, finishRequest, performanceNow, recordRequestAttempt, type PerformanceScope, type RequestTrace } from '@/lib/performance';
 
 import { deleteRefreshToken, readRefreshToken, saveRefreshToken } from './token-store';
 
@@ -34,6 +35,8 @@ export type RequestOptions = {
   auth?: boolean;
   /** PATCH usa application/merge-patch+json. */
   contentType?: string;
+  /** Escopo de tela/ação para a instrumentação local (POP-5); não altera o transporte. */
+  performance?: PerformanceScope;
 };
 
 let accessToken: string | null = null;
@@ -101,11 +104,13 @@ export function refreshSession(): Promise<string | null> {
   // Uma renovação só é compartilhada dentro da mesma sessão.
   if (refreshing && refreshing.generation === sessionGeneration) return refreshing.promise;
   const generation = sessionGeneration;
+  const trace = createRequestTrace('/auth/refresh', 'POST', { screen: 'session', action: 'session' });
+  let outcome: 'success' | 'error' = 'success';
   const promise = (async () => {
     try {
       const refreshToken = await readRefreshToken();
       if (!refreshToken || generation !== sessionGeneration) return null;
-      const response = await send('/auth/refresh', { method: 'POST', body: { refreshToken } }, null);
+      const response = await send('/auth/refresh', { method: 'POST', body: { refreshToken } }, null, trace);
       // A pessoa saiu (ou entrou em outra conta) enquanto renovávamos: descarta a resposta.
       if (generation !== sessionGeneration) return null;
       if (response.status === 401 || response.status === 403) {
@@ -120,7 +125,11 @@ export function refreshSession(): Promise<string | null> {
       await persistSession(() => saveRefreshToken(tokens.refreshToken));
       if (generation !== sessionGeneration) return null;
       return tokens.accessToken;
+    } catch (error) {
+      outcome = 'error';
+      throw error;
     } finally {
+      finishRequest(trace, outcome);
       // Só limpa se ainda for a renovação desta sessão (outra pode ter começado depois de um novo login).
       if (refreshing?.generation === generation) refreshing = null;
     }
@@ -139,42 +148,51 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 /** Transporte binário/multipart com a mesma sessão e refresh das chamadas JSON. */
 export async function apiResponse(path: string, options: RequestOptions = {}): Promise<Response> {
   if (!API_BASE_URL) throw new Error('EXPO_PUBLIC_API_URL não está configurada.');
-  if (!options.auth) {
-    const response = await send(path, options, null);
-    if (!response.ok) throw await toError(response);
-    return response;
-  }
+  const trace = createRequestTrace(path, options.method ?? 'GET', options.performance);
+  let outcome: 'success' | 'error' = 'success';
+  try {
+    if (!options.auth) {
+      const response = await send(path, options, null, trace);
+      if (!response.ok) throw await toError(response);
+      return response;
+    }
 
-  const generation = sessionGeneration;
-  let token = accessToken && Date.now() < accessTokenExpiresAt ? accessToken : await refreshSession();
-  assertSession(generation);
-  if (!token) throw new ApiError(401, '/errors/unauthorized', 'Sua sessão terminou. Entre novamente.');
-
-  let response = await send(path, options, token);
-  assertSession(generation);
-  if (response.status === 401) {
-    token = await refreshSession();
+    const generation = sessionGeneration;
+    let token = accessToken && Date.now() < accessTokenExpiresAt ? accessToken : await refreshSession();
     assertSession(generation);
     if (!token) throw new ApiError(401, '/errors/unauthorized', 'Sua sessão terminou. Entre novamente.');
-    response = await send(path, options, token);
+
+    let response = await send(path, options, token, trace);
     assertSession(generation);
-  }
-  if (response.status === 403) {
-    const error = await toError(response);
-    assertSession(generation);
-    // Conta suspensa: encerra a sessão local também.
-    if (error.type === '/errors/account-inactive') {
-      const cleared = clearSession();
-      sessionEndedListener?.();
-      await cleared;
+    if (response.status === 401) {
+      token = await refreshSession();
+      assertSession(generation);
+      if (!token) throw new ApiError(401, '/errors/unauthorized', 'Sua sessão terminou. Entre novamente.');
+      response = await send(path, options, token, trace);
+      assertSession(generation);
     }
+    if (response.status === 403) {
+      const error = await toError(response);
+      assertSession(generation);
+      // Conta suspensa: encerra a sessão local também.
+      if (error.type === '/errors/account-inactive') {
+        const cleared = clearSession();
+        sessionEndedListener?.();
+        await cleared;
+      }
+      throw error;
+    }
+    if (!response.ok) throw await toError(response);
+    return response;
+  } catch (error) {
+    outcome = 'error';
     throw error;
+  } finally {
+    finishRequest(trace, outcome);
   }
-  if (!response.ok) throw await toError(response);
-  return response;
 }
 
-async function send(path: string, options: RequestOptions, token: string | null): Promise<Response> {
+async function send(path: string, options: RequestOptions, token: string | null, trace: RequestTrace | null = null): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (options.body !== undefined) headers['Content-Type'] = options.contentType ?? 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -184,19 +202,28 @@ async function send(path: string, options: RequestOptions, token: string | null)
   const abort = () => controller.abort();
   options.signal?.addEventListener('abort', abort);
   if (options.signal?.aborted) controller.abort();
+  const startedAt = performanceNow();
+  let status: number | null = null;
+  let outcome: 'success' | 'error' | 'aborted' = 'success';
   try {
-    if (options.transfer) return await options.transfer(`${API_BASE_URL}${path}`, headers, controller.signal);
-    return await fetch(`${API_BASE_URL}${path}`, {
-      method: options.method ?? 'GET',
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      signal: controller.signal,
-    });
+    const response = options.transfer
+      ? await options.transfer(`${API_BASE_URL}${path}`, headers, controller.signal)
+      : await fetch(`${API_BASE_URL}${path}`, {
+        method: options.method ?? 'GET',
+        headers,
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        signal: controller.signal,
+      });
+    status = response.status;
+    if (!response.ok) outcome = 'error';
+    return response;
   } catch {
+    outcome = controller.signal.aborted ? 'aborted' : 'error';
     throw new NetworkError();
   } finally {
     clearTimeout(timer);
     options.signal?.removeEventListener('abort', abort);
+    recordRequestAttempt(trace, performanceNow() - startedAt, outcome, status);
   }
 }
 

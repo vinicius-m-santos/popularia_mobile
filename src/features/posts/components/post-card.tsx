@@ -13,6 +13,7 @@ import { usePostActions } from '@/features/interactions/use-post-actions';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
 import { formatCount, formatRelative } from '@/lib/format';
+import { withPerformanceProfiler } from '@/lib/performance/profiler';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
@@ -47,7 +48,7 @@ type PostCardProps = {
  * depois quem publicou, com foto e nome. O selo do tipo (Chamado, Enquete) fica na mesma
  * linha do destino, como no desenho do feed.
  */
-export const PostCard = memo(function PostCard({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true, mediaGesture }: PostCardProps) {
+function PostCardView({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible = true, mediaGesture }: PostCardProps) {
   const { author, comuna, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();
@@ -245,7 +246,9 @@ export const PostCard = memo(function PostCard({ item, showRule = false, showCom
       {actionsRow}
     </View>
   );
-});
+}
+
+export const PostCard = memo(withPerformanceProfiler('PostCard', PostCardView));
 
 type ActionChipProps = {
   icon: IconName;

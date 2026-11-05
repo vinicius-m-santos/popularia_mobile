@@ -11,6 +11,7 @@ import { Icon } from '@/components/icon';
 import { StripedPlaceholder } from '@/components/striped-placeholder';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
+import { performanceNow, recordVideoError, recordVideoFirstFrame, recordVideoMount, recordVideoPause, recordVideoPlay, recordVideoUnmount } from '@/lib/performance';
 
 import { PhotoViewer } from './photo-viewer';
 import { VideoViewer, type VideoChrome } from './video-viewer';
@@ -122,9 +123,30 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const [expanded, setExpanded] = useState(false);
   // Um toque que veio de um "segurar para acelerar" não deve pausar o vídeo.
   const heldAt = useRef(0);
+  // TTFF: do pedido de reprodução ao primeiro quadro, uma vez por instância montada.
+  const playIntentAt = useRef<number | null>(null);
+  const firstFrameRecorded = useRef(false);
+  const errorRecorded = useRef(false);
+
+  useEffect(() => {
+    recordVideoMount(media.id);
+    return () => recordVideoUnmount(media.id);
+  }, [media.id]);
+
+  useEffect(() => {
+    if (status === 'error' && !errorRecorded.current) {
+      errorRecorded.current = true;
+      recordVideoError(media.id);
+    }
+  }, [media.id, status]);
 
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
     setPlaying(isPlaying);
+    if (isPlaying) {
+      recordVideoPlay(media.id);
+    } else {
+      recordVideoPause(media.id);
+    }
     if (!isPlaying) return;
     setEnded(false);
     if (activePlayer && activePlayer !== player) activePlayer.pause();
@@ -155,7 +177,10 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
     if (activePlayer && activePlayer !== player) activePlayer.pause();
     activePlayer = player;
     // `currentState` começa nulo antes das constantes nativas: só não toca em segundo plano.
-    if (AppState.currentState !== 'background') player.play();
+    if (AppState.currentState !== 'background') {
+      playIntentAt.current ??= performanceNow();
+      player.play();
+    }
     const listener = AppState.addEventListener('change', (state) => {
       if (state !== 'active') player.pause();
     });
@@ -183,10 +208,25 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
     if (ended) {
       setEnded(false);
       player.currentTime = 0;
+      playIntentAt.current ??= performanceNow();
       player.play();
       return;
     }
-    if (player.playing) player.pause(); else player.play();
+    if (player.playing) {
+      player.pause();
+    } else {
+      playIntentAt.current ??= performanceNow();
+      player.play();
+    }
+  };
+
+  // O primeiro quadro chega pelo VideoView; uma remontagem na tela cheia não
+  // reinicia a medição da mesma instância de player.
+  const onFirstFrameRender = () => {
+    if (firstFrameRecorded.current) return;
+    firstFrameRecorded.current = true;
+    const startedAt = playIntentAt.current;
+    if (startedAt !== null) recordVideoFirstFrame(media.id, performanceNow() - startedAt);
   };
 
   const frameRatio = { aspectRatio: mediaRatio(media) };
@@ -200,7 +240,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
     {status === 'loading' && !poster ? <View style={styles.skeleton} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <StripedPlaceholder label="Vídeo da publicação" showLabel={false} variant="dark" style={styles.skeletonFill} />
     </View> : null}
-    {expanded ? null : <VideoView player={player} nativeControls={false} contentFit="cover" pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityLabel={label} />}
+    {expanded ? null : <VideoView player={player} nativeControls={false} contentFit="cover" pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityLabel={label} onFirstFrameRender={onFirstFrameRender} />}
     <Pressable
       onPress={() => {
         if (Date.now() - heldAt.current < 350) return;

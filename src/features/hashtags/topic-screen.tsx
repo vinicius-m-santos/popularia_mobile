@@ -23,7 +23,7 @@ export function TopicScreen() {
   const valid = validDestination({ kind: 'hashtag', id: slug });
   const info = useQuery({ queryKey: ['topic', slug], queryFn: ({ signal }) => getTopicInfo(slug, signal), enabled: valid, ...contentPolicy.profile }, queryClient);
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listTopicPosts(slug, cursor, signal), [slug]);
-  const page = useCachedPages({ queryKey: ['topic-posts', slug], load, enabled: valid, ...contentPolicy.feed });
+  const page = useCachedPages({ queryKey: ['topic-posts', slug], load, enabled: valid, performanceScope: 'topic', ...contentPolicy.feed });
   if (!valid) return <View style={styles.screen}><StateView kind="empty" title="Tópico indisponível" message="Este link não corresponde a um tópico." /></View>;
   return <View style={styles.screen}>
     <PopulariaList
