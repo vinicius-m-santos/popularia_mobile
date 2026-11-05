@@ -63,7 +63,7 @@ function toRecord(ids: string[]): Record<string, boolean> {
   return Object.fromEntries(ids.map((id) => [id, true]));
 }
 
-function initialState(): State {
+export function initialState(): State {
   return {
     supportedPosts: {},
     echoedPosts: {},
@@ -84,14 +84,22 @@ function initialState(): State {
   };
 }
 
-function reducer(state: State, action: Action): State {
+export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'toggle': {
       const current = state[action.kind];
       return { ...state, [action.kind]: { ...current, [action.id]: !current[action.id] } };
     }
     case 'set': {
-      const next = { ...state[action.kind] };
+      const current = state[action.kind];
+      // `setOn` é chamado ao montar cartões e ao confirmar presença. Quando todos
+      // os IDs já têm exatamente o valor pedido, repetir o objeto faria o
+      // provider inteiro renderizar de novo; devolver o mesmo estado mantém a
+      // referência e evita o dispatch efetivo. A comparação é exata porque
+      // `undefined` (ainda não conhecido) é diferente de `false` em
+      // `membershipOf`: é assim que a saída da comuna sobrepõe o dado do servidor.
+      if (action.ids.every((id) => current[id] === action.value)) return state;
+      const next = { ...current };
       for (const id of action.ids) next[id] = action.value;
       return { ...state, [action.kind]: next };
     }
