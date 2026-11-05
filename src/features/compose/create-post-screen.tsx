@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
-import { BottomSheet } from '@/components/bottom-sheet';
+import { BottomSheet, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
 import { EditorialAction } from '@/components/editorial-action';
 import { EditorialHeader } from '@/components/editorial-header';
 import { Icon, type IconName } from '@/components/icon';
@@ -851,7 +851,7 @@ export default function CreatePostScreen() {
         <AppText variant="caption" style={styles.sheetSubtitle}>Escolha até 3 comunas, além do perfil.</AppText>
         <View style={styles.sheetSearch}>
           <Icon name="search" size={20} />
-          <TextInput value={destinationQuery} onChangeText={setDestinationQuery} placeholder="Buscar por nome, bairro ou assunto" placeholderTextColor={Colors.placeholder} accessibilityLabel="Buscar comuna" style={styles.sheetInput} />
+          <PopulariaBottomSheetTextInput value={destinationQuery} onChangeText={setDestinationQuery} placeholder="Buscar por nome, bairro ou assunto" placeholderTextColor={Colors.placeholder} accessibilityLabel="Buscar comuna" returnKeyType="search" style={styles.sheetInput} />
         </View>
 
         {destinationTab === 'mine' ? <DestinationChoice

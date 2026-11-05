@@ -41,6 +41,17 @@ jest.mock('@/features/posts/post-media', () => ({
   pickPostImage: jest.fn(), pickPostVideo: jest.fn(), uploadPostMedia: jest.fn(),
 }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+// O mock global devolve o TextInput nativo; aqui marcamos o componente oficial da folha
+// para garantir que a busca de destinos usa a integração de teclado do bottom sheet.
+jest.mock('@/components/bottom-sheet', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  const actual = jest.requireActual<typeof import('@/components/bottom-sheet')>('@/components/bottom-sheet');
+  return {
+    ...actual,
+    PopulariaBottomSheetTextInput: (props: object) => React.createElement(TextInput, { ...props, testID: 'bottom-sheet-text-input' }),
+  };
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -62,6 +73,18 @@ describe('criação de publicação', () => {
     expect(screen.getAllByText('Foto')).toHaveLength(1);
     expect(screen.getByText('Vídeo')).toBeTruthy();
     expect(screen.getByText(/100 MB/)).toBeTruthy();
+  });
+
+  it('filtra destinos com o campo integrado ao teclado do bottom sheet', async () => {
+    jest.mocked(getMyComunas).mockResolvedValue(multiComunas);
+    await render(<CreatePostScreen />);
+    await fireEvent.press(await screen.findByLabelText(/Publicar em .*Trocar destino/));
+    const input = await screen.findByTestId('bottom-sheet-text-input');
+    expect(input.props.accessibilityLabel).toBe('Buscar comuna');
+    await fireEvent.changeText(input, 'Comuna B');
+    expect(screen.queryByLabelText(/^c\/ Comuna A\./)).toBeNull();
+    expect(screen.getByLabelText(/^c\/ Comuna B\./)).toBeTruthy();
+    expect(screen.getByLabelText(/^Meu perfil\./)).toBeTruthy();
   });
 
   it('publica uma cópia em cada comuna selecionada', async () => {
