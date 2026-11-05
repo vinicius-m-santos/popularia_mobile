@@ -5,7 +5,7 @@ import { DEMO_MODE } from '@/constants/config';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { getFollowing, setFollowing, type FollowState } from '@/features/profiles/api';
 import { isFollowLocked, lockFollow, patchFollowCaches, readRequested, restoreFollowCaches, setRequestedFlag, snapshotFollowCaches, subscribeFollowStore, unlockFollow, followStoreVersion, type FollowFlags } from '@/features/profiles/follow-cache';
-import { lockReaction, patchReactionCaches, readReaction, readReactionSnapshot, restoreReactionCaches, snapshotReactionCaches, subscribePostReactions, unlockReaction, writeReaction, type Reaction, type ReactionKind } from '@/features/posts/reactions';
+import { lockReaction, patchReactionCaches, readReaction, readReactionSnapshot, revertReaction, subscribePostReactions, unlockReaction, writeReaction, type Reaction, type ReactionKind } from '@/features/posts/reactions';
 import { setPostEcho, setPostSupport } from '@/features/posts/api';
 import { readSaved, readSavedSnapshot, rememberPost, subscribeSavedPost, toggleSavedPost } from '@/features/posts/save';
 import type { CommunityEvent, FeedItem } from '@/types/models';
@@ -44,10 +44,13 @@ export function usePostActions(post: FeedItem) {
   const saved = DEMO_MODE ? isOn('savedPosts', post.id) : readSaved(post.id, post.viewer?.saved);
 
   /** Otimista, com trava: o toque pinta na hora e o servidor confirma logo depois. */
-  const flip = async (kind: ReactionKind, current: Reaction) => {
+  const flip = async (kind: ReactionKind, fallback: Reaction) => {
     if (!lockReaction(post.id, kind)) return;
+    // A store é a fonte do toque: um render atrasado não pode calcular o próximo
+    // estado a partir de uma confirmação antiga.
+    const current = readReaction(post.id, kind, fallback);
     const next: Reaction = { count: Math.max(0, current.count + (current.mine ? -1 : 1)), mine: !current.mine };
-    const snapshots = snapshotReactionCaches(post.id);
+    // 1) feedback imediato no cartão; 2) sincronização das queries em passo separado.
     writeReaction(post.id, kind, next);
     patchReactionCaches(post.id, kind, next);
     try {
@@ -55,12 +58,16 @@ export function usePostActions(post: FeedItem) {
       const confirmed: Reaction = kind === 'support'
         ? { count: item.supportCount, mine: !!item.viewer?.supported }
         : { count: item.echoCount, mine: !!item.viewer?.echoed };
-      writeReaction(post.id, kind, confirmed);
-      patchReactionCaches(post.id, kind, confirmed);
+      // Confirmação que repete o otimista não gera notificação nem nova escrita.
+      if (confirmed.count !== next.count || confirmed.mine !== next.mine) {
+        writeReaction(post.id, kind, confirmed);
+        patchReactionCaches(post.id, kind, confirmed);
+      }
     } catch {
-      // Sem rede, a tela volta ao que era e a pessoa pode tentar de novo.
-      restoreReactionCaches(snapshots);
-      writeReaction(post.id, kind, current);
+      // Sem rede, a tela volta ao que era e a pessoa pode tentar de novo. O rollback
+      // desfaz só este toque: um eco ou salvamento concorrente não é afetado.
+      revertReaction(post.id, kind, next, current);
+      patchReactionCaches(post.id, kind, current, { onlyIf: next });
       toast.show(kind === 'support' ? 'Não conseguimos registrar seu apoio. Tente de novo.' : 'Não conseguimos ecoar. Tente de novo.');
     } finally {
       unlockReaction(post.id, kind);
