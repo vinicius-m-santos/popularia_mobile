@@ -93,6 +93,13 @@ export default function ComunaScreen() {
   const [tab, setTab] = useState<ComunaTab>(TABS.some((t) => t.key === aba) ? (aba as ComunaTab) : 'posts');
   const insets = useSafeAreaInsets();
   const visibility = useListVisibility();
+  const { clear: clearVisibility } = visibility;
+  // Trocar de aba desmonta a lista de publicações. A viewport da janela anterior
+  // não vale para a próxima montagem: sem limpar, um vídeo que estava visível
+  // antes voltaria a tocar antes de a nova viewability confirmar o cartão.
+  useEffect(() => {
+    if (tab !== 'posts') clearVisibility();
+  }, [tab, clearVisibility]);
 
   const loadComuna = useCallback(() => getComuna(id), [id]);
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
