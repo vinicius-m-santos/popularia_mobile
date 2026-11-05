@@ -9,6 +9,7 @@ import { listSavedPosts } from '@/features/posts/api';
 import { PostCard } from '@/features/posts/components/post-card';
 import { SAVED_POSTS_QUERY_KEY } from '@/features/posts/save';
 import { useCachedPages } from '@/hooks/use-cached-pages';
+import { mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
 import { contentPolicy } from '@/lib/query/client';
 
 export type LibrarySection = 'salvos' | 'documentos';
@@ -27,11 +28,16 @@ export function useSavedPosts() {
 /** Publicações guardadas. O documento original continua na outra seção da Biblioteca. */
 export function SavedPostsPane({ header, onShowDocuments }: { header?: ReactNode; onShowDocuments: () => void }) {
   const list = useSavedPosts();
+  // Só o cartão na viewport monta o player; o restante continua no pôster.
+  const visibility = useListVisibility();
   return <PopulariaList
     style={styles.list}
     contentContainerStyle={styles.content}
     state={list}
     data={list.items}
+    extraData={visibility.visibleIds}
+    onViewableItemsChanged={visibility.onViewableItemsChanged}
+    viewabilityConfig={mediaViewabilityConfig}
     keyExtractor={(item) => item.id}
     emptyTitle="Nada salvo ainda"
     emptyMessage="Salve publicações que você quer encontrar novamente."
@@ -40,7 +46,9 @@ export function SavedPostsPane({ header, onShowDocuments }: { header?: ReactNode
       <LibrarySectionTabs value="salvos" onChange={(next) => { if (next === 'documentos') onShowDocuments(); }} />
       <AppText variant="caption" style={styles.intro}>Publicações que você guardou para consultar depois. O acesso continua o de sempre.</AppText>
     </View>}
-    renderItem={({ item, index }) => <PostCard item={item} showRule={index > 0} />}
+    renderItem={({ item, index }) => (
+      <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />
+    )}
   />;
 }
 

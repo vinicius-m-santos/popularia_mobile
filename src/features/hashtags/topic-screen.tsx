@@ -14,6 +14,7 @@ import { getTopicInfo, listTopicPosts } from '@/features/hashtags/api';
 import { validDestination } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
 import { useCachedPages } from '@/hooks/use-cached-pages';
+import { mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
 import { contentPolicy, queryClient } from '@/lib/query/client';
 import { goBack } from '@/lib/routes';
 
@@ -24,11 +25,16 @@ export function TopicScreen() {
   const info = useQuery({ queryKey: ['topic', slug], queryFn: ({ signal }) => getTopicInfo(slug, signal), enabled: valid, ...contentPolicy.profile }, queryClient);
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listTopicPosts(slug, cursor, signal), [slug]);
   const page = useCachedPages({ queryKey: ['topic-posts', slug], load, enabled: valid, performanceScope: 'topic', ...contentPolicy.feed });
+  // Só o cartão na viewport monta o player; o restante continua no pôster.
+  const visibility = useListVisibility();
   if (!valid) return <View style={styles.screen}><StateView kind="empty" title="Tópico indisponível" message="Este link não corresponde a um tópico." /></View>;
   return <View style={styles.screen}>
     <PopulariaList
       data={page.items}
       state={page}
+      extraData={visibility.visibleIds}
+      onViewableItemsChanged={visibility.onViewableItemsChanged}
+      viewabilityConfig={mediaViewabilityConfig}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.content}
       emptyTitle="Sem publicações visíveis"
@@ -45,7 +51,9 @@ export function TopicScreen() {
           <AppText style={styles.intro}>Publicações sobre este assunto</AppText>
         </View>
       </View>}
-      renderItem={({ item, index }) => <PostCard item={item} showRule={index > 0} />}
+      renderItem={({ item, index }) => (
+        <PostCard item={item} mediaVisible={visibility.visibleIds.has(item.id)} showRule={index > 0} />
+      )}
     />
   </View>;
 }
