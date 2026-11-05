@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -379,23 +379,43 @@ export function useChamadoAttendance(data: ChamadoCardData) {
   const serverMaybe = data.viewerAttendance === 'maybe';
   const going = isOn('goingEvents', data.id);
   const maybe = isOn('maybeEvents', data.id);
+  const alive = useRef(true);
+
+  // O efeito só deve alinhar o estado local quando o dado do servidor (ou o
+  // chamado) muda. Lemos os valores atuais por ref para não reexecutá-lo a cada
+  // toque: se `going` entrasse nas dependências, cancelar a presença seria
+  // desfeito pelo próprio efeito ao ver `viewerAttendance` antigo.
+  const goingNow = useRef(going);
+  const maybeNow = useRef(maybe);
+  useEffect(() => {
+    goingNow.current = going;
+    maybeNow.current = maybe;
+  }, [going, maybe]);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   // O resumo do feed traz a resposta de quem vê: ela vira o estado local da sessão.
   useEffect(() => {
+    if (!alive.current) return;
     if (serverGoing) {
-      setOn('goingEvents', [data.id], true);
-      setOn('maybeEvents', [data.id], false);
+      if (!goingNow.current) setOn('goingEvents', [data.id], true);
+      if (maybeNow.current) setOn('maybeEvents', [data.id], false);
     } else if (serverMaybe) {
-      setOn('maybeEvents', [data.id], true);
-      setOn('goingEvents', [data.id], false);
+      if (!maybeNow.current) setOn('maybeEvents', [data.id], true);
+      if (goingNow.current) setOn('goingEvents', [data.id], false);
     }
   }, [data.id, serverGoing, serverMaybe, setOn]);
 
   const setAttendance = async (next: 'going' | 'maybe' | null) => {
     if (busy) return;
     const previous = { going, maybe };
-    setOn('goingEvents', [data.id], next === 'going');
-    setOn('maybeEvents', [data.id], next === 'maybe');
+    const nextGoing = next === 'going';
+    const nextMaybe = next === 'maybe';
+    if (going !== nextGoing) setOn('goingEvents', [data.id], nextGoing);
+    if (maybe !== nextMaybe) setOn('maybeEvents', [data.id], nextMaybe);
     if (DEMO_MODE) {
       if (next) toast.show('Presença marcada neste aparelho até fechar o app.');
       return;
@@ -408,7 +428,7 @@ export function useChamadoAttendance(data: ChamadoCardData) {
       setOn('maybeEvents', [data.id], previous.maybe);
       toast.show('Não foi possível atualizar sua presença. Tente de novo.');
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   };
 
