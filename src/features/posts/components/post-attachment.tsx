@@ -64,7 +64,7 @@ export function PostAttachment({ media, localUri, visible = true, chrome, framed
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
   if (media.type === 'video') return visible
     ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} framed={framed} />
-    : <VideoPoster media={media} framed={framed} />;
+    : <VideoPoster key={media.id} media={media} framed={framed} />;
   return <PostPhoto key={uri} media={media} uri={uri} framed={framed} />;
 }
 

@@ -84,6 +84,16 @@ describe('vídeo em listas', () => {
     expect(screen.queryByLabelText('Foto: Vídeo da publicação')).toBeNull();
   });
 
+  it('não herda o pôster da mídia anterior quando a célula é reciclada', async () => {
+    posterCache.set(video.id, thumbnail('p1'));
+    const view = await render(<PostAttachment media={video} visible={false} />);
+    expect(screen.queryByLabelText('Foto: Vídeo da publicação')).toBeNull();
+
+    const other: PostMediaDto = { ...video, id: 'v2', url: 'https://example.test/v2.mp4' };
+    await view.rerender(<PostAttachment media={other} visible={false} />);
+    expect(screen.getByLabelText('Foto: Vídeo da publicação')).toBeTruthy();
+  });
+
   it('mantém o vídeo disponível quando a geração do pôster falha', async () => {
     mockGenerateThumbnails.mockRejectedValueOnce(new Error('sem quadro'));
     await render(<PostAttachment media={video} />);

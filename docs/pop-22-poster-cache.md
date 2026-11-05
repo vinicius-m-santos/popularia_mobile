@@ -91,9 +91,10 @@ determinísticos):
 - assinantes recebem o pôster e o fallback da limpeza;
 - snapshot de performance expõe os contadores.
 
-`post-attachment.test.tsx` ganhou três casos de integração:
+`post-attachment.test.tsx` ganhou quatro casos de integração:
 
 - pôster em cache não regenera e continua disponível ao sair da viewport;
+- pôster não é herdado quando a célula é reciclada para outra mídia;
 - falha de geração mantém o vídeo e o cache vazio;
 - duas instâncias da mesma mídia geram uma única vez.
 
@@ -102,7 +103,7 @@ Validação executada:
 - `npm run check:fast`: ESLint e TypeScript passaram.
 - Suítes focadas (mídia, feed, vídeo, tópicos, salvos, diagnóstico, conta):
   passaram.
-- `npm run check`: **111 suítes / 635 testes passaram**.
+- `npm run check`: **111 suítes / 636 testes passaram**.
 - E2E de autenticação e saída (`e2e/specs/auth.spec.ts`): **4/4 passaram**.
   A primeira execução a frio estourou o timeout de 120 s enquanto o Metro
   compilava o bundle; a repetição com `--timeout=600000` e o bundle aquecido
