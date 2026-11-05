@@ -53,6 +53,13 @@ const person = { id: 'ana', handle: 'analinux', name: 'Ana Linux', initials: 'AL
 const comunaRef = { id: 'linux', name: 'Linux Brasil', status: 'active' as const };
 const post = { id: 'post1', authorId: 'ana', author: person, comunaId: 'linux', comuna: comunaRef, text: 'Linux nas escolas', createdAt: new Date().toISOString(), supportCount: 0, commentCount: 2, echoCount: 0, event: null, topCommentAuthor: null };
 const comuna = { id: 'linux', name: 'Linux Brasil', handle: 'linux', initials: 'LB', tone: 'red' as const, description: 'Software livre', memberCount: 3, topics: ['tec' as const], place: '', foundedYear: '2026', coverAlt: '', stats: [], rules: [], moderationNote: '', pinned: null, moderatorIds: [], founderRole: '', featuredMemberIds: [], visibility: 'public' as const };
+const event = {
+  id: 'ev1', title: 'Assembleia', description: 'Pauta do mês', format: 'in_person' as const, status: 'scheduled' as const,
+  timeZone: 'America/Manaus', startsAt: '2026-11-05T19:00:00-04:00', endsAt: null, placeName: 'Sindicato', address: null, onlineUrl: null,
+  comuna: { id: 'c', slug: 'hortas', name: 'Hortas', visibility: 'public', status: 'active' }, organizer: null,
+  goingCount: 2, maybeCount: 0, viewerAttendance: null, canManage: false, canRespond: true, past: false,
+  createdAt: '2026-11-01T15:00:00Z', updatedAt: '2026-11-01T15:00:00Z', cancelledAt: null,
+};
 const entries: DiscoveryEntry[] = [
   { id: comuna.id, kind: 'comunas', value: comuna },
   { id: person.id, kind: 'people', value: person },
@@ -203,6 +210,33 @@ describe('Explorar', () => {
     await fireEvent.press(await screen.findByText('Carregar mais'));
     await waitFor(() => expect(search).toHaveBeenLastCalledWith('me', '', 'comunas', undefined, 'cursor1', expect.anything()));
   });
+
+  it('seleciona Eventos sem termo e lista a categoria completa', async () => {
+    search.mockResolvedValue({ items: [{ id: 'ev1', kind: 'events', value: event }], nextCursor: null });
+    await render(<ExploreScreen />);
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Eventos' }));
+    expect(await screen.findByText('Assembleia')).toBeTruthy();
+    expect(search).toHaveBeenLastCalledWith('me', '', 'events', undefined, null, expect.anything());
+    expect(screen.queryByText('Nada nesta categoria por enquanto.')).toBeNull();
+  });
+
+  it('distingue Eventos sem resultado de falha da API e permite tentar de novo', async () => {
+    search.mockResolvedValueOnce({ items: [], nextCursor: null });
+    await render(<ExploreScreen />);
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Eventos' }));
+    expect(await screen.findByText('Nada nesta categoria por enquanto.')).toBeTruthy();
+    expect(screen.queryByText('Tentar de novo')).toBeNull();
+
+    search.mockRejectedValueOnce(new Error('HTTP 500')).mockResolvedValueOnce({ items: [{ id: 'ev1', kind: 'events', value: event }], nextCursor: null });
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Tudo' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Eventos' }));
+    expect(await screen.findByText('Não conseguimos buscar agora.')).toBeTruthy();
+    expect(screen.queryByText('Nada nesta categoria por enquanto.')).toBeNull();
+    await fireEvent.press(screen.getByText('Tentar de novo'));
+    expect(await screen.findByText('Assembleia')).toBeTruthy();
+    expect(screen.queryByText('Não conseguimos buscar agora.')).toBeNull();
+    expect(search).toHaveBeenLastCalledWith('me', '', 'events', undefined, null, expect.anything());
+  });
 });
 
 describe('página de Assunto', () => {
@@ -222,13 +256,6 @@ describe('página de Assunto', () => {
   });
 
   it('abre evento e documento e esconde grupo vazio', async () => {
-    const event = {
-      id: 'ev1', title: 'Assembleia', description: 'Pauta do mês', format: 'in_person' as const, status: 'scheduled' as const,
-      timeZone: 'America/Manaus', startsAt: '2026-11-05T19:00:00-04:00', endsAt: null, placeName: 'Sindicato', address: null, onlineUrl: null,
-      comuna: { id: 'c', slug: 'hortas', name: 'Hortas', visibility: 'public', status: 'active' }, organizer: null,
-      goingCount: 2, maybeCount: 0, viewerAttendance: null, canManage: false, canRespond: true, past: false,
-      createdAt: '2026-11-01T15:00:00Z', updatedAt: '2026-11-01T15:00:00Z', cancelledAt: null,
-    };
     const document = { id: 'doc1', state: 'available' as const, title: 'Cartilha', description: 'Estudo', origin: null, collection: null, responsible: null, createdAt: null, byteSize: null, pageCount: null, topic: null, access: null, isPublic: true, saved: false, viewer: {}, distributions: null, message: null };
     search.mockResolvedValue({
       items: [
