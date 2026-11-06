@@ -10,6 +10,7 @@ import { PostCard } from '@/features/posts/components/post-card';
 import { SAVED_POSTS_QUERY_KEY } from '@/features/posts/save';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { MediaVisibilityProvider, mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
+import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { contentPolicy } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
 
@@ -31,6 +32,9 @@ export function SavedPostsPane({ header, onShowDocuments }: { header?: ReactNode
   const list = useSavedPosts();
   // Só o cartão na viewport monta o player; o restante continua no pôster.
   const visibility = useListVisibility();
+  // A biblioteca pode ser uma aba do perfil/comuna ou a rota própria: em todos
+  // os casos, sair do foco da rota desliga a mídia da lista.
+  useRouteMediaFocus(visibility);
   const renderItem = useCallback(({ item, index }: { item: FeedItem; index: number }) => (
     <PostCard item={item} showRule={index > 0} />
   ), []);

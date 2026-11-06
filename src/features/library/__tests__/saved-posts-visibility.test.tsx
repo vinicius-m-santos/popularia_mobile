@@ -10,6 +10,7 @@ import { act, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 import { mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { resetMockRouteFocused, setMockRouteFocused } from '@/hooks/testing/route-focus';
 import type { FeedItem } from '@/types/models';
 
 import { SavedPostsPane } from '../saved-posts-pane';
@@ -26,6 +27,10 @@ type MockListProps = {
 
 let mockListProps: MockListProps | null = null;
 
+jest.mock('expo-router', () => {
+  const { useMockFocusEffect } = jest.requireActual<typeof import('@/hooks/testing/route-focus')>('@/hooks/testing/route-focus');
+  return { useFocusEffect: useMockFocusEffect };
+});
 jest.mock('@/hooks/use-cached-pages', () => ({ useCachedPages: () => mockUseCachedPages() }));
 jest.mock('@/features/posts/api', () => ({ listSavedPosts: jest.fn() }));
 jest.mock('@/components/list/popularia-list', () => {
@@ -87,6 +92,7 @@ describe('mídia das publicações salvas', () => {
   beforeEach(() => {
     mockUseCachedPages.mockReset();
     mockListProps = null;
+    resetMockRouteFocused();
   });
 
   it('libera a mídia só do post na viewport e acompanha a rolagem', async () => {
@@ -115,5 +121,29 @@ describe('mídia das publicações salvas', () => {
     expect(screen.getByTestId('post-s10').props.children).toBe('oculta');
     expect(screen.getByTestId('post-s11').props.children).toBe('visível');
     expect(mockListProps?.onViewableItemsChanged).toBe(onViewableItemsChanged);
+  });
+
+  it('volta ao pôster quando a rota perde o foco e reabilita só a viewport', async () => {
+    const items = Array.from({ length: 3 }, (_, index) => feed(`s${index + 1}`));
+    mockUseCachedPages.mockReturnValue({ items, status: 'success', hasMore: false, loadMore: jest.fn(), refresh: jest.fn(), loadingMore: false, loadMoreError: null, isRefreshing: false, refreshError: null });
+    await render(<SavedPostsPane onShowDocuments={jest.fn()} />);
+    const onViewableItemsChanged = mockListProps?.onViewableItemsChanged;
+
+    await act(async () => {
+      onViewableItemsChanged?.({ viewableItems: [{ key: 's2' }] });
+    });
+    expect(screen.getByTestId('post-s2').props.children).toBe('visível');
+
+    await act(async () => {
+      setMockRouteFocused(false);
+    });
+    expect(screen.getByTestId('post-s2').props.children).toBe('oculta');
+
+    await act(async () => {
+      setMockRouteFocused(true);
+    });
+    expect(screen.getByTestId('post-s1').props.children).toBe('oculta');
+    expect(screen.getByTestId('post-s2').props.children).toBe('visível');
+    expect(screen.getByTestId('post-s3').props.children).toBe('oculta');
   });
 });

@@ -1,7 +1,8 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, render, screen } from '@testing-library/react-native';
 
 import FeedScreen from '@/app/(tabs)/(inicio)/index';
+import { resetMockRouteFocused, setMockRouteFocused } from '@/hooks/testing/route-focus';
 import type { FeedItem } from '@/types/models';
 
 const mockToday = new Date();
@@ -44,7 +45,10 @@ type MockListProps = {
 
 let mockListProps: MockListProps | null = null;
 
-jest.mock('expo-router', () => ({ useScrollToTop: () => undefined }));
+jest.mock('expo-router', () => {
+  const { useMockFocusEffect } = jest.requireActual<typeof import('@/hooks/testing/route-focus')>('@/hooks/testing/route-focus');
+  return { useScrollToTop: () => undefined, useFocusEffect: useMockFocusEffect };
+});
 jest.mock('@/hooks/use-cached-pages', () => ({ useCachedPages: () => mockFeed }));
 jest.mock('@/features/interactions/interactions-context', () => ({
   useInteractions: () => ({
@@ -93,6 +97,8 @@ jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }
 jest.mock('@/lib/query/client', () => ({ contentPolicy: { feed: {} } }));
 
 describe('feed com pessoa bloqueada', () => {
+  beforeEach(() => resetMockRouteFocused());
+
   it('não deixa a regra do dia órfã quando a primeira publicação some', async () => {
     await render(<FeedScreen />);
 
@@ -127,5 +133,43 @@ describe('feed com pessoa bloqueada', () => {
     });
     expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
     expect(mockListProps).toBe(firstRenderProps);
+  });
+
+  it('desliga a mídia fora do foco e reabilita só a viewport retida', async () => {
+    await render(<FeedScreen />);
+    const list = mockListProps;
+    const onViewableItemsChanged = list?.onViewableItemsChanged;
+    expect(onViewableItemsChanged).toEqual(expect.any(Function));
+
+    await act(async () => {
+      onViewableItemsChanged?.({ viewableItems: [{ key: 'visible-yesterday' }] });
+    });
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:visible');
+
+    // Push de uma publicação: a lista continua montada, mas vai para o pôster.
+    await act(async () => {
+      setMockRouteFocused(false);
+    });
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
+
+    // Back rápido: só a janela retida volta a valer.
+    await act(async () => {
+      setMockRouteFocused(true);
+    });
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:visible');
+    expect(mockListProps).toBe(list);
+    expect(mockListProps?.onViewableItemsChanged).toBe(onViewableItemsChanged);
+
+    // Coberta de novo, a viewport pode mudar; no retorno, só o que está visível habilita.
+    await act(async () => {
+      setMockRouteFocused(false);
+    });
+    await act(async () => {
+      onViewableItemsChanged?.({ viewableItems: [] });
+    });
+    await act(async () => {
+      setMockRouteFocused(true);
+    });
+    expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
   });
 });
