@@ -10,6 +10,7 @@ import { createPost } from '@/features/posts/api';
 import { pickPostImage, uploadPostMedia } from '@/features/posts/post-media';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 import { NetworkError } from '@/lib/errors';
+import { haptic } from '@/lib/haptics';
 
 import CreatePostScreen from '../create-post-screen';
 
@@ -49,6 +50,7 @@ jest.mock('@/features/posts/post-media', () => ({
   pickPostImage: jest.fn(), pickPostVideo: jest.fn(), uploadPostMedia: jest.fn(),
 }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 // O mock global devolve o TextInput nativo; aqui marcamos o componente oficial da folha
 // para garantir que a busca de destinos usa a integração de teclado do bottom sheet.
 jest.mock('@/components/bottom-sheet', () => {
@@ -112,6 +114,7 @@ describe('criação de publicação', () => {
     await waitFor(() => expect(createPost).toHaveBeenCalledTimes(2));
     expect(createPost).toHaveBeenNthCalledWith(1, expect.objectContaining({ comunaServerId: 'srv-a', text: 'Olá, duas comunas' }));
     expect(createPost).toHaveBeenNthCalledWith(2, expect.objectContaining({ comunaServerId: 'srv-b', text: 'Olá, duas comunas' }));
+    expect(haptic).toHaveBeenCalledWith('success');
   });
 
   it('limita a três locais por publicação', async () => {

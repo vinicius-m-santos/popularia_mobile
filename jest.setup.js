@@ -7,6 +7,23 @@ jest.mock('@sentry/react-native', () => ({
   wrap: (component) => component,
 }));
 
+// Haptics é opcional e nativo: nos testes o serviço continua sendo exercitado,
+// mas sem motor. Os valores dos enums são os mesmos do expo-haptics 58.
+jest.mock('expo-haptics', () => ({
+  selectionAsync: jest.fn(async () => undefined),
+  impactAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
+  performAndroidHapticsAsync: jest.fn(async () => undefined),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy', Rigid: 'rigid', Soft: 'soft' },
+  NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
+  AndroidHaptics: {
+    Segment_Tick: 'segment-tick',
+    Virtual_Key: 'virtual-key',
+    Confirm: 'confirm',
+    Reject: 'reject',
+  },
+}));
+
 // ReanimatedSwipeable roda na UI thread no aparelho. Nos testes de componentes,
 // preservamos filhos/ref; os callbacks acessíveis são exercitados diretamente.
 jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {

@@ -10,6 +10,7 @@ import { Icon } from '@/components/icon';
 import { StripedPlaceholder } from '@/components/striped-placeholder';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
+import { haptic } from '@/lib/haptics';
 import { performanceNow, recordVideoError, recordVideoFirstFrame, recordVideoMount, recordVideoPause, recordVideoPlay, recordVideoUnmount } from '@/lib/performance';
 
 import { posterCache } from '../poster-cache';
@@ -283,7 +284,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
         if (!player.playing) { toggle(); return; }
         setExpanded(true);
       }}
-      onLongPress={() => { heldAt.current = Date.now(); setSpeed(2); }}
+      onLongPress={() => { haptic('light'); heldAt.current = Date.now(); setSpeed(2); }}
       delayLongPress={220}
       onPressOut={() => setSpeed(1)}
       accessibilityRole="button"
@@ -345,7 +346,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
       onClose={() => setExpanded(false)}
       onTogglePlay={toggle}
       onToggleMute={() => setMuted(!muted)}
-      onHoldStart={() => setSpeed(2)}
+      onHoldStart={() => { haptic('light'); setSpeed(2); }}
       onHoldEnd={() => setSpeed(1)}
     />
   </View>;

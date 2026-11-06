@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { Colors, Spacing } from '@/constants/theme';
+import { haptic } from '@/lib/haptics';
 
 import { clampPan, panLimit, pinchZoom, type ViewerGeometry } from './photo-viewer-geometry';
 
@@ -193,6 +194,8 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
       // Puxar forte na beirada solta e recoloca o dedo rápido: se houve movimento agora,
       // esses dois contatos não são um toque duplo.
       if (Date.now() - lastMoveAt.value < 450) return;
+      // O zoom assenta num nível inteiro (1× ou 2,5×): um tique de seleção confirma o snap.
+      runOnJS(haptic)('selection');
       cancelAnimation(scale);
       cancelAnimation(translateX);
       cancelAnimation(translateY);
