@@ -3,11 +3,13 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import { settleQueryClient } from '@/features/events/query-test-utils';
+import { NetworkError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem, Profile } from '@/types/models';
 
 import * as profileApi from '../api';
 import ProfileScreen from '../profile-screen';
+import { prepareProfile } from '../queries';
 
 let mockProfileId: string | undefined;
 const mockGoBack = jest.fn();
@@ -318,5 +320,43 @@ describe('swipe das abas do perfil', () => {
     expect(screen.getByText('Vídeo do perfil')).toBeTruthy();
     expect(screen.queryByLabelText('Abrir vídeo, 0:03')).toBeNull();
     expect(getUserPostsPage.mock.calls.length).toBe(calls);
+  });
+
+  it('usa o perfil e a primeira página pré-aquecidos sem request duplo', async () => {
+    mockProfileId = 'taina';
+    getProfile.mockResolvedValue(profile({
+      user: { id: 'taina', name: 'Tainá Souza', handle: 'taina', initials: 'TS', tone: 'black' },
+      bio: 'Bio da Tainá',
+    }));
+    getUserPostsPage.mockResolvedValue({ items: [], nextCursor: null });
+
+    await prepareProfile('taina');
+    getProfile.mockClear();
+    getUserPostsPage.mockClear();
+
+    await render(<ProfileScreen />);
+    expect(await screen.findByText('Tainá Souza')).toBeTruthy();
+    expect(getProfile).not.toHaveBeenCalled();
+    expect(getUserPostsPage).not.toHaveBeenCalled();
+  });
+
+  it('cai no carregamento normal quando o prefetch não conclui', async () => {
+    mockProfileId = 'taina';
+    getProfile
+      .mockRejectedValueOnce(new NetworkError())
+      .mockResolvedValue(profile({
+        user: { id: 'taina', name: 'Tainá Souza', handle: 'taina', initials: 'TS', tone: 'black' },
+        bio: 'Bio da Tainá',
+      }));
+    getUserPostsPage.mockResolvedValue({ items: [], nextCursor: null });
+
+    await prepareProfile('taina');
+    getProfile.mockClear();
+    getUserPostsPage.mockClear();
+
+    await render(<ProfileScreen />);
+    expect(await screen.findByText('Tainá Souza')).toBeTruthy();
+    expect(getProfile).toHaveBeenCalledTimes(1);
+    expect(getUserPostsPage).not.toHaveBeenCalled();
   });
 });

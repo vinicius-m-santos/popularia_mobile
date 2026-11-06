@@ -5,6 +5,7 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { Fonts } from '@/constants/theme';
+import { prepareComuna } from '@/features/comunas/queries';
 import type { Comuna, TopicId } from '@/types/models';
 
 import { ExploreSectionHeading } from './explore-section-heading';
@@ -92,7 +93,7 @@ function ComunaSuggestionCard({ comuna, index, onOpen }: { comuna: Comuna; index
     <View style={[styles.card, pressed && styles.cardPressed]}>
       <Pressable
         onPress={onOpen}
-        onPressIn={() => setPressed(true)}
+        onPressIn={() => { setPressed(true); void prepareComuna(comuna); }}
         onPressOut={() => setPressed(false)}
         accessibilityRole="link"
         accessibilityLabel={label}

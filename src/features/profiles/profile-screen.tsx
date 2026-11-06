@@ -7,7 +7,6 @@ import { PopulariaList } from '@/components/list/popularia-list';
 import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { accessDenied, contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
-import { queryKeys } from '@/lib/query/keys';
 import { mergeById } from '@/lib/pagination';
 import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
@@ -48,11 +47,12 @@ import { ProfileProgress } from '@/features/gamification/progress-screen';
 import { LibraryPane } from '@/features/library/library-screen';
 
 import { ProfilePhoto } from './profile-photo';
-import { getProfile, getUserPostsPage, toProfile } from './api';
+import { getUserPostsPage, toProfile } from './api';
 import { FollowButton } from './components/follow-button';
 import { ProfileMediaGrid } from './components/profile-media-grid';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from './profile-tab-swipe';
 import { profileTabOptions, type ProfileTabKey } from './profile-tabs';
+import { profileKeys, profileOptions } from './queries';
 
 type ProfileRow =
   | { kind: 'identity'; id: string }
@@ -86,15 +86,14 @@ export default function ProfileScreen() {
   const loadPosts = useCallback((cursor: string | null, signal: AbortSignal) => getUserPostsPage(author, cursor, signal), [author]);
   // Na API, o próprio perfil lista as comunas de que a pessoa participa, com o papel dado pelo servidor.
   const loadComunas = useCallback(() => (!DEMO_MODE && isMe ? getMyComunas() : getComunas()), [isMe]);
-  const profileQuery = useQuery({ queryKey: queryKeys.profile.detail(id),
-    queryFn: ({ signal }) => getProfile(id, signal), ...contentPolicy.profile,
+  const profileQuery = useQuery({ ...profileOptions(id),
     initialData: isMe && !DEMO_MODE && account ? () => toProfile(account) : undefined,
     initialDataUpdatedAt: 0,
   }, queryClient);
   const profile = { data: accessDenied(profileQuery.error) ? null : profileQuery.data,
     status: profileQuery.isPending ? 'loading' : profileQuery.isError ? 'error' : 'success',
     error: profileQuery.error, reload: profileQuery.refetch };
-  const posts = useCachedPages({ queryKey: queryKeys.profile.posts(author), load: loadPosts, performanceScope: 'profile', ...contentPolicy.profile, enabled: !!author });
+  const posts = useCachedPages({ queryKey: profileKeys.posts(author), load: loadPosts, performanceScope: 'profile', ...contentPolicy.profile, enabled: !!author });
   const comunas = useAsyncData(loadComunas);
   const reloadProfile = profileQuery.refetch;
   const reloadPosts = posts.refresh;
@@ -107,8 +106,8 @@ export default function ProfileScreen() {
   }, [joinedComunaIds, account, reloadPosts, reloadComunas, reloadProfile]);
   useFocusEffect(useCallback(() => {
     // Voltar imediatamente não gera requests; dados antigos revalidam sem loader.
-    revalidateIfStale(queryKeys.profile.detail(id), contentPolicy.profile.staleTime);
-    revalidateIfStale(queryKeys.profile.posts(author), contentPolicy.profile.staleTime);
+    revalidateIfStale(profileKeys.detail(id), contentPolicy.profile.staleTime);
+    revalidateIfStale(profileKeys.posts(author), contentPolicy.profile.staleTime);
   }, [id, author]));
   const reloadProfileContent = useCallback(() => {
     void reloadProfile(); reloadPosts(); reloadComunas();

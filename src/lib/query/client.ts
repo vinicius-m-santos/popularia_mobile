@@ -1,4 +1,6 @@
-import { QueryCache, QueryClient, type QueryKey } from '@tanstack/react-query';
+import {
+  QueryCache, QueryClient, type FetchInfiniteQueryOptions, type FetchQueryOptions, type QueryKey,
+} from '@tanstack/react-query';
 import { ApiError, NotFoundError } from '@/lib/errors';
 import { queryKeys } from '@/lib/query/keys';
 
@@ -72,11 +74,40 @@ export function revalidateIfStale(queryKey: QueryKey, staleTime: number): void {
 }
 
 /**
- * Políticas explícitas por tipo de dado. `gcTime` é quanto tempo a entrada sem
- * observers fica no cache; `staleTime` é a janela em que uma montagem/foco não
- * precisa buscar de novo. A busca tem staleTime 0 de propósito: teclado e
- * filtros mudam a chave e o resultado precisa refletir o servidor.
+ * Prefetch de uma consulta simples antes da navegação.
+ *
+ * É best-effort: nunca rejeita, não repete erros e deixa a tela de destino
+ * buscar por conta própria se este aquecimento não concluir. O TanStack já
+ * deduplica uma consulta em voo; a checagem explícita evita até construir uma
+ * segunda chamada enquanto a primeira está na rede.
+ *
+ * `retry: false` é intencional. Um prefetch não pode competir com o retry da
+ * tela de destino em rede lenta: aqui é uma tentativa, não uma promessa.
  */
+export function prefetchQueryOnce<TQueryFnData = unknown, TError = Error, TData = TQueryFnData, TQueryKey extends QueryKey = QueryKey>(
+  options: FetchQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+): Promise<void> {
+  const state = queryClient.getQueryState(options.queryKey);
+  if (state?.fetchStatus === 'fetching') return Promise.resolve();
+  return queryClient.prefetchQuery({ ...options, retry: false }).then(() => undefined);
+}
+
+/**
+ * Prefetch da primeira página de uma lista infinita.
+ *
+ * Só aquece quando ainda não há dados. Refazer uma lista já carregada no
+ * `onPressIn` multiplicaria páginas em rede lenta e poderia substituir o
+ * histórico; nesse caso o destino revalida com a política dele (staleTime).
+ */
+export function prefetchInfiniteQueryOnce<TQueryFnData = unknown, TError = Error, TData = TQueryFnData, TQueryKey extends QueryKey = QueryKey, TPageParam = unknown>(
+  options: FetchInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+): Promise<void> {
+  const state = queryClient.getQueryState(options.queryKey);
+  if (state?.fetchStatus === 'fetching' || state?.data !== undefined) return Promise.resolve();
+  return queryClient.prefetchInfiniteQuery({ ...options, retry: false }).then(() => undefined);
+}
+
+/** Políticas explícitas de frescor e retenção por domínio. */
 export const contentPolicy = {
   feed: { staleTime: 30_000, gcTime: 10 * 60_000 },
   profile: { staleTime: 60_000, gcTime: 10 * 60_000 },

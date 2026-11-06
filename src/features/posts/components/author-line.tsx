@@ -17,13 +17,15 @@ type AuthorLineProps = {
   trailing?: ReactNode;
   /** Abre o perfil da pessoa. */
   onPress?: () => void;
+  /** Aquece o perfil antes de navegar; não recebe toque quando `onPress` está ausente. */
+  onPressIn?: () => void;
   /** No cartão de publicação a identidade é um selo quadrado, como no mock do feed. */
   appearance?: 'default' | 'card';
   /** Na publicação aberta o avatar segue o padrão quadrado dos cartões. */
   avatarShape?: 'circle' | 'square';
 };
 
-export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress, appearance = 'default', avatarShape = 'circle' }: AuthorLineProps) {
+export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress, onPressIn, appearance = 'default', avatarShape = 'circle' }: AuthorLineProps) {
   const card = appearance === 'card';
   const size = card ? 42 : avatarSize;
   const square = card || avatarShape === 'square';
@@ -31,6 +33,7 @@ export function AuthorLine({ author, meta, avatarSize = 40, trailing, onPress, a
     <View style={[styles.row, card && styles.rowCard]}>
       <Pressable
         onPress={onPress}
+        onPressIn={onPress ? onPressIn : undefined}
         disabled={!onPress}
         accessibilityRole={onPress ? 'link' : undefined}
         accessibilityHint={onPress ? 'Abre o perfil' : undefined}
