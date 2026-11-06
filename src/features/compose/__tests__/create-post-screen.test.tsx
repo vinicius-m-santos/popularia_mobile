@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
@@ -8,6 +8,7 @@ import { returnAttachment } from '@/features/library/composer-attachment';
 import { document } from '@/features/library/testing/fixtures';
 import { createPost } from '@/features/posts/api';
 import { pickPostImage, uploadPostMedia } from '@/features/posts/post-media';
+import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 import { NetworkError } from '@/lib/errors';
 
 import CreatePostScreen from '../create-post-screen';
@@ -34,7 +35,14 @@ jest.mock('@/features/interactions/interactions-context', () => ({
 }));
 jest.mock('@/features/comunas/api', () => ({ getMyComunas: jest.fn() }));
 jest.mock('@/features/posts/api', () => ({ createPost: jest.fn() }));
-jest.mock('@/features/posts/components/post-card', () => ({ PostCard: () => null }));
+jest.mock('@/features/posts/components/post-card', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    PostCard: ({ item }: { item: { title: string | null; text: string } }) =>
+      React.createElement(Text, { testID: 'post-card-preview' }, [item.title, item.text].filter(Boolean).join(' · ')),
+  };
+});
 jest.mock('@/features/posts/components/post-attachment', () => ({ PostAttachment: () => null }));
 jest.mock('@/features/posts/post-media', () => ({
   durationLabel: (value: number | null) => value ? '0:15' : '',
@@ -57,6 +65,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   delete mockParams.documentId;
   jest.mocked(getMyComunas).mockResolvedValue([]);
+});
+
+afterEach(() => {
+  setPerformanceInstrumentationOverride(null);
+  resetPerformanceSession();
 });
 
 const multiComunas = [
@@ -247,5 +260,56 @@ describe('enquete no compositor', () => {
       text: '',
       poll: { question: 'Qual livro vamos ler?', options: [{ label: 'O cortiço' }, { label: 'Capitães da Areia' }], durationDays: 7 },
     });
+  });
+});
+
+describe('digitação isolada e prévia sincronizada', () => {
+  it('não reconcilia os painéis já montados a cada tecla', async () => {
+    setPerformanceInstrumentationOverride(true);
+    resetPerformanceSession();
+    await render(<CreatePostScreen />);
+    const input = screen.getByLabelText('Texto da publicação');
+
+    // A primeira tecla muda "rascunho vazio" para "com conteúdo" e atualiza o botão publicar.
+    await fireEvent.changeText(input, 'a');
+    resetPerformanceSession();
+
+    for (const value of ['ab', 'abc', 'abcd', 'abcde']) {
+      await fireEvent.changeText(input, value);
+    }
+
+    const commits = getPerformanceSnapshot().commits;
+    const editor = commits.find((commit) => commit.component === 'ComposerWriteEditor');
+    expect(editor?.updateCommits).toBeGreaterThan(0);
+    expect(commits.filter((commit) => commit.component === 'ComposerDestinationStep')).toHaveLength(0);
+    expect(commits.filter((commit) => commit.component === 'ComposerPostTypeStep')).toHaveLength(0);
+    expect(commits.filter((commit) => commit.component === 'ComposerWritePhotoFrame')).toHaveLength(0);
+    expect(input.props.value).toBe('abcde');
+  });
+
+  it('prévia lê o texto e o título atuais da store', async () => {
+    await render(<CreatePostScreen />);
+    const input = screen.getByLabelText('Texto da publicação');
+    await fireEvent.changeText(input, 'Primeiro rascunho');
+    await fireEvent.press(screen.getByLabelText('Adicionar título'));
+    await fireEvent.changeText(screen.getByLabelText('Título da publicação'), 'Ato na quinta');
+    await fireEvent.changeText(input, 'Segundo rascunho');
+
+    await fireEvent.press(screen.getByLabelText('Prévia da publicação'));
+    expect(screen.getByTestId('post-card-preview', { includeHiddenElements: true }).props.children).toBe('Ato na quinta · Segundo rascunho');
+
+    await fireEvent.press(screen.getByLabelText('Prévia da publicação'));
+    const editorInput = screen.getByLabelText('Texto da publicação');
+    await fireEvent.changeText(editorInput, 'Rascunho final');
+    await fireEvent.press(screen.getByLabelText('Prévia da publicação'));
+    expect(screen.getByTestId('post-card-preview', { includeHiddenElements: true }).props.children).toBe('Ato na quinta · Rascunho final');
+  });
+
+  it('mantém o rascunho ao alternar para enquete e voltar', async () => {
+    await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Texto preservado');
+    await fireEvent.press(screen.getByRole('tab', { name: 'Enquete' }));
+    await fireEvent.press(screen.getByRole('tab', { name: 'Escrever' }));
+    expect(screen.getByLabelText('Texto da publicação').props.value).toBe('Texto preservado');
   });
 });
