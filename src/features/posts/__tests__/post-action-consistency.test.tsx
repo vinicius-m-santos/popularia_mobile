@@ -188,6 +188,42 @@ describe('escritas de cache', () => {
     expect(savedIds()).toEqual(['p1', 'p2', 'p3']);
     expect(after?.pages[1]).toBe(secondPage);
   });
+
+  it('atualiza o post em todas as páginas e feeds que o contêm sem mudar a ordem', async () => {
+    const firstPage = { items: [feed('p1'), feed('p2')], nextCursor: 'cursor-1' };
+    const secondPage = { items: [feed('p3'), feed('p1')], nextCursor: null };
+    const feedKey = ['feed', 'para-voce', ''];
+    const followingKey = ['feed', 'seguindo', ''];
+    queryClient.setQueryData(feedKey, { pages: [firstPage, secondPage], pageParams: [null, 'cursor-1'] });
+    queryClient.setQueryData(followingKey, pages([feed('p1')]));
+
+    const { result } = await renderHook(() => usePostActions(feed('p1')), { wrapper });
+    await act(async () => { await result.current.toggleSupport(); });
+
+    const after = queryClient.getQueryData<{ pages: { items: FeedItem[]; nextCursor: string | null }[] }>(feedKey);
+    expect(after?.pages).toHaveLength(2);
+    // O item alterado muda nos dois feeds; os vizinhos continuam com a mesma referência.
+    expect(after?.pages[0].items[0].viewer?.supported).toBe(true);
+    expect(after?.pages[0].items[1]).toBe(firstPage.items[1]);
+    expect(after?.pages[1].items[0]).toBe(secondPage.items[0]);
+    expect(after?.pages[1].items[1].viewer?.supported).toBe(true);
+    expect(after?.pages[0].nextCursor).toBe('cursor-1');
+    expect(after?.pages[1].nextCursor).toBeNull();
+    expect(queryClient.getQueryData<{ pages: { items: FeedItem[] }[] }>(followingKey)?.pages[0].items[0].viewer?.supported).toBe(true);
+  });
+
+  it('rollback do apoio não sobrescreve um valor mais novo vindo de refetch', () => {
+    queryClient.setQueryData(['post', 'p1'], confirmedSupport('p1', true, 5));
+
+    // A resposta otimista era 1/true; o refetch já trouxe 5/true. O rollback
+    // antigo não pode desfazer esse valor mais novo.
+    const changed = patchReactionCaches('p1', 'support', { count: 0, mine: false }, { onlyIf: { count: 1, mine: true } });
+
+    expect(changed).toBe(0);
+    const detail = queryClient.getQueryData<FeedItem>(['post', 'p1']);
+    expect(detail?.supportCount).toBe(5);
+    expect(detail?.viewer?.supported).toBe(true);
+  });
 });
 
 describe('concorrência e rollback', () => {
