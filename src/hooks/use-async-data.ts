@@ -23,6 +23,10 @@ export type AsyncData<T> = {
  *
  * `load` deve ser estável (useCallback); quando muda (por exemplo, outra aba),
  * os dados antigos não são exibidos como se fossem da nova consulta.
+ *
+ * Este hook não compartilha cache entre telas. Para entidades/agregados com
+ * identidade de cache (comuna, descoberta, perfil), use `useCachedData`, que
+ * mantém o mesmo contrato `AsyncData` e deduplica requests pela query key.
  */
 export function useAsyncData<T>(load: () => Promise<T>): AsyncData<T> {
   const [attempt, setAttempt] = useState(0);

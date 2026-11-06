@@ -66,8 +66,10 @@ describe('denúncia de conteúdo', () => {
       ['post'],
       ['profile-posts'],
       ['search'],
-      ['comuna', 'vila', 'pins'],
+      ['discovery'],
+      ['topic-posts'],
       ['comuna', 'vila', 'posts'],
+      ['comuna', 'vila', 'pins'],
     ]);
     expect(comunaReportsKey('vila', 'open')).toEqual(['comuna-reports', 'vila', 'open']);
     expect(platformReportsKey('closed')).toEqual(['platform-reports', 'closed']);

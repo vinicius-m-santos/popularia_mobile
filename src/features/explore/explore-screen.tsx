@@ -19,19 +19,19 @@ import { ComunaRow } from '@/features/comunas/components/comuna-row';
 import { JoinButton } from '@/features/comunas/components/join-button';
 import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
-import { useCachedQuery } from '@/hooks/use-cached-query';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { formatPeople } from '@/lib/format';
 import type { Page } from '@/lib/pagination';
-import { contentPolicy, queryClient } from '@/lib/query/client';
-import { discoveryKeys } from '@/lib/query/keys';
+import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, FeedItem, Topic } from '@/types/models';
 
-import { getDiscoveryData, searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
+import { searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
 import { ComunasToKnowSection, suggestedComunas } from './comunas-carousel';
 import { DiscoveryEventRow } from './discovery-event-row';
 import { DiscoveryPostRow } from './discovery-post-row';
+import { useDiscovery } from './queries';
 import { selectTrendingPosts, TrendingNowSection, TrendingNowSkeleton } from './trending-now';
 
 const FILTERS: { key: DiscoveryFilter; label: string; action: string }[] = [
@@ -66,14 +66,9 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const nav = useNav();
   const { interests, profile } = useAccount();
   const interestKey = (interests ?? []).join(',');
-  // A chave abaixo é a fonte da verdade: remontar o Explorar ou o assunto
-  // reutiliza o mesmo cache (e os interesses mudam a consulta, não o contrário).
-  const data = useCachedQuery({
-    queryKey: discoveryKeys.detail(me.id, topicId ?? null, interestKey),
-    load: (signal) => getDiscoveryData(me.id, topicId, signal),
-    ...contentPolicy.discovery,
-    retry: false,
-  });
+  // A chave inclui os interesses porque a descoberta é personalizada por eles.
+  const discovery = useDiscovery(me.id, topicId, interestKey);
+  const data = discovery;
   const trending = useMemo(
     () => data.data ? selectTrendingPosts([...data.data.posts, ...data.data.recentPosts]) : [],
     [data.data],
@@ -97,14 +92,14 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const topic = data.data?.topics.find((t) => t.id === topicId);
   // O /explore?topic= não inclui documentos; usa a busca por assunto para trazer o acervo.
   const topicDocuments = useQuery<Page<DiscoveryEntry>>({
-    queryKey: discoveryKeys.topicDocuments(me.id, topicId ?? ''),
+    queryKey: queryKeys.discovery.topicDocuments(me.id, topicId ?? ''),
     queryFn: ({ signal }) => searchDiscovery(me.id, '', 'documents', topicId, null, signal),
     enabled: !!topicId && !!topic,
     retry: false,
     ...contentPolicy.discovery,
     // Se a pessoa já abriu a categoria Documentos neste assunto, o preview usa
     // a mesma página em cache em vez de nascer com um loader.
-    placeholderData: () => topicId ? cachedSearchPage(discoveryKeys.search(me.id, '', 'documents', topicId)) : undefined,
+    placeholderData: () => topicId ? cachedSearchPage(queryKeys.discovery.search(me.id, '', 'documents', topicId)) : undefined,
   }, queryClient);
   const topicDocumentItems = (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents');
   const refetchTopicDocuments = topicDocuments.refetch;
@@ -115,7 +110,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const title = topicId ? topic?.shortLabel ?? 'Assunto' : 'Explorar';
   const searchLabel = topicId ? `Buscar em ${title}` : 'Buscar na Popularia';
   const result = useInfiniteQuery({
-    queryKey: discoveryKeys.search(me.id, debounced, filter, topicId ?? null),
+    queryKey: queryKeys.discovery.search(me.id, debounced, filter, topicId),
     queryFn: ({ pageParam, signal }) => searchDiscovery(me.id, debounced, filter, topicId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
@@ -129,11 +124,13 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const revalidateRef = useRef(() => {});
   useEffect(() => {
     revalidateRef.current = () => {
-      reload();
-      if (topicId && topic) void refetchTopicDocuments();
+      // Descoberta só busca de novo fora da janela de frescor; uma busca ativa
+      // é revalidada ao retornar para refletir novos resultados.
+      revalidateIfStale(discovery.queryKey, contentPolicy.discovery.staleTime);
+      if (topicId && topic) revalidateIfStale(queryKeys.discovery.topicDocuments(me.id, topicId), contentPolicy.topic.staleTime);
       if (searchEnabled) void refreshSearch();
     };
-  }, [reload, refreshSearch, searchEnabled, topicId, topic, refetchTopicDocuments]);
+  }, [discovery.queryKey, refreshSearch, searchEnabled, topicId, topic, me.id]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
     focusedOnce.current = true;

@@ -1,5 +1,6 @@
 import { rememberAvatarUrl } from '@/lib/avatar-cache';
-import { avatarQueryKey, queryClient } from '@/lib/query/client';
+import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 
 function isAppUser(value: Record<string, unknown>): boolean {
   return typeof value.id === 'string'
@@ -53,7 +54,7 @@ function patchQueries(visit: (record: Record<string, unknown>) => Record<string,
 
 /** Atualiza a foto nas queries já carregadas e avisa os avatares que observam esta pessoa. */
 export function publishAvatar(userId: string, avatarUrl: string): void {
-  queryClient.setQueryData(avatarQueryKey(userId), avatarUrl);
+  queryClient.setQueryData(queryKeys.avatar.detail(userId), avatarUrl);
   rememberAvatarUrl(userId, avatarUrl);
   patchQueries((record) => {
     if (!isAppUser(record) || record.id !== userId || record.avatarUrl === avatarUrl) return null;
@@ -63,7 +64,7 @@ export function publishAvatar(userId: string, avatarUrl: string): void {
 
 /** Atualiza a capa nas comunas já presentes no cache, pelo slug e pelo UUID. */
 export function publishCover(comuna: { id: string; serverId?: string }, coverUrl: string): void {
-  queryClient.setQueryData(['comuna-cover', comuna.id], coverUrl);
+  queryClient.setQueryData(queryKeys.comuna.cover(comuna.id), coverUrl);
   patchQueries((record) => {
     if (!isComuna(record) || record.coverUrl === coverUrl) return null;
     const same = record.id === comuna.id || (comuna.serverId !== undefined && record.serverId === comuna.serverId);
@@ -74,7 +75,7 @@ export function publishCover(comuna: { id: string; serverId?: string }, coverUrl
 
 /** Atualiza a marca (imagem de perfil) nas comunas já presentes no cache, pelo slug e pelo UUID. */
 export function publishMark(comuna: { id: string; serverId?: string }, markUrl: string): void {
-  queryClient.setQueryData(['comuna-mark', comuna.id], markUrl);
+  queryClient.setQueryData(queryKeys.comuna.mark(comuna.id), markUrl);
   patchQueries((record) => {
     if (!isComuna(record) || record.markUrl === markUrl) return null;
     const same = record.id === comuna.id || (comuna.serverId !== undefined && record.serverId === comuna.serverId);

@@ -10,6 +10,7 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { voteOnPoll } from '@/features/posts/api';
 import { applyPollVote, patchCachedPoll, pollDeadlineLabel, pollIsClosed, pollsMatch, restorePostCaches, snapshotPostCaches, type PostPoll } from '@/features/posts/poll';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { ApiError, describeError } from '@/lib/errors';
 import { plural } from '@/lib/format';
 
@@ -59,7 +60,7 @@ function PollCard({ postId, poll }: PostPollProps) {
     inflight.current = true;
     setOverride(next);
     patchCachedPoll(postId, next);
-    void queryClient.cancelQueries({ queryKey: ['post', postId], exact: true });
+    void queryClient.cancelQueries({ queryKey: queryKeys.post.detail(postId), exact: true });
     voteOnPoll(postId, optionId).then((item) => {
       if (!item.poll) return;
       setOverride(item.poll);

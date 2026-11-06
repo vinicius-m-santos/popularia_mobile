@@ -46,7 +46,7 @@ beforeEach(async () => {
   await queryClient.cancelQueries();
   queryClient.clear();
   jest.clearAllMocks();
-  jest.mocked(getComuna).mockResolvedValue({ viewerPermissions: { canManageEvents: true } } as never);
+  jest.mocked(getComuna).mockResolvedValue({ id: 'hortas', name: 'Hortas', handle: 'hortas', viewerIsMember: true, viewerPermissions: { canManageEvents: true } } as never);
 });
 
 afterEach(async () => {

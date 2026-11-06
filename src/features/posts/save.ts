@@ -1,14 +1,19 @@
 import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { setPostSaved } from '@/features/posts/api';
 import { queryClient, setQueryDataIfChanged } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import type { FeedItem } from '@/types/models';
 
+import {
+  containsPost,
+  isFeedItemPayload as isFeedItem,
+  isPostCacheRoot,
+  isPostInfinitePayload as isInfinite,
+  isPostPagePayload as isPage,
+} from './cache-payload';
 import { createPostSubscription } from './post-subscriptions';
 
-/** Listas que guardam a publicação inteira. A comuna e a busca usam o mesmo sinal em memória. */
-const POST_ROOTS = new Set(['feed', 'profile-posts', 'post', 'post-preview']);
-
-export const SAVED_POSTS_QUERY_KEY = ['saved-posts'] as const;
+export const SAVED_POSTS_QUERY_KEY = queryKeys.saved.all;
 
 const overrides = new Map<string, boolean>();
 const known = new Map<string, FeedItem>();
@@ -66,24 +71,6 @@ function lock(postId: string) {
 
 function unlock(postId: string) {
   locks.delete(postId);
-}
-
-function isFeedItem(value: unknown): value is FeedItem {
-  return !!value && typeof value === 'object' && 'id' in value && 'text' in value && 'author' in value;
-}
-
-function isPage(value: unknown): value is { items: FeedItem[]; nextCursor: string | null } {
-  return !!value && typeof value === 'object' && 'items' in value && Array.isArray((value as { items: unknown }).items);
-}
-
-function isInfinite(value: unknown): value is { pages: unknown[]; pageParams: unknown[] } {
-  return !!value && typeof value === 'object' && 'pages' in value && Array.isArray((value as { pages: unknown }).pages);
-}
-
-function containsPost(data: unknown, postId: string): boolean {
-  if (isFeedItem(data)) return data.id === postId;
-  if (!isInfinite(data)) return false;
-  return data.pages.some((page) => isPage(page) && page.items.some((item) => item?.id === postId));
 }
 
 function withSaved(post: FeedItem, saved: boolean): FeedItem {
@@ -166,9 +153,8 @@ function restoreSaved(data: unknown, post: FeedItem, previous: boolean): unknown
 function savedQueriesFor(postId: string) {
   return queryClient.getQueryCache().findAll({
     predicate: (query) => {
-      const root = String(query.queryKey[0]);
-      if (root === SAVED_POSTS_QUERY_KEY[0]) return true;
-      return POST_ROOTS.has(root) && containsPost(query.state.data, postId);
+      if (!isPostCacheRoot(query.queryKey)) return false;
+      return String(query.queryKey[0]) === 'saved-posts' || containsPost(query.state.data, postId);
     },
   });
 }

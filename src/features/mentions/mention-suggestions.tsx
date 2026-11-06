@@ -8,6 +8,7 @@ import { Colors, Fonts, MinTouchTarget, Spacing } from '@/constants/theme';
 import { toneFor } from '@/features/posts/api';
 import { initialsOf } from '@/lib/format';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 
 import { searchMentionPeople, type MentionCandidate } from './api';
 
@@ -24,7 +25,7 @@ export function MentionSuggestions({ query, onSelect }: { query: string; onSelec
   const searchable = debounced !== null && debounced.length >= 3 && /[a-z0-9]{3}/i.test(debounced);
   const settled = debounced === query;
   const result = useQuery({
-    queryKey: ['mention-suggestions', (debounced ?? '').toLocaleLowerCase()],
+    queryKey: queryKeys.mention.suggestions((debounced ?? '').toLocaleLowerCase()),
     enabled: searchable && settled,
     queryFn: ({ signal }) => searchMentionPeople(debounced ?? '', signal),
     staleTime: 15_000,

@@ -24,6 +24,7 @@ import { commentTarget, postTarget } from '@/features/moderation/targets';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { useCachedPost } from '@/features/posts/queries';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -175,7 +176,7 @@ export default function DiscussionScreen() {
           author: { id: '', name: 'Indisponível', handle: '', initials: '', tone: 'cream' },
         }));
         void current.discussion.reload();
-        void queryClient.invalidateQueries({ queryKey: ['feed'] });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
       },
     });
   }, []);
@@ -206,7 +207,7 @@ export default function DiscussionScreen() {
       comments.append(created);
       setSentIds((prev) => [...prev, created.id]);
       void discussion.reload();
-      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
       afterSend();
       toast.show(replyTo ? 'Resposta publicada.' : 'Comentário publicado.');
       acknowledgeGamification(account?.id, toast.show);

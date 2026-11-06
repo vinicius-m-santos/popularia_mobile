@@ -17,6 +17,7 @@ import { useCachedPages } from '@/hooks/use-cached-pages';
 import { MediaVisibilityProvider, mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
 import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { contentPolicy, queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { goBack } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
@@ -24,9 +25,9 @@ export function TopicScreen() {
   const params = useLocalSearchParams<{ slug: string }>();
   const slug = typeof params.slug === 'string' ? params.slug : '';
   const valid = validDestination({ kind: 'hashtag', id: slug });
-  const info = useQuery({ queryKey: ['topic', slug], queryFn: ({ signal }) => getTopicInfo(slug, signal), enabled: valid, ...contentPolicy.profile }, queryClient);
+  const info = useQuery({ queryKey: queryKeys.topic.info(slug), queryFn: ({ signal }) => getTopicInfo(slug, signal), enabled: valid, ...contentPolicy.topic }, queryClient);
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listTopicPosts(slug, cursor, signal), [slug]);
-  const page = useCachedPages({ queryKey: ['topic-posts', slug], load, enabled: valid, performanceScope: 'topic', ...contentPolicy.feed });
+  const page = useCachedPages({ queryKey: queryKeys.topic.posts(slug), load, enabled: valid, performanceScope: 'topic', ...contentPolicy.feed });
   // Só o cartão na viewport monta o player; o restante continua no pôster.
   const visibility = useListVisibility(slug);
   // Ao abrir uma publicação ou sair do tópico, a lista perde o foco e não toca.

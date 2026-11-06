@@ -1,7 +1,14 @@
 import type { QueryKey } from '@tanstack/react-query';
 
 import { queryClient } from '@/lib/query/client';
-import type { FeedItem } from '@/types/models';
+
+import {
+  containsPost,
+  isFeedItemPayload as isFeedItem,
+  isPostCacheRoot,
+  isPostInfinitePayload as isInfinite,
+  isPostPagePayload as isPage,
+} from './cache-payload';
 
 export const POLL_QUESTION_MAX = 140;
 export const POLL_OPTION_MAX = 80;
@@ -132,33 +139,13 @@ export function draftToPoll(draft: PollDraft): PostPoll {
 
 export type PostCacheSnapshot = { queryKey: QueryKey; data: unknown };
 
-const POST_ROOTS = new Set(['feed', 'profile-posts', 'post', 'post-preview']);
-
-function isFeedItem(value: unknown): value is FeedItem {
-  return !!value && typeof value === 'object' && 'id' in value && 'text' in value && 'author' in value;
-}
-
-function isPage(value: unknown): value is { items: FeedItem[]; nextCursor: string | null } {
-  return !!value && typeof value === 'object' && 'items' in value && Array.isArray((value as { items: unknown }).items);
-}
-
-function isInfinite(value: unknown): value is { pages: unknown[]; pageParams: unknown[] } {
-  return !!value && typeof value === 'object' && 'pages' in value && Array.isArray((value as { pages: unknown }).pages);
-}
-
-function containsPost(data: unknown, postId: string): boolean {
-  if (isFeedItem(data)) return data.id === postId;
-  if (!isInfinite(data)) return false;
-  return data.pages.some((page) => isPage(page) && page.items.some((item) => item?.id === postId));
-}
-
 /** Atualiza só o item da enquete nas listas e no detalhe, preservando a referência dos outros cartões. */
 export function patchCachedPoll(postId: string, poll: PostPoll): void {
-  queryClient.setQueriesData({ predicate: (query) => POST_ROOTS.has(String(query.queryKey[0])) }, (current) => replacePoll(current, postId, poll));
+  queryClient.setQueriesData({ predicate: (query) => isPostCacheRoot(query.queryKey) }, (current) => replacePoll(current, postId, poll));
 }
 
 export function snapshotPostCaches(postId: string): PostCacheSnapshot[] {
-  return queryClient.getQueryCache().findAll({ predicate: (query) => POST_ROOTS.has(String(query.queryKey[0])) && containsPost(query.state.data, postId) })
+  return queryClient.getQueryCache().findAll({ predicate: (query) => isPostCacheRoot(query.queryKey) && containsPost(query.state.data, postId) })
     .map((query) => ({ queryKey: query.queryKey, data: query.state.data }));
 }
 
