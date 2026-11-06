@@ -10,6 +10,7 @@ import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { useMe } from '@/features/account/account-context';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { contentPolicy } from '@/lib/query/client';
 import { libraryKeys } from '@/lib/query/keys';
@@ -23,12 +24,13 @@ import type { LibraryCollection, LibraryScope } from './types';
 export default function CollectionsScreen() {
   const params = useLocalSearchParams<{ scope?: string }>();
   const scope: LibraryScope = params.scope === 'personal' || params.scope === 'comuna' ? params.scope : 'public';
+  const me = useMe();
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
   const [editor, setEditor] = useState(false);
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listCollections({ scope }, cursor, signal), [scope]);
   const collections = useCachedPages({
-    queryKey: libraryKeys.collections({ scope }),
+    queryKey: libraryKeys.collections(me.id, { scope }),
     load,
     performanceScope: 'library-collections-screen',
     ...contentPolicy.library,

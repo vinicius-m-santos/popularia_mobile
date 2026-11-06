@@ -11,6 +11,7 @@ import { SectionHeading } from '@/components/section-heading';
 import { StateView } from '@/components/state-view';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
+import { useMe } from '@/features/account/account-context';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
@@ -32,19 +33,20 @@ export default function SquaresScreen() {
 }
 
 function ConnectedSquares() {
+  const me = useMe();
   const [query, setQuery] = useState('');
   const listRef = useRef<FlatList<Row>>(null);
   useScrollToTop(listRef);
   const [term, setTerm] = useState('');
   useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
   const mine = useCachedPages({
-    queryKey: squaresKeys.list('mine', term),
+    queryKey: squaresKeys.list(me.id, 'mine', term),
     load: useCallback((cursor: string | null, signal: AbortSignal) => listSquares('mine', cursor, term, signal), [term]),
     performanceScope: 'squares-mine',
     ...contentPolicy.squares,
   });
   const discover = useCachedPages({
-    queryKey: squaresKeys.list('discover', term),
+    queryKey: squaresKeys.list(me.id, 'discover', term),
     load: useCallback((cursor: string | null, signal: AbortSignal) => listSquares('discover', cursor, term, signal), [term]),
     performanceScope: 'squares-discover',
     ...contentPolicy.squares,

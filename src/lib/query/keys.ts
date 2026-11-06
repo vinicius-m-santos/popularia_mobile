@@ -35,18 +35,18 @@ export const discoveryKeys = {
 export const libraryKeys = {
   root: ['library'] as const,
   collectionsRoot: ['library', 'collections'] as const,
-  documents: (filters: LibraryFilters): QueryKey => ['library', 'documents', compact(filters)],
-  collections: (filters: Pick<LibraryFilters, 'scope' | 'owner' | 'comuna'>): QueryKey =>
-    ['library', 'collections', compact(filters)],
-  collection: (id: string): QueryKey => ['library', 'collection', id],
+  documents: (meId: string, filters: LibraryFilters): QueryKey => ['library', 'documents', meId, compact(filters)],
+  collections: (meId: string, filters: Pick<LibraryFilters, 'scope' | 'owner' | 'comuna'>): QueryKey =>
+    ['library', 'collections', meId, compact(filters)],
+  collection: (meId: string, id: string): QueryKey => ['library', 'collection', meId, id],
 } as const;
 
 export const squaresKeys = {
   root: ['squares'] as const,
-  list: (section: 'mine' | 'discover', term: string): QueryKey => ['squares', section, term],
+  list: (meId: string, section: 'mine' | 'discover', term: string): QueryKey => ['squares', meId, section, term],
 } as const;
 
-/** Marca o domínio como obsoleto sem disparar um refetch de todas as páginas. */
+/** Marca o domínio como obsoleto e atualiza apenas as consultas montadas. */
 export function invalidateLibrary(): void {
-  void queryClient.invalidateQueries({ queryKey: libraryKeys.root, refetchType: 'none' });
+  void queryClient.invalidateQueries({ queryKey: libraryKeys.root, refetchType: 'active' });
 }

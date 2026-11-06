@@ -20,6 +20,7 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
+jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me' }) }));
 jest.mock('../api');
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');

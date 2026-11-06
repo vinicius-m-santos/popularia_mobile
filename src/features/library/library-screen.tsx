@@ -45,7 +45,7 @@ export default function LibraryScreen() {
   // Abrir uma coleção a partir da lista usa o item já carregado como placeholder:
   // o cabeçalho e os filtros aparecem imediatamente enquanto o detalhe chega.
   const collection = useCachedQuery({
-    queryKey: libraryKeys.collection(params.collection ?? ''),
+    queryKey: libraryKeys.collection(me.id, params.collection ?? ''),
     load: (signal) => params.collection ? getCollection(params.collection, signal) : Promise.resolve(null),
     enabled: !!params.collection,
     ...contentPolicy.collection,
@@ -110,13 +110,13 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   const collectionsEnabled = scope !== 'saved' && !collection;
   const loadCollections = useCallback((cursor: string | null, signal: AbortSignal) => listCollections({ scope, owner, comuna }, cursor, signal), [scope, owner, comuna]);
   const documents = useCachedPages({
-    queryKey: libraryKeys.documents({ scope, owner, comuna, collection, q: term, topic: topic ?? undefined, origin, sort }),
+    queryKey: libraryKeys.documents(me.id, { scope, owner, comuna, collection, q: term, topic: topic ?? undefined, origin, sort }),
     load,
     performanceScope: 'library-documents',
     ...contentPolicy.library,
   });
   const collections = useCachedPages({
-    queryKey: libraryKeys.collections({ scope, owner, comuna }),
+    queryKey: libraryKeys.collections(me.id, { scope, owner, comuna }),
     load: loadCollections,
     enabled: collectionsEnabled,
     performanceScope: 'library-collections',
