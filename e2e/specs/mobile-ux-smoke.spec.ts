@@ -71,6 +71,21 @@ async function scrollUntilVisible(page: Page, target: Locator, attempts = 40): P
   await expect(target).toBeVisible();
 }
 
+/** Offset do maior scroller vertical; o FlashList virtualiza dentro dele no web. */
+async function mainScrollTop(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const scrollers = Array.from(document.querySelectorAll<HTMLElement>('div'))
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        return /(auto|scroll)/.test(style.overflowY)
+          && element.scrollHeight > element.clientHeight + 120
+          && element.getBoundingClientRect().height > 240;
+      })
+      .sort((left, right) => right.scrollHeight - left.scrollHeight);
+    return scrollers[0]?.scrollTop ?? 0;
+  });
+}
+
 async function openFeed(page: Page, options: { feedItems: unknown[]; feedPageSize?: number }): Promise<MockApi> {
   const api = await installApiMock(page, {}, options);
   await page.goto('/');
@@ -148,6 +163,8 @@ test.describe('smoke de UX mobile: Biblioteca e publicação', () => {
 
     const document = page.getByRole('button', { name: `${QA_DOCUMENT_041}, PDF` }).filter({ visible: true }).last();
     await scrollUntilVisible(page, document);
+    const readingPosition = await mainScrollTop(page);
+    expect(readingPosition).toBeGreaterThan(100);
     await document.click();
 
     await expect(page).toHaveURL(/\/biblioteca\/documento\/qa-library-document-041$/);
@@ -157,8 +174,9 @@ test.describe('smoke de UX mobile: Biblioteca e publicação', () => {
     await visibleButton(page, 'Voltar').click();
     await expect(page).toHaveURL(/\/biblioteca$/);
     // A revalidação ao voltar pode buscar o prefixo de novo, mas não pode
-    // descartar as páginas 2 e 3 já carregadas.
+    // descartar as páginas 2 e 3 já carregadas nem devolver a lista ao topo.
     await expect(visibleText(page, QA_DOCUMENT_041)).toBeVisible();
+    await expect.poll(async () => Math.abs((await mainScrollTop(page)) - readingPosition)).toBeLessThan(300);
     expect(documentRequests(api)).toBeGreaterThanOrEqual(3);
   });
 

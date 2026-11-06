@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { settleQueryClient } from '@/features/events/query-test-utils';
 import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
+import { clearScreenMemory } from '@/lib/screen-memory';
 import { getMyComunas } from '@/features/comunas/api';
 import type { Comuna } from '@/types/models';
 import { getCollection, listCollections, listDocuments, uploadDocument, saveDocument, getDocument, editDocument } from '../api';
@@ -34,6 +35,7 @@ jest.mock('@/features/profiles/profile-tab-swipe', () => {
 beforeEach(() => {
   settleQueryClient();
   queryClient.clear();
+  clearScreenMemory();
   queryClient.setDefaultOptions({ queries: { retry: false } });
   jest.clearAllMocks(); delete params.composerKey; delete params.edit; delete params.collection;
   jest.mocked(listDocuments).mockResolvedValue({ items: [], nextCursor: null });
@@ -132,6 +134,21 @@ describe('bibliotecas reais', () => {
     await screen.findByText(document.title!); await fireEvent.press(screen.getByText('Mais documentos'));
     await screen.findByText('Ata'); expect(screen.getAllByText(document.title!)).toHaveLength(1);
     expect(listDocuments).toHaveBeenLastCalledWith(expect.anything(), 'next', expect.anything());
+  });
+  it('remonta mantendo termo e filtro digitados na mesma tela', async () => {
+    jest.mocked(listDocuments).mockResolvedValue({ items: [document], nextCursor: null });
+    const view = await render(<LibraryPane key="first" scope="public" />);
+    await screen.findByText(document.title!);
+    await fireEvent.changeText(screen.getByLabelText('Buscar na biblioteca'), 'organização');
+    await fireEvent.press(screen.getByRole('radio', { name: 'De pessoas' }));
+    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'organização', origin: 'people' }), null, expect.anything()));
+    const calls = jest.mocked(listDocuments).mock.calls.length;
+
+    await view.rerender(<LibraryPane key="second" scope="public" />);
+    expect(screen.getByLabelText('Buscar na biblioteca').props.value).toBe('organização');
+    expect(screen.getByRole('radio', { name: 'De pessoas' }).props.accessibilityState.checked).toBe(true);
+    // A consulta hidratada do cache não recomeça do zero ao voltar.
+    expect(listDocuments).toHaveBeenCalledTimes(calls);
   });
   it('volta de um documento sem perder páginas nem refazer a consulta fresca', async () => {
     jest.mocked(listDocuments).mockImplementation(async (_filters, cursor) => cursor

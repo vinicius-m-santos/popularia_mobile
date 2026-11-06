@@ -17,7 +17,7 @@ import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { CommentComposer, type ComposerNotice } from '@/features/discussion/components/comment-composer';
 import { CommentRow } from '@/features/discussion/components/comment-row';
 import { PostDetail } from '@/features/discussion/components/post-detail';
-import { buildThread, type CommentSort } from '@/features/discussion/thread';
+import { buildThread, type CommentSort, type ThreadRow } from '@/features/discussion/thread';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { commentTarget, postTarget } from '@/features/moderation/targets';
@@ -25,7 +25,9 @@ import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { useCachedPost } from '@/features/posts/queries';
 import { queryClient } from '@/lib/query/client';
 import { queryKeys } from '@/lib/query/keys';
+import { useListScrollMemory } from '@/hooks/use-list-scroll-memory';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { useScreenState } from '@/hooks/use-screen-state';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { mergeById, singlePage } from '@/lib/pagination';
@@ -61,8 +63,9 @@ export default function DiscussionScreen() {
   const sheet = useActionsSheet();
   const nav = useNav();
   const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const listRef = useRef<FlatList<ThreadRow>>(null);
 
-  const [sort, setSort] = useState<CommentSort>('top');
+  const [sort, setSort] = useScreenState<CommentSort>(`discussion:${id}:sort`, 'top');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   // Comentários enviados à API nesta tela: aparecem primeiro, como os locais.
@@ -84,14 +87,20 @@ export default function DiscussionScreen() {
   const seenVerified = useRef(emailVerified);
   const { reload: reloadPost } = discussion;
   const focusedOnce = useRef(false);
-  const refreshComments = comments.refresh;
+  const revalidateComments = comments.revalidate;
+  // `revalidate` muda a cada estado da lista; o foco lê sempre a versão atual
+  // pelo ref para não reexecutar o efeito a cada revalidação.
+  const revalidateCommentsRef = useRef(revalidateComments);
+  useEffect(() => { revalidateCommentsRef.current = revalidateComments; }, [revalidateComments]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current && !DEMO_MODE) {
       reloadPost();
-      refreshComments();
+      // Revalidar mantém as páginas já carregadas e o cursor; `refresh`
+      // recomeçaria da primeira página e perderia o ponto de leitura.
+      revalidateCommentsRef.current();
     }
     focusedOnce.current = true;
-  }, [reloadPost, refreshComments]));
+  }, [reloadPost]));
   useEffect(() => {
     if (seenVerified.current === emailVerified) return;
     seenVerified.current = emailVerified;
@@ -123,6 +132,13 @@ export default function DiscussionScreen() {
       supportOf: supportCountOf,
     });
   }, [post, mergedComments, sort, collapsed, local, sentIds, supportCountOf]);
+  const scrollMemory = useListScrollMemory<ThreadRow>({
+    screenKey: `discussion:${id}`,
+    listRef,
+    data: rows,
+    ready: !!post,
+    getItemKey: (row) => row.comment.id,
+  });
 
   const onSupport = useCallback(async (commentId: string) => {
     const current = latest.current;
@@ -284,8 +300,11 @@ export default function DiscussionScreen() {
       <KeyboardView style={styles.flex}>
         <DiscussionHeader comuna={post.comuna} onMore={() => sheet.open(postTarget(post), 'menu', { hideShare: true })} />
         <FlatList
+          ref={listRef}
           contentInsetAdjustmentBehavior="never"
           automaticallyAdjustContentInsets={false}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          {...scrollMemory}
           data={rows}
           keyExtractor={(row) => row.comment.id}
           renderItem={({ item }) => (
@@ -335,6 +354,7 @@ export default function DiscussionScreen() {
         />
         <CommentComposer
           key={id}
+          storageKey={`discussion:${id}:draft`}
           replyingTo={replyTo?.name ?? null}
           onCancelReply={() => setReplyTo(null)}
           onSend={onSend}

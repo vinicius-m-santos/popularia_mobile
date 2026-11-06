@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useScrollToTop } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -14,7 +14,9 @@ import { Colors, Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
 import { useCachedPages } from '@/hooks/use-cached-pages';
+import { useListScrollMemory } from '@/hooks/use-list-scroll-memory';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
+import { useScreenState } from '@/hooks/use-screen-state';
 import { contentPolicy } from '@/lib/query/client';
 import { squaresKeys } from '@/lib/query/keys';
 import { initialsOf } from '@/lib/format';
@@ -34,11 +36,12 @@ export default function SquaresScreen() {
 
 function ConnectedSquares() {
   const me = useMe();
-  const [query, setQuery] = useState('');
+  const screenKey = `squares:${me.id}`;
+  const [query, setQuery] = useScreenState(`${screenKey}:query`, '');
   const listRef = useRef<FlatList<Row>>(null);
   useScrollToTop(listRef);
-  const [term, setTerm] = useState('');
-  useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
+  const [term, setTerm] = useScreenState(`${screenKey}:term`, '');
+  useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query, setTerm]);
   const mine = useCachedPages({
     queryKey: squaresKeys.list(me.id, 'mine', term),
     load: useCallback((cursor: string | null, signal: AbortSignal) => listSquares('mine', cursor, term, signal), [term]),
@@ -54,9 +57,12 @@ function ConnectedSquares() {
   const refreshMine = mine.refresh;
   const refreshDiscover = discover.refresh;
   const refresh = useCallback(() => { refreshMine(); refreshDiscover(); }, [refreshMine, refreshDiscover]);
-  const revalidateRef = useRef(refresh);
+  const revalidateMine = mine.revalidate;
+  const revalidateDiscover = discover.revalidate;
+  const revalidate = useCallback(() => { revalidateMine(); revalidateDiscover(); }, [revalidateMine, revalidateDiscover]);
+  const revalidateRef = useRef(revalidate);
   const focusedOnce = useRef(false);
-  useEffect(() => { revalidateRef.current = refresh; }, [refresh]);
+  useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
     focusedOnce.current = true;
@@ -76,6 +82,13 @@ function ConnectedSquares() {
     rows.push(...discoverItems.map((square) => ({ kind: 'square' as const, key: `discover-${square.id}`, square, joined: false })));
   }
   const loading = mine.status === 'loading' || discover.status === 'loading';
+  const scrollMemory = useListScrollMemory<Row>({
+    screenKey,
+    listRef,
+    data: rows,
+    ready: !loading,
+    getItemKey: (row) => row.key,
+  });
   const pullRefresh = useManualRefresh(loading || mine.isRefreshing || discover.isRefreshing, refresh);
   const noJoined = mine.status === 'success' && mine.items.length === 0 && !term;
   const bothEmpty = mine.status === 'success' && discover.status === 'success' && mine.items.length === 0 && discoverItems.length === 0;
@@ -87,6 +100,7 @@ function ConnectedSquares() {
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        {...scrollMemory}
         contentContainerStyle={styles.list}
         data={rows}
         keyExtractor={(row) => row.key}

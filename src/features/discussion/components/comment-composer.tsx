@@ -24,11 +24,13 @@ type CommentComposerProps = {
   /** Quando presente, substitui o campo (e-mail não confirmado, fora da comuna). */
   notice?: ComposerNotice | null;
   inputRef?: Ref<ComponentRef<typeof TextInput>>;
+  /** Sobrevive à remontagem da discussão sem persistir entre sessões. */
+  storageKey?: string;
 };
 
 /** Campo fixo no rodapé da discussão para comentar ou responder. */
-export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inputRef }: CommentComposerProps) {
-  const draft = useMentionDraft();
+export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inputRef, storageKey }: CommentComposerProps) {
+  const draft = useMentionDraft(storageKey);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const insets = useSafeAreaInsets();

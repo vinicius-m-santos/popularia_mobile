@@ -21,16 +21,18 @@ import { CollectionCard } from './collection-card';
 import { CollectionAvatar } from './collection-avatar';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { useListScrollMemory } from '@/hooks/use-list-scroll-memory';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { useCachedQuery } from '@/hooks/use-cached-query';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
+import { useScreenState } from '@/hooks/use-screen-state';
 import type { Page } from '@/lib/pagination';
 import { contentPolicy, queryClient } from '@/lib/query/client';
 import { libraryKeys } from '@/lib/query/keys';
 import { goBack } from '@/lib/routes';
 import type { TopicId } from '@/types/models';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, FlatList, Image, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { getCollection, listCollections, listDocuments, saveDocument } from './api';
 import { LibrarySectionTabs, SavedPostsPane, type LibrarySection } from './saved-posts-pane';
@@ -92,15 +94,20 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   scope: LibraryScope; initialQuery?: string; initialTopic?: TopicId; owner?: string; comuna?: string; collection?: string; canAdd?: boolean; title?: string; header?: ReactNode; collectionData?: LibraryCollection; onEditCollection?: () => void; onSelect?: (document: LibraryDocument) => void; profileContext?: boolean; onShowSaved?: () => void;
 }) {
   const inSheet = useContext(InsideBottomSheet);
-  const List = inSheet ? PopulariaBottomSheetFlatList : FlatList;
+  const List = (inSheet ? PopulariaBottomSheetFlatList : FlatList) as typeof FlatList;
   const Input = inSheet ? PopulariaBottomSheetTextInput : TextInput;
   const me = useMe();
   const { width, fontScale } = useWindowDimensions();
-  const [query, setQuery] = useState(initialQuery ?? '');
-  const [term, setTerm] = useState(initialQuery ?? '');
-  const [topic, setTopic] = useState<TopicId | null>(initialTopic ?? null);
-  const [origin, setOrigin] = useState<'all' | 'people' | 'comunas'>('all');
-  const [sort, setSort] = useState<'recent' | 'relevance'>('recent');
+  // A memória é por tela e por contexto: a mesma rota em outra coleção/comuna
+  // não pode herdar termo, assunto ou posição de leitura da anterior.
+  const screenKey = `library:${me.id}:${scope}:${owner ?? ''}:${comuna ?? ''}:${collection ?? ''}${inSheet ? ':sheet' : ''}`;
+  const restoreFilters = !initialQuery && !initialTopic;
+  const [query, setQuery] = useScreenState(`${screenKey}:query`, initialQuery ?? '', { restore: restoreFilters });
+  const [term, setTerm] = useScreenState(`${screenKey}:term`, initialQuery?.trim() ?? '', { restore: restoreFilters });
+  const [topic, setTopic] = useScreenState<TopicId | null>(`${screenKey}:topic`, initialTopic ?? null, { restore: restoreFilters });
+  const [origin, setOrigin] = useScreenState<'all' | 'people' | 'comunas'>(`${screenKey}:origin`, 'all');
+  const [sort, setSort] = useScreenState<'recent' | 'relevance'>(`${screenKey}:sort`, 'recent');
+  const listRef = useRef<FlatList<LibraryDocument>>(null);
   const [sortSheet, setSortSheet] = useState(false);
   const [topicSheet, setTopicSheet] = useState(false);
   const topicData = useAsyncData(useCallback(() => getTopicGroups(), []));
@@ -109,7 +116,7 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   const [actionsVisible, setActionsVisible] = useState(false);
   const [removedSaves, setRemovedSaves] = useState<string[]>([]);
   const [saveError, setSaveError] = useState('');
-  useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
+  useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query, setTerm]);
   const load = useCallback((cursor: string | null, signal: AbortSignal) => listDocuments({ scope, owner, comuna, collection, q: term, topic: topic ?? undefined, origin, sort }, cursor, signal), [scope, owner, comuna, collection, term, topic, origin, sort]);
   const collectionsEnabled = scope !== 'saved' && !collection;
   const loadCollections = useCallback((cursor: string | null, signal: AbortSignal) => listCollections({ scope, owner, comuna }, cursor, signal), [scope, owner, comuna]);
@@ -135,6 +142,8 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
     refreshDocuments();
     refreshCollections();
   }, [refreshDocuments, refreshCollections]);
+  const revalidateDocuments = documents.revalidate;
+  const revalidateCollections = collections.revalidate;
   // Foco e volta do background compartilham a mesma janela: dois eventos próximos
   // não repetem a primeira página que acabou de chegar. A revalidação em si
   // continua sendo single-flight dentro de `useCachedPages`.
@@ -142,9 +151,9 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
     const now = Date.now();
     if (now - lastRevalidatedAt.current < LIBRARY_REVALIDATE_AFTER_MS) return;
     lastRevalidatedAt.current = now;
-    refreshDocuments();
-    refreshCollections();
-  }, [refreshDocuments, refreshCollections]);
+    revalidateDocuments();
+    revalidateCollections();
+  }, [revalidateDocuments, revalidateCollections]);
   const revalidateRef = useRef(revalidate);
   const focusedOnce = useRef(false);
   useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
@@ -173,8 +182,19 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   const isEmptyLibrary = !editorial && !editorialCollection && documents.status === 'success' && documents.items.length === 0 && !documents.hasMore && !filtered;
   const add = () => router.push({ pathname: '/biblioteca/enviar', params: { ...(comuna ? { comuna } : {}), ...(collection ? { collection } : {}) } });
   const sectionTabs = onShowSaved ? <LibrarySectionTabs value="documentos" onChange={(next) => { if (next === 'salvos') onShowSaved(); }} /> : null;
+  const visibleDocuments = useMemo(
+    () => documents.items.filter((item) => !removedSaves.includes(item.id)),
+    [documents.items, removedSaves],
+  );
+  const scrollMemory = useListScrollMemory<LibraryDocument>({
+    screenKey,
+    listRef,
+    data: visibleDocuments,
+    ready: documents.status !== 'loading',
+    getItemKey: (item) => item.id,
+  });
   return <>
-    <List style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content} data={documents.items.filter((item) => !removedSaves.includes(item.id))} keyExtractor={(item) => item.id}
+    <List ref={listRef} style={styles.flex} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} maintainVisibleContentPosition={{ minIndexForVisible: 0 }} {...scrollMemory} contentContainerStyle={styles.content} data={visibleDocuments} keyExtractor={(item) => item.id}
       keyboardShouldPersistTaps="handled" refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} onEndReached={documents.loadMoreError ? undefined : documents.loadMore} onEndReachedThreshold={0.4}
       ListHeaderComponent={<>
         {isEmptyLibrary ? <View style={styles.emptyLibrary}>
