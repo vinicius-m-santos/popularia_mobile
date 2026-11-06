@@ -6,9 +6,11 @@ import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
 
+import { comunaKeys } from './keys';
+
 /** Só a lista de fixados daquela comuna e a publicação aberta. O feed não entra. */
 export function pinnedPostsKey(slug: string) {
-  return ['comuna-pins', slug] as const;
+  return comunaKeys.pins(slug);
 }
 
 type PinOverride = { slug: string; pinned: boolean };

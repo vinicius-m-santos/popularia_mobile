@@ -1,3 +1,4 @@
+import { comunaKeys } from '@/features/comunas/keys';
 import type { EventCapacityMode, User } from '@/types/models';
 
 export type EventFormat = 'in_person' | 'online' | 'hybrid';
@@ -62,5 +63,6 @@ export type EventDraft = {
 };
 
 export const eventQueryKey = (id: string) => ['event', id] as const;
-export const comunaEventsKey = (slug: string, when: EventWhen | 'preview') => ['comuna-events', slug, when] as const;
+/** Mesma raiz da comuna: eventuais invalidações da comuna alcançam os eventos dela. */
+export const comunaEventsKey = (slug: string, when: EventWhen | 'preview') => comunaKeys.events(slug, when);
 export const attendeesKey = (id: string, status: 'going' | 'maybe') => ['event-attendees', id, status] as const;

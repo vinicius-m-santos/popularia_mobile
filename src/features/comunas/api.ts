@@ -35,6 +35,8 @@ import { posts } from '@/mocks/posts';
 import { currentUser } from '@/mocks/users';
 import type { Comuna, ComunaDetails, ComunaMember, ComunaPerson, FeedItem, Tone, TopicId, User } from '@/types/models';
 
+import { rememberComunaSummaries, rememberComunaSummary } from './keys';
+
 /** Comunas de que a pessoa participa (GET /me/comunas): páginas lidas no máximo. */
 const MY_COMUNAS_MAX_PAGES = 5;
 
@@ -117,7 +119,10 @@ function rethrowNotFound(what: string) {
 /** `id` é o slug da comuna. */
 export async function getComuna(id: string): Promise<ComunaDetails> {
   if (!DEMO_MODE) {
-    return apiRequest<ComunaDto>(slugPath(id), { auth: true }).then(toComunaDetails, rethrowNotFound('Comuna'));
+    const details = await apiRequest<ComunaDto>(slugPath(id), { auth: true }).then(toComunaDetails, rethrowNotFound('Comuna'));
+    // Qualquer tela que carregue o detalhe deixa o resumo pronto para a próxima entrada.
+    rememberComunaSummary(details);
+    return details;
   }
 
   const comuna = findComuna(id);
@@ -133,7 +138,9 @@ export async function getComuna(id: string): Promise<ComunaDetails> {
   ];
 
   const viewerIsMember = currentUser.joinedComunaIds.includes(comuna.id);
-  return mockDelay({ ...comuna, viewerIsMember, moderators, featuredMembers, members });
+  const details = await mockDelay({ ...comuna, viewerIsMember, moderators, featuredMembers, members });
+  rememberComunaSummary(details);
+  return details;
 }
 
 /** Publicações fixadas da comuna, no máximo 3, na ordem da moderação. Mesma publicação do feed. */
@@ -189,13 +196,23 @@ function getComunaPage(cursor: string | null): Promise<PageDto<ComunaDto>> {
 
 /** Comunas para listas (Explorar, recomendações). Na API, a primeira página (até 50). */
 export async function getComunas(): Promise<Comuna[]> {
-  if (!DEMO_MODE) return (await getComunaPage(null)).items.map(toComuna);
-  return mockDelay([...comunas]);
+  if (!DEMO_MODE) {
+    const items = (await getComunaPage(null)).items.map(toComuna);
+    rememberComunaSummaries(items);
+    return items;
+  }
+  const items = await mockDelay([...comunas]);
+  rememberComunaSummaries(items);
+  return items;
 }
 
 /** Comunas de que a pessoa participa, segundo o servidor (destino de publicação). */
 export async function getMyComunas(): Promise<Comuna[]> {
-  if (DEMO_MODE) return mockDelay(comunas.filter((c) => currentUser.joinedComunaIds.includes(c.id)));
+  if (DEMO_MODE) {
+    const mine = await mockDelay(comunas.filter((c) => currentUser.joinedComunaIds.includes(c.id)));
+    rememberComunaSummaries(mine);
+    return mine;
+  }
 
   const mine: Comuna[] = [];
   let cursor: string | null = null;
@@ -206,6 +223,7 @@ export async function getMyComunas(): Promise<Comuna[]> {
     cursor = page.nextCursor;
     if (!cursor) break;
   }
+  rememberComunaSummaries(mine);
   return mine;
 }
 

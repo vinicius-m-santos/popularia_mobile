@@ -2,17 +2,19 @@
  * Telas de criar e gerir comuna com a API configurada: usam as funções reais da API (aqui
  * simuladas), mostram as recusas do servidor e nunca caem para dados fictícios.
  */
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
 import type { ComunaQuotaDto } from '@/lib/api/dto';
 import { ApiError, NetworkError } from '@/lib/errors';
+import { queryClient } from '@/lib/query/client';
 import type { ComunaDetails } from '@/types/models';
 
 import * as api from '../api';
 import CreateComunaScreen from '../create-comuna-screen';
+import { comunaOptions } from '../queries';
 import ManageComunaScreen from '../manage-comuna-screen';
 
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, API_BASE_URL: 'http://api.test/api/v1', API_TIMEOUT_MS: 1000 }));
@@ -114,8 +116,14 @@ function comuna(patch: Partial<ComunaDetails> = {}): ComunaDetails {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  queryClient.clear();
   mocked.checkComunaName.mockResolvedValue({ name: 'x', slug: 'x', available: true, message: null });
   mocked.getComunaMembers.mockResolvedValue({ items: [], nextCursor: null });
+});
+
+afterEach(async () => {
+  await queryClient.cancelQueries();
+  queryClient.clear();
 });
 
 describe('criar comuna', () => {
@@ -274,6 +282,17 @@ describe('gerir comuna: dados e exclusão', () => {
 
     expect(alert).toHaveBeenLastCalledWith('Não é possível excluir', expect.stringContaining('arquivá-la'), expect.anything());
     expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it('reaproveita o detalhe já carregado pela página da comuna', async () => {
+    mocked.getComuna.mockResolvedValue(comuna());
+    await queryClient.fetchQuery(comunaOptions('hortas'));
+    const calls = mocked.getComuna.mock.calls.length;
+
+    await render(<ManageComunaScreen />);
+
+    expect(await screen.findByText('Membros')).toBeTruthy();
+    expect(mocked.getComuna).toHaveBeenCalledTimes(calls);
   });
 
   it('moderação não vê a aba de configurações da comuna', async () => {

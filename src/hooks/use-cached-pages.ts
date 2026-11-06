@@ -11,9 +11,11 @@ function toError(error: unknown): Error {
 }
 
 /** Adaptador pequeno para listas paginadas; o cache e a concorrência pertencem ao Query. */
-export function useCachedPages<T extends { id: string }>({ queryKey, load, staleTime, gcTime, enabled = true, performanceScope }: {
+export function useCachedPages<T extends { id: string }>({ queryKey, load, staleTime, gcTime, enabled = true, retry, performanceScope }: {
   queryKey: QueryKey; load: (cursor: string | null, signal: AbortSignal) => Promise<Page<T>>;
   staleTime: number; gcTime: number; enabled?: boolean;
+  /** Quando definido, sobrepõe a política de retry do QueryClient (ex.: erro mostrado na hora). */
+  retry?: boolean;
   /** Nome da tela para atribuir requests na instrumentação local (POP-5). */
   performanceScope?: string;
 }) {
@@ -29,6 +31,7 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
     queryFn: ({ pageParam, signal }) => trackedLoad(pageParam, signal),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime, gcTime, enabled,
+    ...(retry !== undefined ? { retry } : {}),
   }, queryClient);
   const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
   const key = JSON.stringify(queryKey);
