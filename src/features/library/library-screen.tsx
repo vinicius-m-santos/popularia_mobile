@@ -1,3 +1,4 @@
+import type { InfiniteData } from '@tanstack/react-query';
 import { AppText } from '@/components/app-text';
 import { SingleLineText } from '@/components/single-line-text';
 import { BottomSheet, InsideBottomSheet, PopulariaBottomSheetFlatList, PopulariaBottomSheetTextInput } from '@/components/bottom-sheet';
@@ -19,8 +20,12 @@ import { CollectionCard } from './collection-card';
 import { CollectionAvatar } from './collection-avatar';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { useCachedPages } from '@/hooks/use-cached-pages';
+import { useCachedQuery } from '@/hooks/use-cached-query';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
+import type { Page } from '@/lib/pagination';
+import { contentPolicy, queryClient } from '@/lib/query/client';
+import { libraryKeys } from '@/lib/query/keys';
 import { goBack } from '@/lib/routes';
 import type { TopicId } from '@/types/models';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -37,8 +42,15 @@ export default function LibraryScreen() {
   const scope: LibraryScope = ['personal', 'comuna', 'saved'].includes(params.scope ?? '') ? params.scope as LibraryScope : 'public';
   const section: LibrarySection = params.section === 'salvos' ? 'salvos' : 'documentos';
   const me = useMe();
-  const loader = useCallback(() => params.collection ? getCollection(params.collection) : Promise.resolve(null), [params.collection]);
-  const collection = useAsyncData(loader);
+  // Abrir uma coleção a partir da lista usa o item já carregado como placeholder:
+  // o cabeçalho e os filtros aparecem imediatamente enquanto o detalhe chega.
+  const collection = useCachedQuery({
+    queryKey: libraryKeys.collection(me.id, params.collection ?? ''),
+    load: (signal) => params.collection ? getCollection(params.collection, signal) : Promise.resolve(null),
+    enabled: !!params.collection,
+    ...contentPolicy.collection,
+    placeholderData: () => params.collection ? cachedCollection(params.collection) : undefined,
+  });
   const [editingCollection, setEditingCollection] = useState(false);
   if (params.collection && !collection.data) return <Screen><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><StateView kind={collection.status === 'error' ? 'error' : 'loading'} message="Não foi possível carregar esta coleção." {...(collection.status === 'error' ? { onRetry: collection.reload } : {})} /></Screen>;
   const canAdd = params.collection ? collection.data?.canAdd : scope === 'public' ? true : scope === 'personal' ? !params.owner || params.owner === me.id : params.add === '1';
@@ -94,20 +106,29 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   const [removedSaves, setRemovedSaves] = useState<string[]>([]);
   const [saveError, setSaveError] = useState('');
   useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
-  const load = useCallback((cursor: string | null) => listDocuments({ scope, owner, comuna, collection, q: term, topic: topic ?? undefined, origin, sort }, cursor), [scope, owner, comuna, collection, term, topic, origin, sort]);
-  const loadCollections = useCallback((cursor: string | null) => scope === 'saved' || !!collection ? Promise.resolve({ items: [] as LibraryCollection[], nextCursor: null }) : listCollections({ scope, owner, comuna }, cursor), [scope, owner, comuna, collection]);
-  const documents = usePaginatedData(load);
-  const collections = usePaginatedData(loadCollections);
+  const load = useCallback((cursor: string | null, signal: AbortSignal) => listDocuments({ scope, owner, comuna, collection, q: term, topic: topic ?? undefined, origin, sort }, cursor, signal), [scope, owner, comuna, collection, term, topic, origin, sort]);
+  const collectionsEnabled = scope !== 'saved' && !collection;
+  const loadCollections = useCallback((cursor: string | null, signal: AbortSignal) => listCollections({ scope, owner, comuna }, cursor, signal), [scope, owner, comuna]);
+  const documents = useCachedPages({
+    queryKey: libraryKeys.documents(me.id, { scope, owner, comuna, collection, q: term, topic: topic ?? undefined, origin, sort }),
+    load,
+    performanceScope: 'library-documents',
+    ...contentPolicy.library,
+  });
+  const collections = useCachedPages({
+    queryKey: libraryKeys.collections(me.id, { scope, owner, comuna }),
+    load: loadCollections,
+    enabled: collectionsEnabled,
+    performanceScope: 'library-collections',
+    ...contentPolicy.library,
+  });
   const singlePublicCollection = collections.items.length === 1 && !collections.hasMore;
   const refreshDocuments = documents.refresh;
   const refreshCollections = collections.refresh;
   const refresh = useCallback(() => { refreshDocuments(); refreshCollections(); }, [refreshDocuments, refreshCollections]);
-  const revalidateDocuments = documents.revalidate;
-  const revalidateCollections = collections.revalidate;
-  const revalidate = useCallback(() => { revalidateDocuments(); revalidateCollections(); }, [revalidateDocuments, revalidateCollections]);
-  const revalidateRef = useRef(revalidate);
+  const revalidateRef = useRef(refresh);
   const focusedOnce = useRef(false);
-  useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
+  useEffect(() => { revalidateRef.current = refresh; }, [refresh]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
     focusedOnce.current = true;
@@ -116,8 +137,9 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
     const sub = AppState.addEventListener('change', (state) => { if (state === 'active') revalidateRef.current(); });
     return () => sub.remove();
   }, []);
+  const collectionsLoading = collectionsEnabled && (collections.status === 'loading' || collections.isRefreshing);
   const pullRefresh = useManualRefresh(
-    documents.status === 'loading' || documents.isRefreshing || collections.status === 'loading' || collections.isRefreshing,
+    documents.status === 'loading' || documents.isRefreshing || collectionsLoading,
     refresh,
   );
   const own = scope === 'personal' && (!owner || owner === me.id);
@@ -300,6 +322,16 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
       </View>
     </BottomSheet>
   </>;
+}
+
+/** Coleção já listada em qualquer faixa/lista, usada como placeholder do detalhe. */
+function cachedCollection(id: string): LibraryCollection | undefined {
+  const cached = queryClient.getQueriesData<InfiniteData<Page<LibraryCollection>>>({ queryKey: libraryKeys.collectionsRoot });
+  for (const [, data] of cached) {
+    const found = data?.pages.flatMap((page) => page.items).find((item) => item.id === id);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function EditorialOriginTabs({ value, onChange, stacked }: { value: 'all' | 'people' | 'comunas'; onChange: (value: 'all' | 'people' | 'comunas') => void; stacked: boolean }) {

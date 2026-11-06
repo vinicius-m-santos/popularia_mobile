@@ -264,6 +264,11 @@ describe('lista de publicações da comuna em FlashList', () => {
     await screen.findByTestId('post-qa-post-1');
 
     expect(mocked.getComunaPosts).toHaveBeenCalledWith('hortas', null);
+    // Uma abertura: detalhe, primeira página de publicações e fixados. Evento e Praça
+    // têm testes próprios (compartilham a mesma raiz de cache da comuna).
+    expect(mocked.getComuna).toHaveBeenCalledTimes(1);
+    expect(mocked.getComunaPosts).toHaveBeenCalledTimes(1);
+    expect(mocked.getPinnedPosts).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('comuna-post-count').props.children).toBe('80+');
     const firstWindow = mountedCards();
     expect(firstWindow.length).toBeGreaterThan(0);

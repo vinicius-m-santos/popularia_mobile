@@ -11,7 +11,7 @@ import type { LinkedEvent } from '@/types/models';
 import { listEvents } from '../api';
 import { LinkedEventCallout } from '../linked-event';
 import { NextEvent } from '../next-event';
-import type { ComunaEvent } from '../types';
+import { comunaEventsKey, type ComunaEvent } from '../types';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('@/features/links/destinations', () => ({ openDestination: jest.fn() }));
@@ -43,11 +43,25 @@ describe('descoberta', () => {
     jest.mocked(listEvents).mockResolvedValue({ items: [{ ...event, status: 'cancelled', title: 'Velho' }, event], nextCursor: null });
     await render(<NextEvent slug="londrina" />);
     expect(await screen.findByText('Assembleia mensal')).toBeTruthy();
+    expect(listEvents).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Velho')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Ver atividades'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/eventos/[slug]', params: { slug: 'londrina' } });
     await fireEvent.press(screen.getByLabelText('Assembleia mensal. 05 NOV 19:00'));
     expect(openDestination).toHaveBeenCalledWith({ kind: 'event', id: event.id });
+  });
+
+  it('usa a lista de eventos já carregada pela tela de eventos como placeholder', async () => {
+    jest.mocked(listEvents).mockResolvedValue({ items: [event], nextCursor: null });
+    queryClient.setQueryData(comunaEventsKey('londrina', 'upcoming'), {
+      pages: [{ items: [event], nextCursor: null }],
+      pageParams: [null],
+    });
+
+    await render(<NextEvent slug="londrina" />);
+
+    expect(await screen.findByText('Assembleia mensal')).toBeTruthy();
+    expect(listEvents).toHaveBeenCalledTimes(1);
   });
 
   it('a publicação abre o mesmo destino do aviso', async () => {

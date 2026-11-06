@@ -1,37 +1,41 @@
-import { beforeEach, afterEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { settleQueryClient } from '@/features/events/query-test-utils';
 import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
 import { getMyComunas } from '@/features/comunas/api';
 import type { Comuna } from '@/types/models';
-import { listCollections, listDocuments, uploadDocument, saveDocument, getDocument, editDocument } from '../api';
+import { getCollection, listCollections, listDocuments, uploadDocument, saveDocument, getDocument, editDocument } from '../api';
 import { subscribeAttachment } from '../composer-attachment';
 import { DocumentCard } from '../document-card';
-import { LibraryPane } from '../library-screen';
+import LibraryScreen, { LibraryPane } from '../library-screen';
 import CollectionsScreen from '../collections-screen';
 import UploadScreen, { titleFromFilename } from '../upload-screen';
 import { pickPdf } from '../transfers';
 import { collection, document } from '../testing/fixtures';
 
-const params: { composerKey?: string; edit?: string } = {};
+const params: { composerKey?: string; edit?: string; collection?: string } = {};
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => params, useFocusEffect: () => {}, usePreventRemove: () => jest.fn() }));
 jest.mock('react-native-safe-area-context', () => { const { View } = jest.requireActual<typeof import('react-native')>('react-native'); return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }; });
 jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me', name: 'Camila' }) }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 jest.mock('@/features/comunas/api', () => ({ getComuna: jest.fn(), getMyComunas: jest.fn() }));
 jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Política', topics: [{ id: 'trab', label: 'Trabalho e direitos trabalhistas', shortLabel: 'Trabalho' }] }]) }));
-jest.mock('../api', () => ({ listDocuments: jest.fn(), listCollections: jest.fn(), uploadDocument: jest.fn(), saveDocument: jest.fn(), createCollection: jest.fn(), getDocument: jest.fn(), editDocument: jest.fn() }));
+jest.mock('../api', () => ({ listDocuments: jest.fn(), listCollections: jest.fn(), uploadDocument: jest.fn(), saveDocument: jest.fn(), createCollection: jest.fn(), getDocument: jest.fn(), getCollection: jest.fn(), editDocument: jest.fn() }));
 jest.mock('../transfers', () => ({ pickPdf: jest.fn() }));
 beforeEach(() => {
-  jest.clearAllMocks(); delete params.composerKey; delete params.edit;
+  settleQueryClient();
   queryClient.clear();
+  queryClient.setDefaultOptions({ queries: { retry: false } });
+  jest.clearAllMocks(); delete params.composerKey; delete params.edit; delete params.collection;
   jest.mocked(listDocuments).mockResolvedValue({ items: [], nextCursor: null });
   jest.mocked(listCollections).mockResolvedValue({ items: [collection], nextCursor: null });
+  jest.mocked(getCollection).mockResolvedValue(collection);
   jest.mocked(getMyComunas).mockResolvedValue([]);
   jest.mocked(pickPdf).mockResolvedValue({ name: 'cartilha.pdf', uri: 'file:///cartilha.pdf', size: 1024 });
 });
-afterEach(() => { queryClient.clear(); });
+afterEach(async () => { await cleanup(); queryClient.clear(); });
 describe('bibliotecas reais', () => {
   it('separa vazio, busca, filtros oficiais e paginação no servidor', async () => {
     jest.mocked(listDocuments).mockResolvedValue({ items: [document], nextCursor: null });
@@ -43,16 +47,18 @@ describe('bibliotecas reais', () => {
     expect(screen.getByLabelText('Buscar na biblioteca')).toBeTruthy();
     expect(screen.getByLabelText(`Abrir coleção ${collection.name}`)).toBeTruthy();
     await fireEvent.press(screen.getByRole('radio', { name: 'De pessoas' }));
-    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'people', scope: 'public' }), null));
+    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'people', scope: 'public' }), null, expect.anything()));
     await fireEvent.changeText(screen.getByLabelText('Buscar na biblioteca'), 'organização');
-    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'organização' }), null));
+    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'organização' }), null, expect.anything()));
     await fireEvent.press(screen.getByLabelText('Mais assuntos'));
     await fireEvent.press(await screen.findByRole('radio', { name: 'Trabalho e direitos trabalhistas' }));
-    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ topic: 'trab' }), null));
+    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ topic: 'trab' }), null, expect.anything()));
     expect(screen.queryByLabelText(`Abrir coleção ${collection.name}`)).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Limpar filtros: Resultados' }));
-    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ q: '', topic: undefined, origin: 'all' }), null));
+    // A consulta sem filtros já está no cache fresco: limpar volta a ela sem refazer a página.
+    expect(listDocuments).toHaveBeenCalledWith(expect.objectContaining({ q: '', topic: undefined, origin: 'all', scope: 'public' }), null, expect.anything());
     expect(screen.getByLabelText('Buscar na biblioteca').props.value).toBe('');
+    expect(await screen.findByLabelText(`Abrir coleção ${collection.name}`)).toBeTruthy();
     await fireEvent.press(screen.getByText('Ver mais'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/colecoes', params: { scope: 'public' } });
     await fireEvent.press(screen.getByLabelText(`Abrir coleção ${collection.name}`));
@@ -72,7 +78,22 @@ describe('bibliotecas reais', () => {
     await fireEvent.press(screen.getByText('Adicionar PDF'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/enviar', params: { collection: collection.id } });
     await fireEvent.changeText(screen.getByLabelText('Buscar nesta coleção'), 'tarifa');
-    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ collection: collection.id, q: 'tarifa' }), null));
+    await waitFor(() => expect(listDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ collection: collection.id, q: 'tarifa' }), null, expect.anything()));
+  });
+  it('abre a coleção pelo card em cache sem loader de tela cheia', async () => {
+    let finish: (value: typeof collection) => void = () => {};
+    jest.mocked(getCollection).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    function Wrapper({ page }: { page: boolean }) {
+      return page ? <LibraryScreen /> : <LibraryPane scope="public" />;
+    }
+    const { rerender } = await render(<Wrapper page={false} />);
+    await screen.findByLabelText(`Abrir coleção ${collection.name}`);
+    params.collection = collection.id;
+
+    await rerender(<Wrapper page />);
+    expect(screen.queryByText('Não foi possível carregar esta coleção.')).toBeNull();
+    expect(screen.getByText('1 documento')).toBeTruthy();
+    await act(async () => { finish(collection); await Promise.resolve(); });
   });
   it('a tela de coleções lista e abre uma coleção', async () => {
     await render(<CollectionsScreen />);
@@ -94,7 +115,23 @@ describe('bibliotecas reais', () => {
     await render(<LibraryPane scope="public" />);
     await screen.findByText(document.title!); await fireEvent.press(screen.getByText('Mais documentos'));
     await screen.findByText('Ata'); expect(screen.getAllByText(document.title!)).toHaveLength(1);
-    expect(listDocuments).toHaveBeenLastCalledWith(expect.anything(), 'next');
+    expect(listDocuments).toHaveBeenLastCalledWith(expect.anything(), 'next', expect.anything());
+  });
+  it('volta de um documento sem perder páginas nem refazer a consulta fresca', async () => {
+    jest.mocked(listDocuments).mockImplementation(async (_filters, cursor) => cursor
+      ? { items: [{ ...document, id: 'doc-2', title: 'Ata da assembleia' }], nextCursor: null }
+      : { items: [document], nextCursor: 'next' });
+    const { rerender } = await render(<LibraryPane key="first" scope="public" />);
+    await screen.findByText(document.title!);
+    await fireEvent.press(screen.getByText('Mais documentos'));
+    await screen.findByText('Ata da assembleia');
+    const calls = jest.mocked(listDocuments).mock.calls.length;
+
+    await rerender(<LibraryPane key="second" scope="public" />);
+    expect(screen.getByText(document.title!)).toBeTruthy();
+    expect(screen.getByText('Ata da assembleia')).toBeTruthy();
+    expect(screen.queryByText('Carregando documentos')).toBeNull();
+    expect(listDocuments).toHaveBeenCalledTimes(calls);
   });
   it('um bookmark indisponível permite remoção sem pedir arquivo', async () => {
     jest.mocked(listDocuments).mockResolvedValue({ items: [{ ...document, state: 'unavailable', title: null, description: null, author: null, responsible: null, origin: null, collection: null, pageCount: null, byteSize: null }], nextCursor: null });

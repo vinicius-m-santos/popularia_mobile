@@ -14,6 +14,11 @@ export const queryClient = new QueryClient({ queryCache: new QueryCache({
     if (query.queryKey[0] === queryKeys.post.all[0]) {
       queryClient.removeQueries({ queryKey: queryKeys.post.preview(String(query.queryKey[1])), exact: true });
     }
+    // O resumo sobrevive ao detalhe para evitar piscar a capa. Se o detalhe foi
+    // negado, esse resumo também não pode alimentar o próximo placeholder.
+    if (query.queryKey[0] === queryKeys.comuna.all[0] && query.queryKey.length === 2 && typeof query.queryKey[1] === 'string') {
+      queryClient.removeQueries({ queryKey: queryKeys.comuna.summary(query.queryKey[1]), exact: true });
+    }
   },
 }), defaultOptions: { queries: {
   retry: (attempt, error) => !accessDenied(error) && !(error instanceof ApiError && error.status < 500) && attempt < 1,
@@ -80,10 +85,15 @@ export const contentPolicy = {
   comuna: { staleTime: 60_000, gcTime: 10 * 60_000 },
   /** Descoberta agregada (Explorar/assunto). */
   discovery: { staleTime: 60_000, gcTime: 10 * 60_000 },
-  /** Busca digitada: sempre revalida ao voltar, mas guarda a página por 5 min. */
-  search: { staleTime: 0, gcTime: 5 * 60_000 },
+  /** Busca digitada: cache curto evita repetir a consulta em remontagens imediatas. */
+  search: { staleTime: 15_000, gcTime: 10 * 60_000 },
   /** Metadados do assunto e listas de publicações por hashtag. */
   topic: { staleTime: 60_000, gcTime: 10 * 60_000 },
   /** Detalhe/lista de eventos: presença e cancelamento mudam com frequência. */
   event: { staleTime: 30_000, gcTime: 5 * 60_000 },
+  /** Listas e coleções do acervo: voltar de um documento não refaz o histórico. */
+  library: { staleTime: 30_000, gcTime: 10 * 60_000 },
+  collection: { staleTime: 60_000, gcTime: 10 * 60_000 },
+  /** Praças mudam com presença/mensagens; cache curto para o retorno ser fresco. */
+  squares: { staleTime: 30_000, gcTime: 10 * 60_000 },
 };

@@ -14,6 +14,7 @@ import type { ComunaDetails } from '@/types/models';
 
 import * as api from '../api';
 import CreateComunaScreen from '../create-comuna-screen';
+import { comunaOptions } from '../queries';
 import ManageComunaScreen from '../manage-comuna-screen';
 
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, API_BASE_URL: 'http://api.test/api/v1', API_TIMEOUT_MS: 1000 }));
@@ -120,7 +121,10 @@ beforeEach(() => {
   mocked.getComunaMembers.mockResolvedValue({ items: [], nextCursor: null });
 });
 
-afterEach(() => { queryClient.clear(); });
+afterEach(async () => {
+  await queryClient.cancelQueries();
+  queryClient.clear();
+});
 
 describe('criar comuna', () => {
   it('cancelar sem preencher retorna ao contexto anterior sem criar nem abrir outra rota', async () => {
@@ -278,6 +282,17 @@ describe('gerir comuna: dados e exclusão', () => {
 
     expect(alert).toHaveBeenLastCalledWith('Não é possível excluir', expect.stringContaining('arquivá-la'), expect.anything());
     expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it('reaproveita o detalhe já carregado pela página da comuna', async () => {
+    mocked.getComuna.mockResolvedValue(comuna());
+    await queryClient.fetchQuery(comunaOptions('hortas'));
+    const calls = mocked.getComuna.mock.calls.length;
+
+    await render(<ManageComunaScreen />);
+
+    expect(await screen.findByText('Membros')).toBeTruthy();
+    expect(mocked.getComuna).toHaveBeenCalledTimes(calls);
   });
 
   it('moderação não vê a aba de configurações da comuna', async () => {

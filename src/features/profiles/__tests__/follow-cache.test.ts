@@ -35,7 +35,7 @@ describe('cache de follow', () => {
       people: [{ id: 'bia', name: 'Bia', viewerFollowing: false, viewerRequested: false }],
       next: { comunas: null, people: null, posts: null, events: null, documents: null },
     });
-    const searchKey = queryKeys.discovery.search('bia', 'people');
+    const searchKey = queryKeys.discovery.search('ana', 'bia', 'people');
     queryClient.setQueryData(searchKey, {
       pages: [{ items: [{ id: 'bia', kind: 'people', value: { id: 'bia', name: 'Bia', viewerFollowing: false, viewerRequested: false } }], nextCursor: null }],
       pageParams: [null],

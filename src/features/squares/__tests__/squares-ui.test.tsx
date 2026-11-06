@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createRef, type ComponentRef } from 'react';
 import { TextInput } from 'react-native';
@@ -10,6 +10,7 @@ import SquaresScreen from '../squares-screen';
 import SquareScreen from '../square-screen';
 import { SquareEntry } from '../square-entry';
 import { ApiError } from '@/lib/errors';
+import { queryClient } from '@/lib/query/client';
 import { useSquare } from '../use-square';
 import * as api from '../api';
 import { joinComuna, requestToJoin } from '@/features/comunas/api';
@@ -39,12 +40,18 @@ function chat(patch: Partial<ReturnType<typeof useSquare>> = {}): ReturnType<typ
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  queryClient.clear();
   jest.mocked(useSquare).mockReturnValue(chat());
   mocked.listSquares.mockResolvedValue({ items: [], nextCursor: null });
   mocked.getComunaSquare.mockResolvedValue(square());
   mocked.getStickerPacks.mockResolvedValue([{ id: 'pack1', name: 'Popularia', scope: 'popularia', stickers: [sticker] }]);
   jest.mocked(joinComuna).mockResolvedValue({} as Awaited<ReturnType<typeof joinComuna>>);
   jest.mocked(requestToJoin).mockResolvedValue(undefined);
+});
+
+afterEach(async () => {
+  await queryClient.cancelQueries();
+  queryClient.clear();
 });
 
 describe('Praças no aplicativo', () => {
@@ -64,6 +71,7 @@ describe('Praças no aplicativo', () => {
   it('a Comuna oferece sua Praça existente, sem ativação ou criação manual', async () => {
     await render(<SquareEntry slug="ti" />);
     await waitFor(() => expect(screen.getByText('Entrar na Praça')).toBeTruthy());
+    expect(mocked.getComunaSquare).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Criar Praça')).toBeNull();
     expect(screen.queryByText('Abrir Praça')).toBeNull();
     await fireEvent.press(screen.getByText('Entrar na Praça'));

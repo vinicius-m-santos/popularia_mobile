@@ -21,7 +21,7 @@ import { MembersList, ServerMembersList } from '@/features/comunas/components/me
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
 import { PinnedPosts } from '@/features/comunas/components/pinned-posts';
 import { RulesList } from '@/features/comunas/components/rules-list';
-import { movePinnedPost, pinnedPostsKey, useComunaPinPending } from '@/features/comunas/pins';
+import { movePinnedPost, useComunaPinPending } from '@/features/comunas/pins';
 import { useComuna } from '@/features/comunas/queries';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
@@ -103,11 +103,13 @@ export default function ComunaScreen() {
   useRouteMediaFocus(visibility);
 
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
+  const postsKey = useMemo(() => queryKeys.comuna.posts(id), [id]);
   const comuna = useComuna(id);
   const posts = useCachedPages({
-    queryKey: queryKeys.comuna.posts(id),
+    queryKey: postsKey,
     load: loadPosts,
     performanceScope: 'comuna',
+    // A lista mostra o erro com "Tentar de novo" em vez de repetir sozinha (como antes do cache).
     retry: false,
     ...contentPolicy.comuna,
   });
@@ -125,7 +127,7 @@ export default function ComunaScreen() {
   const viewerIsMember = membershipOf(id) ?? comuna.data?.viewerIsMember;
   const privateOutside = !DEMO_MODE && comuna.data?.visibility === 'private' && !viewerIsMember;
   const pins = useQuery({
-    queryKey: pinnedPostsKey(id),
+    queryKey: queryKeys.comuna.pins(id),
     queryFn: () => getPinnedPosts(id),
     enabled: !DEMO_MODE && tab === 'posts' && !!comuna.data && !privateOutside,
     ...contentPolicy.comuna,
@@ -151,13 +153,18 @@ export default function ComunaScreen() {
   }, [refreshError, showToast]);
 
   // A nova capa usa papel claro; a barra de status acompanha esse fundo.
-  // Ao voltar para a tela (por exemplo, da gestão), recarrega a comuna: papel e estado podem ter mudado.
+  // Voltar dentro do staleTime não dispara nada: o detalhe e as páginas já estão no cache.
   const focusedOnce = useRef(false);
   const seenMembership = useRef(viewerIsMember);
+  const privateComuna = comuna.data?.visibility === 'private';
   useEffect(() => {
-    if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) refresh();
+    if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) {
+      // Em comuna privada o vínculo abre/fecha as publicações. Entrar/sair já invalida
+      // a lista; evitar um refresh manual concorrente.
+      if (privateComuna && !queryClient.getQueryState(postsKey)?.isInvalidated) refresh();
+    }
     seenMembership.current = viewerIsMember;
-  }, [viewerIsMember, refresh]);
+  }, [viewerIsMember, privateComuna, postsKey, refresh]);
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('dark');

@@ -1,10 +1,10 @@
-import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { afterAll, afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import { settleQueryClient } from '@/features/events/query-test-utils';
 import { queryClient } from '@/lib/query/client';
-import { queryKeys } from '@/lib/query/keys';
+import { discoveryKeys } from '@/lib/query/keys';
 
 import { searchDiscovery, getDiscoveryData, type DiscoveryData, type DiscoveryEntry } from '../api';
 import ExploreScreen, { TopicScreen } from '../explore-screen';
@@ -75,11 +75,16 @@ const data: DiscoveryData = {
 beforeEach(() => {
   settleQueryClient();
   queryClient.clear();
+  mockFocusCallbacks.clear();
   jest.clearAllMocks();
+  // `clearAllMocks` não descarta filas de `mockResolvedValueOnce` de outro teste.
+  getData.mockReset();
+  search.mockReset();
   getData.mockResolvedValue(data);
   search.mockImplementation(async (_me, _q, filter) => ({ items: filter === 'all' ? entries : entries.filter((e) => e.kind === filter), nextCursor: null }));
   mockTopicId = 'tec';
 });
+afterEach(() => { cleanup(); mockFocusCallbacks.clear(); });
 
 // A busca permanece montada na descoberta; descarte também seus timers de cache ao encerrar.
 afterAll(() => { queryClient.clear(); });
@@ -127,6 +132,47 @@ describe('Explorar', () => {
     expect(screen.getByLabelText('Buscar na Popularia').props.value).toBe('Linux');
     expect(search).toHaveBeenLastCalledWith('me', 'Linux', 'posts', undefined, null, expect.anything());
     expect(mockOpenPost).toHaveBeenCalledWith('post1');
+  });
+
+  it('remonta a descoberta com o cache compartilhado e sem spinner', async () => {
+    const { rerender } = await render(<ExploreScreen key="first" />);
+    await screen.findByText('Comunas para conhecer');
+    expect(getData).toHaveBeenCalledTimes(1);
+
+    await rerender(<ExploreScreen key="second" />);
+    expect(screen.getByText('Comunas para conhecer')).toBeTruthy();
+    expect(screen.queryByTestId('trending-skeleton')).toBeNull();
+    expect(getData).toHaveBeenCalledTimes(1);
+  });
+
+  it('remonta a busca com as páginas já carregadas e sem repetir a consulta', async () => {
+    const secondPerson = { ...person, id: 'bia', handle: 'bia', name: 'Bia Rural' };
+    const searchMarker = { ...post, id: 'search-marker', text: 'Resultado exclusivo da busca' };
+    search.mockImplementation(async (_me, _q, filter, _topic, cursor) => {
+      if (filter !== 'people') return { items: [{ id: searchMarker.id, kind: 'posts', value: searchMarker }], nextCursor: null };
+      return cursor
+        ? { items: [{ id: secondPerson.id, kind: 'people', value: secondPerson }], nextCursor: null }
+        : { items: [{ id: person.id, kind: 'people', value: person }], nextCursor: 'p2' };
+    });
+    const { rerender } = await render(<ExploreScreen key="first" />);
+    await fireEvent.changeText(await screen.findByLabelText('Buscar na Popularia'), 'Linux');
+    await debounce();
+    await screen.findByText('Resultado exclusivo da busca');
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Pessoas' }));
+    await screen.findByText('Ana Linux');
+    await fireEvent.press(await screen.findByText('Carregar mais'));
+    await screen.findByText('Bia Rural');
+    const calls = search.mock.calls.length;
+
+    await rerender(<ExploreScreen key="second" />);
+    await fireEvent.changeText(await screen.findByLabelText('Buscar na Popularia'), 'Linux');
+    await debounce();
+    await screen.findByText('Resultado exclusivo da busca');
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Pessoas' }));
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Pessoas' }).props.accessibilityState.checked).toBe(true));
+    expect(await screen.findByText('Ana Linux')).toBeTruthy();
+    expect(screen.getByText('Bia Rural')).toBeTruthy();
+    expect(search).toHaveBeenCalledTimes(calls);
   });
 
   it('abre descoberta, assunto e os destinos existentes de pessoa/comuna/publicação', async () => {
@@ -191,13 +237,12 @@ describe('Explorar', () => {
   it('revalidação automática ao voltar não ativa o inset nativo de pull-to-refresh', async () => {
     await render(<ExploreScreen />);
     await screen.findByText('Comunas para conhecer');
-    const key = queryKeys.discovery.home('me', undefined, 'tec');
-    queryClient.getQueryCache().find({ queryKey: key, exact: true })?.setState({ dataUpdatedAt: Date.now() - 120_000 });
-    getData.mockResolvedValueOnce(data);
+    let finish: (value: DiscoveryData) => void = () => {};
+    getData.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     await act(async () => { mockFocusCallbacks.forEach((focus) => focus()); });
-    await waitFor(() => expect(getData).toHaveBeenCalledTimes(2));
     const refreshControl = screen.container.queryAll((element) => element.type === 'RCTRefreshControl')[0];
     expect(refreshControl.props.refreshing).toBeFalsy();
+    await act(async () => finish(data));
   });
 
   it('busca vazia, erro/retry e paginação de uma categoria', async () => {
@@ -208,6 +253,8 @@ describe('Explorar', () => {
     expect(await screen.findByText('Nada nesta categoria por enquanto.')).toBeTruthy();
     search.mockResolvedValueOnce({ items: [entries[0]], nextCursor: 'cursor1' }).mockResolvedValueOnce({ items: [], nextCursor: null });
     await fireEvent.press(screen.getByText('Tudo'));
+    // A categoria já estava em cache fresco; invalide para exercitar a paginação.
+    queryClient.removeQueries({ queryKey: discoveryKeys.search('me', '', 'comunas', null) });
     await fireEvent.press(await screen.findByLabelText('Ver todas: Comunas para conhecer'));
     await fireEvent.press(await screen.findByText('Carregar mais'));
     await waitFor(() => expect(search).toHaveBeenLastCalledWith('me', '', 'comunas', undefined, 'cursor1', expect.anything()));
@@ -231,6 +278,8 @@ describe('Explorar', () => {
 
     search.mockRejectedValueOnce(new Error('HTTP 500')).mockResolvedValueOnce({ items: [{ id: 'ev1', kind: 'events', value: event }], nextCursor: null });
     await fireEvent.press(await screen.findByRole('radio', { name: 'Tudo' }));
+    // Sem remover o cache fresco, voltar para Eventos mostraria o vazio anterior.
+    queryClient.removeQueries({ queryKey: discoveryKeys.search('me', '', 'events', null) });
     await fireEvent.press(await screen.findByRole('radio', { name: 'Eventos' }));
     expect(await screen.findByText('Não conseguimos buscar agora.')).toBeTruthy();
     expect(screen.queryByText('Nada nesta categoria por enquanto.')).toBeNull();

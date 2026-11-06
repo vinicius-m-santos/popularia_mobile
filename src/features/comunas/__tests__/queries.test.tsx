@@ -1,27 +1,34 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { cleanup, renderHook, waitFor } from '@testing-library/react-native';
+import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
 import { queryClient } from '@/lib/query/client';
-import { queryKeys } from '@/lib/query/keys';
 import type { ComunaDetails } from '@/types/models';
 
-import { getComuna } from '../api';
-import { applyComunaMembership, invalidateComunaReads, useComuna } from '../queries';
+import * as api from '../api';
+import { comunaKeys, rememberComunaSummary, toComunaSummary, updateComunaMembership } from '../keys';
+import { comunaOptions, invalidateComunaReads, useComuna, writeComuna } from '../queries';
 
-jest.mock('../api', () => ({ getComuna: jest.fn() }));
+jest.mock('../api', () => {
+  const actual = jest.requireActual<typeof import('../api')>('../api');
+  return { ...actual, getComuna: jest.fn() };
+});
 
-const mocked = jest.mocked(getComuna);
+const mocked = jest.mocked(api);
 
 function comuna(patch: Partial<ComunaDetails> = {}): ComunaDetails {
   return {
     id: 'hortas',
+    serverId: 'u1',
+    visibility: 'public',
+    status: 'active',
     name: 'Hortas',
     handle: 'hortas',
     initials: 'HO',
     tone: 'red',
-    place: 'São Paulo',
-    foundedYear: '2024',
-    description: 'Mutirões',
+    place: 'São Paulo · SP',
+    foundedYear: '2026',
+    description: 'Mutirões.',
     memberCount: 3,
     coverAlt: '',
     topics: [],
@@ -32,70 +39,160 @@ function comuna(patch: Partial<ComunaDetails> = {}): ComunaDetails {
     moderatorIds: [],
     founderRole: '',
     featuredMemberIds: [],
-    visibility: 'public',
-    status: 'active',
-    viewerIsMember: false,
-    viewerRole: null,
+    viewerIsMember: true,
+    viewerRole: 'member',
     moderators: [],
-    members: [],
     featuredMembers: [],
+    members: [],
     ...patch,
   };
 }
 
-beforeEach(() => {
-  jest.clearAllMocks();
+function invalidated(key: readonly unknown[]) {
+  return queryClient.getQueryCache().find({ queryKey: [...key] })?.state.isInvalidated ?? false;
+}
+
+beforeEach(async () => {
+  await queryClient.cancelQueries();
   queryClient.clear();
-  queryClient.setDefaultOptions({ queries: { retry: false } });
+  jest.clearAllMocks();
 });
 
 afterEach(async () => {
   await cleanup();
+  await queryClient.cancelQueries();
   queryClient.clear();
 });
 
-describe('cache por domínio da comuna', () => {
-  it('compartilha o detalhe e não repete a leitura entre duas telas', async () => {
-    mocked.mockResolvedValue(comuna());
-    const useTest = () => ({ left: useComuna('hortas'), right: useComuna('hortas') });
-    const { result } = await renderHook(useTest);
-    await waitFor(() => expect(result.current.left.data?.name).toBe('Hortas'));
-    expect(result.current.right.data?.name).toBe('Hortas');
-    expect(mocked).toHaveBeenCalledTimes(1);
+function Probe() {
+  const comuna = useComuna('hortas');
+  return <Text>{`${comuna.status}:${comuna.data?.name ?? ''}`}</Text>;
+}
+
+function Host({ screen: which }: { screen: 'comuna' | 'outra' }) {
+  return which === 'comuna' ? <Probe /> : <Text>outra tela</Text>;
+}
+
+describe('query keys da comuna', () => {
+  it('agrupa detalhe, resumo, posts, fixados, evento e Praça sob a mesma raiz', () => {
+    expect(comunaKeys.group('hortas')).toEqual(['comuna', 'hortas']);
+    expect(comunaKeys.detail('hortas')).toEqual(comunaKeys.group('hortas'));
+    expect(comunaKeys.summary('hortas')).toEqual(['comuna', 'hortas', 'summary']);
+    expect(comunaKeys.posts('hortas')).toEqual(['comuna', 'hortas', 'posts']);
+    expect(comunaKeys.pins('hortas')).toEqual(['comuna', 'hortas', 'pins']);
+    expect(comunaKeys.square('hortas')).toEqual(['comuna', 'hortas', 'square']);
+    expect(comunaKeys.events('hortas', 'upcoming')).toEqual(['comuna', 'hortas', 'events', 'upcoming']);
+    expect(comunaKeys.eventsAll('hortas')).toEqual(['comuna', 'hortas', 'events']);
   });
 
-  it('rejeita payload parcial em vez de gravar uma comuna incompleta', async () => {
-    mocked.mockResolvedValue({ id: 'hortas', name: 'Hortas' } as never);
-    const { result } = await renderHook(() => useComuna('hortas'));
-    await waitFor(() => expect(result.current.status).toBe('error'));
-    expect(queryClient.getQueryData(queryKeys.comuna.detail('hortas'))).toBeUndefined();
-  });
+  it('invalida só as leituras derivadas da comuna pedida', async () => {
+    queryClient.setQueryData(comunaKeys.detail('hortas'), comuna());
+    queryClient.setQueryData(comunaKeys.posts('hortas'), { pages: [], pageParams: [] });
+    queryClient.setQueryData(comunaKeys.pins('hortas'), []);
+    queryClient.setQueryData(comunaKeys.square('hortas'), {});
+    queryClient.setQueryData(comunaKeys.events('hortas', 'upcoming'), { pages: [], pageParams: [] });
+    queryClient.setQueryData(comunaKeys.detail('tarifa'), comuna({ id: 'tarifa', name: 'Tarifa' }));
 
-  it('participar/sair altera só os campos de membership e preserva o restante do detalhe', () => {
-    queryClient.setQueryData(queryKeys.comuna.detail('vila'), comuna({
-      id: 'vila', name: 'Vila', handle: 'vila', visibility: 'private', viewerIsMember: false, viewerPermissions: undefined,
-    }));
-    applyComunaMembership('vila', { slug: 'vila', isMember: true, role: 'member', memberCount: 9 });
-    const joined = queryClient.getQueryData<ComunaDetails>(queryKeys.comuna.detail('vila'));
-    expect(joined).toMatchObject({ name: 'Vila', description: 'Mutirões', viewerIsMember: true, viewerRole: 'member', memberCount: 9 });
-
-    applyComunaMembership('vila', null);
-    const left = queryClient.getQueryData<ComunaDetails>(queryKeys.comuna.detail('vila'));
-    expect(left?.viewerIsMember).toBe(false);
-    expect(left?.viewerRole).toBeNull();
-    expect(left?.name).toBe('Vila');
-    expect(left?.viewerPermissions).toBeUndefined();
-  });
-
-  it('invalida só as leituras derivadas daquela comuna', async () => {
-    const invalidate = jest.spyOn(queryClient, 'invalidateQueries').mockImplementation(() => Promise.resolve());
     await invalidateComunaReads('hortas');
-    expect(invalidate.mock.calls.map((call) => (call[0] as { queryKey: unknown[] }).queryKey)).toEqual([
-      ['comuna', 'hortas', 'posts'],
-      ['comuna', 'hortas', 'pins'],
-      ['comuna', 'hortas', 'square'],
-      ['comuna', 'hortas', 'events'],
-    ]);
-    invalidate.mockRestore();
+
+    expect(invalidated(comunaKeys.posts('hortas'))).toBe(true);
+    expect(invalidated(comunaKeys.pins('hortas'))).toBe(true);
+    expect(invalidated(comunaKeys.square('hortas'))).toBe(true);
+    expect(invalidated(comunaKeys.events('hortas', 'upcoming'))).toBe(true);
+    expect(invalidated(comunaKeys.detail('hortas'))).toBe(false);
+    expect(invalidated(comunaKeys.detail('tarifa'))).toBe(false);
+  });
+});
+
+describe('detalhe compartilhado', () => {
+  it('reaproveita o detalhe fresco sem request adicional', async () => {
+    mocked.getComuna.mockResolvedValue(comuna());
+
+    await queryClient.fetchQuery(comunaOptions('hortas'));
+    const cached = await queryClient.fetchQuery(comunaOptions('hortas'));
+
+    expect(cached.name).toBe('Hortas');
+    expect(mocked.getComuna).toHaveBeenCalledTimes(1);
+  });
+
+  it('volta à comuna dentro do staleTime com conteúdo imediato e sem request', async () => {
+    mocked.getComuna.mockResolvedValue(comuna());
+    const view = await render(<Host screen="comuna" />);
+    expect(await screen.findByText('success:Hortas')).toBeTruthy();
+    const calls = mocked.getComuna.mock.calls.length;
+
+    await view.rerender(<Host screen="outra" />);
+    expect(screen.getByText('outra tela')).toBeTruthy();
+    await view.rerender(<Host screen="comuna" />);
+
+    expect(screen.getByText('success:Hortas')).toBeTruthy();
+    expect(mocked.getComuna).toHaveBeenCalledTimes(calls);
+    view.unmount();
+  });
+
+  it('usa o resumo da lista como placeholder enquanto o detalhe chega', async () => {
+    rememberComunaSummary(comuna({ viewerIsMember: false, viewerRole: null }));
+    let resolve!: (value: ComunaDetails) => void;
+    mocked.getComuna.mockReturnValue(new Promise<ComunaDetails>((done) => { resolve = done; }));
+
+    const { result, unmount } = await renderHook(() => useComuna('hortas'));
+
+    expect(result.current.status).toBe('success');
+    expect(result.current.data).toMatchObject({ name: 'Hortas', viewerIsMember: false });
+    // O resumo não carrega pessoas nem permissões; o detalhe continua sendo a fonte delas.
+    expect(result.current.data?.members).toEqual([]);
+    expect(mocked.getComuna).toHaveBeenCalledTimes(1);
+
+    await act(async () => { resolve(comuna({ description: 'Detalhe completo.', viewerIsMember: true })); });
+    await waitFor(() => expect(result.current.data?.description).toBe('Detalhe completo.'));
+    unmount();
+  });
+
+  it('edição grava o detalhe e o resumo compartilhados', () => {
+    queryClient.setQueryData(comunaKeys.detail('hortas'), comuna());
+    writeComuna(comuna({ description: 'Mutirões e feira.' }));
+
+    expect(queryClient.getQueryData<ComunaDetails>(comunaKeys.detail('hortas'))?.description).toBe('Mutirões e feira.');
+    expect(queryClient.getQueryData(comunaKeys.summary('hortas'))).toMatchObject({ description: 'Mutirões e feira.' });
+  });
+});
+
+describe('participação', () => {
+  it('entrar atualiza detalhe e resumo e invalida as listas da comuna', () => {
+    queryClient.setQueryData(comunaKeys.detail('hortas'), comuna({ visibility: 'private', viewerIsMember: false, viewerRole: null, memberCount: 3 }));
+    queryClient.setQueryData(comunaKeys.summary('hortas'), toComunaSummary(comuna({ visibility: 'private', viewerIsMember: false, viewerRole: null, memberCount: 3 })));
+    queryClient.setQueryData(comunaKeys.posts('hortas'), { pages: [], pageParams: [] });
+    queryClient.setQueryData(comunaKeys.pins('hortas'), []);
+    queryClient.setQueryData(comunaKeys.square('hortas'), {});
+
+    updateComunaMembership('hortas', true, 4);
+
+    expect(queryClient.getQueryData<ComunaDetails>(comunaKeys.detail('hortas'))).toMatchObject({
+      viewerIsMember: true,
+      viewerRole: 'member',
+      memberCount: 4,
+    });
+    expect(queryClient.getQueryData(comunaKeys.summary('hortas'))).toMatchObject({
+      viewerIsMember: true,
+      viewerRole: 'member',
+      memberCount: 4,
+    });
+    expect(invalidated(comunaKeys.posts('hortas'))).toBe(true);
+    expect(invalidated(comunaKeys.pins('hortas'))).toBe(true);
+    expect(invalidated(comunaKeys.square('hortas'))).toBe(true);
+  });
+
+  it('sair remove permissões antigas do detalhe e descarta fixados', () => {
+    const permissions = { canPost: true } as ComunaDetails['viewerPermissions'];
+    queryClient.setQueryData(comunaKeys.detail('hortas'), comuna({ visibility: 'private', viewerIsMember: true, viewerPermissions: permissions }));
+    queryClient.setQueryData(comunaKeys.pins('hortas'), []);
+
+    updateComunaMembership('hortas', false);
+
+    const detail = queryClient.getQueryData<ComunaDetails>(comunaKeys.detail('hortas'));
+    expect(detail?.viewerIsMember).toBe(false);
+    expect(detail?.viewerRole).toBeNull();
+    expect(detail?.viewerPermissions).toBeUndefined();
+    expect(queryClient.getQueryData(comunaKeys.pins('hortas'))).toBeUndefined();
   });
 });

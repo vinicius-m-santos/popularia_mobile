@@ -1,5 +1,4 @@
 import { queryKeys } from '@/lib/query/keys';
-
 import type { EventCapacityMode, User } from '@/types/models';
 
 export type EventFormat = 'in_person' | 'online' | 'hybrid';

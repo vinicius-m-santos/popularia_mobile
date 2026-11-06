@@ -1,19 +1,13 @@
-import { useCallback } from 'react';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 
-import { useCachedData } from '@/hooks/use-cached-data';
 import type { MembershipDto } from '@/lib/api/dto';
-import { contentPolicy, queryClient } from '@/lib/query/client';
+import { accessDenied, contentPolicy, queryClient } from '@/lib/query/client';
 import { queryKeys } from '@/lib/query/keys';
 import type { ComunaDetails } from '@/types/models';
 
 import { getComuna } from './api';
+import { placeholderComunaDetails, rememberComunaSummary } from './keys';
 
-/**
- * Um payload incompleto de comuna não pode entrar na chave de detalhe. A
- * validação exige a identidade e o estado de participação; permissões e listas
- * de pessoas continuam sendo opcionais porque comunas da plataforma não têm
- * proprietário/moderadores.
- */
 export function isComunaDetailsPayload(value: unknown): value is ComunaDetails {
   if (!value || typeof value !== 'object') return false;
   const comuna = value as Partial<ComunaDetails>;
@@ -23,31 +17,30 @@ export function isComunaDetailsPayload(value: unknown): value is ComunaDetails {
     && typeof comuna.viewerIsMember === 'boolean';
 }
 
-/** Loader único do detalhe; valida antes de devolver para o cache. */
 export async function loadComunaDetails(slug: string, signal?: AbortSignal): Promise<ComunaDetails> {
   const comuna = await getComuna(slug, signal);
-  if (!isComunaDetailsPayload(comuna)) {
-    throw new Error('Resposta incompleta da comuna; o cache anterior foi preservado.');
-  }
+  if (!isComunaDetailsPayload(comuna)) throw new Error('Resposta incompleta da comuna; o cache anterior foi preservado.');
   return comuna;
 }
 
-/**
- * Detalhe compartilhado da comuna. Mesmo contrato de `useAsyncData`, com cache
- * por chave: duas telas abertas em sequência não repetem o GET enquanto o dado
- * estiver fresco.
- */
+export const comunaOptions = (slug: string) => queryOptions<ComunaDetails>({
+  queryKey: queryKeys.comuna.detail(slug),
+  queryFn: ({ signal }) => loadComunaDetails(slug, signal),
+  ...contentPolicy.comuna,
+  placeholderData: () => placeholderComunaDetails(slug),
+});
+
 export function useComuna(slug: string) {
-  const load = useCallback((signal: AbortSignal) => loadComunaDetails(slug, signal), [slug]);
-  return useCachedData<ComunaDetails>({
-    queryKey: queryKeys.comuna.detail(slug),
-    load,
-    ...contentPolicy.comuna,
-    enabled: !!slug,
-  });
+  const query = useQuery({ ...comunaOptions(slug), enabled: !!slug }, queryClient);
+  const failed = query.isError || query.isRefetchError;
+  return {
+    data: accessDenied(query.error) ? null : query.data ?? null,
+    status: (query.isPending ? 'loading' : failed ? 'error' : 'success') as 'loading' | 'success' | 'error',
+    error: query.error,
+    reload: query.refetch,
+  };
 }
 
-/** Invalida as leituras derivadas de uma comuna; o detalhe é atualizado por quem chamou. */
 export async function invalidateComunaReads(slug: string): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.comuna.posts(slug) }),
@@ -57,11 +50,11 @@ export async function invalidateComunaReads(slug: string): Promise<void> {
   ]);
 }
 
-/**
- * Grava somente os campos de que a resposta de participar/sair é dona. O
- * restante do detalhe (regras, capa, moderação, permissões de outro tipo)
- * continua intacto, evitando que um payload de membership vire o detalhe.
- */
+export function writeComuna(comuna: ComunaDetails): void {
+  queryClient.setQueryData(queryKeys.comuna.detail(comuna.id), comuna);
+  rememberComunaSummary(comuna);
+}
+
 export function applyComunaMembership(slug: string, membership?: MembershipDto | null): void {
   const current = queryClient.getQueryData<ComunaDetails>(queryKeys.comuna.detail(slug));
   if (!current) return;
@@ -77,9 +70,7 @@ export function applyComunaMembership(slug: string, membership?: MembershipDto |
     memberCount: Math.max(0, current.memberCount - (current.viewerIsMember ? 1 : 0)),
   };
   if (!next.viewerIsMember) delete next.viewerPermissions;
-  queryClient.setQueryData(queryKeys.comuna.detail(slug), next);
-
-  // Em comuna pública a leitura não muda ao entrar/sair; só a privada abre/fecha conteúdo.
+  writeComuna(next);
   if (current.visibility !== 'private') return;
   void queryClient.invalidateQueries({ queryKey: queryKeys.comuna.posts(slug) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.comuna.square(slug) });

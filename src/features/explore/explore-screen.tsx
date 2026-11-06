@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -21,6 +21,7 @@ import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { formatPeople } from '@/lib/format';
+import type { Page } from '@/lib/pagination';
 import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
 import { queryKeys } from '@/lib/query/keys';
 import { goBack, useNav } from '@/lib/routes';
@@ -90,12 +91,15 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   }, [query]);
   const topic = data.data?.topics.find((t) => t.id === topicId);
   // O /explore?topic= não inclui documentos; usa a busca por assunto para trazer o acervo.
-  const topicDocuments = useQuery({
+  const topicDocuments = useQuery<Page<DiscoveryEntry>>({
     queryKey: queryKeys.discovery.topicDocuments(me.id, topicId ?? ''),
     queryFn: ({ signal }) => searchDiscovery(me.id, '', 'documents', topicId, null, signal),
     enabled: !!topicId && !!topic,
     retry: false,
-    ...contentPolicy.topic,
+    ...contentPolicy.discovery,
+    // Se a pessoa já abriu a categoria Documentos neste assunto, o preview usa
+    // a mesma página em cache em vez de nascer com um loader.
+    placeholderData: () => topicId ? cachedSearchPage(queryKeys.discovery.search(me.id, '', 'documents', topicId)) : undefined,
   }, queryClient);
   const topicDocumentItems = (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents');
   const refetchTopicDocuments = topicDocuments.refetch;
@@ -106,7 +110,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const title = topicId ? topic?.shortLabel ?? 'Assunto' : 'Explorar';
   const searchLabel = topicId ? `Buscar em ${title}` : 'Buscar na Popularia';
   const result = useInfiniteQuery({
-    queryKey: queryKeys.discovery.search(debounced, filter, topicId),
+    queryKey: queryKeys.discovery.search(me.id, debounced, filter, topicId),
     queryFn: ({ pageParam, signal }) => searchDiscovery(me.id, debounced, filter, topicId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
@@ -120,8 +124,8 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const revalidateRef = useRef(() => {});
   useEffect(() => {
     revalidateRef.current = () => {
-      // Descoberta só busca de novo fora da janela de frescor; busca digitada
-      // revalida no foco porque staleTime é 0 por contrato.
+      // Descoberta só busca de novo fora da janela de frescor; uma busca ativa
+      // é revalidada ao retornar para refletir novos resultados.
       revalidateIfStale(discovery.queryKey, contentPolicy.discovery.staleTime);
       if (topicId && topic) revalidateIfStale(queryKeys.discovery.topicDocuments(me.id, topicId), contentPolicy.topic.staleTime);
       if (searchEnabled) void refreshSearch();
@@ -327,6 +331,16 @@ function dedupe(items: DiscoveryEntry[]): DiscoveryEntry[] {
     seen.add(key);
     return true;
   });
+}
+
+/** Páginas já carregadas de uma busca, no formato que o preview espera. */
+function cachedSearchPage(key: QueryKey): Page<DiscoveryEntry> | undefined {
+  const cached = queryClient.getQueryData<InfiniteData<Page<DiscoveryEntry>>>(key);
+  if (!cached) return undefined;
+  return {
+    items: dedupe(cached.pages.flatMap((page) => page.items)),
+    nextCursor: cached.pages[cached.pages.length - 1]?.nextCursor ?? null,
+  };
 }
 
 function DiscoveryHit({ entry, topics, nav }: { entry: DiscoveryEntry; topics: Topic[]; nav: ReturnType<typeof useNav> }) {
