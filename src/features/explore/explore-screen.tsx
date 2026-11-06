@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -19,10 +19,12 @@ import { ComunaRow } from '@/features/comunas/components/comuna-row';
 import { JoinButton } from '@/features/comunas/components/join-button';
 import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { useCachedQuery } from '@/hooks/use-cached-query';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { formatPeople } from '@/lib/format';
-import { queryClient } from '@/lib/query/client';
+import type { Page } from '@/lib/pagination';
+import { contentPolicy, queryClient } from '@/lib/query/client';
+import { discoveryKeys } from '@/lib/query/keys';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, FeedItem, Topic } from '@/types/models';
 
@@ -64,12 +66,14 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const nav = useNav();
   const { interests, profile } = useAccount();
   const interestKey = (interests ?? []).join(',');
-  const load = useCallback(() => {
-    // Recarrega as prioridades quando interesses mudam no perfil.
-    void interestKey;
-    return getDiscoveryData(me.id, topicId);
-  }, [me.id, topicId, interestKey]);
-  const data = useAsyncData(load);
+  // A chave abaixo é a fonte da verdade: remontar o Explorar ou o assunto
+  // reutiliza o mesmo cache (e os interesses mudam a consulta, não o contrário).
+  const data = useCachedQuery({
+    queryKey: discoveryKeys.detail(me.id, topicId ?? null, interestKey),
+    load: (signal) => getDiscoveryData(me.id, topicId, signal),
+    ...contentPolicy.discovery,
+    retry: false,
+  });
   const trending = useMemo(
     () => data.data ? selectTrendingPosts([...data.data.posts, ...data.data.recentPosts]) : [],
     [data.data],
@@ -92,12 +96,15 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   }, [query]);
   const topic = data.data?.topics.find((t) => t.id === topicId);
   // O /explore?topic= não inclui documentos; usa a busca por assunto para trazer o acervo.
-  const topicDocuments = useQuery({
-    queryKey: ['topic-documents', me.id, topicId ?? ''],
+  const topicDocuments = useQuery<Page<DiscoveryEntry>>({
+    queryKey: discoveryKeys.topicDocuments(me.id, topicId ?? ''),
     queryFn: ({ signal }) => searchDiscovery(me.id, '', 'documents', topicId, null, signal),
     enabled: !!topicId && !!topic,
     retry: false,
-    staleTime: 60_000,
+    ...contentPolicy.discovery,
+    // Se a pessoa já abriu a categoria Documentos neste assunto, o preview usa
+    // a mesma página em cache em vez de nascer com um loader.
+    placeholderData: () => topicId ? cachedSearchPage(discoveryKeys.search(me.id, '', 'documents', topicId)) : undefined,
   }, queryClient);
   const topicDocumentItems = (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents');
   const refetchTopicDocuments = topicDocuments.refetch;
@@ -108,14 +115,13 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const title = topicId ? topic?.shortLabel ?? 'Assunto' : 'Explorar';
   const searchLabel = topicId ? `Buscar em ${title}` : 'Buscar na Popularia';
   const result = useInfiniteQuery({
-    queryKey: ['search', debounced, filter, topicId ?? null],
+    queryKey: discoveryKeys.search(me.id, debounced, filter, topicId ?? null),
     queryFn: ({ pageParam, signal }) => searchDiscovery(me.id, debounced, filter, topicId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
     enabled: searchEnabled,
     retry: false,
-    staleTime: 0,
-    gcTime: 5 * 60_000,
+    ...contentPolicy.search,
     placeholderData: keepPreviousData,
   }, queryClient);
   const refreshSearch = result.refetch;
@@ -328,6 +334,16 @@ function dedupe(items: DiscoveryEntry[]): DiscoveryEntry[] {
     seen.add(key);
     return true;
   });
+}
+
+/** Páginas já carregadas de uma busca, no formato que o preview espera. */
+function cachedSearchPage(key: QueryKey): Page<DiscoveryEntry> | undefined {
+  const cached = queryClient.getQueryData<InfiniteData<Page<DiscoveryEntry>>>(key);
+  if (!cached) return undefined;
+  return {
+    items: dedupe(cached.pages.flatMap((page) => page.items)),
+    nextCursor: cached.pages[cached.pages.length - 1]?.nextCursor ?? null,
+  };
 }
 
 function DiscoveryHit({ entry, topics, nav }: { entry: DiscoveryEntry; topics: Topic[]; nav: ReturnType<typeof useNav> }) {
