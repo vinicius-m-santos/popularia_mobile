@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import type { FlashListRef } from '@shopify/flash-list';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,8 +33,10 @@ import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { useCachedPages } from '@/hooks/use-cached-pages';
+import { useListScrollMemory } from '@/hooks/use-list-scroll-memory';
 import { mediaViewabilityConfig, MediaVisibilityProvider, useListVisibility } from '@/hooks/use-list-visibility';
 import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
+import { useScreenState } from '@/hooks/use-screen-state';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
@@ -91,7 +94,10 @@ function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
 export default function ComunaScreen() {
   const { id, aba } = useLocalSearchParams<{ id: string; aba?: string }>();
   // "Ver regras da comuna" (depois de uma denúncia) abre direto na aba Regras.
-  const [tab, setTab] = useState<ComunaTab>(TABS.some((t) => t.key === aba) ? (aba as ComunaTab) : 'posts');
+  // Sem parâmetro explícito, a última aba visitada desta comuna é preservada.
+  const routeTab = TABS.some((t) => t.key === aba) ? (aba as ComunaTab) : 'posts';
+  const [tab, setTab] = useScreenState<ComunaTab>(`comuna:${id}:tab`, routeTab, { restore: !aba });
+  const listRef = useRef<FlashListRef<ComunaRow>>(null);
   const insets = useSafeAreaInsets();
   // Trocar de aba ou de comuna remonta a lista. A viewport é local a esse par:
   // os IDs da janela anterior não valem para a próxima montagem e não devem
@@ -141,12 +147,16 @@ export default function ComunaScreen() {
     if (!DEMO_MODE && comuna.data) setOn('joinedComunas', [id], comuna.data.viewerIsMember ?? false);
   }, [comuna.data, id, setOn]);
   const seenVersion = useRef(postsVersion);
-  const { refresh, refreshError } = posts;
+  const { revalidate, refreshError } = posts;
+  const revalidateRef = useRef(revalidate);
+  useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
   useEffect(() => {
     if (seenVersion.current === postsVersion) return;
     seenVersion.current = postsVersion;
-    refresh();
-  }, [postsVersion, refresh]);
+    // Publicar adiciona um item no topo: revalidar preserva as páginas e o
+    // cursor, e a lista não volta ao começo.
+    revalidate();
+  }, [postsVersion, revalidate]);
   useEffect(() => {
     if (refreshError) showToast(`Não foi possível atualizar. ${describeError(refreshError)}`);
   }, [refreshError, showToast]);
@@ -160,15 +170,19 @@ export default function ComunaScreen() {
     if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) {
       // Em comuna privada o vínculo abre/fecha as publicações. Entrar/sair já invalida
       // a lista; evitar um refresh manual concorrente.
-      if (privateComuna && !queryClient.getQueryState(postsKey)?.isInvalidated) refresh();
+      if (privateComuna && !queryClient.getQueryState(postsKey)?.isInvalidated) revalidate();
     }
     seenMembership.current = viewerIsMember;
-  }, [viewerIsMember, privateComuna, postsKey, refresh]);
+  }, [viewerIsMember, privateComuna, postsKey, revalidate]);
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('dark');
       // Voltar dentro da janela de frescor não repete o GET do detalhe.
-      if (focusedOnce.current && !DEMO_MODE) revalidateIfStale(queryKeys.comuna.detail(id), contentPolicy.comuna.staleTime);
+      if (focusedOnce.current && !DEMO_MODE) {
+        revalidateIfStale(queryKeys.comuna.detail(id), contentPolicy.comuna.staleTime);
+        // Retorno de uma publicação/perfil: atualiza sem recomeçar a lista.
+        revalidateRef.current();
+      }
       focusedOnce.current = true;
       return () => setStatusBarStyle('dark');
     }, [id]),
@@ -194,6 +208,24 @@ export default function ComunaScreen() {
     next.push(tab === 'regras' ? { kind: 'rules', id: ROW_IDS.rules } : { kind: 'members', id: ROW_IDS.members });
     return next;
   }, [postItems, posts.status, privateOutside, tab]);
+
+  const scrollMemory = useListScrollMemory<ComunaRow>({
+    screenKey: `comuna:${id}:${tab}`,
+    listRef,
+    data: rows,
+    ready: !DEMO_MODE || comuna.status === 'success',
+    getItemKey: (row) => row.id,
+    viewabilityConfig: mediaViewabilityConfig,
+  });
+  const rememberViewport = scrollMemory.onViewableItemsChanged;
+  const handleViewableItems = useCallback(
+    (info: Parameters<typeof visibility.onViewableItemsChanged>[0]) => {
+      // A mesma viewability alimenta a posição de leitura e a mídia.
+      rememberViewport(info);
+      visibility.onViewableItemsChanged(info);
+    },
+    [rememberViewport, visibility],
+  );
 
   // Ao recarregar, os dados anteriores continuam na tela.
   if (comuna.status === 'loading' && !comuna.data) {
@@ -298,6 +330,9 @@ export default function ComunaScreen() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <MediaVisibilityProvider visibility={visibility}>
           <PopulariaList<ComunaRow>
+            ref={listRef}
+            {...scrollMemory}
+            onViewableItemsChanged={handleViewableItems}
             data={rows}
             keyExtractor={(row) => row.id}
             getItemType={(row) => row.kind === 'post'
@@ -305,8 +340,6 @@ export default function ComunaScreen() {
               : row.kind}
             stickyHeaderIndices={STICKY_HEADER_INDICES}
             stickyHeaderConfig={STICKY_HEADER_CONFIG}
-            onViewableItemsChanged={visibility.onViewableItemsChanged}
-            viewabilityConfig={mediaViewabilityConfig}
             performanceListId={`comuna:${id}:${tab}`}
             contentContainerStyle={styles.scroll}
             ListHeaderComponent={comuna.status === 'error' ? (

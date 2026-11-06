@@ -267,6 +267,27 @@ describe('refresh incremental', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['x', 'y', 'z', 'w', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
   });
 
+  it('revalida em foco sem indicador, preservando páginas e cursor', async () => {
+    const dataset = paged([['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]);
+    let firstPage = dataset.pages[0];
+    const load = jest.fn(async (cursor: string | null) => cursor ? dataset.nextByCursor.get(cursor)! : firstPage);
+    const { result } = await renderHook(() => useCachedPages({ queryKey: ['feed'], load, ...policy }));
+    await loadPages(result, load, 2, 3);
+
+    firstPage = page('x', 'a', 'b');
+    firstPage.nextCursor = 'b';
+    const calls = load.mock.calls.length;
+    await act(async () => { result.current.revalidate(); });
+    await waitFor(() => expect(result.current.items).toHaveLength(7));
+    expect(load.mock.calls.length).toBe(calls + 1);
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.items.map((item) => item.id)).toEqual(['x', 'a', 'b', 'c', 'd', 'e', 'f']);
+
+    await act(async () => { result.current.loadMore(); });
+    await waitFor(() => expect(result.current.items).toHaveLength(10));
+    expect(load.mock.calls.at(-1)?.[0]).toBe('f');
+  });
+
   it('continua a paginação do último cursor preservado depois do refresh', async () => {
     const dataset = paged([['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]);
     let firstPage = dataset.pages[0];

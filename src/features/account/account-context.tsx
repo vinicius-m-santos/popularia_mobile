@@ -23,6 +23,7 @@ import { hasStoredSession, onSessionEnded, refreshSession } from '@/lib/api/clie
 import { clearAvatarCache } from '@/lib/avatar-cache';
 import { ApiError } from '@/lib/errors';
 import { clearSentryUser, setSentryUser } from '@/lib/monitoring';
+import { clearScreenMemory } from '@/lib/screen-memory';
 import { initialsOf } from '@/lib/format';
 import { demoInterests } from '@/mocks/topics';
 import { currentUser } from '@/mocks/users';
@@ -154,6 +155,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const resetToSignedOut = useCallback(() => {
     queryClient.clear();
+    // Filtros, posições e rascunhos da conta anterior não passam para a próxima.
+    clearScreenMemory();
     // Fotos publicadas pela conta anterior não passam para a próxima.
     clearAvatarCache();
     // Miniaturas de vídeos vistos pela conta anterior não passam para a próxima.

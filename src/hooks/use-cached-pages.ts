@@ -63,14 +63,14 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
     setRefreshingKey((current) => current === key ? null : current);
   }, [key]);
 
-  const refresh = useCallback(() => {
+  const runRefresh = useCallback((silent: boolean) => {
     if (!enabled || pending.current || fetching) return;
     const generation = ++operation.current;
     const refreshKey = key;
     const controller = new AbortController();
     refreshController.current = controller;
     pending.current = true;
-    setRefreshingKey(refreshKey);
+    if (!silent) setRefreshingKey(refreshKey);
 
     void (async () => {
       try {
@@ -121,12 +121,20 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
         // mesma aba) tem outro controller e não pode ser apagado por este finally.
         if (refreshController.current === controller) {
           refreshController.current = null;
-          setRefreshingKey((current) => current === refreshKey ? null : current);
+          if (!silent) setRefreshingKey((current) => current === refreshKey ? null : current);
         }
         if (operation.current === generation) pending.current = false;
       }
     })();
   }, [enabled, fetching, key, queryKey, loadForRefresh]);
+
+  /** Revalida o prefixo sem acionar o indicador de pull-to-refresh. */
+  const refresh = useCallback(() => runRefresh(false), [runRefresh]);
+  /**
+   * Atualização silenciosa de foco/AppState: mantém páginas, itens e o cursor
+   * já carregados em vez de recomeçar a lista do topo.
+   */
+  const revalidate = useCallback(() => runRefresh(true), [runRefresh]);
 
   const loadMore = useCallback(() => {
     if (!enabled || !query.hasNextPage || query.isFetching || pending.current) return;
@@ -152,6 +160,6 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
     loadingMore: query.isFetchingNextPage, loadMoreError: query.isFetchNextPageError ? query.error : null,
     isRefreshing: refreshingKey === key, isFetching: fetching || refreshingKey === key,
     refreshError,
-    refresh, loadMore,
+    refresh, revalidate, loadMore,
   };
 }

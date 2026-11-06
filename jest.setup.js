@@ -1,4 +1,9 @@
-import { jest } from '@jest/globals';
+import { afterEach, jest } from '@jest/globals';
+
+import { clearScreenMemory } from './src/lib/screen-memory';
+
+// Filtros, posições e rascunhos de uma tela não passam para o teste seguinte.
+afterEach(() => { clearScreenMemory(); });
 
 // Testes unitários não inicializam timers nem módulos nativos de um fornecedor externo.
 jest.mock('@sentry/react-native', () => ({

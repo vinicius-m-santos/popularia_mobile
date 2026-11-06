@@ -1,6 +1,7 @@
 import { PopulariaList } from '@/components/list/popularia-list';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FlashListRef } from '@shopify/flash-list';
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { IconButton } from '@/components/icon-button';
@@ -14,8 +15,11 @@ import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { useAccount } from '@/features/account/account-context';
 import { FollowButton } from '@/features/profiles/components/follow-button';
+import { useListScrollMemory } from '@/hooks/use-list-scroll-memory';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { useScreenState } from '@/hooks/use-screen-state';
 import { ApiError } from '@/lib/errors';
 import { formatRelative } from '@/lib/format';
 import type { AppNotification, NotificationKind } from '@/types/models';
@@ -44,13 +48,21 @@ const MATCHES: Record<NotificationFilter, (kind: NotificationKind) => boolean> =
 export default function NotificationsScreen() {
   const load = useCallback((cursor: string | null) => getNotifications(cursor), []);
   const list = usePaginatedData(load);
-  const [filter, setFilter] = useState<NotificationFilter>('tudo');
+  const { account } = useAccount();
+  const screenKey = `notifications:${account?.id ?? 'anon'}`;
+  const [filter, setFilter] = useScreenState<NotificationFilter>(`${screenKey}:filter`, 'tudo');
   const [busy, setBusy] = useState(false);
+  const listRef = useRef<FlashListRef<AppNotification>>(null);
   const [allReadIds, setAllReadIds] = useState<ReadonlySet<string>>(new Set());
   const pending = useRef(false);
   const { revision, unreadCount, readIds, refreshUnread, read, readAll } = useNotifications();
   const toast = useToast();
   const refreshList = list.refresh;
+  const revalidateList = list.revalidate;
+  // `revalidate` nasce de novo a cada mudança de estado; o foco assina só o
+  // primeiro e lê o mais recente pelo ref, sem reexecutar o efeito.
+  const revalidateRef = useRef(revalidateList);
+  useEffect(() => { revalidateRef.current = revalidateList; }, [revalidateList]);
   const focused = useRef(false);
   const active = useRef(false);
 
@@ -61,14 +73,22 @@ export default function NotificationsScreen() {
 
   useFocusEffect(useCallback(() => {
     active.current = true;
-    if (focused.current) refreshList();
+    // Voltar de um aviso não pode recomeçar a paginação: revalidar mantém
+    // itens e cursor e evita o salto da lista.
+    if (focused.current) revalidateRef.current();
     focused.current = true;
     void refreshUnread();
     return () => { active.current = false; };
-  }, [refreshList, refreshUnread]));
+  }, [refreshUnread]));
 
   const previousRevision = useRef(revision);
-  const revalidateList = list.revalidate;
+  const scrollMemory = useListScrollMemory<AppNotification>({
+    screenKey,
+    listRef,
+    data: list.items,
+    ready: list.status === 'success',
+    getItemKey: (item) => item.id,
+  });
   useEffect(() => {
     if (previousRevision.current === revision || list.status !== 'success') return;
     previousRevision.current = revision;
@@ -130,6 +150,8 @@ export default function NotificationsScreen() {
   } else {
     body = (
       <PopulariaList
+        ref={listRef}
+        {...scrollMemory}
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
         data={list.items.filter((n) => MATCHES[filter](n.kind))}
