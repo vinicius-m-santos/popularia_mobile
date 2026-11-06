@@ -46,6 +46,8 @@ export type MockApi = {
   me: MockMe;
   /** Corpo enviado a POST /auth/register, para asserções do cadastro. */
   registration: Record<string, unknown> | null;
+  /** Publicações criadas em POST /posts, da mais nova para a mais antiga. */
+  createdPosts: Record<string, unknown>[];
   /** Requisições recebidas, na ordem. Útil para provar que uma chamada aconteceu. */
   requests: { method: string; path: string }[];
 };
@@ -132,6 +134,18 @@ function pageOf(items: unknown[] = []) {
   return { items, nextCursor: null };
 }
 
+/** Paginação opaca por cursor para os cenários de lista longa (feed e Biblioteca). */
+function cursorPage(items: unknown[], cursor: string | null, pageSize: number) {
+  if (!Number.isFinite(pageSize) || pageSize <= 0) return pageOf(items);
+  const parsed = Number.parseInt(cursor ?? '0', 10);
+  const start = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  const end = start + pageSize;
+  return {
+    items: items.slice(start, end),
+    nextCursor: end < items.length ? String(end) : null,
+  };
+}
+
 function problem(status: number, type: string, title: string) {
   return { status, body: { type, title, status } };
 }
@@ -163,6 +177,12 @@ function profileOf(me: MockMe) {
 export type MockApiOptions = {
   /** Publicações devolvidas por GET /feed; vazio por padrão para não alterar os specs existentes. */
   feedItems?: unknown[];
+  /** Quando presente, GET /feed pagina `feedItems` e as publicações criadas por POST /posts. */
+  feedPageSize?: number;
+  /** Documentos devolvidos por GET /library/documents; vazio por padrão. */
+  libraryDocuments?: unknown[];
+  /** Quando presente, GET /library/documents pagina a lista por cursor. */
+  libraryDocumentPageSize?: number;
   /** Pessoas que GET /me/blocks devolve como já bloqueadas. */
   blockedHandles?: string[];
   /** Corpo de GET /explore; sem ele, a descoberta volta vazia. */
@@ -175,6 +195,7 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
   const state: MockApi = {
     me: { ...DEMO_ACCOUNT, ...initial },
     registration: null,
+    createdPosts: [],
     requests: [],
   };
 
@@ -312,9 +333,80 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
         return;
       }
 
+      // Publicações: criação real no mock e leitura por ID para a discussão.
+      if (path === '/posts' && method === 'POST') {
+        const body = parseBody(route);
+        const created = {
+          id: `e2e-created-post-${state.createdPosts.length + 1}`,
+          body: String(body.body ?? ''),
+          title: body.title ? String(body.title) : null,
+          createdAt: new Date().toISOString(),
+          author: {
+            id: state.me.id,
+            handle: state.me.handle,
+            displayName: state.me.displayName,
+            avatarUrl: state.me.avatarUrl,
+          },
+          comuna: null,
+          commentCount: 0,
+          supportCount: 0,
+          echoCount: 0,
+          viewer: { isAuthor: true, canComment: true, canDelete: true, canRemove: false },
+          ...(body.topic ? { topic: body.topic } : {}),
+          ...(body.poll && typeof body.poll === 'object' ? { poll: body.poll } : {}),
+        };
+        state.createdPosts.unshift(created);
+        await fulfill(201, created);
+        return;
+      }
+      if (/^\/posts\/[^/]+$/.test(path) && method === 'GET') {
+        const id = decodeURIComponent(path.split('/')[2] ?? '');
+        const post = [...state.createdPosts, ...(options.feedItems ?? [])]
+          .find((item) => (item as { id?: string }).id === id);
+        if (!post) {
+          const failure = problem(404, '/errors/not-found', 'Publicação não encontrada.');
+          await fulfill(failure.status, failure.body);
+          return;
+        }
+        await fulfill(200, post);
+        return;
+      }
+      if (/^\/posts\/[^/]+\/comments$/.test(path) && method === 'GET') {
+        await fulfill(200, pageOf());
+        return;
+      }
+
       // Descoberta e feed
       if (path === '/feed' && method === 'GET') {
-        await fulfill(200, pageOf(options.feedItems ?? []));
+        const items = [...state.createdPosts, ...(options.feedItems ?? [])];
+        await fulfill(200, options.feedPageSize
+          ? cursorPage(items, url.searchParams.get('cursor'), options.feedPageSize)
+          : pageOf(items));
+        return;
+      }
+      if (path === '/library/documents' && method === 'GET') {
+        const term = (url.searchParams.get('q') ?? '').trim().toLocaleLowerCase('pt-BR');
+        const documents = (options.libraryDocuments ?? []).filter((item) => {
+          if (!term) return true;
+          const document = item as { title?: string | null; description?: string | null; author?: string | null };
+          return [document.title, document.description, document.author]
+            .some((value) => (value ?? '').toLocaleLowerCase('pt-BR').includes(term));
+        });
+        await fulfill(200, options.libraryDocumentPageSize
+          ? cursorPage(documents, url.searchParams.get('cursor'), options.libraryDocumentPageSize)
+          : pageOf(documents));
+        return;
+      }
+      if (/^\/library\/documents\/[^/]+$/.test(path) && method === 'GET') {
+        const id = decodeURIComponent(path.split('/')[3] ?? '');
+        const document = (options.libraryDocuments ?? [])
+          .find((item) => (item as { id?: string }).id === id);
+        if (!document) {
+          const failure = problem(404, '/errors/not-found', 'Documento não encontrado.');
+          await fulfill(failure.status, failure.body);
+          return;
+        }
+        await fulfill(200, document);
         return;
       }
       if (path === '/me/blocks' && method === 'GET') {

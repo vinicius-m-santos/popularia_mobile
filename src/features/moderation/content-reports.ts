@@ -1,5 +1,6 @@
 /** Denúncias de publicação, comentário, perfil e comuna. A fila da praça e da biblioteca fica nos módulos delas. */
 import type { IconName } from '@/components/icon';
+import { comunaKeys } from '@/features/comunas/keys';
 import { apiRequest } from '@/lib/api/client';
 import type { PageDto } from '@/lib/api/dto';
 import { queryClient } from '@/lib/query/client';
@@ -139,5 +140,8 @@ export function invalidateAfterModeration(comunaSlug: string | null) {
   void queryClient.invalidateQueries({ queryKey: ['post'] });
   void queryClient.invalidateQueries({ queryKey: ['profile-posts'] });
   void queryClient.invalidateQueries({ queryKey: ['search'] });
-  if (comunaSlug) void queryClient.invalidateQueries({ queryKey: ['comuna-pins', comunaSlug] });
+  if (comunaSlug) {
+    void queryClient.invalidateQueries({ queryKey: comunaKeys.pins(comunaSlug) });
+    void queryClient.invalidateQueries({ queryKey: comunaKeys.posts(comunaSlug) });
+  }
 }

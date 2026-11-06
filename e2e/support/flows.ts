@@ -49,8 +49,23 @@ export async function signIn(
  */
 export async function continueToFeed(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/boas-vindas\/mensagem$/, { timeout: 30_000 });
-  await visibleButton(page, 'Continuar para o aplicativo').click({ timeout: 30_000 });
-  await expect(page.getByRole('tab', { name: 'Início' })).toBeVisible({ timeout: 30_000 });
+  const continueButton = visibleButton(page, 'Continuar para o aplicativo');
+  const feedTab = page.getByRole('tab', { name: 'Início' });
+  // A tela também avança sozinha um segundo após exibir o botão. No CI, esse
+  // timer pode vencer antes do locator clicar; nesse caso o feed já é sucesso.
+  await expect.poll(async () => {
+    if (await feedTab.isVisible()) return 'feed';
+    if (await continueButton.isVisible()) return 'button';
+    return 'waiting';
+  }, { timeout: 30_000 }).not.toBe('waiting');
+  if (await continueButton.isVisible()) {
+    try {
+      await continueButton.click({ timeout: 5_000 });
+    } catch (error) {
+      if (!await feedTab.isVisible()) throw error;
+    }
+  }
+  await expect(feedTab).toBeVisible({ timeout: 30_000 });
   await expect(page).toHaveURL(/\/$/);
 }
 

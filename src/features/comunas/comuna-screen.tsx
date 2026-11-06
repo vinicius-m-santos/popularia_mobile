@@ -15,13 +15,15 @@ import { useToast } from '@/components/toast';
 import { type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { getComuna, getComunaPosts, getPinnedPosts } from '@/features/comunas/api';
+import { getComunaPosts, getPinnedPosts } from '@/features/comunas/api';
 import { ComunaHero } from '@/features/comunas/components/comuna-hero';
 import { MembersList, ServerMembersList } from '@/features/comunas/components/members-list';
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
 import { PinnedPosts } from '@/features/comunas/components/pinned-posts';
 import { RulesList } from '@/features/comunas/components/rules-list';
-import { movePinnedPost, pinnedPostsKey, useComunaPinPending } from '@/features/comunas/pins';
+import { comunaKeys } from '@/features/comunas/keys';
+import { movePinnedPost, useComunaPinPending } from '@/features/comunas/pins';
+import { useComuna } from '@/features/comunas/queries';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from '@/features/profiles/profile-tab-swipe';
@@ -31,14 +33,13 @@ import { rememberPost } from '@/features/posts/save';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { useCachedPages } from '@/hooks/use-cached-pages';
 import { mediaViewabilityConfig, MediaVisibilityProvider, useListVisibility } from '@/hooks/use-list-visibility';
 import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
-import { queryClient } from '@/lib/query/client';
+import { contentPolicy, queryClient } from '@/lib/query/client';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
@@ -101,10 +102,17 @@ export default function ComunaScreen() {
   // os cartões no pôster; na volta, só a viewport retida volta a valer.
   useRouteMediaFocus(visibility);
 
-  const loadComuna = useCallback(() => getComuna(id), [id]);
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
-  const comuna = useAsyncData(loadComuna);
-  const posts = usePaginatedData(loadPosts);
+  const postsKey = useMemo(() => comunaKeys.posts(id), [id]);
+  const comuna = useComuna(id);
+  const posts = useCachedPages({
+    queryKey: postsKey,
+    load: loadPosts,
+    performanceScope: 'comuna',
+    // A lista mostra o erro com "Tentar de novo" em vez de repetir sozinha (como antes do cache).
+    retry: false,
+    ...contentPolicy.comuna,
+  });
   // Modo demonstração: publicações feitas neste aparelho aparecem no topo, antes das dos mocks.
   const localPosts = useLocalFeedItems();
   // `useLocalFeedItems()` sem filtro é estável entre renders; filtrar aqui evita recriar
@@ -119,10 +127,10 @@ export default function ComunaScreen() {
   const viewerIsMember = membershipOf(id) ?? comuna.data?.viewerIsMember;
   const privateOutside = !DEMO_MODE && comuna.data?.visibility === 'private' && !viewerIsMember;
   const pins = useQuery({
-    queryKey: pinnedPostsKey(id),
+    queryKey: comunaKeys.pins(id),
     queryFn: () => getPinnedPosts(id),
     enabled: !DEMO_MODE && tab === 'posts' && !!comuna.data && !privateOutside,
-    staleTime: 15_000,
+    ...contentPolicy.comuna,
   }, queryClient);
   const pinPending = useComunaPinPending(id);
   useEffect(() => {
@@ -145,21 +153,30 @@ export default function ComunaScreen() {
   }, [refreshError, showToast]);
 
   // A nova capa usa papel claro; a barra de status acompanha esse fundo.
-  // Ao voltar para a tela (por exemplo, da gestão), recarrega a comuna: papel e estado podem ter mudado.
+  // Voltar dentro do staleTime não dispara nada: o detalhe e as páginas já estão no cache.
   const focusedOnce = useRef(false);
-  const reloadComuna = comuna.reload;
   const seenMembership = useRef(viewerIsMember);
+  const privateComuna = comuna.data?.visibility === 'private';
   useEffect(() => {
-    if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) refresh();
+    if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) {
+      // Em comuna privada o vínculo abre/fecha as publicações. Entrar/sair já invalida
+      // a lista; evitar um refresh manual concorrente.
+      if (privateComuna && !queryClient.getQueryState(postsKey)?.isInvalidated) refresh();
+    }
     seenMembership.current = viewerIsMember;
-  }, [viewerIsMember, refresh]);
+  }, [viewerIsMember, privateComuna, postsKey, refresh]);
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('dark');
-      if (focusedOnce.current && !DEMO_MODE) reloadComuna();
+      if (focusedOnce.current && !DEMO_MODE) {
+        const cached = queryClient.getQueryState(comunaKeys.detail(id));
+        if (cached?.dataUpdatedAt && Date.now() - cached.dataUpdatedAt > contentPolicy.comuna.staleTime) {
+          void queryClient.invalidateQueries({ queryKey: comunaKeys.detail(id), exact: true });
+        }
+      }
       focusedOnce.current = true;
       return () => setStatusBarStyle('dark');
-    }, [reloadComuna]),
+    }, [id]),
   );
 
   const rows = useMemo<ComunaRow[]>(() => {

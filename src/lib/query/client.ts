@@ -11,6 +11,11 @@ export const queryClient = new QueryClient({ queryCache: new QueryCache({
     // Não basta esconder durante o erro: um retry não pode ressuscitar dados revogados.
     query.setState({ data: undefined, dataUpdatedAt: 0 });
     if (query.queryKey[0] === 'post') queryClient.removeQueries({ queryKey: ['post-preview', query.queryKey[1]], exact: true });
+    // O resumo sobrevive ao detalhe para evitar piscar a capa. Se o detalhe foi
+    // negado, esse resumo também não pode alimentar o próximo placeholder.
+    if (query.queryKey[0] === 'comuna' && query.queryKey.length === 2 && typeof query.queryKey[1] === 'string') {
+      queryClient.removeQueries({ queryKey: ['comuna', query.queryKey[1], 'summary'], exact: true });
+    }
   },
 }), defaultOptions: { queries: {
   retry: (attempt, error) => !accessDenied(error) && !(error instanceof ApiError && error.status < 500) && attempt < 1,
@@ -48,6 +53,8 @@ export const contentPolicy = {
   feed: { staleTime: 30_000, gcTime: 10 * 60_000 },
   profile: { staleTime: 60_000, gcTime: 10 * 60_000 },
   post: { staleTime: 15_000, gcTime: 5 * 60_000 },
+  /** Detalhe, publicações, fixados, evento e Praça da mesma comuna. */
+  comuna: { staleTime: 60_000, gcTime: 10 * 60_000 },
   /** Descoberta é compartilhada entre remontagens da mesma consulta. */
   discovery: { staleTime: 30_000, gcTime: 10 * 60_000 },
   /** A busca revalida rápido, mas uma troca de categoria não pode ficar em stale infinita. */

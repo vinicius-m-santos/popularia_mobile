@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -8,9 +8,10 @@ import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { comunaKeys, readComunaSummary } from '@/features/comunas/keys';
+import { contentPolicy, queryClient } from '@/lib/query/client';
 
-import { getComunaSquare } from './api';
+import { getComunaSquare, type Square } from './api';
 import { openSquare } from './squares-screen';
 
 export function SquareEntry({ slug }: { slug: string }) {
@@ -23,10 +24,56 @@ function DemoEntry() {
   return <SquareBanner presence={0} onPress={() => toast.show('As Praças ao vivo ficam disponíveis quando o servidor estiver conectado.')} />;
 }
 
+/** A capa já conhece nome, tom e acesso: a faixa não pisca enquanto a Praça chega. */
+function squarePlaceholder(slug: string): Square | undefined {
+  const comuna = readComunaSummary(slug);
+  if (!comuna) return undefined;
+  const member = !!comuna.viewerIsMember;
+  return {
+    id: comuna.serverId ?? comuna.id,
+    title: comuna.name,
+    comuna: {
+      id: comuna.serverId ?? comuna.id,
+      slug: comuna.id,
+      name: comuna.name,
+      tone: comuna.tone,
+      visibility: comuna.visibility ?? 'public',
+      topics: comuna.topics,
+    },
+    status: comuna.status === 'archived' ? 'closed' : 'active',
+    closedAt: null,
+    version: null,
+    presence: null,
+    unread: null,
+    lastReadId: null,
+    lastMessage: null,
+    viewer: {
+      canRead: comuna.visibility !== 'private' || member,
+      isMember: member,
+      canWrite: false,
+      canManage: false,
+      joinRequest: null,
+    },
+  };
+}
+
 function ConnectedEntry({ slug }: { slug: string }) {
-  const data = useAsyncData(useCallback(() => getComunaSquare(slug), [slug]));
-  const square = data.data;
-  if (!square) return <View style={styles.root}>{data.status === 'loading' ? <AppText variant="caption">Carregando Praça…</AppText> : <StateView kind="error" message="Não conseguimos carregar a Praça." onRetry={data.reload} />}</View>;
+  const entry = useQuery({
+    queryKey: comunaKeys.square(slug),
+    queryFn: () => getComunaSquare(slug),
+    ...contentPolicy.comuna,
+    placeholderData: () => squarePlaceholder(slug),
+  }, queryClient);
+  const square = entry.isError ? undefined : entry.data;
+  if (!square) {
+    return (
+      <View style={styles.root}>
+        {entry.isPending
+          ? <AppText variant="caption">Carregando Praça…</AppText>
+          : <StateView kind="error" message="Não conseguimos carregar a Praça." onRetry={() => { void entry.refetch(); }} />}
+      </View>
+    );
+  }
   return <SquareBanner
     presence={square.presence ?? 0}
     status={square.status ?? undefined}

@@ -22,7 +22,6 @@ import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
-import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { ApiError } from '@/lib/errors';
@@ -34,7 +33,6 @@ import {
   cancelTransfer,
   decideJoinRequest,
   deleteComuna,
-  getComuna,
   getComunaMembers,
   getJoinRequests,
   proposeTransfer,
@@ -46,6 +44,7 @@ import {
 } from './api';
 import { cleanRules, RulesEditor, rulesViolation } from './components/rules-editor';
 import { comunaErrorMessage, deletionNeedsArchive } from './errors';
+import { invalidateComunaReads, useComuna, writeComuna } from './queries';
 import { memberActions, type MemberAction } from './member-actions';
 
 type ManageTab = 'membros' | 'pedidos' | 'comuna';
@@ -57,8 +56,8 @@ type ManageTab = 'membros' | 'pedidos' | 'comuna';
  */
 export default function ManageComunaScreen() {
   const { id, aba } = useLocalSearchParams<{ id: string; aba?: string }>();
-  const loadComuna = useCallback(() => getComuna(id), [id]);
-  const comuna = useAsyncData(loadComuna);
+  // Mesma chave da página da comuna: abrir a gestão não repete o detalhe.
+  const comuna = useComuna(id);
   const [tab, setTab] = useState<ManageTab>(aba === 'pedidos' ? 'pedidos' : 'membros');
 
   const header = (subtitle?: string) => (
@@ -388,7 +387,9 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
     run(async () => {
       setViolations({});
       try {
-        await updateComuna(comuna.id, { description: description.trim(), rules: cleanRules(rules), ...(topic ? { topic } : {}) });
+        const updated = await updateComuna(comuna.id, { description: description.trim(), rules: cleanRules(rules), ...(topic ? { topic } : {}) });
+        // A página da comuna (que continua montada abaixo desta) vê a edição na hora.
+        writeComuna(updated);
         toast.show('Dados da comuna salvos.');
         onChanged();
       } catch (error) {
@@ -409,7 +410,9 @@ function SettingsTab({ comuna, onChanged }: TabProps) {
           onPress: () =>
             run(async () => {
               try {
-                await archiveComuna(comuna.id);
+                const updated = await archiveComuna(comuna.id);
+                writeComuna(updated);
+                void invalidateComunaReads(comuna.id);
                 toast.show(`c/${comuna.handle} foi arquivada.`);
                 onChanged();
               } catch (error) {
