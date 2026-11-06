@@ -24,6 +24,13 @@ jest.mock('@/features/comunas/api', () => ({ getComuna: jest.fn(), getMyComunas:
 jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Política', topics: [{ id: 'trab', label: 'Trabalho e direitos trabalhistas', shortLabel: 'Trabalho' }] }]) }));
 jest.mock('../api', () => ({ listDocuments: jest.fn(), listCollections: jest.fn(), uploadDocument: jest.fn(), saveDocument: jest.fn(), createCollection: jest.fn(), getDocument: jest.fn(), getCollection: jest.fn(), editDocument: jest.fn() }));
 jest.mock('../transfers', () => ({ pickPdf: jest.fn() }));
+jest.mock('@/features/profiles/profile-tab-swipe', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    ProfileSwipeGuard: ({ children }: { children: React.ReactNode }) => React.createElement(View, { testID: 'profile-swipe-guard' }, children),
+  };
+});
 beforeEach(() => {
   settleQueryClient();
   queryClient.clear();
@@ -63,6 +70,15 @@ describe('bibliotecas reais', () => {
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca/colecoes', params: { scope: 'public' } });
     await fireEvent.press(screen.getByLabelText(`Abrir coleção ${collection.name}`));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/biblioteca', params: expect.objectContaining({ collection: collection.id }) });
+  });
+  it('protege os trilhos horizontais do pan das abas', async () => {
+    await render(<LibraryPane scope="public" canAdd />);
+    // Faixa de coleções e chips de assunto: cada trilho bloqueia o swipe da aba.
+    expect(screen.getAllByTestId('profile-swipe-guard')).toHaveLength(2);
+  });
+  it('protege a barra de seções da biblioteca pessoal', async () => {
+    await render(<LibraryPane scope="personal" owner="me" />);
+    expect(screen.getAllByTestId('profile-swipe-guard')).toHaveLength(1);
   });
   it('apresenta a coleção com identidade, ações e filtros próprios', async () => {
     const onEdit = jest.fn();

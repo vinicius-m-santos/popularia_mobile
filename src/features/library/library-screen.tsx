@@ -16,6 +16,7 @@ import { TextField } from '@/components/text-field';
 import { Colors, Fonts, MaxContentWidth, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { getTopicGroups } from '@/features/onboarding/api';
+import { ProfileSwipeGuard } from '@/features/profiles/profile-tab-swipe';
 import { CollectionCard } from './collection-card';
 import { CollectionAvatar } from './collection-avatar';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
@@ -270,16 +271,18 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
           {scope !== 'saved' ? <><TextField label="Buscar na biblioteca" placeholder="Título, autoria, coleção ou assunto" value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} />
             <SingleTopicField value={topic} onChange={setTopic} optional /></> : null}
         </View>}
-        {scope === 'public' && !editorial && !editorialCollection ? <ChipRow options={[{ key: 'all', label: 'Tudo' }, { key: 'people', label: 'De pessoas' }, { key: 'comunas', label: 'De comunas' }]} value={origin} onChange={setOrigin} accessibilityLabel="Origem dos documentos" /> : null}
+        {scope === 'public' && !editorial && !editorialCollection ? <ProfileSwipeGuard><ChipRow options={[{ key: 'all', label: 'Tudo' }, { key: 'people', label: 'De pessoas' }, { key: 'comunas', label: 'De comunas' }]} value={origin} onChange={setOrigin} accessibilityLabel="Origem dos documentos" /></ProfileSwipeGuard> : null}
         {editorial && !filtered ? <View style={styles.publicCollections}>
           <View style={styles.publicSectionInset}>
             <SectionHeading appearance="editorial" label="Coleções" actionLabel="Ver mais" onAction={() => router.push({ pathname: '/biblioteca/colecoes', params: { scope } } as never)} />
           </View>
           {collections.status === 'loading' ? <StateView kind="loading" message="Carregando coleções" /> : null}
           {collections.status === 'error' || collections.refreshError ? <StateView kind="error" message="Não conseguimos carregar as coleções." onRetry={collections.refresh} /> : null}
-          <ScrollView horizontal scrollEnabled={!singlePublicCollection} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.collectionRail, singlePublicCollection && styles.singleCollectionRail]}>
-            {collections.items.map((item) => <CollectionCard key={item.id} item={item} width={singlePublicCollection ? undefined : Math.min(width - 110, 250)} onPress={() => router.push({ pathname: '/biblioteca', params: { scope, owner, comuna, collection: item.id } })} />)}
-          </ScrollView>
+          <ProfileSwipeGuard>
+            <ScrollView horizontal scrollEnabled={!singlePublicCollection} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.collectionRail, singlePublicCollection && styles.singleCollectionRail]}>
+              {collections.items.map((item) => <CollectionCard key={item.id} item={item} width={singlePublicCollection ? undefined : Math.min(width - 110, 250)} onPress={() => router.push({ pathname: '/biblioteca', params: { scope, owner, comuna, collection: item.id } })} />)}
+            </ScrollView>
+          </ProfileSwipeGuard>
           {collections.status === 'success' && collections.items.length === 0 && !collections.hasMore ? <AppText variant="caption" style={styles.publicSectionInset}>Organize leituras em uma coleção. A primeira pode ser sua.</AppText> : null}
           {collections.loadMoreError ? <StateView kind="error" message="Não conseguimos carregar mais coleções." onRetry={collections.loadMore} /> : null}
         </View> : null}
@@ -377,7 +380,7 @@ function TopicChips({ topics, value, onChange, onMore }: { topics: { id: TopicId
   const visible = featured.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is { id: TopicId; shortLabel: string; label: string } => !!topic);
   const selected = value ? topics.find((topic) => topic.id === value) : undefined;
   const list = selected && !visible.some((topic) => topic.id === selected.id) ? [...visible, selected] : visible;
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicChips} accessibilityRole="radiogroup" accessibilityLabel="Filtrar por assunto">
+  return <ProfileSwipeGuard><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicChips} accessibilityRole="radiogroup" accessibilityLabel="Filtrar por assunto">
     <Pressable accessibilityRole="radio" accessibilityState={{ checked: value === null }} onPress={() => onChange(null)} style={({ pressed }) => [styles.topicChip, value === null && styles.topicChipActive, pressed && styles.actionPressed]}>
       <AppText style={styles.topicChipLabel} color={value === null ? Colors.paper : Colors.ink}>Todos</AppText>
     </Pressable>
@@ -391,7 +394,7 @@ function TopicChips({ topics, value, onChange, onMore }: { topics: { id: TopicId
       <AppText style={styles.topicChipLabel}>Mais assuntos</AppText>
       <Icon name="chevronDown" size={14} />
     </Pressable>
-  </ScrollView>;
+  </ScrollView></ProfileSwipeGuard>;
 }
 
 const styles = StyleSheet.create({

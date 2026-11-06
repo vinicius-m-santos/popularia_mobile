@@ -86,6 +86,23 @@ export function useProfileTabPanGesture() {
   return use(PanGestureContext);
 }
 
+/**
+ * Trilhos e carrosséis horizontais dentro das abas: o scroll nativo bloqueia o
+ * pan da aba, então arrastar o trilho não troca de página. Fora de
+ * `ProfileTabSwipe` não há pan para bloquear e o conteúdo é entregue como está.
+ */
+export function ProfileSwipeGuard({ children }: { children: ReactNode }) {
+  const pan = use(PanGestureContext);
+  if (!pan) return children;
+  return <ProfileSwipeBlockGesture pan={pan}>{children}</ProfileSwipeBlockGesture>;
+}
+
+/** Só monta o gesto nativo quando existe um pan de abas para bloquear. */
+function ProfileSwipeBlockGesture({ pan, children }: { pan: PanGesture; children: ReactNode }) {
+  const gesture = useNativeGesture({ block: pan });
+  return <GestureDetector gesture={gesture}>{children}</GestureDetector>;
+}
+
 /** Conteúdo da aba acompanha o dedo. Cabeçalho e tabs ficam de fora. */
 export function ProfileSwipeContent({ children, fill = false }: { children: ReactNode; fill?: boolean }) {
   const dragX = use(DragContext);
