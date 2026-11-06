@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { InteractionsProvider } from '@/features/interactions/interactions-context';
 import { useFollow } from '@/features/interactions/use-post-actions';
+import { haptic } from '@/lib/haptics';
 
 import { FollowButton } from '../components/follow-button';
 import { PersonRow } from '../components/person-row';
@@ -19,6 +20,7 @@ jest.mock('@/features/account/account-context', () => ({
   useAccount: () => ({ account: { id: 'real-id' } }),
 }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 
 function wrapper({ children }: { children: ReactNode }) {
   return <InteractionsProvider>{children}</InteractionsProvider>;
@@ -45,5 +47,8 @@ describe('seguir a si mesmo', () => {
     expect(result.current.following).toBe(true);
     await act(() => { result.current.toggleFollow(); });
     expect(result.current.following).toBe(false);
+    expect(haptic).toHaveBeenCalledTimes(2);
+    expect(haptic).toHaveBeenNthCalledWith(1, 'light');
+    expect(haptic).toHaveBeenNthCalledWith(2, 'light');
   });
 });

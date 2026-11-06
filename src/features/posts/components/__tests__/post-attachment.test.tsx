@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState } from 'react-native';
 import { useVideoPlayer, type VideoThumbnail } from 'expo-video';
+
+import { haptic } from '@/lib/haptics';
 import { PostAttachment } from '../post-attachment';
 import type { PostMediaDto } from '../../post-media';
 import { posterCache } from '../../poster-cache';
@@ -22,6 +24,7 @@ const mockPlayer = {
   status: 'ready', playing: false, muted: true, playbackRate: 1, currentTime: 0,
   pause: mockPause, play: mockPlay, generateThumbnailsAsync: mockGenerateThumbnails,
 };
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 jest.mock('expo-video', () => ({
   useVideoPlayer: jest.fn(() => mockPlayer),
   VideoView: jest.requireActual<typeof import('react-native')>('react-native').View,
@@ -60,6 +63,15 @@ describe('vídeo em listas', () => {
     await view.rerender(<PostAttachment media={video} visible={false} />);
     expect(screen.queryByLabelText('Vídeo da publicação, 0:15')).toBeNull();
     expect(useVideoPlayer).not.toHaveBeenCalled();
+  });
+
+  it('dá impacto leve ao segurar para acelerar em 2×', async () => {
+    await render(<PostAttachment media={video} />);
+
+    await fireEvent(screen.getByLabelText('Vídeo da publicação, 0:15. Reproduzir'), 'longPress');
+
+    expect(screen.getByText('2×')).toBeTruthy();
+    expect(haptic).toHaveBeenCalledWith('light');
   });
 
   it('alterna o som pelo botão sobre o vídeo', async () => {

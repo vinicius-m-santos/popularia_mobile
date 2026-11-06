@@ -26,6 +26,7 @@ import { useCachedPost } from '@/features/posts/queries';
 import { queryClient } from '@/lib/query/client';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
+import { haptic } from '@/lib/haptics';
 import { mergeById, singlePage } from '@/lib/pagination';
 import { goBack, useNav } from '@/lib/routes';
 import type { CommentWithAuthor, ContentMention, FeedItem } from '@/types/models';
@@ -195,11 +196,13 @@ export default function DiscussionScreen() {
       const created = addComment({ postId: id, parentId: replyTo?.id ?? null, text, mentions });
       setOn('supportedComments', [created.id], true);
       afterSend();
+      haptic('success');
       toast.show('Comentário adicionado só neste aparelho. Nada foi publicado.');
       return true;
     }
     try {
       const created = await createComment({ postId: id, parentId: replyTo?.id ?? null, text, mentions });
+      haptic('success');
       comments.append(created);
       setSentIds((prev) => [...prev, created.id]);
       void discussion.reload();

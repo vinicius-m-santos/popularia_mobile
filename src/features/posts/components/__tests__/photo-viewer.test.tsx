@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { haptic } from '@/lib/haptics';
+
 import { PhotoViewer } from '../photo-viewer';
 
 type PinchConfig = {
@@ -68,6 +70,8 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
+
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
@@ -84,6 +88,7 @@ function currentTransform(): Transform {
 
 describe('PhotoViewer', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     mockGestures.pinch = undefined;
     mockGestures.tap = undefined;
     mockStyles.length = 0;
@@ -185,6 +190,7 @@ describe('PhotoViewer', () => {
       { translateY: 300 },
       { scale: 2.5 },
     ]);
+    expect(haptic).toHaveBeenCalledWith('selection');
     now.mockRestore();
   });
 });

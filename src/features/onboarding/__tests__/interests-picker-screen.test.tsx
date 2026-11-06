@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 
+import { haptic } from '@/lib/haptics';
 import type { TopicId } from '@/types/models';
 
 import { getTopicGroups } from '../api';
@@ -12,7 +12,7 @@ const mockShow = jest.fn();
 const mockSave = jest.fn<(ids: TopicId[]) => Promise<void>>().mockResolvedValue(undefined);
 let mockInterests: TopicId[] = ['pol'];
 
-jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn(async () => undefined) }));
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: () => true } }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockShow }) }));
 jest.mock('react-native-safe-area-context', () => {
@@ -61,7 +61,7 @@ describe('interesses', () => {
 
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Educação' }));
     expect(screen.getByText('1 DE 3')).toBeTruthy();
-    expect(Haptics.selectionAsync).toHaveBeenCalled();
+    expect(haptic).toHaveBeenCalledWith('selection');
 
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Games' }));
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Política brasileira' }));

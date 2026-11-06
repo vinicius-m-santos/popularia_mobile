@@ -8,6 +8,7 @@ import { isFollowLocked, lockFollow, patchFollowCaches, readRequested, restoreFo
 import { lockReaction, patchReactionCaches, readReaction, readReactionSnapshot, revertReaction, subscribePostReactions, unlockReaction, writeReaction, type Reaction, type ReactionKind } from '@/features/posts/reactions';
 import { setPostEcho, setPostSupport } from '@/features/posts/api';
 import { readSaved, readSavedSnapshot, rememberPost, subscribeSavedPost, toggleSavedPost } from '@/features/posts/save';
+import { haptic } from '@/lib/haptics';
 import type { CommunityEvent, FeedItem } from '@/types/models';
 
 import { useInteractions, withLocal } from './interactions-context';
@@ -84,10 +85,14 @@ export function usePostActions(post: FeedItem) {
       ? post.commentCount + localCommentsFor(post.id).length
       : commentCountOf(post.id, post.commentCount),
     toggleSupport: () => {
+      // Só no gesto direto: apoiar, ecoar e salvar têm um tique curto; rolagem e
+      // renderização de cartões não disparam nada.
+      haptic('light');
       if (DEMO_MODE) { toggle('supportedPosts', post.id); return Promise.resolve(); }
       return flip('support', support);
     },
     toggleEcho: () => {
+      haptic('light');
       if (DEMO_MODE) {
         if (toggle('echoedPosts', post.id)) toast.show('Eco marcado neste aparelho até fechar o app.');
         return Promise.resolve();
@@ -95,6 +100,7 @@ export function usePostActions(post: FeedItem) {
       return flip('echo', echo);
     },
     toggleSave: () => {
+      haptic('light');
       if (DEMO_MODE) {
         if (toggle('savedPosts', post.id)) toast.show('Salvo neste aparelho até fechar o app.');
         return Promise.resolve(false);
@@ -156,7 +162,9 @@ export function useFollow(userId: string, initialFollowing?: boolean, hint?: { r
   }, [userId, account?.id, canFollow, setOn, initialFollowing, requestedHint]);
 
   const toggleFollow = async () => {
-    if (!canFollow || isFollowLocked(userId)) return false;
+    if (!canFollow) return false;
+    haptic('light');
+    if (isFollowLocked(userId)) return false;
     if (DEMO_MODE) { toggle('followedUsers', userId); return true; }
     if (!lockFollow(userId)) return false;
     const currentGeneration = generation.current;

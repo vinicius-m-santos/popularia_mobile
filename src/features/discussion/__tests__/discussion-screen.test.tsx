@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import DiscussionScreen from '@/features/discussion/discussion-screen';
+import { haptic } from '@/lib/haptics';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 import type { CommentWithAuthor, FeedItem } from '@/types/models';
 
-import { getComments, setCommentSupport } from '../api';
+import { createComment, getComments, setCommentSupport } from '../api';
 
 const mockPost: FeedItem = {
   id: 'post-1',
@@ -73,14 +74,25 @@ jest.mock('@/features/discussion/components/post-detail', () => {
   return { PostDetail: () => <View testID="post-detail" /> };
 });
 jest.mock('@/features/discussion/components/comment-composer', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { CommentComposer: () => <View testID="comment-composer" /> };
+  const { View, Pressable } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    CommentComposer: ({ onSend }: { onSend: (text: string, mentions: unknown[]) => boolean | Promise<boolean> }) => (
+      <View testID="comment-composer">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Enviar comentário de teste"
+          onPress={() => { void onSend('Comentário de teste', []); }}
+        />
+      </View>
+    ),
+  };
 });
 jest.mock('@/features/discussion/api', () => ({
   getComments: jest.fn(),
   createComment: jest.fn(),
   setCommentSupport: jest.fn(),
 }));
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 
 const apiComments = jest.mocked(getComments);
 const apiSupport = jest.mocked(setCommentSupport);
@@ -175,5 +187,21 @@ describe('estabilidade das linhas da discussão', () => {
 
     expect(screen.getByText('Comentário 2')).toBeTruthy();
     expect(screen.getByText('Comentário 3')).toBeTruthy();
+  });
+
+  it('dá feedback de sucesso só depois que o comentário é criado', async () => {
+    apiComments.mockResolvedValue({ items: [], nextCursor: null });
+    jest.mocked(createComment).mockResolvedValue(comment(9));
+    await render(<DiscussionScreen />);
+
+    await waitFor(() => expect(screen.getByLabelText('Enviar comentário de teste')).toBeTruthy());
+    expect(haptic).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Enviar comentário de teste'));
+    });
+
+    await waitFor(() => expect(createComment).toHaveBeenCalledTimes(1));
+    expect(haptic).toHaveBeenCalledWith('success');
   });
 });

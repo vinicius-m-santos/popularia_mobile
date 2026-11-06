@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -14,6 +13,7 @@ import { Fonts, MaxContentWidth } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { describeError } from '@/lib/errors';
+import { haptic } from '@/lib/haptics';
 import type { Topic, TopicGroup, TopicId } from '@/types/models';
 
 import { getTopicGroups } from './api';
@@ -76,7 +76,7 @@ export function InterestsPickerScreen({ mode }: { mode: Mode }) {
   const progress = Math.min(count, SUGGESTED_MINIMUM);
 
   const toggle = useCallback((id: TopicId) => {
-    void Haptics.selectionAsync().catch(() => undefined);
+    haptic('selection');
     if (editing) {
       setDraft((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
       return;
