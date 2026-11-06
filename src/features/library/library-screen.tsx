@@ -32,6 +32,9 @@ import { CollectionEditor } from './collection-editor';
 import { DocumentCard } from './document-card';
 import type { LibraryCollection, LibraryDocument, LibraryScope } from './types';
 
+/** Voltar de um documento dentro desta janela reaproveita a primeira página já na tela. */
+const LIBRARY_REVALIDATE_AFTER_MS = 30_000;
+
 export default function LibraryScreen() {
   const params = useLocalSearchParams<{ scope?: string; owner?: string; comuna?: string; collection?: string; add?: string; q?: string; topic?: TopicId; section?: string }>();
   const scope: LibraryScope = ['personal', 'comuna', 'saved'].includes(params.scope ?? '') ? params.scope as LibraryScope : 'public';
@@ -101,15 +104,30 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
   const singlePublicCollection = collections.items.length === 1 && !collections.hasMore;
   const refreshDocuments = documents.refresh;
   const refreshCollections = collections.refresh;
-  const refresh = useCallback(() => { refreshDocuments(); refreshCollections(); }, [refreshDocuments, refreshCollections]);
+  const lastRevalidatedAt = useRef(0);
+  const refresh = useCallback(() => {
+    lastRevalidatedAt.current = Date.now();
+    refreshDocuments();
+    refreshCollections();
+  }, [refreshDocuments, refreshCollections]);
   const revalidateDocuments = documents.revalidate;
   const revalidateCollections = collections.revalidate;
-  const revalidate = useCallback(() => { revalidateDocuments(); revalidateCollections(); }, [revalidateDocuments, revalidateCollections]);
+  // Foco e volta do background compartilham a mesma janela: dois eventos próximos
+  // não repetem a primeira página que acabou de chegar. A revalidação em si
+  // continua sendo single-flight dentro de `usePaginatedData`.
+  const revalidate = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRevalidatedAt.current < LIBRARY_REVALIDATE_AFTER_MS) return;
+    lastRevalidatedAt.current = now;
+    revalidateDocuments();
+    revalidateCollections();
+  }, [revalidateDocuments, revalidateCollections]);
   const revalidateRef = useRef(revalidate);
   const focusedOnce = useRef(false);
   useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
+    else lastRevalidatedAt.current = Date.now();
     focusedOnce.current = true;
   }, []));
   useEffect(() => {
