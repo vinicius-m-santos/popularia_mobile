@@ -9,6 +9,7 @@ import { ApiError, describeError } from '@/lib/errors';
 import type { Comuna } from '@/types/models';
 
 import { joinComuna, leaveComuna } from './api';
+import { updateComunaMembership } from './keys';
 
 /** Mensagens para as recusas conhecidas de PUT/DELETE /comunas/{slug}/membership. */
 function membershipErrorMessage(error: unknown, joining: boolean): string {
@@ -47,11 +48,15 @@ export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewer
     const joining = !joined;
     setPending(true);
     try {
+      let memberCount: number | undefined;
       if (joining) {
-        await joinComuna(comuna.id);
+        const membership = await joinComuna(comuna.id);
+        memberCount = membership.memberCount;
         acknowledgeGamification(account?.id, toast.show);
       } else await leaveComuna(comuna.id);
       setOn('joinedComunas', [comuna.id], joining);
+      // Detalhe e resumo compartilhados refletem a resposta; posts/Praça/fixados são invalidados.
+      updateComunaMembership(comuna.id, joining, memberCount);
       toast.show(joining ? `Você entrou em ${comuna.name}.` : `Você saiu de ${comuna.name}.`);
     } catch (error) {
       toast.show(membershipErrorMessage(error, joining));

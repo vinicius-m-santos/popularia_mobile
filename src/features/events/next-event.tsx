@@ -1,23 +1,32 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type InfiniteData } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Spacing } from '@/constants/theme';
 import { openDestination } from '@/features/links/destinations';
-import { queryClient } from '@/lib/query/client';
+import type { Page } from '@/lib/pagination';
+import { contentPolicy, queryClient } from '@/lib/query/client';
 
 import { listEvents } from './api';
 import { attendanceCount, formatPoster } from './format';
-import { comunaEventsKey } from './types';
+import { comunaEventsKey, type ComunaEvent } from './types';
+
+/** A lista completa da aba "Próximos" já pode ter a primeira página em cache. */
+function previewFromUpcoming(slug: string) {
+  const cached = queryClient.getQueryData<InfiniteData<Page<ComunaEvent>>>(comunaEventsKey(slug, 'upcoming'));
+  if (!cached) return undefined;
+  return { items: cached.pages.flatMap((page) => page.items).slice(0, 5), nextCursor: null };
+}
 
 /** Faixa curta na comuna. Some quando não há atividade, para não ocupar a página. */
 export function NextEvent({ slug }: { slug: string }) {
-  const preview = useQuery({
+  const preview = useQuery<Page<ComunaEvent>>({
     queryKey: comunaEventsKey(slug, 'preview'),
     queryFn: ({ signal }) => listEvents(slug, 'upcoming', null, 5, signal),
     retry: false,
-    staleTime: 15_000,
+    ...contentPolicy.comuna,
+    placeholderData: () => previewFromUpcoming(slug),
   }, queryClient);
   if (preview.isError) {
     return (

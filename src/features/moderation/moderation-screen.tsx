@@ -3,10 +3,9 @@ import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { DEMO_MODE } from '@/constants/config';
-import { getComuna } from '@/features/comunas/api';
+import { useComuna } from '@/features/comunas/queries';
 import { toUser } from '@/features/posts/api';
 import { getSquareReports, resolveSquareReport } from '@/features/squares/api';
-import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { PillButton } from '@/components/pill-button';
 import { AppText } from '@/components/app-text';
@@ -44,7 +43,7 @@ export default function ModerationScreen() {
 
 function ConnectedModerationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const comuna = useAsyncData(useCallback(() => getComuna(id), [id]));
+  const comuna = useComuna(id);
   const reports = usePaginatedData(useCallback((cursor: string | null) => getSquareReports(id, cursor), [id]));
   const toast = useToast();
   const lock = useRef(false);

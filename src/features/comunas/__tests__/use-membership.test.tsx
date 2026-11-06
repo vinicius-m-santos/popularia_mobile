@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, renderHook } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 import { InteractionsProvider } from '@/features/interactions/interactions-context';
 import { ApiError, NetworkError } from '@/lib/errors';
+import { queryClient } from '@/lib/query/client';
 
 import { joinComuna, leaveComuna } from '../api';
 import { useComunaMembership } from '../use-membership';
@@ -29,6 +30,11 @@ beforeEach(() => {
   join.mockReset();
   leave.mockReset();
   mockShow.mockReset();
+  queryClient.clear();
+});
+
+afterEach(() => {
+  queryClient.clear();
 });
 
 describe('useComunaMembership (API)', () => {
