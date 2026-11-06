@@ -38,16 +38,40 @@ const mockFeed = {
 type MockListProps = {
   data: FeedItem[];
   renderItem: (info: { item: FeedItem; index: number }) => React.ReactNode;
+  performanceListId?: string;
   extraData?: unknown;
   onViewableItemsChanged?: (info: { viewableItems: { key: string }[] }) => void;
   viewabilityConfig?: unknown;
 };
 
+type MockSwipeConfig = {
+  maxPointers?: number;
+  activeOffsetX?: number | [number, number];
+  failOffsetY?: number | [number, number];
+  onDeactivate?: (event: {
+    translationX: number;
+    translationY: number;
+    velocityX: number;
+    canceled: boolean;
+  }) => void;
+};
+
 let mockListProps: MockListProps | null = null;
+let mockSwipeConfig: MockSwipeConfig | null = null;
 
 jest.mock('expo-router', () => {
   const { useMockFocusEffect } = jest.requireActual<typeof import('@/hooks/testing/route-focus')>('@/hooks/testing/route-focus');
   return { useScrollToTop: () => undefined, useFocusEffect: useMockFocusEffect };
+});
+jest.mock('react-native-gesture-handler', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    usePanGesture: (config: MockSwipeConfig) => {
+      mockSwipeConfig = config;
+      return { type: 'pan' };
+    },
+    GestureDetector: ({ children }: { children: React.ReactNode }) => <View>{children}</View>,
+  };
 });
 jest.mock('@/hooks/use-cached-pages', () => ({ useCachedPages: () => mockFeed }));
 jest.mock('@/features/interactions/interactions-context', () => ({
@@ -171,5 +195,62 @@ describe('feed com pessoa bloqueada', () => {
       setMockRouteFocused(true);
     });
     expect(screen.getByTestId('post-visible-yesterday').props.children).toBe('visible-yesterday:hidden');
+  });
+});
+
+async function swipe(translationX: number, translationY = 0, canceled = false) {
+  const onDeactivate = mockSwipeConfig?.onDeactivate;
+  if (!onDeactivate) throw new Error('O swipe do feed não foi ligado.');
+  await act(async () => {
+    onDeactivate({ translationX, translationY, velocityX: 0, canceled });
+  });
+}
+
+describe('swipe das abas do feed', () => {
+  it('configura thresholds explícitos de X e Y sem capturar o scroll vertical', async () => {
+    await render(<FeedScreen />);
+
+    expect(mockSwipeConfig?.maxPointers).toBe(1);
+    expect(mockSwipeConfig?.activeOffsetX).toEqual([-20, 20]);
+    expect(mockSwipeConfig?.failOffsetY).toEqual([-16, 16]);
+    expect(mockListProps?.performanceListId).toBe('feed:para-voce');
+  });
+
+  it('um swipe horizontal intencional troca de aba', async () => {
+    await render(<FeedScreen />);
+
+    await swipe(-80);
+
+    expect(mockListProps?.performanceListId).toBe('feed:seguindo');
+
+    await swipe(80);
+
+    expect(mockListProps?.performanceListId).toBe('feed:para-voce');
+  });
+
+  it('um arrasto vertical não troca de aba', async () => {
+    await render(<FeedScreen />);
+
+    await swipe(-80, -80);
+
+    expect(mockListProps?.performanceListId).toBe('feed:para-voce');
+  });
+
+  it('um gesto cancelado pelo scroll ou por outro handler não troca de aba', async () => {
+    await render(<FeedScreen />);
+
+    await swipe(-80, 0, true);
+
+    expect(mockListProps?.performanceListId).toBe('feed:para-voce');
+  });
+
+  it('não troca antes do threshold e respeita as pontas', async () => {
+    await render(<FeedScreen />);
+
+    await swipe(-47);
+    expect(mockListProps?.performanceListId).toBe('feed:para-voce');
+
+    await swipe(80);
+    expect(mockListProps?.performanceListId).toBe('feed:para-voce');
   });
 });

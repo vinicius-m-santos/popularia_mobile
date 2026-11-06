@@ -1,7 +1,9 @@
 import { MediaVisibilityProvider, useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
 import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { GestureDetector, usePanGesture, type PanGestureConfig } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 
 import type { FlashListRef } from '@shopify/flash-list';
 import { useScrollToTop } from 'expo-router';
@@ -18,6 +20,7 @@ import { getFeed, isFeedTabAvailable } from '@/features/feed/api';
 import { ComposerPrompt } from '@/features/feed/components/composer-prompt';
 import { FeedHeader } from '@/features/feed/components/feed-header';
 import { WelcomeBanner } from '@/features/feed/components/welcome-banner';
+import { FEED_SWIPE_ACTIVATION_X, FEED_SWIPE_FAIL_Y, feedTabAfterSwipe } from '@/features/feed/feed-swipe';
 import { HomeProgress } from '@/features/gamification/progress-screen';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { PostCard } from '@/features/posts/components/post-card';
@@ -71,19 +74,21 @@ export default function FeedScreen() {
     [feed.items, isOn],
   );
   const tabs = useMemo<FeedTab[]>(() => ['para-voce', 'seguindo', 'minhas', 'perto'], []);
-  const tabIndex = tabs.indexOf(tab);
-  const changeBySwipe = useCallback((direction: 1 | -1) => {
-    const next = tabs[tabIndex + direction];
-    if (next) setTab(next);
-  }, [tabIndex, tabs]);
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponderCapture: (_, gesture) =>
-      Math.abs(gesture.dx) > 20 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25,
-    onPanResponderRelease: (_, gesture) => {
-      if (Math.abs(gesture.dx) < 48 || Math.abs(gesture.dx) < Math.abs(gesture.dy) * 1.25) return;
-      changeBySwipe(gesture.dx < 0 ? 1 : -1);
+  // O gesto roda na UI thread; o estado só é atualizado no fim, com o resultado já decidido.
+  const finishSwipe = useCallback((translationX: number, translationY: number) => {
+    setTab((current) => feedTabAfterSwipe(tabs, current, translationX, translationY));
+  }, [tabs]);
+  const swipeConfig = useMemo<PanGestureConfig>(() => ({
+    maxPointers: 1,
+    activeOffsetX: [-FEED_SWIPE_ACTIVATION_X, FEED_SWIPE_ACTIVATION_X],
+    failOffsetY: [-FEED_SWIPE_FAIL_Y, FEED_SWIPE_FAIL_Y],
+    onDeactivate: (event) => {
+      'worklet';
+      // Um gesto interrompido pelo scroll ou por outro handler não troca de aba.
+      if (!event.canceled) runOnJS(finishSwipe)(event.translationX, event.translationY);
     },
-  }), [changeBySwipe]);
+  }), [finishSwipe]);
+  const swipeGesture = usePanGesture(swipeConfig);
 
   // Falha ao atualizar com itens na tela: eles continuam, e um aviso explica.
   useEffect(() => {
@@ -128,7 +133,9 @@ export default function FeedScreen() {
   return (
     <Screen>
       <FeedHeader tab={tab} onTabChange={setTab} />
-      <View style={styles.swipeArea} {...panResponder.panHandlers}>{body}</View>
+      <GestureDetector gesture={swipeGesture}>
+        <View style={styles.swipeArea} collapsable={false}>{body}</View>
+      </GestureDetector>
     </Screen>
   );
 }

@@ -8,6 +8,7 @@ import { setPostEcho, setPostSaved, setPostSupport } from '@/features/posts/api'
 import { PostCard } from '@/features/posts/components/post-card';
 import { resetSavedSession } from '@/features/posts/save';
 import { resetReactionSession } from '@/features/posts/reactions';
+import { haptic } from '@/lib/haptics';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 import { queryClient } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
@@ -19,6 +20,7 @@ jest.mock('@/features/posts/api', () => {
 });
 jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me' }), useAccount: () => ({ account: { id: 'me' } }) }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 jest.mock('@/features/moderation/actions-sheet', () => ({ useActionsSheet: () => ({ open: jest.fn() }) }));
 jest.mock('@/lib/routes', () => ({
   useNav: () => ({
@@ -106,5 +108,19 @@ describe('fanout das ações de publicação', () => {
     expect(updated[0].updateCommits).toBe(1);
     expect(screen.queryByLabelText('Apoiar, 0')).toBeNull();
     expect(screen.getAllByLabelText('Apoiar, 1')).toHaveLength(2);
+  });
+
+  it('dá impacto leve em apoiar, ecoar e salvar, nunca na renderização do cartão', async () => {
+    await render(<PostCard item={feed('acoes')} mediaVisible={false} />, { wrapper });
+    expect(haptic).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByLabelText(/^Apoiar/));
+    await fireEvent.press(screen.getByLabelText(/^Ecoar/));
+    await fireEvent.press(screen.getByLabelText('Salvar'));
+
+    expect(haptic).toHaveBeenCalledTimes(3);
+    expect(haptic).toHaveBeenNthCalledWith(1, 'light');
+    expect(haptic).toHaveBeenNthCalledWith(2, 'light');
+    expect(haptic).toHaveBeenNthCalledWith(3, 'light');
   });
 });

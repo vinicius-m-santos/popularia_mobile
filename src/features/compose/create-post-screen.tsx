@@ -42,6 +42,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import { ApiError, describeError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query/client';
 import { topicGroups } from '@/mocks/topics';
 import { withPerformanceProfiler } from '@/lib/performance/profiler';
@@ -294,6 +295,7 @@ export default function CreatePostScreen() {
         if (mode === 'call') addPost({ comunaId, text: target.kind === 'perfil' ? callProfileText() : call.details, title: call.title });
         else addPost({ comunaId, text: trimmed, ...(trimmedTitle ? { title: trimmedTitle } : {}), ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}), ...(poll ? { poll: { ...draftToPoll(poll), id: `local-poll-${nowMs()}` } } : {}) });
       }
+      haptic('success');
       setLastPublication(null);
       toast.show(publishTargets.length > 1 ? `Publicado em ${publishTargets.length} locais só neste aparelho. Nada foi enviado.` : `Publicado em ${where} só neste aparelho. Nada foi enviado.`);
       router.replace('/');
@@ -373,6 +375,7 @@ export default function CreatePostScreen() {
       }
       const post = posts[0];
       if (!post) throw new Error('Nenhum destino selecionado.');
+      haptic('success');
       setLastPublication(post);
       notifyPostCreated();
       setLeaving(true);
