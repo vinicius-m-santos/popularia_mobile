@@ -21,7 +21,11 @@ type BottomSheetProps = {
   /** Conteúdo com BottomSheetFlatList: não envolver em outro scrollable. */
   virtualized?: boolean;
   dismissible?: boolean;
-  /** Permite arrastar a folha pela área de conteúdo; desligue em listas que precisam rolar. */
+  /**
+   * Permite arrastar a folha pela área de conteúdo. Quando omitido, fica desligado
+   * para conteúdo rolável (`scrollable`/`virtualized`): assim arrastar a lista no
+   * topo rola o conteúdo em vez de fechar a folha. Em conteúdo curto continua ligado.
+   */
   contentPanningGesture?: boolean;
   /**
    * Variante visual explícita. `creation` é o menu central de criação: superfície
@@ -37,9 +41,13 @@ type BottomSheetProps = {
 const CLOSE_FALLBACK_MS = 500;
 
 /** Aparência Popularia, física e arbitragem entre scroll/teclado delegadas ao Gorhom. */
-export function BottomSheet({ visible, onClose, title, accessibilityLabel, children, scrollable = true, virtualized = false, dismissible = true, contentPanningGesture = dismissible, appearance = 'paper', surface = 'paper' }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, accessibilityLabel, children, scrollable = true, virtualized = false, dismissible = true, contentPanningGesture, appearance = 'paper', surface = 'paper' }: BottomSheetProps) {
   const creation = appearance === 'creation';
   const report = appearance === 'report';
+  // Listas roláveis têm o próprio gesto vertical. Deixar o Gorhom arrastar o conteúdo
+  // nesse caso fazia um arrasto no topo da lista fechar a folha sem intenção.
+  const scrollableContent = virtualized || scrollable;
+  const canPanContent = dismissible && (contentPanningGesture ?? !scrollableContent);
   const sheet = useRef<GorhomBottomSheet>(null);
   const [mounted, setMounted] = useState(visible);
   const visibleRef = useRef(visible);
@@ -142,9 +150,13 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
       if (visible) onClose();
     }}
     onChange={(index) => { if (index >= 0) openedRef.current = true; }}
+    // Monta fechado e abre só depois da medição: evita a primeira abertura parcial
+    // seguida de salto de altura quando o conteúdo dinâmico termina de medir.
+    index={-1}
+    animateOnMount={false}
     enablePanDownToClose={dismissible}
     enableHandlePanningGesture={dismissible}
-    enableContentPanningGesture={contentPanningGesture}
+    enableContentPanningGesture={canPanContent}
     enableDynamicSizing={!virtualized}
     snapPoints={virtualized ? ['86%'] : undefined}
     maxDynamicContentSize={height * 0.86}

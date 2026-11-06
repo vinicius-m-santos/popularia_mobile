@@ -56,6 +56,42 @@ describe('BottomSheet', () => {
     await waitFor(() => expect(gorhom.__snapToIndex).toHaveBeenCalledWith(0));
   });
 
+  it('monta fechado e não abre antes da medição, evitando salto na primeira abertura', async () => {
+    await render(<BottomSheet visible onClose={jest.fn()}><AppText>Conteúdo</AppText></BottomSheet>);
+    const sheet = screen.getByTestId('gorhom-sheet');
+    expect(sheet.props.index).toBe(-1);
+    expect(sheet.props.animateOnMount).toBe(false);
+    expect(gorhom.__snapToIndex).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId('bottom-sheet-scroll'), 'contentSizeChange', 320, 240);
+    await waitFor(() => expect(gorhom.__snapToIndex).toHaveBeenCalledWith(0));
+  });
+
+  it('desliga o pan do conteúdo por padrão em folha rolável e virtualizada', async () => {
+    const view = await render(<BottomSheet visible onClose={jest.fn()} scrollable><AppText>Lista longa</AppText></BottomSheet>);
+    expect(screen.getByTestId('gorhom-sheet').props.enableContentPanningGesture).toBe(false);
+    await view.rerender(<BottomSheet visible virtualized onClose={jest.fn()}><AppText>Lista longa</AppText></BottomSheet>);
+    expect(screen.getByTestId('gorhom-sheet').props.enableContentPanningGesture).toBe(false);
+  });
+
+  it('mantém o pan do conteúdo em folha curta e permite reativar explicitamente em lista', async () => {
+    const short = await render(<BottomSheet visible scrollable={false} onClose={jest.fn()}><AppText>Curta</AppText></BottomSheet>);
+    expect(screen.getByTestId('gorhom-sheet').props.enableContentPanningGesture).toBe(true);
+    await short.rerender(<BottomSheet visible onClose={jest.fn()} contentPanningGesture><AppText>Lista</AppText></BottomSheet>);
+    expect(screen.getByTestId('gorhom-sheet').props.enableContentPanningGesture).toBe(true);
+  });
+
+  it('reabre medindo de novo depois de fechar', async () => {
+    const close = jest.fn();
+    const view = await render(<BottomSheet visible onClose={close}><AppText>Conteúdo</AppText></BottomSheet>);
+    await fireEvent(screen.getByTestId('bottom-sheet-scroll'), 'contentSizeChange', 320, 240);
+    await waitFor(() => expect(gorhom.__snapToIndex).toHaveBeenCalledTimes(1));
+    await view.rerender(<BottomSheet visible={false} onClose={close}><AppText>Conteúdo</AppText></BottomSheet>);
+    expect(screen.queryByText('Conteúdo')).toBeNull();
+    await view.rerender(<BottomSheet visible onClose={close}><AppText>Conteúdo</AppText></BottomSheet>);
+    await fireEvent(screen.getByTestId('bottom-sheet-scroll'), 'contentSizeChange', 320, 240);
+    await waitFor(() => expect(gorhom.__snapToIndex).toHaveBeenCalledTimes(2));
+  });
+
   it('preserva listas internas em folhas virtualizadas', async () => {
     await render(<BottomSheet visible virtualized onClose={jest.fn()}>
       <PopulariaBottomSheetFlatList
