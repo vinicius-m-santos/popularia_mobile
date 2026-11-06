@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,7 +26,6 @@ import { DocumentCard } from '@/features/library/document-card';
 import { LibraryPane } from '@/features/library/library-screen';
 import type { LibraryDocument } from '@/features/library/types';
 import { MentionSuggestions } from '@/features/mentions/mention-suggestions';
-import { useMentionDraft } from '@/features/mentions/use-mention-draft';
 import { createPost } from '@/features/posts/api';
 import { POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
 import { PostCard } from '@/features/posts/components/post-card';
@@ -45,7 +44,9 @@ import { ApiError, describeError } from '@/lib/errors';
 import { formatPeople } from '@/lib/format';
 import { queryClient } from '@/lib/query/client';
 import { topicGroups } from '@/mocks/topics';
+import { withPerformanceProfiler } from '@/lib/performance/profiler';
 import { setLastPublication } from './last-publication';
+import { createWriteDraftStore, type WriteDraftStore } from './write-draft';
 import type { Comuna, FeedItem, TopicId } from '@/types/models';
 
 const nowMs = () => Date.now();
@@ -85,7 +86,6 @@ export default function CreatePostScreen() {
   const params = useLocalSearchParams<{ documentId?: string }>();
   const [pdfMode, setPdfMode] = useState(false);
   const [mode, setMode] = useState<'write' | 'call' | 'poll'>('write');
-  const [titleEnabled, setTitleEnabled] = useState(false);
   const [call, setCall] = useState({ title: '', details: '', date: '', time: '', place: '' });
   const [callPicker, setCallPicker] = useState(false);
   const [capacityMode, setCapacityMode] = useState<'none' | 'spots' | 'minimum'>('spots');
@@ -135,9 +135,11 @@ export default function CreatePostScreen() {
   const loadComunas = useCallback(() => (DEMO_MODE ? getComunas() : getMyComunas()), []);
   const comunas = useAsyncData(loadComunas);
 
-  const draft = useMentionDraft();
-  const text = draft.text;
-  const [title, setTitle] = useState('');
+  // O texto e o título vivem numa store externa: teclar atualiza o editor, não a
+  // tela inteira. A tela assina só a presença de conteúdo, que muda o rascunho e
+  // o estado habilitado do botão publicar.
+  const [writeDraft] = useState(() => createWriteDraftStore());
+  const hasWriteContent = useSyncExternalStore(writeDraft.subscribeContent, writeDraft.getHasContent, writeDraft.getHasContent);
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const optionSeq = useRef(2);
   const [topics, setTopics] = useState<TopicId[]>([]);
@@ -199,10 +201,10 @@ export default function CreatePostScreen() {
     ? selectedEvent
     : null;
 
-  const composed = draft.compose();
-  const trimmed = composed.body;
+  // Leitura pontual para prévia e publicação; não é uma assinatura. A tela não
+  // re-renderiza por tecla, então o snapshot só é lido quando ela já vai renderizar.
+  const writeSnapshot = writeDraft.getSnapshot();
   const destinationsReady = selectedIds.length ? (selectedIds.includes('perfil') || comunas.data !== null) : comunas.data !== null;
-  const trimmedTitle = title.trim();
   const callWall = parseWall(call.date, call.time);
   const callMissing = [
     call.title.trim().length === 0 ? 'título' : null,
@@ -211,7 +213,7 @@ export default function CreatePostScreen() {
   ].filter((value): value is string => value !== null);
   const callReady = callMissing.length === 0;
   const modeReady = mode === 'write'
-    ? (!!document || !!media || trimmed.length > 0 || trimmedTitle.length > 0)
+    ? (!!document || !!media || hasWriteContent)
     : mode === 'poll'
       ? poll !== null
       : callReady;
@@ -226,7 +228,7 @@ export default function CreatePostScreen() {
       ? `seu perfil + ${comunaTargetCount} ${comunaTargetCount === 1 ? 'comuna' : 'comunas'}`
       : comunaTargetCount === 1 ? `c/ ${publishTargets[0]?.kind === 'comuna' ? publishTargets[0].comuna.name : 'comuna'}` : `${comunaTargetCount} comunas`;
   const draftTime = useMemo(() => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), []);
-  const dirty = publishing || trimmed.length > 0 || trimmedTitle.length > 0 || !!document || !!media || poll !== null || call.title.length > 0 || call.details.length > 0 || call.date.length > 0 || call.time.length > 0 || call.place.length > 0 || bring.length > 0;
+  const dirty = publishing || hasWriteContent || !!document || !!media || poll !== null || call.title.length > 0 || call.details.length > 0 || call.date.length > 0 || call.time.length > 0 || call.place.length > 0 || bring.length > 0;
   const disablePrevention = usePreventRemove(!leaving && dirty, ({ repeat }) => {
     if (publishingRef.current) return;
     Alert.alert('Descartar publicação?', 'O texto e os anexos deste rascunho serão perdidos.', [
@@ -252,6 +254,10 @@ export default function CreatePostScreen() {
 
   const publish = async () => {
     if (publishingRef.current) return;
+    // Lê a store no clique: o texto pode ter mudado desde o último render da tela.
+    const composed = writeDraft.getSnapshot().composed;
+    const trimmed = composed.body;
+    const trimmedTitle = writeDraft.getSnapshot().title.trim();
     if (!destinationsReady) {
       toast.show('Aguarde carregar os destinos ou selecione seu perfil em Publicar em.');
       return;
@@ -389,7 +395,7 @@ export default function CreatePostScreen() {
     }
   };
 
-  const selectMedia = async (kind: 'image' | 'video') => {
+  const selectMedia = useCallback(async (kind: 'image' | 'video') => {
     if (pickingMedia || publishing) return;
     setPickingMedia(true);
     try {
@@ -404,8 +410,18 @@ export default function CreatePostScreen() {
     } finally {
       setPickingMedia(false);
     }
-  };
+  }, [pickingMedia, publishing, toast]);
 
+  const focusEditor = useCallback(() => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, editorSectionY.current - 8), animated: true });
+    }, 60);
+  }, []);
+  const pickEditorImage = useCallback(() => { void selectMedia('image'); }, [selectMedia]);
+  const removeMedia = useCallback(() => setMedia(null), []);
+
+  const previewTitle = writeSnapshot.title.trim();
+  const previewBody = writeSnapshot.composed.body;
   const previewItem: FeedItem = {
     id: 'preview',
     document: pdfMode ? document : null,
@@ -413,9 +429,9 @@ export default function CreatePostScreen() {
     authorId: me.id,
     comunaId: destination.kind === 'comuna' ? destination.comuna.id : null,
     createdAt: new Date().toISOString(),
-    title: trimmedTitle || null,
-    text: trimmed || (pdfMode || trimmedTitle ? '' : 'Seu texto aparece aqui.'),
-    ...(composed.mentions.length > 0 ? { mentions: composed.mentions } : {}),
+    title: previewTitle || null,
+    text: previewBody || (pdfMode || previewTitle ? '' : 'Seu texto aparece aqui.'),
+    ...(writeSnapshot.composed.mentions.length > 0 ? { mentions: writeSnapshot.composed.mentions } : {}),
     supportCount: 0,
     commentCount: 0,
     echoCount: 0,
@@ -487,6 +503,33 @@ export default function CreatePostScreen() {
   const callDay = String(callDate.getDate()).padStart(2, '0');
   const callHour = `${String(callDate.getHours()).padStart(2, '0')}${callDate.getMinutes() ? `:${String(callDate.getMinutes()).padStart(2, '0')}` : 'H'}`;
 
+  const chooseWrite = useCallback(() => {
+    setMode('write');
+    setPreview(false);
+  }, []);
+  const chooseCall = () => {
+    setMode('call');
+    setPreview(false);
+    setDocument(null);
+    setPdfMode(false);
+    setSelectedEvent(null);
+    if (media?.kind === 'video') {
+      setMedia(null);
+      toast.show('O chamado aceita só imagem de capa.');
+    }
+    setCall((current) => current.date ? current : { ...current, date: nextFriday, time: current.time || '19:00' });
+  };
+  const choosePoll = useCallback(() => {
+    setMode('poll');
+    setPreview(false);
+    setMedia(null);
+    setDocument(null);
+    setPdfMode(false);
+    setSelectedEvent(null);
+    setPoll((current) => current ?? { question: '', options: [{ key: 'option-1', label: '' }, { key: 'option-2', label: '' }], durationDays: 7 });
+  }, []);
+  const openDestinations = useCallback(() => setPicking(true), []);
+
   return (
     <Screen edges={['top', 'left', 'right']}>
       <KeyboardView style={styles.flex}>
@@ -519,106 +562,32 @@ export default function CreatePostScreen() {
             </Pressable>
           ) : null}
 
-          <View style={styles.step}>
-            <StepHeading number="01" label="Publicar em" />
-            <Pressable
-              onPress={() => setPicking(true)}
-              accessibilityRole="button"
-              accessibilityLabel={`Publicar em ${where}. Trocar destino`}
-              style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}>
-              <Tape />
-              <DestinationMark destination={destination} me={me} />
-              <View style={styles.destinationCopy}>
-                <AppText style={styles.destinationName} numberOfLines={1}>{publishTargets.length > 1 ? `${publishTargets.length} locais` : destination.kind === 'perfil' ? 'Meu perfil' : `c/ ${destination.comuna.name}`}</AppText>
-                <View style={styles.visibilityRow}>
-                  <Icon name={destination.kind === 'comuna' && destination.comuna.visibility === 'private' ? 'lock' : 'globe'} size={15} color={Colors.inkSoft} />
-                  <AppText variant="caption" numberOfLines={1} style={[styles.visibilityText, callBlocked && styles.visibilityBlocked]}>{callBlocked ? 'Só a moderação convoca' : publishTargets.length > 1 ? `${publishTargets.length} comunas` : visibilityText}</AppText>
-                </View>
-              </View>
-              <View style={styles.changeDestination}>
-                <AppText style={styles.changeLabel}>Trocar</AppText>
-                <Icon name="chevronRight" size={16} />
-              </View>
-            </Pressable>
-          </View>
+          <DestinationStep
+            me={me}
+            destination={destination}
+            targetCount={publishTargets.length}
+            where={where}
+            visibilityText={visibilityText}
+            callBlocked={callBlocked}
+            onOpen={openDestinations}
+          />
 
-          <View style={styles.step}>
-            <StepHeading number="02" label="O que você quer fazer?" />
-            <View style={styles.typeGrid} role="tablist">
-              <TypeTile icon="document" label="Escrever" caption="papo, meme, foto, opinião" active={mode === 'write'} narrow={narrow} onPress={() => { setMode('write'); setPreview(false); }} />
-              <TypeTile icon="megaphone" label="Chamado" caption="juntar a galera" active={mode === 'call'} narrow={narrow} onPress={() => { setMode('call'); setPreview(false); setDocument(null); setPdfMode(false); setSelectedEvent(null); if (media?.kind === 'video') { setMedia(null); toast.show('O chamado aceita só imagem de capa.'); } if (!call.date) setCall((current) => ({ ...current, date: nextFriday, time: current.time || '19:00' })); }} />
-              <TypeTile icon="poll" label="Enquete" caption="perguntar pra galera" active={mode === 'poll'} narrow={narrow} last onPress={() => { setMode('poll'); setPreview(false); setMedia(null); setDocument(null); setPdfMode(false); setSelectedEvent(null); if (!poll) setPoll({ question: '', options: [{ key: 'option-1', label: '' }, { key: 'option-2', label: '' }], durationDays: 7 }); }} />
-            </View>
-          </View>
+          <PostTypeStep mode={mode} narrow={narrow} onWrite={chooseWrite} onCall={chooseCall} onPoll={choosePoll} />
 
           <View style={styles.step} onLayout={(event) => { editorSectionY.current = event.nativeEvent.layout.y; }}>
             <StepHeading number="03" label={mode === 'call' ? 'O chamado' : mode === 'poll' ? 'A enquete' : 'Seu post'} />
 
             {preview ? (
-              <View style={styles.previewBox} pointerEvents="none" accessible accessibilityLabel={`Pré-visualização: ${[previewItem.title, previewItem.text].filter(Boolean).join('. ')}`} importantForAccessibility="no-hide-descendants">
-                {/* Prévia de um cartão único, não uma lista reciclada: mantém o vídeo como no feed. */}
-                <PostCard item={previewItem} mediaVisible />
-              </View>
+              <PreviewPanel item={previewItem} />
             ) : mode === 'write' ? (
-              <View style={styles.editorShadow}>
-              <View style={styles.editorCard}>
-                <View style={styles.editorHeader}>
-                  <AppText variant="label" color={Colors.paper}>Rascunho</AppText>
-                  <AppText style={styles.editorCounter} color={Colors.onInkMuted}>{text.length}/{MAX_LENGTH}</AppText>
-                </View>
-                <View style={styles.editorBody}>
-                  {draft.query ? <MentionSuggestions query={draft.query.query} onSelect={draft.insert} /> : null}
-                  {titleEnabled || title.length > 0 ? (
-                    <View style={styles.titleField}>
-                      <View style={styles.titleFieldHeader}>
-                        <AppText variant="label">Título</AppText>
-                        <Pressable accessibilityRole="button" accessibilityLabel="Remover título" onPress={() => { setTitle(''); setTitleEnabled(false); }} hitSlop={10}>
-                          <Icon name="close" size={16} />
-                        </Pressable>
-                      </View>
-                      <TextInput editable={!publishing} onFocus={() => { setTimeout(() => { scrollRef.current?.scrollTo({ y: Math.max(0, editorSectionY.current - 8), animated: true }); }, 60); }} value={title} onChangeText={setTitle} maxLength={MAX_TITLE} placeholder="Ex.: Quinta tem ato contra o aumento da passagem" placeholderTextColor={Colors.placeholder} accessibilityLabel="Título da publicação" style={styles.titleInput} />
-                    </View>
-                  ) : null}
-                  <TextInput
-                    editable={!publishing}
-                    onFocus={() => { setTimeout(() => { scrollRef.current?.scrollTo({ y: Math.max(0, editorSectionY.current - 8), animated: true }); }, 60); }}
-                    scrollEnabled={false}
-                    value={text}
-                    onChangeText={draft.onChangeText}
-                    onSelectionChange={(event) => draft.onSelectionChange(event.nativeEvent.selection)}
-                    {...(draft.selection ? { selection: draft.selection } : {})}
-                    maxLength={MAX_LENGTH}
-                    multiline
-                    textAlignVertical="top"
-                    placeholder="Conte para a comuna o que está acontecendo…"
-                    placeholderTextColor={Colors.placeholder}
-                    accessibilityLabel="Texto da publicação"
-                    style={styles.input}
-                  />
-                  <View style={styles.editorTools}>
-                    <Pressable accessibilityRole="button" accessibilityLabel="Adicionar título" onPress={() => setTitleEnabled(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
-                      <AppText style={styles.toolLabel}>+ Título</AppText>
-                    </Pressable>
-                  </View>
-                  <View style={styles.photoFrame}>
-                  <View style={styles.photoZone}>
-                    {media?.kind === 'image' ? <>
-                      <Image source={{ uri: media.uri }} contentFit="cover" style={styles.photoPreview} />
-                      <View style={styles.photoActions}>
-                        <Pressable accessibilityRole="button" accessibilityLabel="Trocar foto" onPress={() => selectMedia('image')} style={({ pressed }) => [styles.photoAction, pressed && styles.pressed]}><Icon name="edit" size={18} /></Pressable>
-                        <Pressable accessibilityRole="button" accessibilityLabel="Remover foto" onPress={() => setMedia(null)} style={({ pressed }) => [styles.photoAction, pressed && styles.pressed]}><Icon name="trash" size={18} /></Pressable>
-                      </View>
-                    </> : <Pressable accessibilityRole="button" accessibilityLabel="Adicionar foto" onPress={() => selectMedia('image')} style={({ pressed }) => [styles.photoEmpty, pressed && styles.pressed]}>
-                      <Icon name="image" size={30} color={Colors.muted} />
-                      <AppText style={styles.photoEmptyTitle}>Sua foto</AppText>
-                      <AppText variant="caption">Toque para escolher uma imagem</AppText>
-                    </Pressable>}
-                  </View>
-                  <Tape photo />
-                  </View>
-                </View>
-              </View>
-              </View>
+              <WriteEditor
+                store={writeDraft}
+                publishing={publishing}
+                media={media}
+                onFocusField={focusEditor}
+                onPickImage={pickEditorImage}
+                onRemoveMedia={removeMedia}
+              />
             ) : mode === 'poll' && poll ? (
               <View style={styles.pollShadow}>
               <View style={styles.pollCard}>
@@ -909,6 +878,152 @@ export default function CreatePostScreen() {
     </Screen>
   );
 }
+
+function DestinationStepView({ me, destination, targetCount, where, visibilityText, callBlocked, onOpen }: {
+  me: FeedItem['author'];
+  destination: Destination;
+  targetCount: number;
+  where: string;
+  visibilityText: string;
+  callBlocked: boolean;
+  onOpen: () => void;
+}) {
+  return <View style={styles.step}>
+    <StepHeading number="01" label="Publicar em" />
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`Publicar em ${where}. Trocar destino`}
+      style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}>
+      <Tape />
+      <DestinationMark destination={destination} me={me} />
+      <View style={styles.destinationCopy}>
+        <AppText style={styles.destinationName} numberOfLines={1}>{targetCount > 1 ? `${targetCount} locais` : destination.kind === 'perfil' ? 'Meu perfil' : `c/ ${destination.comuna.name}`}</AppText>
+        <View style={styles.visibilityRow}>
+          <Icon name={destination.kind === 'comuna' && destination.comuna.visibility === 'private' ? 'lock' : 'globe'} size={15} color={Colors.inkSoft} />
+          <AppText variant="caption" numberOfLines={1} style={[styles.visibilityText, callBlocked && styles.visibilityBlocked]}>{callBlocked ? 'Só a moderação convoca' : targetCount > 1 ? `${targetCount} comunas` : visibilityText}</AppText>
+        </View>
+      </View>
+      <View style={styles.changeDestination}>
+        <AppText style={styles.changeLabel}>Trocar</AppText>
+        <Icon name="chevronRight" size={16} />
+      </View>
+    </Pressable>
+  </View>;
+}
+
+const DestinationStep = withPerformanceProfiler('ComposerDestinationStep', DestinationStepView);
+
+function PostTypeStepView({ mode, narrow, onWrite, onCall, onPoll }: {
+  mode: 'write' | 'call' | 'poll';
+  narrow: boolean;
+  onWrite: () => void;
+  onCall: () => void;
+  onPoll: () => void;
+}) {
+  return <View style={styles.step}>
+    <StepHeading number="02" label="O que você quer fazer?" />
+    <View style={styles.typeGrid} role="tablist">
+      <TypeTile icon="document" label="Escrever" caption="papo, meme, foto, opinião" active={mode === 'write'} narrow={narrow} onPress={onWrite} />
+      <TypeTile icon="megaphone" label="Chamado" caption="juntar a galera" active={mode === 'call'} narrow={narrow} onPress={onCall} />
+      <TypeTile icon="poll" label="Enquete" caption="perguntar pra galera" active={mode === 'poll'} narrow={narrow} last onPress={onPoll} />
+    </View>
+  </View>;
+}
+
+const PostTypeStep = withPerformanceProfiler('ComposerPostTypeStep', PostTypeStepView);
+
+function PreviewPanelView({ item }: { item: FeedItem }) {
+  return <View style={styles.previewBox} pointerEvents="none" accessible accessibilityLabel={`Pré-visualização: ${[item.title, item.text].filter(Boolean).join('. ')}`} importantForAccessibility="no-hide-descendants">
+    {/* Prévia de um cartão único, não uma lista reciclada: mantém o vídeo como no feed. */}
+    <PostCard item={item} mediaVisible />
+  </View>;
+}
+
+const PreviewPanel = withPerformanceProfiler('ComposerPreview', PreviewPanelView);
+
+function WritePhotoFrameView({ media, onPickImage, onRemoveMedia }: {
+  media: LocalPostMedia | null;
+  onPickImage: () => void;
+  onRemoveMedia: () => void;
+}) {
+  return <View style={styles.photoFrame}>
+    <View style={styles.photoZone}>
+      {media?.kind === 'image' ? <>
+        <Image source={{ uri: media.uri }} contentFit="cover" style={styles.photoPreview} />
+        <View style={styles.photoActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Trocar foto" onPress={onPickImage} style={({ pressed }) => [styles.photoAction, pressed && styles.pressed]}><Icon name="edit" size={18} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Remover foto" onPress={onRemoveMedia} style={({ pressed }) => [styles.photoAction, pressed && styles.pressed]}><Icon name="trash" size={18} /></Pressable>
+        </View>
+      </> : <Pressable accessibilityRole="button" accessibilityLabel="Adicionar foto" onPress={onPickImage} style={({ pressed }) => [styles.photoEmpty, pressed && styles.pressed]}>
+        <Icon name="image" size={30} color={Colors.muted} />
+        <AppText style={styles.photoEmptyTitle}>Sua foto</AppText>
+        <AppText variant="caption">Toque para escolher uma imagem</AppText>
+      </Pressable>}
+    </View>
+    <Tape photo />
+  </View>;
+}
+
+const WritePhotoFrame = memo(withPerformanceProfiler('ComposerWritePhotoFrame', WritePhotoFrameView));
+
+function WriteEditorView({ store, publishing, media, onFocusField, onPickImage, onRemoveMedia }: {
+  store: WriteDraftStore;
+  publishing: boolean;
+  media: LocalPostMedia | null;
+  onFocusField: () => void;
+  onPickImage: () => void;
+  onRemoveMedia: () => void;
+}) {
+  // O editor assina o rascunho inteiro; a tela do composer não.
+  const draft = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  return <View style={styles.editorShadow}>
+    <View style={styles.editorCard}>
+      <View style={styles.editorHeader}>
+        <AppText variant="label" color={Colors.paper}>Rascunho</AppText>
+        <AppText style={styles.editorCounter} color={Colors.onInkMuted}>{draft.text.length}/{MAX_LENGTH}</AppText>
+      </View>
+      <View style={styles.editorBody}>
+        {draft.query ? <MentionSuggestions query={draft.query.query} onSelect={store.insert} /> : null}
+        {draft.titleEnabled || draft.title.length > 0 ? (
+          <View style={styles.titleField}>
+            <View style={styles.titleFieldHeader}>
+              <AppText variant="label">Título</AppText>
+              <Pressable accessibilityRole="button" accessibilityLabel="Remover título" onPress={store.clearTitle} hitSlop={10}>
+                <Icon name="close" size={16} />
+              </Pressable>
+            </View>
+            <TextInput editable={!publishing} onFocus={onFocusField} value={draft.title} onChangeText={store.setTitle} maxLength={MAX_TITLE} placeholder="Ex.: Quinta tem ato contra o aumento da passagem" placeholderTextColor={Colors.placeholder} accessibilityLabel="Título da publicação" style={styles.titleInput} />
+          </View>
+        ) : null}
+        <TextInput
+          editable={!publishing}
+          onFocus={onFocusField}
+          scrollEnabled={false}
+          value={draft.text}
+          onChangeText={store.onChangeText}
+          onSelectionChange={(event) => store.onSelectionChange(event.nativeEvent.selection)}
+          {...(draft.selection ? { selection: draft.selection } : {})}
+          maxLength={MAX_LENGTH}
+          multiline
+          textAlignVertical="top"
+          placeholder="Conte para a comuna o que está acontecendo…"
+          placeholderTextColor={Colors.placeholder}
+          accessibilityLabel="Texto da publicação"
+          style={styles.input}
+        />
+        <View style={styles.editorTools}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Adicionar título" onPress={() => store.setTitleEnabled(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
+            <AppText style={styles.toolLabel}>+ Título</AppText>
+          </Pressable>
+        </View>
+        <WritePhotoFrame media={media} onPickImage={onPickImage} onRemoveMedia={onRemoveMedia} />
+      </View>
+    </View>
+  </View>;
+}
+
+const WriteEditor = memo(withPerformanceProfiler('ComposerWriteEditor', WriteEditorView));
 
 function DestinationMark({ destination, me }: { destination: Destination; me: FeedItem['author'] }) {
   if (destination.kind === 'perfil') return <Avatar initials={me.initials} tone={me.tone} size={42} shape="square" outline userId={me.id} imageUrl={me.avatarUrl} />;
