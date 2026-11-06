@@ -246,7 +246,10 @@ registrar o motivo.
    memória e tempo de carregamento. Repetir com cache quente.
 9. **Vídeo**: com rede Wi-Fi e com throttling lento, medir TTFF (primeiro
    quadro), players montados/tocando, pausa ao sair da viewport/rota/background,
-   erro de rede e retomada. Abrir a tela cheia e voltar sem duplicar player.
+   erro de rede e retomada. Abrir a tela cheia e voltar sem duplicar player;
+   alinhar os eventos `fullscreen-enter`, `fullscreen-exit` e
+   `surface-first-frame` do snapshot com a gravação de tela. Roteiro e critério
+   de frame preto em `docs/pop-26-video-fullscreen-transition.md`.
 10. **Background/foreground**: com vídeo tocando, ir para segundo plano e voltar;
     confirmar pausa e retomada e o efeito na memória.
 11. **Discussão**: abrir um post, rolar comentários, responder, apoiar e voltar

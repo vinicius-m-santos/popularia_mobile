@@ -11,11 +11,22 @@ import { StripedPlaceholder } from '@/components/striped-placeholder';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
 import { haptic } from '@/lib/haptics';
-import { performanceNow, recordVideoError, recordVideoFirstFrame, recordVideoMount, recordVideoPause, recordVideoPlay, recordVideoUnmount } from '@/lib/performance';
+import {
+  performanceNow,
+  recordVideoError,
+  recordVideoFirstFrame,
+  recordVideoFullscreen,
+  recordVideoMount,
+  recordVideoPause,
+  recordVideoPlay,
+  recordVideoSurfaceFirstFrame,
+  recordVideoUnmount,
+} from '@/lib/performance';
 
 import { posterCache } from '../poster-cache';
 import { PhotoViewer } from './photo-viewer';
 import { VideoViewer, type VideoChrome } from './video-viewer';
+import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
 
 /* O player do expo-video é um objeto imperativo: `muted`, `playbackRate` e `currentTime` são
    propriedades nativas, mudadas fora do estado do React de propósito. A análise de imutabilidade
@@ -142,12 +153,21 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const poster = usePoster(media.id);
   const [position, setPosition] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  // Muda só na abertura: a cobertura da tela cheia reinicia sem remontar a
+  // surface durante o fade de fechamento.
+  const [fullscreenSession, setFullscreenSession] = useState(0);
+  // O feed fica coberto pelo pôster só na volta da tela cheia, até a surface
+  // remontada receber o quadro atual.
+  const [feedCoverVisible, setFeedCoverVisible] = useState(false);
   // Um toque que veio de um "segurar para acelerar" não deve pausar o vídeo.
   const heldAt = useRef(0);
   // TTFF: do pedido de reprodução ao primeiro quadro, uma vez por instância montada.
   const playIntentAt = useRef<number | null>(null);
   const firstFrameRecorded = useRef(false);
   const errorRecorded = useRef(false);
+  // Transição feed → tela cheia → feed: cada surface remontada tem seu primeiro quadro.
+  const fullscreenStartedAt = useRef<number | null>(null);
+  const feedReturnStartedAt = useRef<number | null>(null);
 
   useEffect(() => {
     recordVideoMount(media.id);
@@ -239,6 +259,14 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
     return () => { alive = false; };
   }, [media.id, player]);
 
+  // A cobertura da volta é pública: se a plataforma não emitir o primeiro
+  // quadro na remontagem, o pôster sai sozinho em vez de ficar preso.
+  useEffect(() => {
+    if (!feedCoverVisible) return;
+    const timer = setTimeout(() => setFeedCoverVisible(false), VIDEO_SURFACE_COVER_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [feedCoverVisible]);
+
   const toggle = () => {
     if (ended) {
       setEnded(false);
@@ -255,13 +283,46 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
     }
   };
 
-  // O primeiro quadro chega pelo VideoView; uma remontagem na tela cheia não
-  // reinicia a medição da mesma instância de player.
-  const onFirstFrameRender = () => {
+  // TTFF da instância de player. Pode chegar no feed ou já na tela cheia; uma
+  // remontagem de surface não reinicia a medição.
+  const recordInitialFirstFrame = () => {
     if (firstFrameRecorded.current) return;
     firstFrameRecorded.current = true;
     const startedAt = playIntentAt.current;
     if (startedAt !== null) recordVideoFirstFrame(media.id, performanceNow() - startedAt);
+  };
+
+  const openFullscreen = () => {
+    fullscreenStartedAt.current = performanceNow();
+    recordVideoFullscreen(media.id, 'enter');
+    setFullscreenSession((session) => session + 1);
+    setExpanded(true);
+  };
+
+  const closeFullscreen = () => {
+    feedReturnStartedAt.current = performanceNow();
+    recordVideoFullscreen(media.id, 'exit');
+    setFeedCoverVisible(true);
+    setExpanded(false);
+  };
+
+  const onFullscreenFirstFrame = () => {
+    recordInitialFirstFrame();
+    const startedAt = fullscreenStartedAt.current;
+    if (startedAt === null) return;
+    fullscreenStartedAt.current = null;
+    recordVideoSurfaceFirstFrame(media.id, 'fullscreen', performanceNow() - startedAt);
+  };
+
+  // O primeiro quadro chega pelo VideoView do feed. Na volta da tela cheia, a
+  // surface é remontada e a espera até este evento mede a transição de saída.
+  const onFirstFrameRender = () => {
+    recordInitialFirstFrame();
+    const startedAt = feedReturnStartedAt.current;
+    if (startedAt === null) return;
+    feedReturnStartedAt.current = null;
+    setFeedCoverVisible(false);
+    recordVideoSurfaceFirstFrame(media.id, 'feed', performanceNow() - startedAt);
   };
 
   const frameRatio = { aspectRatio: mediaRatio(media) };
@@ -276,13 +337,23 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
       <StripedPlaceholder label="Vídeo da publicação" showLabel={false} variant="dark" style={styles.skeletonFill} />
     </View> : null}
     {expanded ? null : <VideoView player={player} nativeControls={false} contentFit="cover" pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityLabel={label} onFirstFrameRender={onFirstFrameRender} />}
+    {feedCoverVisible && poster ? (
+      <Image
+        testID="video-feed-transition-cover"
+        source={poster}
+        contentFit="cover"
+        pointerEvents="none"
+        accessible={false}
+        style={StyleSheet.absoluteFill}
+      />
+    ) : null}
     <Pressable
       onPress={() => {
         if (Date.now() - heldAt.current < 350) return;
         // Parado, o toque é "tocar": pausado retoma, encerrado repete. Só quem está
         // rodando abre a tela cheia — assim sair da tela cheia pausado continua natural.
         if (!player.playing) { toggle(); return; }
-        setExpanded(true);
+        openFullscreen();
       }}
       onLongPress={() => { haptic('light'); heldAt.current = Date.now(); setSpeed(2); }}
       delayLongPress={220}
@@ -335,6 +406,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
     {status === 'error' ? <View style={[StyleSheet.absoluteFill, styles.error]}><AppText variant="caption">Não foi possível carregar o vídeo.</AppText></View> : null}
     <VideoViewer
       visible={expanded}
+      surfaceKey={fullscreenSession}
       player={player}
       VideoView={VideoView}
       label={label}
@@ -342,8 +414,10 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
       playing={playing}
       ended={ended}
       muted={muted}
-      chrome={chrome ? { ...chrome, onComment: () => { setExpanded(false); chrome.onComment(); } } : undefined}
-      onClose={() => setExpanded(false)}
+      poster={poster}
+      chrome={chrome ? { ...chrome, onComment: () => { closeFullscreen(); chrome.onComment(); } } : undefined}
+      onSurfaceFirstFrame={onFullscreenFirstFrame}
+      onClose={closeFullscreen}
       onTogglePlay={toggle}
       onToggleMute={() => setMuted(!muted)}
       onHoldStart={() => { haptic('light'); setSpeed(2); }}

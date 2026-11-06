@@ -10,8 +10,10 @@ import {
   recordProfileCommit,
   recordRequestAttempt,
   recordVideoFirstFrame,
+  recordVideoFullscreen,
   recordVideoMount,
   recordVideoPlay,
+  recordVideoSurfaceFirstFrame,
   recordVideoUnmount,
   resetPerformanceSession,
   runWithPerformanceScope,
@@ -124,5 +126,22 @@ describe('commits, listas e vídeo', () => {
     expect(video.mountedNow).toBe(1);
     expect(video.playingNow).toBe(0);
     expect(video.events.map((event) => event.event)).toContain('unmount');
+  });
+
+  it('registra a troca feed → tela cheia → feed e a espera de cada surface', () => {
+    recordVideoFullscreen('v1', 'enter');
+    recordVideoSurfaceFirstFrame('v1', 'fullscreen', 42.4);
+    recordVideoFullscreen('v1', 'exit');
+    recordVideoSurfaceFirstFrame('v1', 'feed', 18.2);
+
+    const events = getPerformanceSnapshot().video.events;
+    expect(events.map((event) => event.event)).toEqual([
+      'fullscreen-enter',
+      'surface-first-frame',
+      'fullscreen-exit',
+      'surface-first-frame',
+    ]);
+    expect(events[1]).toMatchObject({ mediaId: 'v1', surface: 'fullscreen', valueMs: 42.4 });
+    expect(events[3]).toMatchObject({ mediaId: 'v1', surface: 'feed', valueMs: 18.2 });
   });
 });

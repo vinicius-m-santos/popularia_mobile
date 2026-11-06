@@ -1,5 +1,7 @@
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import type { VideoPlayer } from 'expo-video';
+import type { VideoPlayer, VideoThumbnail } from 'expo-video';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -12,6 +14,8 @@ import { Kicker } from '@/components/kicker';
 import { Colors, Spacing } from '@/constants/theme';
 import { formatCount } from '@/lib/format';
 import type { FeedItem } from '@/types/models';
+
+import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
 
 /** O que a tela cheia mostra do post: autoria, contexto e as ações. */
 export type VideoChrome = {
@@ -32,6 +36,8 @@ export type VideoChrome = {
 
 type VideoViewerProps = {
   visible: boolean;
+  /** Muda só na abertura: reinicia a cobertura sem remontar a surface no fechamento. */
+  surfaceKey: number;
   player: VideoPlayer;
   VideoView: typeof import('expo-video').VideoView;
   label: string;
@@ -39,7 +45,10 @@ type VideoViewerProps = {
   playing: boolean;
   ended: boolean;
   muted: boolean;
+  /** Primeiro quadro já conhecido: cobre a nova surface até ela receber o quadro atual. */
+  poster?: VideoThumbnail | null;
   chrome?: VideoChrome;
+  onSurfaceFirstFrame?: () => void;
   onClose: () => void;
   onTogglePlay: () => void;
   onToggleMute: () => void;
@@ -56,8 +65,8 @@ const DISMISS_DISTANCE = 120;
  * Arrastar para baixo devolve ao feed.
  */
 export function VideoViewer({
-  visible, player, VideoView, label, remaining, playing, ended, muted, chrome,
-  onClose, onTogglePlay, onToggleMute, onHoldStart, onHoldEnd,
+  visible, surfaceKey, player, VideoView, label, remaining, playing, ended, muted, poster, chrome,
+  onSurfaceFirstFrame, onClose, onTogglePlay, onToggleMute, onHoldStart, onHoldEnd,
 }: VideoViewerProps) {
   const insets = useSafeAreaInsets();
   const dragY = useSharedValue(0);
@@ -84,7 +93,14 @@ export function VideoViewer({
       <GestureDetector gesture={pan}>
         <Animated.View style={[styles.screen, drag]}>
           <View style={[styles.stage, { top: insets.top, bottom: Math.max(insets.bottom, Spacing.two) }]} pointerEvents="none">
-            <VideoView player={player} nativeControls={false} contentFit="contain" style={StyleSheet.absoluteFill} accessibilityLabel={label} />
+            <FullscreenSurface
+              key={surfaceKey}
+              player={player}
+              VideoView={VideoView}
+              label={label}
+              poster={poster}
+              onFirstFrameRender={onSurfaceFirstFrame}
+            />
           </View>
 
           <Pressable
@@ -151,6 +167,53 @@ export function VideoViewer({
       </GestureDetector>
     </GestureHandlerRootView>
   </Modal>;
+}
+
+/**
+ * A nova surface pode ficar preta por alguns frames ao receber o player.
+ * O pôster cobre exatamente essa janela e some no primeiro quadro. A chave de
+ * abertura reinicia a cobertura sem setState síncrono em efeito; o limite evita
+ * que ela fique presa quando a plataforma não emite `onFirstFrameRender` na
+ * remontagem.
+ */
+function FullscreenSurface({ player, VideoView, label, poster, onFirstFrameRender }: {
+  player: VideoPlayer;
+  VideoView: typeof import('expo-video').VideoView;
+  label: string;
+  poster?: VideoThumbnail | null;
+  onFirstFrameRender?: () => void;
+}) {
+  const [coverVisible, setCoverVisible] = useState(true);
+
+  useEffect(() => {
+    if (!coverVisible) return;
+    const timer = setTimeout(() => setCoverVisible(false), VIDEO_SURFACE_COVER_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [coverVisible]);
+
+  return <>
+    <VideoView
+      player={player}
+      nativeControls={false}
+      contentFit="contain"
+      style={StyleSheet.absoluteFill}
+      accessibilityLabel={label}
+      onFirstFrameRender={() => {
+        setCoverVisible(false);
+        onFirstFrameRender?.();
+      }}
+    />
+    {coverVisible && poster ? (
+      <Image
+        testID="video-fullscreen-cover"
+        source={poster}
+        contentFit="contain"
+        pointerEvents="none"
+        accessible={false}
+        style={StyleSheet.absoluteFill}
+      />
+    ) : null}
+  </>;
 }
 
 function RailAction({ icon, count, label, active = false, filled = false, showCount = true, onPress }: {
