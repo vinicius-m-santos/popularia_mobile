@@ -34,6 +34,8 @@ type BottomSheetProps = {
   surface?: 'paper' | 'cream';
 };
 
+const CLOSE_FALLBACK_MS = 500;
+
 /** Aparência Popularia, física e arbitragem entre scroll/teclado delegadas ao Gorhom. */
 export function BottomSheet({ visible, onClose, title, accessibilityLabel, children, scrollable = true, virtualized = false, dismissible = true, contentPanningGesture = dismissible, appearance = 'paper', surface = 'paper' }: BottomSheetProps) {
   const creation = appearance === 'creation';
@@ -45,6 +47,7 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   const measuredRef = useRef(false);
   const openedRef = useRef(false);
   const openFrame = useRef<number | null>(null);
+  const closeFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
 
@@ -52,6 +55,13 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
     if (openFrame.current !== null) {
       cancelAnimationFrame(openFrame.current);
       openFrame.current = null;
+    }
+  }, []);
+
+  const cancelCloseFallback = useCallback(() => {
+    if (closeFallback.current !== null) {
+      clearTimeout(closeFallback.current);
+      closeFallback.current = null;
     }
   }, []);
 
@@ -73,6 +83,7 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   useEffect(() => {
     visibleRef.current = visible;
     if (visible) {
+      cancelCloseFallback();
       // Monta primeiro; a abertura é disparada depois que o conteúdo reporta layout.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMounted(true);
@@ -82,11 +93,22 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
     cancelScheduledOpen();
     openedRef.current = false;
     sheet.current?.close();
-  }, [visible, scheduleOpen, cancelScheduledOpen]);
+    // No web, o Gorhom pode não emitir `onClose` depois de uma escolha rápida.
+    // Preserva a animação normal, mas garante que o Modal não intercepte a tela.
+    cancelCloseFallback();
+    closeFallback.current = setTimeout(() => {
+      closeFallback.current = null;
+      measuredRef.current = false;
+      setMounted(false);
+    }, CLOSE_FALLBACK_MS);
+  }, [visible, scheduleOpen, cancelScheduledOpen, cancelCloseFallback]);
   useEffect(() => {
     if (visible && mounted && measuredRef.current) scheduleOpen();
   }, [visible, mounted, scheduleOpen]);
-  useEffect(() => () => cancelScheduledOpen(), [cancelScheduledOpen]);
+  useEffect(() => () => {
+    cancelScheduledOpen();
+    cancelCloseFallback();
+  }, [cancelScheduledOpen, cancelCloseFallback]);
 
   const backdrop = useCallback((props: BottomSheetBackdropProps) => <BottomSheetBackdrop {...props}
     appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.55}
@@ -112,6 +134,7 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
     onClose={() => {
       Keyboard.dismiss();
       cancelScheduledOpen();
+      cancelCloseFallback();
       measuredRef.current = false;
       openedRef.current = false;
       // Mantém o Modal nativo montado até a animação de saída do Gorhom terminar.
