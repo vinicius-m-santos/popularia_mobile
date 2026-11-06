@@ -26,7 +26,7 @@ let mockReceived: (n: Notifications.Notification) => void;
 let mockRespond: (n: Notifications.NotificationResponse) => void;
 let mockToken: () => void;
 const mockRead = jest.fn<(id: string, unread: boolean) => Promise<AppNotification>>();
-const mockRefresh = jest.fn<() => Promise<void>>();
+const mockRefresh = jest.fn<(options?: { force?: boolean }) => Promise<void>>();
 const mockChanged = jest.fn();
 const mockShow = jest.fn();
 jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ status: mockReady ? 'signedIn' : 'restoring', account: { id: mockAccountId, legalAccepted: mockLegal }, onboarded: mockReady && mockOnboarded, showLoginWelcome: mockWelcome }) }));
@@ -69,6 +69,7 @@ describe('ciclo de vida de push', () => {
     mockChanged.mockClear(); mockRefresh.mockClear();
     await act(async () => { mockReceived(notification); });
     expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledWith({ force: true });
     expect(mockChanged).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['post'] });
     expect(await handler.handleNotification(notification)).toEqual({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false });
@@ -110,8 +111,10 @@ describe('ciclo de vida de push', () => {
     const subscription = jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, callback) => { resume = callback; return { remove: jest.fn() }; });
     const view = await render(<PushRuntime />);
     jest.mocked(registerPush).mockClear();
+    mockRefresh.mockClear();
     await act(async () => { resume('active'); mockToken(); });
     expect(registerPush).toHaveBeenCalledTimes(2);
+    expect(mockRefresh).toHaveBeenCalledWith({ force: true });
     mockCount = 0;
     await view.rerender(<PushRuntime />);
     expect(syncIconBadge).toHaveBeenLastCalledWith(0);

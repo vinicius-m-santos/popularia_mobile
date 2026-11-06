@@ -6,11 +6,12 @@
  * tocando e o player desmontado ao rolar para fora.
  */
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { useVideoPlayer } from 'expo-video';
 import { AppState, ScrollView } from 'react-native';
 
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
+import { preparePost } from '@/features/posts/queries';
 import type { FeedItem } from '@/types/models';
 
 import { PostCard } from '../post-card';
@@ -145,6 +146,10 @@ function video(id: string, durationMs: number): FeedItem {
 
 const VIDEOS = [video('v1', 15_000), video('v2', 16_000), video('v3', 17_000)];
 
+function textPost(): FeedItem {
+  return { ...video('text-1', 0), attachment: undefined, text: 'Texto da publicação' };
+}
+
 function Harness({ visibleIds }: { visibleIds: ReadonlySet<string> }) {
   return (
     <ScrollView>
@@ -212,6 +217,17 @@ describe('mídia do PostCard na viewport', () => {
     const players = store.__postCardPlayers ?? [];
     expect(players).toHaveLength(1);
     expect(players[0].play).not.toHaveBeenCalled();
+  });
+
+  it('antecipa a publicação no pressIn sem repetir o prefetch no press', async () => {
+    const item = textPost();
+    await render(<PostCard item={item} />);
+
+    await fireEvent(screen.getByText(item.text), 'pressIn');
+    expect(preparePost).toHaveBeenCalledTimes(1);
+
+    await fireEvent.press(screen.getByText(item.text));
+    expect(preparePost).toHaveBeenCalledTimes(1);
   });
 
   it('com três vídeos na viewport mantém no máximo um reproduzindo', async () => {

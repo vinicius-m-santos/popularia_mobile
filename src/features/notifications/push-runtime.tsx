@@ -73,18 +73,20 @@ export function PushRuntime() {
     if (!pushAvailable || !ready || !accountId) return;
     let current = true;
     const isCurrent = () => current;
-    const refresh = () => {
-      void callbacks.current.refreshUnread();
+    const refresh = (forceUnread = false) => {
+      void callbacks.current.refreshUnread(forceUnread ? { force: true } : undefined);
       callbacks.current.changed();
       void registerPush(false, isCurrent).catch(() => { /* retry on next foreground/token change */ });
     };
     refresh();
-    const resume = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
+    // O app voltou do background: o contador pode ter mudado sem listener de push
+    // (principalmente no iOS), então esta passagem não é suprimida pela janela.
+    const resume = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(true); });
     const token = Notifications.addPushTokenListener(() => { void registerPush(false, isCurrent).catch(() => {}); });
     const receive = Notifications.addNotificationReceivedListener((notification) => {
       if (!pushNotificationId(notification.request.content.data, accountId)) return;
       callbacks.current.changed();
-      void callbacks.current.refreshUnread();
+      void callbacks.current.refreshUnread({ force: true });
       // Existing detail queries revalidate access and content; paginated Avisos receives `changed`.
       void queryClient.invalidateQueries({ queryKey: queryKeys.post.all });
     });

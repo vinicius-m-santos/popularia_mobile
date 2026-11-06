@@ -31,6 +31,7 @@ import { PushRuntime } from '@/features/notifications/push-runtime';
 import { NotificationsProvider } from '@/features/notifications/notifications-context';
 import { performanceDiagnosticsAvailable } from '@/lib/performance';
 import { initSentry } from '@/lib/monitoring';
+import { revalidateOnForeground } from '@/lib/query/revalidation';
 import { warmCreationAssets } from '@/features/media/creation-assets';
 
 // Link direto para uma tela legal precisa de uma rota âncora para o voltar continuar funcionando.
@@ -64,9 +65,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 export default function RootLayout() {
   useEffect(() => { void warmCreationAssets(); }, []);
   useEffect(() => {
-    const listener = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void queryClient.refetchQueries({ type: 'active', stale: true }, { cancelRefetch: false });
-    });
+    const listener = AppState.addEventListener('change', (state) => { void revalidateOnForeground(state); });
     return () => listener.remove();
   }, []);
   const [fontWaitExpired, setFontWaitExpired] = useState(false);

@@ -63,7 +63,10 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
   const sheet = useActionsSheet();
   const { isOn } = useInteractions();
   const chamado = useMemo(() => chamadoCardFor(item), [item]);
-  const open = () => { preparePost(item); nav.openPost(item.id); };
+  const open = () => nav.openPost(item.id);
+  // O corpo já antecipa a publicação no `onPressIn`; os demais toques do cartão
+  // não têm esse gancho, então continuam preparando a publicação aqui.
+  const openWithPrefetch = () => { preparePost(item); open(); };
   // Na API, só o próprio perfil abre (perfis de outras pessoas ainda são fictícios).
   const openAuthor = !item.viewer
     ? () => nav.openProfile(author.id)
@@ -110,7 +113,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
         label="Apoiar"
         onPress={actions.toggleSupport}
       />
-      <ActionChip icon="comment" count={actions.commentCount} label="Comentar" onPress={open} />
+      <ActionChip icon="comment" count={actions.commentCount} label="Comentar" onPress={openWithPrefetch} />
       <ActionChip
         icon="echo"
         count={actions.echoCount}
@@ -155,7 +158,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
             supported: actions.supported,
             onSupport: actions.toggleSupport,
             commentCount: actions.commentCount,
-            onComment: open,
+            onComment: openWithPrefetch,
             echoCount: actions.echoCount,
             echoed: actions.echoed,
             onEcho: actions.toggleEcho,
@@ -216,7 +219,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
           supported: actions.supported,
           onSupport: actions.toggleSupport,
           commentCount: actions.commentCount,
-          onComment: open,
+          onComment: openWithPrefetch,
           echoCount: actions.echoCount,
           echoed: actions.echoed,
           onEcho: actions.toggleEcho,
@@ -231,14 +234,14 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
       {item.poll ? <PostPollBlock postId={item.id} poll={item.poll} /> : null}
       {media ? (
-        <Pressable onPress={open} accessibilityHint="Abre a discussão">
+        <Pressable onPress={openWithPrefetch} accessibilityHint="Abre a discussão">
           <MediaBox media={media} />
         </Pressable>
       ) : null}
 
       {topComment && topCommentAuthor && !topCommentMuted ? (
         <Pressable
-          onPress={open}
+          onPress={openWithPrefetch}
           style={({ pressed }) => [styles.topComment, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityLabel={`Comentário de ${topCommentAuthor.name}: ${topComment.text}. ${replies}`}
