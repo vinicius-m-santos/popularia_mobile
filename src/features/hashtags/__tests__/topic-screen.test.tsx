@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
 import { mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { resetMockRouteFocused, setMockRouteFocused } from '@/hooks/testing/route-focus';
 import type { FeedItem } from '@/types/models';
 
 import { TopicScreen } from '../topic-screen';
@@ -23,7 +24,10 @@ type MockListProps = {
 
 let mockListProps: MockListProps | null = null;
 
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ slug: 'tecnologia' }), router: { canGoBack: () => true, back: jest.fn() } }));
+jest.mock('expo-router', () => {
+  const { useMockFocusEffect } = jest.requireActual<typeof import('@/hooks/testing/route-focus')>('@/hooks/testing/route-focus');
+  return { useLocalSearchParams: () => ({ slug: 'tecnologia' }), router: { canGoBack: () => true, back: jest.fn() }, useFocusEffect: useMockFocusEffect };
+});
 jest.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: { displayName: 'Tecnologia' } }) }));
 jest.mock('@/lib/query/client', () => ({ queryClient: {}, contentPolicy: { feed: {}, profile: {} } }));
 jest.mock('@/hooks/use-cached-pages', () => ({ useCachedPages: () => mockUseCachedPages() }));
@@ -91,6 +95,7 @@ describe('tela de tópico', () => {
     mockLoadMore.mockReset();
     mockListState = null;
     mockListProps = null;
+    resetMockRouteFocused();
   });
 
   it.each(['loading', 'success', 'error'] as const)('apresenta estado %s na lista paginada', async (status) => {
@@ -137,5 +142,29 @@ describe('tela de tópico', () => {
     expect(screen.getByTestId('post-p15').props.children).toBe('oculta');
     expect(screen.getByTestId('post-p16').props.children).toBe('visível');
     expect(mockListProps?.onViewableItemsChanged).toBe(onViewableItemsChanged);
+  });
+
+  it('não deixa vídeo tocando quando o tópico perde o foco', async () => {
+    const items = Array.from({ length: 3 }, (_, index) => feed(`p${index + 1}`));
+    mockUseCachedPages.mockReturnValue({ items, status: 'success', hasMore: false, loadMore: mockLoadMore, refresh: jest.fn(), loadingMore: false, loadMoreError: null, isRefreshing: false, refreshError: null });
+    await render(<TopicScreen />);
+    const onViewableItemsChanged = mockListProps?.onViewableItemsChanged;
+
+    await act(async () => {
+      onViewableItemsChanged?.({ viewableItems: [{ key: 'p2' }] });
+    });
+    expect(screen.getByTestId('post-p2').props.children).toBe('visível');
+
+    await act(async () => {
+      setMockRouteFocused(false);
+    });
+    expect(screen.getByTestId('post-p2').props.children).toBe('oculta');
+
+    await act(async () => {
+      setMockRouteFocused(true);
+    });
+    expect(screen.getByTestId('post-p1').props.children).toBe('oculta');
+    expect(screen.getByTestId('post-p2').props.children).toBe('visível');
+    expect(screen.getByTestId('post-p3').props.children).toBe('oculta');
   });
 });

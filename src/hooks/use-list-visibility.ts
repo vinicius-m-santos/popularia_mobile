@@ -13,6 +13,12 @@ type VisibilityListener = () => void;
  */
 export type MediaVisibility = {
   isVisible: (postId: string) => boolean;
+  /**
+   * Liga ou desliga a mídia da lista ao foco da rota. Fora de foco a viewport é
+   * mantida, mas nenhum cartão pode montar player; ao voltar, a mesma janela é
+   * reabilitada sem esperar uma nova viewability.
+   */
+  setFocused: (focused: boolean) => void;
   subscribe: (postId: string, listener: VisibilityListener) => () => void;
   onViewableItemsChanged: (info: { viewableItems: ViewToken<unknown>[] }) => void;
   /** Esquece a viewport atual (troca de aba, por exemplo). */
@@ -21,6 +27,7 @@ export type MediaVisibility = {
 
 function createMediaVisibility(): MediaVisibility {
   let visible: ReadonlySet<string> = new Set();
+  let focused = true;
   const listeners = new Map<string, Set<VisibilityListener>>();
 
   const notify = (ids: Iterable<string>) => {
@@ -33,7 +40,15 @@ function createMediaVisibility(): MediaVisibility {
   };
 
   return {
-    isVisible: (postId) => visible.has(postId),
+    isVisible: (postId) => focused && visible.has(postId),
+    setFocused: (next) => {
+      if (focused === next) return;
+      focused = next;
+      // Ao perder o foco, os IDs da janela atual viram pôster; ao voltar, só
+      // esses mesmos IDs são reabilitados. A viewport não é limpa, então a
+      // posição da lista e o pôster continuam intactos.
+      notify(visible);
+    },
     subscribe: (postId, listener) => {
       const bucket = listeners.get(postId) ?? new Set<VisibilityListener>();
       if (!listeners.has(postId)) listeners.set(postId, bucket);
@@ -51,6 +66,9 @@ function createMediaVisibility(): MediaVisibility {
       for (const id of visible) if (!next.has(id)) left.push(id);
       if (entered.length === 0 && left.length === 0) return;
       visible = next;
+      // Fora de foco a janela é só memória: os cartões já estão no pôster e
+      // serão notificados de uma vez quando a rota voltar a valer.
+      if (!focused) return;
       notify(entered);
       notify(left);
     },
@@ -58,7 +76,7 @@ function createMediaVisibility(): MediaVisibility {
       if (visible.size === 0) return;
       const previous = visible;
       visible = new Set();
-      notify(previous);
+      if (focused) notify(previous);
     },
   };
 }

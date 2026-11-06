@@ -17,6 +17,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { useVideoPlayer } from 'expo-video';
 
 import { buildQaFeedItems, qaFeedPage } from '@/features/performance/qa-fixture';
+import { resetMockRouteFocused, setMockRouteFocused } from '@/hooks/testing/route-focus';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 import type { ComunaDetails, FeedItem } from '@/types/models';
 import { queryClient } from '@/lib/query/client';
@@ -52,14 +53,14 @@ jest.mock('@/features/interactions/interactions-context', () => ({ useInteractio
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
 
-jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), back: jest.fn(), navigate: jest.fn(), replace: jest.fn() },
-  useLocalSearchParams: () => ({ id: 'hortas' }),
-  useFocusEffect: (callback: () => void | (() => void)) => {
-    const React = jest.requireActual<typeof import('react')>('react');
-    React.useEffect(() => callback(), [callback]);
-  },
-}));
+jest.mock('expo-router', () => {
+  const { useMockFocusEffect } = jest.requireActual<typeof import('@/hooks/testing/route-focus')>('@/hooks/testing/route-focus');
+  return {
+    router: { push: jest.fn(), back: jest.fn(), navigate: jest.fn(), replace: jest.fn() },
+    useLocalSearchParams: () => ({ id: 'hortas' }),
+    useFocusEffect: useMockFocusEffect,
+  };
+});
 
 jest.mock('@/lib/routes', () => ({
   goBack: jest.fn(),
@@ -298,6 +299,7 @@ function videoCounters() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetMockRouteFocused();
   queryClient.clear();
   (globalThis as { __comunaListProps?: MockListProps }).__comunaListProps = undefined;
   players.__comunaPlayers = [];
@@ -388,6 +390,39 @@ describe('mídia da comuna na viewport', () => {
 
     await view.unmount();
     expect(videoCounters()).toMatchObject({ mountedNow: 0, playingNow: 0 });
+  });
+
+  it('perde o foco da rota sem deixar player e retoma só a viewport retida', async () => {
+    await render(<ComunaScreen />);
+    await waitForPosts();
+
+    await showViewport(VIDEO_IDS.slice(0, 2));
+    await waitFor(() => expect(videoCounters()).toMatchObject({ mountedNow: 2, playingNow: 1 }));
+
+    // Push de uma publicação/troca de aba: a lista continua montada, mas a
+    // mídia visível desmonta e nenhum player fica tocando fora de foco.
+    await act(async () => {
+      setMockRouteFocused(false);
+    });
+    await waitFor(() => expect(videoCounters()).toMatchObject({ mountedNow: 0, playingNow: 0 }));
+
+    // Back rápido: a mesma janela é reabilitada e volta a tocar um único vídeo.
+    await act(async () => {
+      setMockRouteFocused(true);
+    });
+    await waitFor(() => expect(videoCounters()).toMatchObject({ mountedNow: 2, playingNow: 1 }));
+
+    // Coberta de novo, a viewport pode mudar; no retorno, só o que está
+    // visível agora monta player e a lista não é remontada.
+    await act(async () => {
+      setMockRouteFocused(false);
+    });
+    await showViewport([VIDEO_IDS[10]]);
+    expect(videoCounters()).toMatchObject({ mountedNow: 0, playingNow: 0 });
+    await act(async () => {
+      setMockRouteFocused(true);
+    });
+    await waitFor(() => expect(videoCounters()).toMatchObject({ mountedNow: 1, playingNow: 1 }));
   });
 
   it('pausa a reprodução quando o app vai para segundo plano', async () => {

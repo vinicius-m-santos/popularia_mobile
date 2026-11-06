@@ -15,6 +15,7 @@ import { validDestination } from '@/features/links/destinations';
 import { shareDestination } from '@/features/links/share';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { MediaVisibilityProvider, mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
+import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { contentPolicy, queryClient } from '@/lib/query/client';
 import { goBack } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
@@ -28,6 +29,8 @@ export function TopicScreen() {
   const page = useCachedPages({ queryKey: ['topic-posts', slug], load, enabled: valid, performanceScope: 'topic', ...contentPolicy.feed });
   // Só o cartão na viewport monta o player; o restante continua no pôster.
   const visibility = useListVisibility(slug);
+  // Ao abrir uma publicação ou sair do tópico, a lista perde o foco e não toca.
+  useRouteMediaFocus(visibility);
   const renderItem = useCallback(({ item, index }: { item: FeedItem; index: number }) => (
     <PostCard item={item} showRule={index > 0} />
   ), []);

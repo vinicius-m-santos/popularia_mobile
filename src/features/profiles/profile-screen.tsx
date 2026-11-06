@@ -1,5 +1,6 @@
 import { shareDestination } from '@/features/links/share';
 import { useListVisibility, MediaVisibilityProvider, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { useQuery } from '@tanstack/react-query';
 import type { FlashListRef } from '@shopify/flash-list';
 import { PopulariaList } from '@/components/list/popularia-list';
@@ -226,6 +227,9 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const pageKey = tabs.some((item) => item.key === tab) ? tab : 'posts';
   // A lista de publicações só existe na aba de posts; a viewport acompanha a aba.
   const visibility = useListVisibility(pageKey);
+  // Sair do perfil (outra aba ou rota por cima) deixa a mídia no pôster até o
+  // retorno, quando só a viewport que continua visível é reabilitada.
+  useRouteMediaFocus(visibility);
   const onListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
     const previous = scrollY.current;

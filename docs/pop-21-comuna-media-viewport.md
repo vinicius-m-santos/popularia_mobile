@@ -122,7 +122,9 @@ real de viewability.
   nativa. O vídeo visível continua montado e mudo até a comuna ser desmontada ou
   outro player assumir. É o mesmo comportamento do feed e não foi alterado
   neste card: uma pausa por foco exigiria um contrato de navegação compartilhado
-  entre todas as listas. Registrado como melhoria futura.
+  entre todas as listas. Implementado no **POP-69**
+  (`docs/pop-69-route-media-focus.md`): o foco da rota passou a fazer parte da
+  visibilidade da mídia.
 - O limiar de 20% por 100 ms é o contrato atual: um cartão 20% visível já pode
   manter player. Ajustar esse número muda a sensação de autoplay e pede
   validação em device.

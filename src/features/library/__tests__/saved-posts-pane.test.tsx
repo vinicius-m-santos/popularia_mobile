@@ -15,6 +15,7 @@ import { SavedPostsPane, useSavedPosts } from '../saved-posts-pane';
 const mockOpenPost = jest.fn();
 
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
+jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
 jest.mock('@/features/posts/api', () => {
   const actual = jest.requireActual<typeof import('@/features/posts/api')>('@/features/posts/api');
   return { ...actual, listSavedPosts: jest.fn(), setPostSaved: jest.fn() };
