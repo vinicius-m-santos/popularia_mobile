@@ -86,9 +86,9 @@ function convertDiscovery(dto: DiscoveryDto): DiscoveryData {
   };
 }
 
-export async function getDiscoveryData(ownUserId: string, topic?: string): Promise<DiscoveryData> {
+export async function getDiscoveryData(ownUserId: string, topic?: string, signal?: AbortSignal): Promise<DiscoveryData> {
   if (!DEMO_MODE) {
-    return convertDiscovery(await apiRequest<DiscoveryDto>(`/explore${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`, { auth: true }));
+    return convertDiscovery(await apiRequest<DiscoveryDto>(`/explore${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`, { auth: true, ...(signal ? { signal } : {}) }));
   }
   const data = await getExploreData(ownUserId);
   const related = data.comunas.filter((c) => !topic || c.topics[0] === topic);

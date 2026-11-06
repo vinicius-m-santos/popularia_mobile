@@ -22,7 +22,6 @@ import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
-import { useAsyncData } from '@/hooks/use-async-data';
 import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { SingleTopicField } from '@/features/onboarding/components/single-topic-field';
 import { ApiError } from '@/lib/errors';
@@ -34,7 +33,6 @@ import {
   cancelTransfer,
   decideJoinRequest,
   deleteComuna,
-  getComuna,
   getComunaMembers,
   getJoinRequests,
   proposeTransfer,
@@ -47,6 +45,7 @@ import {
 import { cleanRules, RulesEditor, rulesViolation } from './components/rules-editor';
 import { comunaErrorMessage, deletionNeedsArchive } from './errors';
 import { memberActions, type MemberAction } from './member-actions';
+import { useComuna } from './queries';
 
 type ManageTab = 'membros' | 'pedidos' | 'comuna';
 
@@ -57,8 +56,7 @@ type ManageTab = 'membros' | 'pedidos' | 'comuna';
  */
 export default function ManageComunaScreen() {
   const { id, aba } = useLocalSearchParams<{ id: string; aba?: string }>();
-  const loadComuna = useCallback(() => getComuna(id), [id]);
-  const comuna = useAsyncData(loadComuna);
+  const comuna = useComuna(id);
   const [tab, setTab] = useState<ManageTab>(aba === 'pedidos' ? 'pedidos' : 'membros');
 
   const header = (subtitle?: string) => (

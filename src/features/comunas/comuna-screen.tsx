@@ -15,13 +15,14 @@ import { useToast } from '@/components/toast';
 import { type TabOption } from '@/components/underline-tabs';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { getComuna, getComunaPosts, getPinnedPosts } from '@/features/comunas/api';
+import { getComunaPosts, getPinnedPosts } from '@/features/comunas/api';
 import { ComunaHero } from '@/features/comunas/components/comuna-hero';
 import { MembersList, ServerMembersList } from '@/features/comunas/components/members-list';
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
 import { PinnedPosts } from '@/features/comunas/components/pinned-posts';
 import { RulesList } from '@/features/comunas/components/rules-list';
 import { movePinnedPost, pinnedPostsKey, useComunaPinPending } from '@/features/comunas/pins';
+import { useComuna } from '@/features/comunas/queries';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from '@/features/profiles/profile-tab-swipe';
@@ -31,14 +32,14 @@ import { rememberPost } from '@/features/posts/save';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
-import { useAsyncData } from '@/hooks/use-async-data';
+import { useCachedPages } from '@/hooks/use-cached-pages';
 import { mediaViewabilityConfig, MediaVisibilityProvider, useListVisibility } from '@/hooks/use-list-visibility';
 import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
-import { queryClient } from '@/lib/query/client';
+import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
@@ -101,10 +102,15 @@ export default function ComunaScreen() {
   // os cartões no pôster; na volta, só a viewport retida volta a valer.
   useRouteMediaFocus(visibility);
 
-  const loadComuna = useCallback(() => getComuna(id), [id]);
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
-  const comuna = useAsyncData(loadComuna);
-  const posts = usePaginatedData(loadPosts);
+  const comuna = useComuna(id);
+  const posts = useCachedPages({
+    queryKey: queryKeys.comuna.posts(id),
+    load: loadPosts,
+    performanceScope: 'comuna',
+    retry: false,
+    ...contentPolicy.comuna,
+  });
   // Modo demonstração: publicações feitas neste aparelho aparecem no topo, antes das dos mocks.
   const localPosts = useLocalFeedItems();
   // `useLocalFeedItems()` sem filtro é estável entre renders; filtrar aqui evita recriar
@@ -122,7 +128,7 @@ export default function ComunaScreen() {
     queryKey: pinnedPostsKey(id),
     queryFn: () => getPinnedPosts(id),
     enabled: !DEMO_MODE && tab === 'posts' && !!comuna.data && !privateOutside,
-    staleTime: 15_000,
+    ...contentPolicy.comuna,
   }, queryClient);
   const pinPending = useComunaPinPending(id);
   useEffect(() => {
@@ -147,7 +153,6 @@ export default function ComunaScreen() {
   // A nova capa usa papel claro; a barra de status acompanha esse fundo.
   // Ao voltar para a tela (por exemplo, da gestão), recarrega a comuna: papel e estado podem ter mudado.
   const focusedOnce = useRef(false);
-  const reloadComuna = comuna.reload;
   const seenMembership = useRef(viewerIsMember);
   useEffect(() => {
     if (seenMembership.current !== undefined && seenMembership.current !== viewerIsMember) refresh();
@@ -156,10 +161,11 @@ export default function ComunaScreen() {
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('dark');
-      if (focusedOnce.current && !DEMO_MODE) reloadComuna();
+      // Voltar dentro da janela de frescor não repete o GET do detalhe.
+      if (focusedOnce.current && !DEMO_MODE) revalidateIfStale(queryKeys.comuna.detail(id), contentPolicy.comuna.staleTime);
       focusedOnce.current = true;
       return () => setStatusBarStyle('dark');
-    }, [reloadComuna]),
+    }, [id]),
   );
 
   const rows = useMemo<ComunaRow[]>(() => {

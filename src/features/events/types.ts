@@ -1,3 +1,5 @@
+import { queryKeys } from '@/lib/query/keys';
+
 import type { EventCapacityMode, User } from '@/types/models';
 
 export type EventFormat = 'in_person' | 'online' | 'hybrid';
@@ -61,6 +63,6 @@ export type EventDraft = {
   timeZone: string;
 };
 
-export const eventQueryKey = (id: string) => ['event', id] as const;
-export const comunaEventsKey = (slug: string, when: EventWhen | 'preview') => ['comuna-events', slug, when] as const;
-export const attendeesKey = (id: string, status: 'going' | 'maybe') => ['event-attendees', id, status] as const;
+export const eventQueryKey = (id: string) => queryKeys.event.detail(id);
+export const comunaEventsKey = (slug: string, when: EventWhen | 'preview') => queryKeys.comuna.events(slug, when);
+export const attendeesKey = (id: string, status: 'going' | 'maybe') => queryKeys.event.attendees(id, status);

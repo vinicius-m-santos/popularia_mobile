@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -9,10 +9,10 @@ import { PopulariaList } from '@/components/list/popularia-list';
 import { Screen } from '@/components/screen';
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { getComuna } from '@/features/comunas/api';
+import { useComuna } from '@/features/comunas/queries';
 import { openDestination } from '@/features/links/destinations';
 import { ApiError } from '@/lib/errors';
-import { queryClient } from '@/lib/query/client';
+import { contentPolicy, queryClient } from '@/lib/query/client';
 
 import { listEvents } from './api';
 import { EventBar } from './chrome';
@@ -27,7 +27,7 @@ const TABS: TabOption<EventWhen>[] = [
 export default function EventsScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const [when, setWhen] = useState<EventWhen>('upcoming');
-  const comuna = useQuery({ queryKey: ['comuna-brief', slug], queryFn: () => getComuna(slug), enabled: !!slug, retry: false }, queryClient);
+  const comuna = useComuna(slug);
   const list = useInfiniteQuery({
     queryKey: comunaEventsKey(slug, when),
     queryFn: ({ pageParam, signal }) => listEvents(slug, when, pageParam, 20, signal),
@@ -35,6 +35,7 @@ export default function EventsScreen() {
     getNextPageParam: (page) => page.nextCursor,
     enabled: !!slug,
     retry: false,
+    ...contentPolicy.event,
   }, queryClient);
   const items = list.data?.pages.flatMap((page) => page.items) ?? [];
   const canManage = !!comuna.data?.viewerPermissions?.canManageEvents;

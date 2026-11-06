@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, afterEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { ApiError } from '@/lib/errors';
+import { queryClient } from '@/lib/query/client';
 import { getDocument, saveDocument } from '../api';
 import DocumentScreen from '../document-screen';
 import { shareDestination } from '@/features/links/share';
@@ -17,7 +18,8 @@ jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.re
 jest.mock('../api', () => ({ getDocument: jest.fn(), saveDocument: jest.fn(), deleteDocument: jest.fn(), reportDocument: jest.fn(), removeDocument: jest.fn() }));
 jest.mock('@/features/links/share', () => ({ shareDestination: jest.fn<() => Promise<void>>().mockResolvedValue(undefined) }));
 jest.mock('../transfers', () => ({ openPdf: jest.fn() }));
-beforeEach(() => { jest.clearAllMocks(); jest.mocked(getDocument).mockResolvedValue(document); jest.mocked(openPdf).mockResolvedValue(undefined); jest.mocked(saveDocument).mockResolvedValue(undefined); });
+beforeEach(() => { jest.clearAllMocks(); queryClient.clear(); jest.mocked(getDocument).mockResolvedValue(document); jest.mocked(openPdf).mockResolvedValue(undefined); jest.mocked(saveDocument).mockResolvedValue(undefined); });
+afterEach(() => { queryClient.clear(); });
 describe('detalhe de PDF', () => {
   it('abre arquivo autorizado, salva sem refetch completo e publica a referência', async () => {
     await render(<DocumentScreen />);

@@ -1,6 +1,6 @@
 import { resetSavedSession } from '@/features/posts/save';
+import { invalidateAfterPostCreated } from '@/features/posts/invalidation';
 import { resetFollowSession } from '@/features/profiles/follow-cache';
-import { queryClient } from '@/lib/query/client';
 /**
  * Estado local das interações da pessoa (apoiar, ecoar, salvar, participar…).
  *
@@ -143,7 +143,7 @@ type InteractionsValue = {
   noteCommentCount: (postId: string, count: number) => void;
   /** Muda quando a pessoa publica na API: as listas de publicações recarregam. */
   postsVersion: number;
-  notifyPostCreated: () => void;
+  notifyPostCreated: (published?: { author?: string | null; comunaIds?: (string | null | undefined)[] }) => void;
   /** Esquece tudo (entrar ou sair da conta): nada de uma pessoa vaza para a próxima. */
   resetAll: () => void;
 };
@@ -234,11 +234,11 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     (postId: string, count: number) => dispatch({ type: 'commentCount', postId, count }),
     [],
   );
-  const notifyPostCreated = useCallback(() => {
+  const notifyPostCreated = useCallback((published?: { author?: string | null; comunaIds?: (string | null | undefined)[] }) => {
     dispatch({ type: 'postCreated' });
-    // Invalida também listas desmontadas, que podem continuar no cache.
-    void queryClient.invalidateQueries({ queryKey: ['feed'] });
-    void queryClient.invalidateQueries({ queryKey: ['profile-posts'] });
+    // Invalida também listas desmontadas, mas só nas superfícies que podem
+    // mostrar a publicação criada.
+    invalidateAfterPostCreated(published);
   }, []);
   const resetAll = useCallback(() => { resetFollowSession(); resetSavedSession(); dispatch({ type: 'reset' }); }, []);
 

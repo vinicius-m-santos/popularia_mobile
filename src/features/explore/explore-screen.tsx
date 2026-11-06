@@ -19,17 +19,18 @@ import { ComunaRow } from '@/features/comunas/components/comuna-row';
 import { JoinButton } from '@/features/comunas/components/join-button';
 import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
-import { useAsyncData } from '@/hooks/use-async-data';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
 import { formatPeople } from '@/lib/format';
-import { queryClient } from '@/lib/query/client';
+import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { goBack, useNav } from '@/lib/routes';
 import type { Comuna, FeedItem, Topic } from '@/types/models';
 
-import { getDiscoveryData, searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
+import { searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
 import { ComunasToKnowSection, suggestedComunas } from './comunas-carousel';
 import { DiscoveryEventRow } from './discovery-event-row';
 import { DiscoveryPostRow } from './discovery-post-row';
+import { useDiscovery } from './queries';
 import { selectTrendingPosts, TrendingNowSection, TrendingNowSkeleton } from './trending-now';
 
 const FILTERS: { key: DiscoveryFilter; label: string; action: string }[] = [
@@ -64,12 +65,9 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const nav = useNav();
   const { interests, profile } = useAccount();
   const interestKey = (interests ?? []).join(',');
-  const load = useCallback(() => {
-    // Recarrega as prioridades quando interesses mudam no perfil.
-    void interestKey;
-    return getDiscoveryData(me.id, topicId);
-  }, [me.id, topicId, interestKey]);
-  const data = useAsyncData(load);
+  // A chave inclui os interesses porque a descoberta é personalizada por eles.
+  const discovery = useDiscovery(me.id, topicId, interestKey);
+  const data = discovery;
   const trending = useMemo(
     () => data.data ? selectTrendingPosts([...data.data.posts, ...data.data.recentPosts]) : [],
     [data.data],
@@ -93,11 +91,11 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const topic = data.data?.topics.find((t) => t.id === topicId);
   // O /explore?topic= não inclui documentos; usa a busca por assunto para trazer o acervo.
   const topicDocuments = useQuery({
-    queryKey: ['topic-documents', me.id, topicId ?? ''],
+    queryKey: queryKeys.discovery.topicDocuments(me.id, topicId ?? ''),
     queryFn: ({ signal }) => searchDiscovery(me.id, '', 'documents', topicId, null, signal),
     enabled: !!topicId && !!topic,
     retry: false,
-    staleTime: 60_000,
+    ...contentPolicy.topic,
   }, queryClient);
   const topicDocumentItems = (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents');
   const refetchTopicDocuments = topicDocuments.refetch;
@@ -108,14 +106,13 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const title = topicId ? topic?.shortLabel ?? 'Assunto' : 'Explorar';
   const searchLabel = topicId ? `Buscar em ${title}` : 'Buscar na Popularia';
   const result = useInfiniteQuery({
-    queryKey: ['search', debounced, filter, topicId ?? null],
+    queryKey: queryKeys.discovery.search(debounced, filter, topicId),
     queryFn: ({ pageParam, signal }) => searchDiscovery(me.id, debounced, filter, topicId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
     enabled: searchEnabled,
     retry: false,
-    staleTime: 0,
-    gcTime: 5 * 60_000,
+    ...contentPolicy.search,
     placeholderData: keepPreviousData,
   }, queryClient);
   const refreshSearch = result.refetch;
@@ -123,11 +120,13 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const revalidateRef = useRef(() => {});
   useEffect(() => {
     revalidateRef.current = () => {
-      reload();
-      if (topicId && topic) void refetchTopicDocuments();
+      // Descoberta só busca de novo fora da janela de frescor; busca digitada
+      // revalida no foco porque staleTime é 0 por contrato.
+      revalidateIfStale(discovery.queryKey, contentPolicy.discovery.staleTime);
+      if (topicId && topic) revalidateIfStale(queryKeys.discovery.topicDocuments(me.id, topicId), contentPolicy.topic.staleTime);
       if (searchEnabled) void refreshSearch();
     };
-  }, [reload, refreshSearch, searchEnabled, topicId, topic, refetchTopicDocuments]);
+  }, [discovery.queryKey, refreshSearch, searchEnabled, topicId, topic, me.id]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
     focusedOnce.current = true;

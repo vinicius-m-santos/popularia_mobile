@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { runWithPerformanceScope } from '@/lib/performance';
 import { accessDenied, queryClient } from '@/lib/query/client';
 import { mergeById, reconcileRefreshedPages, type Page } from '@/lib/pagination';
+import { assertPagePayload } from '@/lib/query/payloads';
 
 type PagesData<T> = InfiniteData<Page<T>, string | null>;
 
@@ -11,24 +12,29 @@ function toError(error: unknown): Error {
 }
 
 /** Adaptador pequeno para listas paginadas; o cache e a concorrência pertencem ao Query. */
-export function useCachedPages<T extends { id: string }>({ queryKey, load, staleTime, gcTime, enabled = true, performanceScope }: {
+export function useCachedPages<T extends { id: string }>({ queryKey, load, staleTime, gcTime, enabled = true, retry, performanceScope }: {
   queryKey: QueryKey; load: (cursor: string | null, signal: AbortSignal) => Promise<Page<T>>;
   staleTime: number; gcTime: number; enabled?: boolean;
+  /** Quando definido, sobrepõe a política de retry do QueryClient (ex.: erro mostrado na hora). */
+  retry?: boolean;
   /** Nome da tela para atribuir requests na instrumentação local (POP-5). */
   performanceScope?: string;
 }) {
   const pendingAction = useRef<'refresh' | 'pagination' | null>(null);
-  const trackedLoad = useCallback((cursor: string | null, signal: AbortSignal) => {
+  const trackedLoad = useCallback(async (cursor: string | null, signal: AbortSignal) => {
     const action = pendingAction.current ?? (cursor ? 'pagination' : 'initial');
     pendingAction.current = null;
     // O escopo é lido de forma síncrona no começo de cada request; respostas que
     // chegam depois de uma navegação não são atribuídas à tela errada.
-    return runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action }, () => load(cursor, signal));
+    const page = await runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action }, () => load(cursor, signal));
+    // Uma resposta parcial não pode substituir páginas boas no cache.
+    return assertPagePayload<T>(page);
   }, [load, performanceScope]);
   const query = useInfiniteQuery({ queryKey, initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => trackedLoad(pageParam, signal),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime, gcTime, enabled,
+    ...(retry !== undefined ? { retry } : {}),
   }, queryClient);
   const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
   const key = JSON.stringify(queryKey);
@@ -40,9 +46,10 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
   const { fetchNextPage } = query;
   const fetching = query.isFetching;
 
-  const loadForRefresh = useCallback((cursor: string | null, signal: AbortSignal) =>
-    runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action: 'refresh' }, () => load(cursor, signal)),
-  [load, performanceScope]);
+  const loadForRefresh = useCallback(async (cursor: string | null, signal: AbortSignal) => {
+    const page = await runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action: 'refresh' }, () => load(cursor, signal));
+    return assertPagePayload<T>(page);
+  }, [load, performanceScope]);
 
   useEffect(() => () => {
     // Trocar de aba/consulta não pode deixar um refresh antigo escrevendo no

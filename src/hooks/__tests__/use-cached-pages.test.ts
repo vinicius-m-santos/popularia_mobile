@@ -342,4 +342,17 @@ describe('refresh incremental', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['x', 'y']);
     expect(result.current.hasMore).toBe(false);
   });
+
+  it('não substitui o histórico quando o refresh recebe uma página parcial', async () => {
+    const load = jest.fn<() => Promise<Page<Item>>>()
+      .mockResolvedValueOnce(page('a'))
+      .mockResolvedValueOnce({ nextCursor: null } as unknown as Page<Item>);
+    const { result } = await renderHook(() => useCachedPages({ queryKey: ['feed'], load, performanceScope: 'feed', ...policy }));
+    await waitFor(() => expect(result.current.items).toEqual(page('a').items));
+
+    await act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.refreshError).not.toBeNull());
+    expect(result.current.items).toEqual(page('a').items);
+    expect(queryClient.getQueryData<{ pages: Page<Item>[] }>(['feed'])?.pages[0].items).toEqual(page('a').items);
+  });
 });

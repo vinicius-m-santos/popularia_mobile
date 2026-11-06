@@ -14,6 +14,7 @@ import { apiRequest } from '@/lib/api/client';
 import { describeError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 
 export function BlockedPeoplePanel() {
   const load = useCallback(() => apiRequest<{ handle: string; displayName: string }[]>('/me/blocks', { auth: true }), []);
@@ -46,7 +47,7 @@ export function BlockedPeoplePanel() {
               // O bloqueio também some do filtro local do feed; senão as publicações continuam ocultas.
               rememberBlocked(person.handle, false);
               setOn('mutedUsers', [person.handle], false);
-              void queryClient.invalidateQueries({ queryKey: ['feed'] });
+              void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
               toast.show(`@${person.handle} desbloqueado.`);
               data.reload();
             } catch (e) { setError(describeError(e)); }

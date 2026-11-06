@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Colors, Spacing } from '@/constants/theme';
 import { openDestination } from '@/features/links/destinations';
-import { queryClient } from '@/lib/query/client';
+import { contentPolicy, queryClient } from '@/lib/query/client';
 
 import { listEvents } from './api';
 import { attendanceCount, formatPoster } from './format';
@@ -17,7 +17,7 @@ export function NextEvent({ slug }: { slug: string }) {
     queryKey: comunaEventsKey(slug, 'preview'),
     queryFn: ({ signal }) => listEvents(slug, 'upcoming', null, 5, signal),
     retry: false,
-    staleTime: 15_000,
+    ...contentPolicy.event,
   }, queryClient);
   if (preview.isError) {
     return (

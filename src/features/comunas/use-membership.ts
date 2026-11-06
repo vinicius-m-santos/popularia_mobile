@@ -9,6 +9,7 @@ import { ApiError, describeError } from '@/lib/errors';
 import type { Comuna } from '@/types/models';
 
 import { joinComuna, leaveComuna } from './api';
+import { applyComunaMembership } from './queries';
 
 /** Mensagens para as recusas conhecidas de PUT/DELETE /comunas/{slug}/membership. */
 function membershipErrorMessage(error: unknown, joining: boolean): string {
@@ -48,9 +49,13 @@ export function useComunaMembership(comuna: Pick<Comuna, 'id' | 'name' | 'viewer
     setPending(true);
     try {
       if (joining) {
-        await joinComuna(comuna.id);
+        const membership = await joinComuna(comuna.id);
+        applyComunaMembership(comuna.id, membership);
         acknowledgeGamification(account?.id, toast.show);
-      } else await leaveComuna(comuna.id);
+      } else {
+        await leaveComuna(comuna.id);
+        applyComunaMembership(comuna.id, null);
+      }
       setOn('joinedComunas', [comuna.id], joining);
       toast.show(joining ? `Você entrou em ${comuna.name}.` : `Você saiu de ${comuna.name}.`);
     } catch (error) {

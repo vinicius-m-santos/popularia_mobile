@@ -1,6 +1,13 @@
 import { queryClient, setQueryDataIfChanged } from '@/lib/query/client';
 import type { FeedItem } from '@/types/models';
 
+import {
+  containsPost,
+  isFeedItemPayload as isFeedItem,
+  isPostCacheRoot,
+  isPostInfinitePayload as isInfinite,
+  isPostPagePayload as isPage,
+} from './cache-payload';
 import { createPostSubscription } from './post-subscriptions';
 
 /**
@@ -20,9 +27,6 @@ export type ReactionKind = 'support' | 'echo';
 export type Reaction = { count: number; mine: boolean };
 /** Reações desta sessão para uma publicação. O objeto só muda quando um valor muda. */
 export type PostReactions = Partial<Record<ReactionKind, Reaction>>;
-
-/** As mesmas raízes de lista usadas por `poll.ts` e `save.ts`, mais a lista de salvos. */
-const POST_ROOTS = new Set(['feed', 'profile-posts', 'post', 'post-preview', 'saved-posts']);
 
 const overrides = new Map<string, PostReactions>();
 const locks = new Set<string>();
@@ -117,7 +121,7 @@ export function patchReactionCaches(
 ): number {
   let changed = 0;
   const queries = queryClient.getQueryCache().findAll({
-    predicate: (query) => POST_ROOTS.has(String(query.queryKey[0])) && containsPost(query.state.data, postId),
+    predicate: (query) => isPostCacheRoot(query.queryKey) && containsPost(query.state.data, postId),
   });
   for (const query of queries) {
     const current = query.state.data;
@@ -125,13 +129,6 @@ export function patchReactionCaches(
     if (setQueryDataIfChanged(query.queryKey, current, next)) changed += 1;
   }
   return changed;
-}
-
-function containsPost(data: unknown, postId: string): boolean {
-  if (isFeedItem(data)) return data.id === postId;
-  if (isInfinite(data)) return data.pages.some((page) => isPage(page) && page.items.some((item) => item?.id === postId));
-  if (isPage(data)) return data.items.some((item) => item?.id === postId);
-  return false;
 }
 
 function reactionOf(item: FeedItem, kind: ReactionKind): Reaction {
@@ -189,16 +186,4 @@ function withReaction(item: FeedItem, kind: ReactionKind, value: Reaction): Feed
   return kind === 'support'
     ? { ...item, supportCount: value.count, viewer }
     : { ...item, echoCount: value.count, viewer };
-}
-
-function isFeedItem(value: unknown): value is FeedItem {
-  return !!value && typeof value === 'object' && 'id' in value && 'text' in value && 'author' in value;
-}
-
-function isPage(value: unknown): value is { items: (FeedItem | null)[]; nextCursor: string | null } {
-  return !!value && typeof value === 'object' && 'items' in value && Array.isArray((value as { items: unknown }).items);
-}
-
-function isInfinite(value: unknown): value is { pages: unknown[]; pageParams: unknown[] } {
-  return !!value && typeof value === 'object' && 'pages' in value && Array.isArray((value as { pages: unknown }).pages);
 }

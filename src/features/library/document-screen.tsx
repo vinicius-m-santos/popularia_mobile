@@ -16,7 +16,7 @@ import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, MaxContentWidth, Radius, Shadows, Spacing } from '@/constants/theme';
-import { getComuna } from '@/features/comunas/api';
+import { useComuna } from '@/features/comunas/queries';
 import { shareDestination } from '@/features/links/share';
 import { REPORT_REASONS } from '@/features/moderation/constants';
 import { getTopicGroups } from '@/features/onboarding/api';
@@ -40,8 +40,7 @@ export default function DocumentScreen() {
     if (focusedOnce.current) reload();
     focusedOnce.current = true;
   }, [reload]));
-  const loadContext = useCallback(() => comuna ? getComuna(comuna) : Promise.resolve(null), [comuna]);
-  const context = useAsyncData(loadContext);
+  const context = useComuna(comuna ?? '');
   const topicGroups = useAsyncData(useCallback(() => getTopicGroups(), []));
   const [busy, setBusy] = useState(false);
   const [reporting, setReporting] = useState(false);

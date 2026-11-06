@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, afterEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { ApiError } from '@/lib/errors';
+import { queryClient } from '@/lib/query/client';
 import { getMyComunas } from '@/features/comunas/api';
 import type { Comuna } from '@/types/models';
 import { listCollections, listDocuments, uploadDocument, saveDocument, getDocument, editDocument } from '../api';
@@ -24,11 +25,13 @@ jest.mock('../api', () => ({ listDocuments: jest.fn(), listCollections: jest.fn(
 jest.mock('../transfers', () => ({ pickPdf: jest.fn() }));
 beforeEach(() => {
   jest.clearAllMocks(); delete params.composerKey; delete params.edit;
+  queryClient.clear();
   jest.mocked(listDocuments).mockResolvedValue({ items: [], nextCursor: null });
   jest.mocked(listCollections).mockResolvedValue({ items: [collection], nextCursor: null });
   jest.mocked(getMyComunas).mockResolvedValue([]);
   jest.mocked(pickPdf).mockResolvedValue({ name: 'cartilha.pdf', uri: 'file:///cartilha.pdf', size: 1024 });
 });
+afterEach(() => { queryClient.clear(); });
 describe('bibliotecas reais', () => {
   it('separa vazio, busca, filtros oficiais e paginação no servidor', async () => {
     jest.mocked(listDocuments).mockResolvedValue({ items: [document], nextCursor: null });

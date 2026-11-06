@@ -1,3 +1,5 @@
+import { queryKeys } from '@/lib/query/keys';
+
 /** GET /me/gamification. Privado: sem livro de XP e sem a origem de cada ação. */
 export type GamificationMission = {
   action: string;
@@ -31,7 +33,7 @@ export type GamificationState = {
 };
 
 export function gamificationQueryKey(accountId: string) {
-  return ['gamification', accountId] as const;
+  return queryKeys.gamification.detail(accountId);
 }
 
 export function streakLabel(streak: number): string {

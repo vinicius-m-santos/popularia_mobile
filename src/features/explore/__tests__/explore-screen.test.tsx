@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { settleQueryClient } from '@/features/events/query-test-utils';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 
 import { searchDiscovery, getDiscoveryData, type DiscoveryData, type DiscoveryEntry } from '../api';
 import ExploreScreen, { TopicScreen } from '../explore-screen';
@@ -190,12 +191,13 @@ describe('Explorar', () => {
   it('revalidação automática ao voltar não ativa o inset nativo de pull-to-refresh', async () => {
     await render(<ExploreScreen />);
     await screen.findByText('Comunas para conhecer');
-    let finish: (value: DiscoveryData) => void = () => {};
-    getData.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const key = queryKeys.discovery.home('me', undefined, 'tec');
+    queryClient.getQueryCache().find({ queryKey: key, exact: true })?.setState({ dataUpdatedAt: Date.now() - 120_000 });
+    getData.mockResolvedValueOnce(data);
     await act(async () => { mockFocusCallbacks.forEach((focus) => focus()); });
+    await waitFor(() => expect(getData).toHaveBeenCalledTimes(2));
     const refreshControl = screen.container.queryAll((element) => element.type === 'RCTRefreshControl')[0];
     expect(refreshControl.props.refreshing).toBeFalsy();
-    await act(async () => finish(data));
   });
 
   it('busca vazia, erro/retry e paginação de uma categoria', async () => {
@@ -260,7 +262,7 @@ describe('página de Assunto', () => {
     expect(screen.queryByText('Pessoas')).toBeNull();
     expect(screen.getByText('Em destaque')).toBeTruthy();
     expect(screen.getByText('Publicações recentes')).toBeTruthy();
-    expect(getData).toHaveBeenCalledWith('me', 'tec');
+    expect(getData).toHaveBeenCalledWith('me', 'tec', expect.anything());
     await fireEvent.changeText(screen.getByLabelText('Buscar em Tecnologia'), 'Linux');
     await debounce();
     expect(search).toHaveBeenLastCalledWith('me', 'Linux', 'all', 'tec', null, expect.anything());

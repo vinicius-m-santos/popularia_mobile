@@ -2,13 +2,14 @@
  * Telas de criar e gerir comuna com a API configurada: usam as funções reais da API (aqui
  * simuladas), mostram as recusas do servidor e nunca caem para dados fictícios.
  */
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
 import type { ComunaQuotaDto } from '@/lib/api/dto';
 import { ApiError, NetworkError } from '@/lib/errors';
+import { queryClient } from '@/lib/query/client';
 import type { ComunaDetails } from '@/types/models';
 
 import * as api from '../api';
@@ -114,9 +115,12 @@ function comuna(patch: Partial<ComunaDetails> = {}): ComunaDetails {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  queryClient.clear();
   mocked.checkComunaName.mockResolvedValue({ name: 'x', slug: 'x', available: true, message: null });
   mocked.getComunaMembers.mockResolvedValue({ items: [], nextCursor: null });
 });
+
+afterEach(() => { queryClient.clear(); });
 
 describe('criar comuna', () => {
   it('cancelar sem preencher retorna ao contexto anterior sem criar nem abrir outra rota', async () => {

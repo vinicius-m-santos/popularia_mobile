@@ -1,4 +1,5 @@
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 
 import { putAttendance } from './api';
 import { attendeesKey, eventQueryKey } from './types';
@@ -53,13 +54,13 @@ function replaceEvent(data: unknown, next: ComunaEvent): unknown {
 
 export function writeEvent(next: ComunaEvent) {
   queryClient.setQueryData(eventQueryKey(next.id), next);
-  queryClient.setQueriesData({ queryKey: ['comuna-events'] }, (data) => replaceEvent(data, next));
+  queryClient.setQueriesData({ predicate: (query) => queryKeys.comuna.isEventsKey(query.queryKey) }, (data) => replaceEvent(data, next));
 }
 
 /** Criar, editar ou cancelar: o detalhe muda na hora e as listas da comuna são recarregadas. */
 export function storeEvent(event: ComunaEvent) {
   writeEvent(event);
-  if (event.comuna) void queryClient.invalidateQueries({ queryKey: ['comuna-events', event.comuna.slug] });
+  if (event.comuna) void queryClient.invalidateQueries({ queryKey: queryKeys.comuna.eventsAll(event.comuna.slug) });
 }
 
 export async function setAttendance(event: ComunaEvent, status: AttendanceStatus): Promise<'applied' | 'ignored'> {
