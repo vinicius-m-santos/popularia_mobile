@@ -100,4 +100,12 @@ describe('reducer de interações', () => {
     expect(next).not.toBe(state);
     expect(next.goingEvents['chamado-1']).toBe(false);
   });
+
+  it('não cria novo estado quando a contagem de comentários repete ou diminui', () => {
+    const state = reducer(initialState(), { type: 'commentCount', postId: 'p1', count: 3 });
+
+    expect(reducer(state, { type: 'commentCount', postId: 'p1', count: 3 })).toBe(state);
+    expect(reducer(state, { type: 'commentCount', postId: 'p1', count: 2 })).toBe(state);
+    expect(reducer(state, { type: 'commentCount', postId: 'p2', count: 1 })).not.toBe(state);
+  });
 });
