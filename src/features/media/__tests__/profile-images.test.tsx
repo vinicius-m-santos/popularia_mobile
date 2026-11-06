@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator } from 'expo-image-manipulator';
 
+import { clearAvatarCache } from '@/lib/avatar-cache';
 import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
 import type { User } from '@/types/models';
@@ -49,6 +50,7 @@ function comuna(canEdit: boolean) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  clearAvatarCache();
   queryClient.clear();
   resetImageUploadLocks();
   mockSaveAsync.mockResolvedValue({ uri: 'file:///normalized.jpg', width: 800, height: 800 });

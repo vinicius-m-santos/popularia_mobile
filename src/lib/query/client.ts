@@ -17,6 +17,21 @@ export const queryClient = new QueryClient({ queryCache: new QueryCache({
   refetchOnWindowFocus: false,
 } } });
 
+/** Raiz do overlay de foto de perfil, compartilhado por todos os avatares da pessoa. */
+export const AVATAR_QUERY_ROOT = 'user-avatar';
+
+export const avatarQueryKey = (userId: string): QueryKey => [AVATAR_QUERY_ROOT, userId];
+
+/**
+ * O overlay de avatar não é dado de tela: é uma URL curta que precisa sobreviver
+ * a uma navegação, não à sessão inteira. Sem `gcTime` infinito, a entrada de
+ * query de quem saiu da árvore é recolhida; o valor atual continua no store de
+ * avatares, que é limpo na troca de conta.
+ */
+export const avatarCachePolicy = { staleTime: Infinity, gcTime: 5 * 60_000 } as const;
+
+queryClient.setQueryDefaults([AVATAR_QUERY_ROOT], avatarCachePolicy);
+
 /**
  * `setQueryData` dispara um `updated` e acorda os observers mesmo quando o updater
  * devolve o mesmo objeto. Num patch de reação/salvamento isso é ruído: a lista não

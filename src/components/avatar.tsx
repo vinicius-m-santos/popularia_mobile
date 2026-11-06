@@ -1,11 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { CollectionColors, Colors, Fonts } from '@/constants/theme';
-import { queryClient } from '@/lib/query/client';
+import { readAvatarUrl, subscribeAvatarUrl } from '@/lib/avatar-cache';
 import type { Tone } from '@/types/models';
 
 export type AvatarColor = { bg: string; fg: string };
@@ -85,17 +84,25 @@ type AvatarProps = {
   userId?: string;
 };
 
+const LOCAL_IMAGE = /^(file|content|blob|ph|assets-library):/;
+
+/**
+ * Resolve a foto sem criar um observer de query por avatar. O valor publicado
+ * (`publishAvatar`) fica em um store com assinatura por pessoa; o dado que já
+ * veio no perfil/feed continua sendo a fonte quando não há troca nesta sessão.
+ * Arquivo local e ausência de `userId` não assinam nada.
+ */
 function useAvatarUrl(userId: string | undefined, imageUrl: string | null | undefined): string | null {
-  const cached = useQuery({
-    queryKey: ['user-avatar', userId ?? ''],
-    enabled: false,
-    queryFn: () => null as string | null,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  }, queryClient);
-  if (imageUrl && /^(file|content|blob|ph|assets-library):/.test(imageUrl)) return imageUrl;
-  if (userId && cached.dataUpdatedAt > 0 && typeof cached.data === 'string') return cached.data;
-  return imageUrl ?? null;
+  const local = !!imageUrl && LOCAL_IMAGE.test(imageUrl);
+  const watchedId = local ? null : userId ?? null;
+  const subscribe = useCallback(
+    (notify: () => void) => watchedId ? subscribeAvatarUrl(watchedId, notify) : () => {},
+    [watchedId],
+  );
+  const getSnapshot = useCallback(() => watchedId ? readAvatarUrl(watchedId) : null, [watchedId]);
+  const published = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  if (local) return imageUrl ?? null;
+  return published ?? imageUrl ?? null;
 }
 
 /** Avatar com foto ou iniciais. É decorativo: o nome fica no texto ao lado. */

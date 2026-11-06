@@ -1,4 +1,5 @@
-import { queryClient } from '@/lib/query/client';
+import { rememberAvatarUrl } from '@/lib/avatar-cache';
+import { avatarQueryKey, queryClient } from '@/lib/query/client';
 
 function isAppUser(value: Record<string, unknown>): boolean {
   return typeof value.id === 'string'
@@ -52,7 +53,8 @@ function patchQueries(visit: (record: Record<string, unknown>) => Record<string,
 
 /** Atualiza a foto nas queries já carregadas e avisa os avatares que observam esta pessoa. */
 export function publishAvatar(userId: string, avatarUrl: string): void {
-  queryClient.setQueryData(['user-avatar', userId], avatarUrl);
+  queryClient.setQueryData(avatarQueryKey(userId), avatarUrl);
+  rememberAvatarUrl(userId, avatarUrl);
   patchQueries((record) => {
     if (!isAppUser(record) || record.id !== userId || record.avatarUrl === avatarUrl) return null;
     return { ...record, avatarUrl };
