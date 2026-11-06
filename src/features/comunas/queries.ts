@@ -1,12 +1,14 @@
-import { queryOptions, useQuery } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions, useQuery } from '@tanstack/react-query';
 
 import type { MembershipDto } from '@/lib/api/dto';
-import { accessDenied, contentPolicy, queryClient } from '@/lib/query/client';
+import {
+  accessDenied, contentPolicy, prefetchInfiniteQueryOnce, prefetchQueryOnce, queryClient,
+} from '@/lib/query/client';
 import { queryKeys } from '@/lib/query/keys';
-import type { ComunaDetails } from '@/types/models';
+import type { Comuna, ComunaDetails } from '@/types/models';
 
-import { getComuna } from './api';
-import { placeholderComunaDetails, rememberComunaSummary } from './keys';
+import { getComuna, getComunaPosts } from './api';
+import { placeholderComunaDetails, readComunaSummary, rememberComunaSummary } from './keys';
 
 export function isComunaDetailsPayload(value: unknown): value is ComunaDetails {
   if (!value || typeof value !== 'object') return false;
@@ -41,6 +43,39 @@ export function useComuna(slug: string) {
   };
 }
 
+/** Primeira página de publicações da comuna, com a mesma chave usada pela tela. */
+export const comunaPostsOptions = (slug: string) => infiniteQueryOptions({
+  queryKey: queryKeys.comuna.posts(slug),
+  queryFn: ({ pageParam }) => getComunaPosts(slug, pageParam),
+  initialPageParam: null as string | null,
+  getNextPageParam: (page) => page.nextCursor ?? undefined,
+  ...contentPolicy.comuna,
+});
+
+/**
+ * Aquece detalhe e primeira página da comuna antes da navegação.
+ *
+ * O resumo da lista é gravado separadamente para a capa aparecer na primeira
+ * renderização. Se a leitura falhar ou demorar, a tela de destino segue o fluxo
+ * normal de loading/erro e tenta de novo. Uma lista já carregada não é refeita
+ * no `onPressIn` (evita multiplicar páginas em rede lenta).
+ */
+export function prepareComuna(input: string | Comuna, options: { includePosts?: boolean } = {}): Promise<void> {
+  const slug = typeof input === 'string' ? input : input.id;
+  const summary = typeof input === 'string' ? readComunaSummary(input) : input;
+  if (typeof input !== 'string') rememberComunaSummary(input);
+
+  const tasks = [prefetchQueryOnce(comunaOptions(slug))];
+  // Comuna privada sem participação não expõe publicações: o prefetch não deve
+  // provocar um 403 antes de a tela decidir mostrar o recado de acesso.
+  const canReadPosts = !(summary?.visibility === 'private' && !summary.viewerIsMember);
+  if (options.includePosts !== false && canReadPosts) {
+    tasks.push(prefetchInfiniteQueryOnce(comunaPostsOptions(slug)));
+  }
+  return Promise.all(tasks).then(() => undefined);
+}
+
+/** Invalida as leituras derivadas de uma comuna; o detalhe é atualizado por quem chamou. */
 export async function invalidateComunaReads(slug: string): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.comuna.posts(slug) }),

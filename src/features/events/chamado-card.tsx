@@ -45,15 +45,18 @@ type ChamadoAuthorLineProps = {
   origin: string;
   meta: string;
   onPress?: () => void;
+  /** Aquece o perfil antes de navegar. */
+  onPressIn?: () => void;
   trailing?: ReactNode;
 };
 
 /** Topo do item no feed: "Fulano convocou" e o destino, em mono vermelho. */
-export function ChamadoAuthorLine({ author, origin, meta, onPress, trailing }: ChamadoAuthorLineProps) {
+export function ChamadoAuthorLine({ author, origin, meta, onPress, onPressIn, trailing }: ChamadoAuthorLineProps) {
   return (
     <View style={styles.authorRow}>
       <Pressable
         onPress={onPress}
+        onPressIn={onPress ? onPressIn : undefined}
         disabled={!onPress}
         accessibilityRole={onPress ? 'link' : undefined}
         accessibilityLabel={`${author.name} convocou.${origin ? ` ${origin}.` : ''}${meta ? ` ${meta}` : ''}`}

@@ -18,6 +18,7 @@ import { queryClient } from '@/lib/query/client';
 
 import * as api from '../api';
 import ComunaScreen from '../comuna-screen';
+import { prepareComuna } from '../queries';
 
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, API_BASE_URL: 'http://api.test/api/v1', API_TIMEOUT_MS: 1000 }));
 
@@ -420,5 +421,24 @@ describe('lista de publicações da comuna em FlashList', () => {
     await fireEvent.press(screen.getByLabelText('Simular viewport'));
     await waitFor(() => expect(screen.getByTestId('post-qa-post-1').props.accessibilityLabel).toBe('mídia visível'));
     expect(screen.getByTestId('post-qa-post-2').props.accessibilityLabel).toBe('mídia oculta');
+  });
+
+  it('usa detalhe e primeira página pré-aquecidos sem request duplo', async () => {
+    await prepareComuna('hortas');
+    mocked.getComuna.mockClear();
+    mocked.getComunaPosts.mockClear();
+
+    await render(<Harness />);
+    await screen.findByTestId('post-qa-post-1');
+
+    expect(mocked.getComuna).not.toHaveBeenCalled();
+    expect(mocked.getComunaPosts).not.toHaveBeenCalled();
+  });
+
+  it('não prefetcha publicações de comuna privada sem participação', async () => {
+    await prepareComuna(comuna({ visibility: 'private', viewerIsMember: false }));
+
+    expect(mocked.getComuna).toHaveBeenCalledTimes(1);
+    expect(mocked.getComunaPosts).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { SectionHeading } from '@/components/section-heading';
 import { Colors, Spacing } from '@/constants/theme';
+import { preparePost } from '@/features/posts/queries';
 import type { FeedItem } from '@/types/models';
 
 type PinnedPostsProps = {
@@ -87,6 +88,7 @@ export function PinnedPosts({ items, status = 'success', canReorder = false, pen
                 accessibilityRole="button"
                 accessibilityLabel={`Fixado ${label}. ${summary}. ${detail}`}
                 accessibilityHint="Abre a publicação"
+                onPressIn={() => { void preparePost(item); }}
                 onPress={() => onOpen(item.id)}
                 style={styles.body}>
                 <AppText numberOfLines={2}>{summary}</AppText>

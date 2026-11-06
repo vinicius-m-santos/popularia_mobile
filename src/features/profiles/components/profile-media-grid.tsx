@@ -51,7 +51,7 @@ function MediaTile({ post, onPress }: { post: FeedItem; onPress: () => void }) {
 
   return (
     <Pressable
-      onPressIn={() => preparePost(post)}
+      onPressIn={() => { void preparePost(post); }}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}

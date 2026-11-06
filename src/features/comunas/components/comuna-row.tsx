@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { prepareComuna } from '@/features/comunas/queries';
 import type { Comuna } from '@/types/models';
 
 import { ComunaMark } from './comuna-mark';
@@ -23,6 +24,7 @@ export function ComunaRow({ comuna, subtitle, description, onOpen, trailing }: C
     <View style={styles.row}>
       <Pressable
         onPress={onOpen}
+        onPressIn={() => { void prepareComuna(comuna); }}
         accessibilityRole="link"
         accessibilityLabel={`${comuna.name}, ${subtitle}`}
         accessibilityHint="Abre a comuna"

@@ -1,4 +1,6 @@
 import { preparePost } from '@/features/posts/queries';
+import { prepareComuna } from '@/features/comunas/queries';
+import { prepareProfileFromUser } from '@/features/profiles/queries';
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
@@ -63,16 +65,21 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
   const sheet = useActionsSheet();
   const { isOn } = useInteractions();
   const chamado = useMemo(() => chamadoCardFor(item), [item]);
+  // O prefetch acontece no toque inicial; o toque final só navega. Assim um
+  // toque cancelado ou um long press não repete a leitura, e a tela de destino
+  // usa o cache aquecido (ou busca por conta própria, se o prefetch falhar).
+  const prefetchPost = () => { void preparePost(item); };
   const open = () => nav.openPost(item.id);
-  // O corpo já antecipa a publicação no `onPressIn`; os demais toques do cartão
-  // não têm esse gancho, então continuam preparando a publicação aqui.
-  const openWithPrefetch = () => { preparePost(item); open(); };
   // Na API, só o próprio perfil abre (perfis de outras pessoas ainda são fictícios).
   const openAuthor = !item.viewer
     ? () => nav.openProfile(author.id)
     : item.viewer.isAuthor
       ? () => nav.openProfile('me')
       : undefined;
+  const prefetchAuthor = openAuthor
+    ? () => { void prepareProfileFromUser(author, !!item.viewer?.isAuthor); }
+    : undefined;
+  const prefetchComuna = comuna ? () => { void prepareComuna(comuna.id); } : undefined;
 
   if (!showMuted && isOn('mutedUsers', author.handle)) return null;
   const topCommentMuted = topCommentAuthor ? isOn('mutedUsers', topCommentAuthor.handle) : false;
@@ -81,7 +88,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
   const bodyBlock = item.text.trim().length > 0 || (item.images && item.images.length > 0) ? (
     <Pressable
       onPress={open}
-      onPressIn={() => preparePost(item)}
+      onPressIn={prefetchPost}
       accessibilityRole="button"
       accessibilityHint="Abre a discussão"
       style={styles.body}>
@@ -113,7 +120,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
         label="Apoiar"
         onPress={actions.toggleSupport}
       />
-      <ActionChip icon="comment" count={actions.commentCount} label="Comentar" onPress={openWithPrefetch} />
+      <ActionChip icon="comment" count={actions.commentCount} label="Comentar" onPress={open} onPressIn={prefetchPost} />
       <ActionChip
         icon="echo"
         count={actions.echoCount}
@@ -143,7 +150,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
   if (chamado) {
     return (
       <View style={[styles.card, showRule && styles.rule]}>
-        <ChamadoAuthorLine author={author} origin={showComuna || !comuna ? origin : ''} meta={formatRelative(item.createdAt)} onPress={openAuthor} trailing={more} />
+        <ChamadoAuthorLine author={author} origin={showComuna || !comuna ? origin : ''} meta={formatRelative(item.createdAt)} onPress={openAuthor} onPressIn={prefetchAuthor} trailing={more} />
         <ChamadoCard data={chamado} />
         {item.attachment && item.attachment.type !== 'image' ? <PostAttachment
           key={item.attachment.id}
@@ -158,7 +165,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
             supported: actions.supported,
             onSupport: actions.toggleSupport,
             commentCount: actions.commentCount,
-            onComment: openWithPrefetch,
+            onComment: open,
             echoCount: actions.echoCount,
             echoed: actions.echoed,
             onEcho: actions.toggleEcho,
@@ -179,6 +186,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
             comuna ? (
               <Pressable
                 onPress={() => nav.openComuna(comuna.id)}
+                onPressIn={prefetchComuna}
                 accessibilityRole="link"
                 accessibilityLabel={`Comuna ${comuna.name}`}
                 hitSlop={{ top: 12, bottom: 8 }}
@@ -199,6 +207,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
         author={author}
         meta={formatRelative(item.createdAt)}
         onPress={openAuthor}
+        onPressIn={prefetchAuthor}
         appearance="card"
         trailing={more}
       />
@@ -219,7 +228,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
           supported: actions.supported,
           onSupport: actions.toggleSupport,
           commentCount: actions.commentCount,
-          onComment: openWithPrefetch,
+          onComment: open,
           echoCount: actions.echoCount,
           echoed: actions.echoed,
           onEcho: actions.toggleEcho,
@@ -234,14 +243,15 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
       {item.document ? <DocumentCard document={item.document} appearance="editorial" /> : null}
       {item.poll ? <PostPollBlock postId={item.id} poll={item.poll} /> : null}
       {media ? (
-        <Pressable onPress={openWithPrefetch} accessibilityHint="Abre a discussão">
+        <Pressable onPress={open} onPressIn={prefetchPost} accessibilityRole="button" accessibilityHint="Abre a discussão">
           <MediaBox media={media} />
         </Pressable>
       ) : null}
 
       {topComment && topCommentAuthor && !topCommentMuted ? (
         <Pressable
-          onPress={openWithPrefetch}
+          onPress={open}
+          onPressIn={prefetchPost}
           style={({ pressed }) => [styles.topComment, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityLabel={`Comentário de ${topCommentAuthor.name}: ${topComment.text}. ${replies}`}
@@ -266,15 +276,18 @@ type ActionChipProps = {
   count: number;
   label: string;
   onPress: () => void;
+  /** Ações que abrem a publicação podem aquecer o detalhe no toque inicial. */
+  onPressIn?: () => void;
   /** Ausente em ações que não são alternância (Comentar). */
   active?: boolean;
 };
 
-function ActionChip({ icon, count, label, onPress, active }: ActionChipProps) {
+function ActionChip({ icon, count, label, onPress, onPressIn, active }: ActionChipProps) {
   const color = active ? Colors.red : Colors.ink;
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={onPressIn}
       accessibilityRole="button"
       accessibilityLabel={`${label}, ${formatCount(count)}`}
       accessibilityState={active === undefined ? undefined : { selected: active }}

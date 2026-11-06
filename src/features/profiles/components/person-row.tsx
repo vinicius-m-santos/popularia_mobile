@@ -4,6 +4,7 @@ import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
 import { Colors, Spacing } from '@/constants/theme';
+import { prepareProfileFromUser } from '@/features/profiles/queries';
 import type { User } from '@/types/models';
 
 import { FollowButton } from './follow-button';
@@ -20,6 +21,7 @@ export function PersonRow({ user, subtitle, onOpen }: PersonRowProps) {
     <View style={styles.row}>
       <Pressable
         onPress={onOpen}
+        onPressIn={() => { void prepareProfileFromUser(user); }}
         accessibilityRole="link"
         accessibilityLabel={`${user.name}${user.badge ? `, ${user.badge}` : ''}, ${subtitle}`}
         accessibilityHint="Abre o perfil"

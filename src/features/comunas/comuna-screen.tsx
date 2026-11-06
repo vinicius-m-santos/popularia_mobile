@@ -27,7 +27,6 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { LibraryPane } from '@/features/library/library-screen';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from '@/features/profiles/profile-tab-swipe';
 import { PostCard } from '@/features/posts/components/post-card';
-import { preparePost } from '@/features/posts/queries';
 import { rememberPost } from '@/features/posts/save';
 import { useLocalFeedItems } from '@/features/posts/use-local-posts';
 import { NextEvent } from '@/features/events/next-event';
@@ -255,11 +254,7 @@ export default function ComunaScreen() {
               canReorder={data.status !== 'archived' && !!data.viewerPermissions?.canModerateContent}
               pending={pinPending}
               onRetry={() => { void pins.refetch(); }}
-              onOpen={(postId) => {
-                const item = (pins.data ?? []).find((pin) => pin.id === postId);
-                if (item) preparePost(item);
-                nav.openPost(postId);
-              }}
+              onOpen={(postId) => nav.openPost(postId)}
               onMove={(postId, position) => { void movePinnedPost(id, postId, position, showToast); }}
             />
           ) : null}
