@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, cleanup, render, screen } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { settleQueryClient } from '@/features/events/query-test-utils';
+import { queryClient } from '@/lib/query/client';
 import SquaresScreen from '../squares-screen';
 import * as api from '../api';
 import { deferred, square } from '../testing/fixtures';
@@ -25,12 +27,15 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 const mocked = jest.mocked(api);
-afterEach(() => cleanup());
 beforeEach(() => {
+  settleQueryClient();
+  queryClient.clear();
+  queryClient.setDefaultOptions({ queries: { retry: false } });
   jest.clearAllMocks();
   mockFocusCallbacks.length = 0;
   mocked.listSquares.mockResolvedValue({ items: [square()], nextCursor: null });
 });
+afterEach(async () => { await cleanup(); queryClient.clear(); });
 
 describe('retorno à aba Praças', () => {
   it('atualiza ao voltar sem perder a posição do item visível durante a carga', async () => {
@@ -55,5 +60,24 @@ describe('retorno à aba Praças', () => {
       refreshedMine.resolve({ items: [square({ id: 'square2', title: 'Praça atualizada' })], nextCursor: null });
       await refreshedMine.promise;
     });
+  });
+
+  it('remonta com todas as páginas carregadas e sem repetir a consulta enquanto o cache está fresco', async () => {
+    mocked.listSquares.mockImplementation(async (section, cursor) => {
+      if (section === 'discover') return { items: [], nextCursor: null };
+      return cursor
+        ? { items: [square({ id: 'square2', title: 'Segunda Praça' })], nextCursor: null }
+        : { items: [square()], nextCursor: 'next' };
+    });
+    const { rerender } = await render(<SquaresScreen key="first" />);
+    await screen.findByLabelText('Entrar na Praça Trabalhadores de TI');
+    await fireEvent.press(screen.getByText('Mais das suas Praças'));
+    await screen.findByLabelText('Entrar na Praça Segunda Praça');
+    const calls = mocked.listSquares.mock.calls.length;
+
+    await rerender(<SquaresScreen key="second" />);
+    expect(screen.getByLabelText('Entrar na Praça Trabalhadores de TI')).toBeTruthy();
+    expect(screen.getByLabelText('Entrar na Praça Segunda Praça')).toBeTruthy();
+    await waitFor(() => expect(mocked.listSquares).toHaveBeenCalledTimes(calls));
   });
 });

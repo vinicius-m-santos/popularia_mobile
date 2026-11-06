@@ -12,8 +12,10 @@ import { StateView } from '@/components/state-view';
 import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
+import { useCachedPages } from '@/hooks/use-cached-pages';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { contentPolicy } from '@/lib/query/client';
+import { squaresKeys } from '@/lib/query/keys';
 import { initialsOf } from '@/lib/format';
 
 import { listSquares, type Square } from './api';
@@ -35,17 +37,24 @@ function ConnectedSquares() {
   useScrollToTop(listRef);
   const [term, setTerm] = useState('');
   useEffect(() => { const timer = setTimeout(() => setTerm(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
-  const mine = usePaginatedData(useCallback((cursor: string | null) => listSquares('mine', cursor, term), [term]));
-  const discover = usePaginatedData(useCallback((cursor: string | null) => listSquares('discover', cursor, term), [term]));
+  const mine = useCachedPages({
+    queryKey: squaresKeys.list('mine', term),
+    load: useCallback((cursor: string | null, signal: AbortSignal) => listSquares('mine', cursor, term, signal), [term]),
+    performanceScope: 'squares-mine',
+    ...contentPolicy.squares,
+  });
+  const discover = useCachedPages({
+    queryKey: squaresKeys.list('discover', term),
+    load: useCallback((cursor: string | null, signal: AbortSignal) => listSquares('discover', cursor, term, signal), [term]),
+    performanceScope: 'squares-discover',
+    ...contentPolicy.squares,
+  });
   const refreshMine = mine.refresh;
   const refreshDiscover = discover.refresh;
   const refresh = useCallback(() => { refreshMine(); refreshDiscover(); }, [refreshMine, refreshDiscover]);
-  const revalidateMine = mine.revalidate;
-  const revalidateDiscover = discover.revalidate;
-  const revalidate = useCallback(() => { revalidateMine(); revalidateDiscover(); }, [revalidateMine, revalidateDiscover]);
-  const revalidateRef = useRef(revalidate);
+  const revalidateRef = useRef(refresh);
   const focusedOnce = useRef(false);
-  useEffect(() => { revalidateRef.current = revalidate; }, [revalidate]);
+  useEffect(() => { revalidateRef.current = refresh; }, [refresh]);
   useFocusEffect(useCallback(() => {
     if (focusedOnce.current) revalidateRef.current();
     focusedOnce.current = true;

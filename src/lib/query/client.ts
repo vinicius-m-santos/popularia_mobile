@@ -48,4 +48,13 @@ export const contentPolicy = {
   feed: { staleTime: 30_000, gcTime: 10 * 60_000 },
   profile: { staleTime: 60_000, gcTime: 10 * 60_000 },
   post: { staleTime: 15_000, gcTime: 5 * 60_000 },
+  /** Descoberta é compartilhada entre remontagens da mesma consulta. */
+  discovery: { staleTime: 30_000, gcTime: 10 * 60_000 },
+  /** A busca revalida rápido, mas uma troca de categoria não pode ficar em stale infinita. */
+  search: { staleTime: 15_000, gcTime: 10 * 60_000 },
+  /** Listas e coleções do acervo: voltar de um documento não refaz o histórico. */
+  library: { staleTime: 30_000, gcTime: 10 * 60_000 },
+  collection: { staleTime: 60_000, gcTime: 10 * 60_000 },
+  /** Praças mudam com presença/mensagens; cache curto para o retorno ser fresco. */
+  squares: { staleTime: 30_000, gcTime: 10 * 60_000 },
 };
