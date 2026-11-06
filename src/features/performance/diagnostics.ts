@@ -179,10 +179,59 @@ export function commitComponentDiagnostics(snapshot: PerformanceSnapshot): Commi
     .sort((a, b) => b.commits - a.commits || a.component.localeCompare(b.component));
 }
 
+export type VideoTransitionDiagnostics = {
+  enterCount: number;
+  exitCount: number;
+  enterFirstFrameCount: number;
+  averageEnterFirstFrameMs: number;
+  maxEnterFirstFrameMs: number;
+  exitFirstFrameCount: number;
+  averageExitFirstFrameMs: number;
+  maxExitFirstFrameMs: number;
+};
+
 export type VideoDiagnostics = PerformanceSnapshot['video'] & {
   averageFirstFrameMs: number;
   errorCount: number;
+  transitions: VideoTransitionDiagnostics;
 };
+
+function surfaceFirstFrameTotals(
+  events: PerformanceSnapshot['video']['events'],
+  surface: 'feed' | 'fullscreen',
+): { count: number; totalMs: number; maxMs: number } {
+  return events.reduce((totals, event) => {
+    if (event.event !== 'surface-first-frame' || event.surface !== surface) return totals;
+    const value = event.valueMs ?? 0;
+    return {
+      count: totals.count + 1,
+      totalMs: totals.totalMs + value,
+      maxMs: Math.max(totals.maxMs, value),
+    };
+  }, { count: 0, totalMs: 0, maxMs: 0 });
+}
+
+/**
+ * Transição feed → tela cheia → feed. A espera é medida até o primeiro quadro
+ * da surface de destino; estes números não detectam frame preto (isso exige
+ * gravação de tela em 60/120 fps no aparelho).
+ */
+export function videoTransitionDiagnostics(snapshot: PerformanceSnapshot): VideoTransitionDiagnostics {
+  const enterCount = snapshot.video.events.filter((event) => event.event === 'fullscreen-enter').length;
+  const exitCount = snapshot.video.events.filter((event) => event.event === 'fullscreen-exit').length;
+  const fullscreen = surfaceFirstFrameTotals(snapshot.video.events, 'fullscreen');
+  const feed = surfaceFirstFrameTotals(snapshot.video.events, 'feed');
+  return {
+    enterCount,
+    exitCount,
+    enterFirstFrameCount: fullscreen.count,
+    averageEnterFirstFrameMs: fullscreen.count > 0 ? fullscreen.totalMs / fullscreen.count : 0,
+    maxEnterFirstFrameMs: fullscreen.maxMs,
+    exitFirstFrameCount: feed.count,
+    averageExitFirstFrameMs: feed.count > 0 ? feed.totalMs / feed.count : 0,
+    maxExitFirstFrameMs: feed.maxMs,
+  };
+}
 
 export function videoDiagnostics(snapshot: PerformanceSnapshot): VideoDiagnostics {
   return {
@@ -191,6 +240,7 @@ export function videoDiagnostics(snapshot: PerformanceSnapshot): VideoDiagnostic
       ? snapshot.video.firstFrameTotalMs / snapshot.video.firstFrameCount
       : 0,
     errorCount: snapshot.video.events.filter((event) => event.event === 'error').length,
+    transitions: videoTransitionDiagnostics(snapshot),
   };
 }
 

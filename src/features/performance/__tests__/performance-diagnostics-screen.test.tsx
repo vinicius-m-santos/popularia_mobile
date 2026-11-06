@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as Sharing from 'expo-sharing';
 
 import { ToastProvider } from '@/components/toast';
@@ -11,8 +11,10 @@ import {
   recordProfileCommit,
   recordRequestAttempt,
   recordVideoFirstFrame,
+  recordVideoFullscreen,
   recordVideoMount,
   recordVideoPlay,
+  recordVideoSurfaceFirstFrame,
   resetPerformanceSession,
   setPerformanceInstrumentationOverride,
 } from '@/lib/performance';
@@ -53,6 +55,10 @@ function seedMeasurements() {
   recordVideoMount('video-1');
   recordVideoPlay('video-1');
   recordVideoFirstFrame('video-1', 320);
+  recordVideoFullscreen('video-1', 'enter');
+  recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 40);
+  recordVideoFullscreen('video-1', 'exit');
+  recordVideoSurfaceFirstFrame('video-1', 'feed', 20);
 }
 
 function renderScreen() {
@@ -103,6 +109,10 @@ describe('tela de diagnóstico de performance', () => {
     expect(screen.getByText('feed:para-voce')).toBeTruthy();
     expect(screen.getByText('TTFF máximo')).toBeTruthy();
     expect(screen.getAllByText('320 ms').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Transição de vídeo')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-video-enter')).getByText('1')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-video-enter-first-frame')).getByText('40 ms')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-video-exit-first-frame')).getByText('20 ms')).toBeTruthy();
     expect(screen.getByText('Pôsteres de vídeo')).toBeTruthy();
     expect(screen.getByTestId('metric-poster-cache')).toBeTruthy();
     expect(screen.queryByText('/feed?token=segredo')).toBeNull();

@@ -12,8 +12,10 @@ import {
   recordProfileCommit,
   recordRequestAttempt,
   recordVideoFirstFrame,
+  recordVideoFullscreen,
   recordVideoMount,
   recordVideoPlay,
+  recordVideoSurfaceFirstFrame,
   resetPerformanceSession,
   setPerformanceInstrumentationOverride,
 } from '@/lib/performance';
@@ -31,6 +33,7 @@ import {
   startPerformanceMeasurement,
   totalRequestRetries,
   videoDiagnostics,
+  videoTransitionDiagnostics,
 } from '../diagnostics';
 
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(async () => undefined) }));
@@ -62,6 +65,10 @@ function seedMeasurements() {
   recordVideoMount('video-1');
   recordVideoPlay('video-1');
   recordVideoFirstFrame('video-1', 320);
+  recordVideoFullscreen('video-1', 'enter');
+  recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 40);
+  recordVideoFullscreen('video-1', 'exit');
+  recordVideoSurfaceFirstFrame('video-1', 'feed', 20);
 }
 
 beforeEach(() => {
@@ -149,6 +156,36 @@ describe('agregações exibidas na tela', () => {
     expect(recentListLoads(snapshot)[0]).toMatchObject({ list: 'feed:para-voce', itemCount: 20 });
     expect(video).toMatchObject({ mountedNow: 1, playingNow: 1, firstFrameCount: 1, firstFrameMaxMs: 320, errorCount: 0 });
     expect(video.averageFirstFrameMs).toBe(320);
+    expect(video.transitions).toMatchObject({
+      enterCount: 1,
+      exitCount: 1,
+      enterFirstFrameCount: 1,
+      averageEnterFirstFrameMs: 40,
+      maxEnterFirstFrameMs: 40,
+      exitFirstFrameCount: 1,
+      averageExitFirstFrameMs: 20,
+      maxExitFirstFrameMs: 20,
+    });
+  });
+
+  it('separa a espera da surface da tela cheia e do feed', () => {
+    startPerformanceMeasurement();
+    seedMeasurements();
+    recordVideoFullscreen('video-1', 'enter');
+    recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 60);
+    recordVideoFullscreen('video-1', 'exit');
+    recordVideoSurfaceFirstFrame('video-1', 'feed', 10);
+
+    expect(videoTransitionDiagnostics(getPerformanceSnapshot())).toMatchObject({
+      enterCount: 2,
+      exitCount: 2,
+      enterFirstFrameCount: 2,
+      averageEnterFirstFrameMs: 50,
+      maxEnterFirstFrameMs: 60,
+      exitFirstFrameCount: 2,
+      averageExitFirstFrameMs: 15,
+      maxExitFirstFrameMs: 20,
+    });
   });
 
   it('formata durações sem inventar precisão', () => {

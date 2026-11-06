@@ -51,18 +51,25 @@ export type PerformanceListRecord = {
   atMs: number;
 };
 
+export type VideoSurface = 'feed' | 'fullscreen';
+
 export type PerformanceVideoEvent =
   | 'mount'
   | 'unmount'
   | 'play'
   | 'pause'
   | 'first-frame'
+  | 'fullscreen-enter'
+  | 'fullscreen-exit'
+  /** Primeiro quadro de uma surface recém-montada; `valueMs` é a espera. */
+  | 'surface-first-frame'
   | 'error';
 
 export type PerformanceVideoRecord = {
   event: PerformanceVideoEvent;
   mediaId: string;
   valueMs?: number;
+  surface?: VideoSurface;
   atMs: number;
 };
 
@@ -398,12 +405,13 @@ export function recordListLoad(list: string, elapsedTimeInMs: number, itemCount:
   }, MAX_LIST_RECORDS, session);
 }
 
-function recordVideoEvent(event: PerformanceVideoEvent, mediaId: string, valueMs?: number): void {
+function recordVideoEvent(event: PerformanceVideoEvent, mediaId: string, valueMs?: number, surface?: VideoSurface): void {
   if (!session) return;
   pushBounded(session.video, {
     event,
     mediaId,
     ...(valueMs === undefined ? {} : { valueMs: Math.max(0, Math.round(valueMs * 100) / 100) }),
+    ...(surface === undefined ? {} : { surface }),
     atMs: Math.round(performanceNow() - session.startedMonotonic),
   }, MAX_VIDEO_RECORDS, session);
 }
@@ -440,6 +448,21 @@ export function recordVideoFirstFrame(mediaId: string, elapsedMs: number): void 
   session.firstFrameTotalMs += Math.max(0, elapsedMs);
   session.firstFrameMaxMs = Math.max(session.firstFrameMaxMs, elapsedMs);
   recordVideoEvent('first-frame', mediaId, elapsedMs);
+}
+
+/**
+ * Marca a troca feed ↔ tela cheia. O primeiro quadro da surface de destino é
+ * registrado à parte (`recordVideoSurfaceFirstFrame`), porque em Android/iOS a
+ * nova surface nativa pode levar alguns frames para receber o quadro.
+ */
+export function recordVideoFullscreen(mediaId: string, phase: 'enter' | 'exit'): void {
+  const event = phase === 'enter' ? 'fullscreen-enter' : 'fullscreen-exit';
+  recordVideoEvent(event, mediaId, undefined, phase === 'enter' ? 'fullscreen' : 'feed');
+}
+
+/** Espera até o primeiro quadro da surface de destino depois da troca. */
+export function recordVideoSurfaceFirstFrame(mediaId: string, surface: VideoSurface, elapsedMs: number): void {
+  recordVideoEvent('surface-first-frame', mediaId, elapsedMs, surface);
 }
 
 export function recordVideoError(mediaId: string): void {

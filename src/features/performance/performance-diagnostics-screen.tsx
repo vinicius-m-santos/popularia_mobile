@@ -314,6 +314,29 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
       </View>
 
       <View style={styles.section}>
+        <SectionHeading appearance="editorial" label="Transição de vídeo" />
+        <View style={styles.metricGrid}>
+          <MetricCard testID="metric-video-enter" label="Aberturas tela cheia" value={String(video.transitions.enterCount)} />
+          <MetricCard testID="metric-video-exit" label="Voltas ao feed" value={String(video.transitions.exitCount)} />
+          <MetricCard
+            testID="metric-video-enter-first-frame"
+            label="1º quadro ao abrir"
+            value={video.transitions.enterFirstFrameCount > 0 ? formatMs(video.transitions.averageEnterFirstFrameMs) : '—'}
+            detail={video.transitions.enterFirstFrameCount > 0 ? `máx. ${formatMs(video.transitions.maxEnterFirstFrameMs)}` : undefined}
+          />
+          <MetricCard
+            testID="metric-video-exit-first-frame"
+            label="1º quadro ao voltar"
+            value={video.transitions.exitFirstFrameCount > 0 ? formatMs(video.transitions.averageExitFirstFrameMs) : '—'}
+            detail={video.transitions.exitFirstFrameCount > 0 ? `máx. ${formatMs(video.transitions.maxExitFirstFrameMs)}` : undefined}
+          />
+        </View>
+        <AppText variant="caption">
+          Espera até o primeiro quadro da surface de destino, medida no host nativo. Não detecta frame preto: valide com gravação de tela em 60/120 fps no iOS e no Android.
+        </AppText>
+      </View>
+
+      <View style={styles.section}>
         <SectionHeading appearance="editorial" label="Pôsteres de vídeo" />
         <View style={styles.metricGrid}>
           <MetricCard testID="metric-poster-cache" label="Cache" value={`${snapshot.posters.size}/${snapshot.posters.capacity}`} detail={`${snapshot.posters.retained} em uso`} />
