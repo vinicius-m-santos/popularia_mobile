@@ -50,10 +50,14 @@ test.describe('cadastro e onboarding', () => {
     await expect(page.getByRole('button', { name: /^Estado:/ })).toHaveAccessibleName('Estado: Selecione o estado');
     await page.getByRole('button', { name: /^Estado:/ }).click();
     await page.getByRole('radio', { name: 'São Paulo (SP)' }).click();
+    await expect(page.getByTestId('bottom-sheet-modal')).toHaveCount(0);
 
     await expect(page.getByRole('button', { name: /^Cidade:/ })).toHaveAccessibleName('Cidade: Selecione a cidade');
     await page.getByRole('button', { name: /^Cidade:/ }).click();
     await page.getByRole('radio', { name: 'São Paulo', exact: true }).click();
+    // O valor muda no clique, mas o Modal só desmonta após a animação de saída
+    // do Gorhom. Avançar antes disso deixa o sheet interceptar o botão no CI.
+    await expect(page.getByTestId('bottom-sheet-modal')).toHaveCount(0);
 
     await visibleButton(page, 'Continuar').click();
 

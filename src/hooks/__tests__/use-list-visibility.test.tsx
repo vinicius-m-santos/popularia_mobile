@@ -137,6 +137,39 @@ describe('useListVisibility', () => {
     expect(result.current.onViewableItemsChanged).not.toBe(firstCallback);
   });
 
+  it('bloqueia a mídia fora de foco e reabilita só a viewport retida', async () => {
+    const { result } = await renderHook(() => useListVisibility());
+    await render(<Harness visibility={result.current} onRender={jest.fn()} />);
+    await act(async () => {
+      result.current.onViewableItemsChanged(viewport(['a', 'b']));
+    });
+    expect(screen.getByTestId('card-a').props.children).toBe('visible');
+    expect(screen.getByTestId('card-b').props.children).toBe('visible');
+
+    await act(async () => {
+      result.current.setFocused(false);
+    });
+    // Perder o foco não limpa a janela: todos voltam ao pôster até o retorno.
+    expect(screen.getByTestId('card-a').props.children).toBe('hidden');
+    expect(screen.getByTestId('card-b').props.children).toBe('hidden');
+    expect(result.current.isVisible('a')).toBe(false);
+
+    // A viewport pode mudar com a rota coberta; ainda não é hora de montar.
+    await act(async () => {
+      result.current.onViewableItemsChanged(viewport(['b', 'c']));
+    });
+    expect(screen.getByTestId('card-b').props.children).toBe('hidden');
+    expect(screen.getByTestId('card-c').props.children).toBe('hidden');
+
+    // No retorno, só quem está visível agora é habilitado.
+    await act(async () => {
+      result.current.setFocused(true);
+    });
+    expect(screen.getByTestId('card-a').props.children).toBe('hidden');
+    expect(screen.getByTestId('card-b').props.children).toBe('visible');
+    expect(screen.getByTestId('card-c').props.children).toBe('visible');
+  });
+
   it('sem provider mantém o default seguro falso', async () => {
     await render(<LooseCard />);
     expect(screen.getByTestId('loose').props.children).toBe('hidden');

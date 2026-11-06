@@ -237,6 +237,19 @@ describe('Explorar', () => {
     expect(screen.queryByText('Não conseguimos buscar agora.')).toBeNull();
     expect(search).toHaveBeenLastCalledWith('me', '', 'events', undefined, null, expect.anything());
   });
+
+  it('não mostra resultados de outra categoria quando Eventos falha', async () => {
+    await render(<ExploreScreen />);
+    await fireEvent.changeText(await screen.findByLabelText('Buscar na Popularia'), 'Linux');
+    await debounce();
+    expect(await screen.findByText('Linux nas escolas')).toBeTruthy();
+
+    search.mockRejectedValueOnce(new Error('HTTP 500'));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Eventos' }));
+    expect(await screen.findByText('Não conseguimos buscar agora.')).toBeTruthy();
+    expect(screen.queryByText('Linux nas escolas')).toBeNull();
+    expect(screen.queryByText('Nada nesta categoria por enquanto.')).toBeNull();
+  });
 });
 
 describe('página de Assunto', () => {

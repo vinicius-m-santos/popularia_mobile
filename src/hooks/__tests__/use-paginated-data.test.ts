@@ -21,6 +21,32 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+/** Dataset determinístico de três páginas encadeadas por cursor. */
+function paged(groups: string[][]): { pages: Page<Item>[]; byCursor: Map<string, Page<Item>> } {
+  const pages = groups.map((group, index) => ({
+    items: items(...group),
+    nextCursor: index === groups.length - 1 ? null : group[group.length - 1],
+  }));
+  const byCursor = new Map<string, Page<Item>>();
+  for (let index = 1; index < pages.length; index += 1) byCursor.set(pages[index - 1].nextCursor!, pages[index]);
+  return { pages, byCursor };
+}
+
+async function loadAllPages(
+  result: { current: PaginatedData<Item> },
+  load: { mock: { calls: unknown[] } },
+  pageCount: number,
+  pageSize: number,
+) {
+  await waitFor(() => expect(result.current.items).toHaveLength(pageSize));
+  for (let pageIndex = 1; pageIndex < pageCount; pageIndex += 1) {
+    const calls = load.mock.calls.length;
+    await act(() => result.current.loadMore());
+    await waitFor(() => expect(result.current.items).toHaveLength((pageIndex + 1) * pageSize));
+    expect(load.mock.calls.length).toBe(calls + 1);
+  }
+}
+
 describe('mergeById', () => {
   it('junta listas sem repetir IDs, mantendo a primeira ocorrência', () => {
     expect(mergeById(items('a', 'b'), items('b', 'c'), items('a'))).toEqual(items('a', 'b', 'c'));
@@ -156,6 +182,142 @@ describe('usePaginatedData', () => {
     expect(result.current.items).toEqual(items('a'));
     expect(result.current.refreshError).toBeNull();
     expect(result.current.isRefreshing).toBe(false);
+  });
+
+  it('revalida três páginas sem descartar o histórico nem pedir as páginas de novo', async () => {
+    const dataset = paged([['a', 'b'], ['c', 'd'], ['e', 'f']]);
+    const load = jest.fn<Loader>(async (cursor) => cursor === null ? dataset.pages[0] : dataset.byCursor.get(cursor)!);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await loadAllPages(result, load, 3, 2);
+    expect(result.current.hasMore).toBe(false);
+    const callsBefore = load.mock.calls.length;
+    const refreshed = deferred<Page<Item>>();
+    load.mockImplementationOnce(() => refreshed.promise);
+
+    await act(() => result.current.revalidate());
+    // Enquanto a primeira página viaja, as três páginas continuam na tela.
+    expect(result.current.items).toEqual(items('a', 'b', 'c', 'd', 'e', 'f'));
+
+    await act(async () => refreshed.resolve(dataset.pages[0]));
+    await waitFor(() => expect(load.mock.calls.length).toBe(callsBefore + 1));
+    expect(result.current.items).toEqual(items('a', 'b', 'c', 'd', 'e', 'f'));
+    expect(result.current.status).toBe('success');
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.refreshError).toBeNull();
+  });
+
+  it('revalidação com inserções no topo preserva o histórico e não repete o item de fronteira', async () => {
+    const dataset = paged([['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]);
+    const load = jest.fn<Loader>(async (cursor) => cursor === null ? dataset.pages[0] : dataset.byCursor.get(cursor)!);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await loadAllPages(result, load, 3, 3);
+    const callsBefore = load.mock.calls.length;
+    const refreshed = deferred<Page<Item>>();
+    load.mockImplementationOnce(() => refreshed.promise);
+
+    await act(() => result.current.revalidate());
+    // Duas publicações novas empurraram "a" para o fim da primeira página.
+    await act(async () => refreshed.resolve({ items: items('x', 'y', 'a'), nextCursor: 'a' }));
+    await waitFor(() => expect(load.mock.calls.length).toBe(callsBefore + 1));
+
+    expect(result.current.items.map((item) => item.id)).toEqual(['x', 'y', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
+  });
+
+  it('revalidação com mudança de ordem não duplica o item movido nem perde a continuação', async () => {
+    const dataset = paged([['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']]);
+    const load = jest.fn<Loader>(async (cursor) => cursor === null ? dataset.pages[0] : dataset.byCursor.get(cursor)!);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await loadAllPages(result, load, 3, 3);
+    const callsBefore = load.mock.calls.length;
+    const refreshed = deferred<Page<Item>>();
+    load.mockImplementationOnce(() => refreshed.promise);
+
+    await act(() => result.current.revalidate());
+    // "f" foi fixado no topo; a ordem antiga continua depois do âncora "b".
+    await act(async () => refreshed.resolve({ items: items('f', 'a', 'b'), nextCursor: 'b' }));
+    await waitFor(() => expect(load.mock.calls.length).toBe(callsBefore + 1));
+
+    expect(result.current.items.map((item) => item.id)).toEqual(['f', 'a', 'b', 'c', 'd', 'e', 'g', 'h', 'i']);
+    expect(new Set(result.current.items.map((item) => item.id)).size).toBe(result.current.items.length);
+  });
+
+  it('revalidação com falha mantém as três páginas e permite tentar de novo', async () => {
+    const dataset = paged([['a', 'b'], ['c', 'd'], ['e', 'f']]);
+    const load = jest.fn<Loader>(async (cursor) => cursor === null ? dataset.pages[0] : dataset.byCursor.get(cursor)!);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await loadAllPages(result, load, 3, 2);
+    const callsBefore = load.mock.calls.length;
+    const failed = deferred<Page<Item>>();
+    load.mockImplementationOnce(() => failed.promise);
+
+    await act(() => result.current.revalidate());
+    await act(async () => failed.reject(new Error('offline')));
+
+    expect(result.current.status).toBe('success');
+    expect(result.current.items).toEqual(items('a', 'b', 'c', 'd', 'e', 'f'));
+    expect(result.current.refreshError).toBeNull();
+    expect(result.current.isRefreshing).toBe(false);
+
+    await act(() => result.current.revalidate());
+    await waitFor(() => expect(load.mock.calls.length).toBe(callsBefore + 2));
+    expect(result.current.items).toEqual(items('a', 'b', 'c', 'd', 'e', 'f'));
+  });
+
+  it('revalidação com acesso revogado limpa as páginas carregadas', async () => {
+    const dataset = paged([['a', 'b'], ['c', 'd'], ['e', 'f']]);
+    const load = jest.fn<Loader>(async (cursor) => cursor === null ? dataset.pages[0] : dataset.byCursor.get(cursor)!);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await loadAllPages(result, load, 3, 2);
+    load.mockRejectedValueOnce(new ApiError(403, '/errors/comuna-private', 'Privada'));
+
+    await act(() => result.current.revalidate());
+    await waitFor(() => expect(result.current.status).toBe('error'));
+
+    expect(result.current.items).toEqual([]);
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.loadMoreError).toBeNull();
+  });
+
+  it('ignora loadMore enquanto a revalidação sela o histórico e retoma pelo cursor preservado', async () => {
+    const dataset = paged([['a'], ['b']]);
+    const load = jest.fn<Loader>(async (cursor) => cursor === null ? dataset.pages[0] : dataset.byCursor.get(cursor)!);
+    const { result } = await renderHook(() => usePaginatedData(load));
+    await waitFor(() => expect(result.current.items).toEqual(items('a')));
+    const refreshed = deferred<Page<Item>>();
+    load.mockImplementationOnce(() => refreshed.promise);
+
+    await act(() => result.current.revalidate());
+    const callsDuringRevalidation = load.mock.calls.length;
+    await act(() => result.current.loadMore());
+    expect(load).toHaveBeenCalledTimes(callsDuringRevalidation);
+
+    await act(async () => refreshed.resolve(dataset.pages[0]));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(callsDuringRevalidation));
+
+    await act(() => result.current.loadMore());
+    await waitFor(() => expect(result.current.items).toEqual(items('a', 'b')));
+    expect(load).toHaveBeenLastCalledWith('a');
+  });
+
+  it('descarta o loadMore da consulta anterior quando a aba muda', async () => {
+    const slow = deferred<Page<Item>>();
+    const loadA = jest.fn<Loader>(async (cursor) => cursor === null
+      ? { items: items('a'), nextCursor: 'a' }
+      : slow.promise);
+    const loadB = jest.fn<Loader>(async () => ({ items: items('b'), nextCursor: null }));
+    const { result, rerender } = await renderHook<PaginatedData<Item>, { load: Loader }>(
+      ({ load }) => usePaginatedData(load),
+      { initialProps: { load: loadA } },
+    );
+    await waitFor(() => expect(result.current.items).toEqual(items('a')));
+
+    await act(() => result.current.loadMore());
+    await rerender({ load: loadB });
+    await waitFor(() => expect(result.current.items).toEqual(items('b')));
+
+    await act(async () => slow.resolve({ items: items('c'), nextCursor: null }));
+    expect(result.current.items).toEqual(items('b'));
+    expect(result.current.hasMore).toBe(false);
   });
 
   it('descarta a resposta atrasada de uma consulta anterior (troca de aba)', async () => {

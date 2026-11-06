@@ -1,4 +1,5 @@
 import { MediaVisibilityProvider, useListVisibility, mediaViewabilityConfig } from '@/hooks/use-list-visibility';
+import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector, usePanGesture, type PanGestureConfig } from 'react-native-gesture-handler';
@@ -42,6 +43,9 @@ export default function FeedScreen() {
   // A viewport é local à aba: ao trocar de aba a lista remonta e os IDs da janela
   // anterior não podem montar players antes da nova viewability.
   const visibility = useListVisibility(tab);
+  // Fora do foco da rota (outra aba, publicação aberta por cima), a lista fica
+  // no pôster e nenhum player novo é montado.
+  useRouteMediaFocus(visibility);
   const listRef = useRef<FlashListRef<FeedItem>>(null);
   useScrollToTop(listRef);
   const { joinedComunaIds, followedUserIds, isOn } = useInteractions();

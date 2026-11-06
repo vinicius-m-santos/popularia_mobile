@@ -35,6 +35,7 @@ import { NextEvent } from '@/features/events/next-event';
 import { SquareEntry } from '@/features/squares/square-entry';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { mediaViewabilityConfig, MediaVisibilityProvider, useListVisibility } from '@/hooks/use-list-visibility';
+import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
@@ -97,6 +98,9 @@ export default function ComunaScreen() {
   // os IDs da janela anterior não valem para a próxima montagem e não devem
   // montar players antes de a nova viewability confirmar os cartões.
   const visibility = useListVisibility(`${id}:${tab}`);
+  // Abrir uma publicação, trocar de aba ou sair da rota pausa a lista e deixa
+  // os cartões no pôster; na volta, só a viewport retida volta a valer.
+  useRouteMediaFocus(visibility);
 
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
   const postsKey = useMemo(() => comunaKeys.posts(id), [id]);

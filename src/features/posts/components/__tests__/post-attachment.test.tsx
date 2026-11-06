@@ -65,6 +65,25 @@ describe('vídeo em listas', () => {
     expect(useVideoPlayer).not.toHaveBeenCalled();
   });
 
+  it('com vários vídeos invisíveis não inicializa nenhum player, só o pôster', async () => {
+    const videos = [video, { ...video, id: 'v2' }, { ...video, id: 'v3' }];
+    const view = await render(<>
+      {videos.map((media) => <PostAttachment key={media.id} media={media} visible={false} />)}
+    </>);
+
+    expect(useVideoPlayer).not.toHaveBeenCalled();
+    expect(screen.getAllByText('0:15')).toHaveLength(3);
+    expect(screen.queryByLabelText('Vídeo da publicação, 0:15')).toBeNull();
+
+    await view.rerender(<>
+      <PostAttachment media={videos[0]} visible />
+      <PostAttachment media={videos[1]} visible={false} />
+      <PostAttachment media={videos[2]} visible={false} />
+    </>);
+    expect(useVideoPlayer).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Vídeo da publicação, 0:15')).toBeTruthy();
+  });
+
   it('dá impacto leve ao segurar para acelerar em 2×', async () => {
     await render(<PostAttachment media={video} />);
 
