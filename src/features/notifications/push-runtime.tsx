@@ -8,6 +8,7 @@ import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
 import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 
 import { openNotificationTarget } from './navigation';
 import { destinationHref } from '@/features/links/destinations';
@@ -87,7 +88,7 @@ export function PushRuntime() {
       callbacks.current.changed();
       void callbacks.current.refreshUnread({ force: true });
       // Existing detail queries revalidate access and content; paginated Avisos receives `changed`.
-      void queryClient.invalidateQueries({ queryKey: ['post'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.post.all });
     });
     const respond = async (response: Notifications.NotificationResponse) => {
       if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;

@@ -13,6 +13,7 @@ import { Screen } from '@/components/screen';
 import { PopulariaList } from '@/components/list/popularia-list';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { contentPolicy } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { useToast } from '@/components/toast';
 import { Colors, Spacing } from '@/constants/theme';
 import { DEMO_MODE } from '@/constants/config';
@@ -65,7 +66,9 @@ export default function FeedScreen() {
   );
   // Na API a chave não inclui quem a pessoa segue: o cache é atualizado no follow.
   // No modo demonstração o servidor não existe, então a chave recarrega a lista.
-  const feedKey = DEMO_MODE && tab === 'seguindo' ? ['feed', tab, joinedKey, followedKey] : ['feed', tab, joinedKey];
+  const feedKey = DEMO_MODE && tab === 'seguindo'
+    ? queryKeys.feed.list(tab, joinedKey, followedKey)
+    : queryKeys.feed.list(tab, joinedKey);
   const feed = useCachedPages({ queryKey: feedKey, load, performanceScope: 'feed', ...contentPolicy.feed });
   const { refreshError } = feed;
   // Pessoas bloqueadas somem antes de agrupar os dias: assim nenhuma regra de dia fica órfã.

@@ -23,7 +23,9 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { deletePost } from '@/features/posts/api';
+import { invalidateAfterPostDeleted } from '@/features/posts/invalidation';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { isPinLocked, pinPost, pinStoreVersion, readPinned, subscribePinStore, unpinPost } from '@/features/comunas/pins';
 import { knownPost, readSaved, readSavedSnapshot, subscribeSavedPost, toggleSavedPost } from '@/features/posts/save';
 import { findComuna } from '@/features/lookup';
@@ -190,7 +192,7 @@ function SheetBody(props: BodyProps) {
               // A publicação aberta some junto; a pessoa volta ao feed, não a uma tela de 404.
               router.dismissAll();
               router.replace('/');
-              void queryClient.invalidateQueries();
+              invalidateAfterPostDeleted({ postId: target.id, author: target.author.handle, comunaId: target.comunaId });
               toast.show('Publicação excluída.');
             } catch (error) {
               toast.show(`Não foi possível excluir a publicação. ${describeError(error)}`);
@@ -261,7 +263,7 @@ function SheetBody(props: BodyProps) {
             rememberBlocked(handle, !blocked);
             setBlocked(handle, !blocked);
             setOn('mutedUsers', [target.author.handle], !blocked);
-            if (blocked) void queryClient.invalidateQueries({ queryKey: ['feed'] });
+            if (blocked) void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
             close();
             toast.show(blocked ? `@${handle} desbloqueado.` : 'Pessoa bloqueada no serviço.');
           }
@@ -410,7 +412,7 @@ function SheetBody(props: BodyProps) {
       setBlocked(handle, false);
       setBlock(false);
       setOn('mutedUsers', [target.author.handle], false);
-      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
       AccessibilityInfo.announceForAccessibility(`${blockedName} foi desbloqueado`);
     } catch {
       toast.show('Não deu pra desbloquear agora. Tenta de novo.');

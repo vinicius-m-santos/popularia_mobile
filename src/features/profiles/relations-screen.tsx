@@ -10,6 +10,7 @@ import { EventBar } from '@/features/events/chrome';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { ApiError } from '@/lib/errors';
 import { contentPolicy } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { useNav, type RelationKind } from '@/lib/routes';
 import type { User } from '@/types/models';
 
@@ -32,7 +33,7 @@ export default function RelationsScreen() {
     if (!id) return Promise.resolve({ items: [] as User[], nextCursor: null });
     return getRelationPage(kind, id, cursor, signal);
   }, [id, kind]);
-  const list = useCachedPages({ queryKey: ['relations', kind, id ?? ''], load, performanceScope: 'relations', ...contentPolicy.profile, enabled: !!id });
+  const list = useCachedPages({ queryKey: queryKeys.profile.relations(kind, id ?? ''), load, performanceScope: 'relations', ...contentPolicy.profile, enabled: !!id });
   const copy = COPY[kind];
   const privateList = list.error instanceof ApiError && list.error.type === '/errors/follow-list-private';
 

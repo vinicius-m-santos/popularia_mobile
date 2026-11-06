@@ -377,7 +377,10 @@ export default function CreatePostScreen() {
       if (!post) throw new Error('Nenhum destino selecionado.');
       haptic('success');
       setLastPublication(post);
-      notifyPostCreated();
+      notifyPostCreated({
+        author: account?.handle ?? null,
+        comunaIds: posts.map((item) => item.comunaId),
+      });
       setLeaving(true);
       disablePrevention();
       if (posts.length > 1) toast.show(`Publicado em ${posts.length} locais.`);

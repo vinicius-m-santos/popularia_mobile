@@ -117,9 +117,9 @@ function rethrowNotFound(what: string) {
 }
 
 /** `id` é o slug da comuna. */
-export async function getComuna(id: string): Promise<ComunaDetails> {
+export async function getComuna(id: string, signal?: AbortSignal): Promise<ComunaDetails> {
   if (!DEMO_MODE) {
-    const details = await apiRequest<ComunaDto>(slugPath(id), { auth: true }).then(toComunaDetails, rethrowNotFound('Comuna'));
+    const details = await apiRequest<ComunaDto>(slugPath(id), { auth: true, ...(signal ? { signal } : {}) }).then(toComunaDetails, rethrowNotFound('Comuna'));
     // Qualquer tela que carregue o detalhe deixa o resumo pronto para a próxima entrada.
     rememberComunaSummary(details);
     return details;

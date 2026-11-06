@@ -21,7 +21,6 @@ import { MembersList, ServerMembersList } from '@/features/comunas/components/me
 import { PinnedCard } from '@/features/comunas/components/pinned-card';
 import { PinnedPosts } from '@/features/comunas/components/pinned-posts';
 import { RulesList } from '@/features/comunas/components/rules-list';
-import { comunaKeys } from '@/features/comunas/keys';
 import { movePinnedPost, useComunaPinPending } from '@/features/comunas/pins';
 import { useComuna } from '@/features/comunas/queries';
 import { useInteractions } from '@/features/interactions/interactions-context';
@@ -39,7 +38,8 @@ import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { ApiError, describeError, NotFoundError } from '@/lib/errors';
 import { dayKey, formatDayRule, formatPeople } from '@/lib/format';
 import { mergeById } from '@/lib/pagination';
-import { contentPolicy, queryClient } from '@/lib/query/client';
+import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import { useNav } from '@/lib/routes';
 import type { FeedItem } from '@/types/models';
 
@@ -103,7 +103,7 @@ export default function ComunaScreen() {
   useRouteMediaFocus(visibility);
 
   const loadPosts = useCallback((cursor: string | null) => getComunaPosts(id, cursor), [id]);
-  const postsKey = useMemo(() => comunaKeys.posts(id), [id]);
+  const postsKey = useMemo(() => queryKeys.comuna.posts(id), [id]);
   const comuna = useComuna(id);
   const posts = useCachedPages({
     queryKey: postsKey,
@@ -127,7 +127,7 @@ export default function ComunaScreen() {
   const viewerIsMember = membershipOf(id) ?? comuna.data?.viewerIsMember;
   const privateOutside = !DEMO_MODE && comuna.data?.visibility === 'private' && !viewerIsMember;
   const pins = useQuery({
-    queryKey: comunaKeys.pins(id),
+    queryKey: queryKeys.comuna.pins(id),
     queryFn: () => getPinnedPosts(id),
     enabled: !DEMO_MODE && tab === 'posts' && !!comuna.data && !privateOutside,
     ...contentPolicy.comuna,
@@ -168,12 +168,8 @@ export default function ComunaScreen() {
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('dark');
-      if (focusedOnce.current && !DEMO_MODE) {
-        const cached = queryClient.getQueryState(comunaKeys.detail(id));
-        if (cached?.dataUpdatedAt && Date.now() - cached.dataUpdatedAt > contentPolicy.comuna.staleTime) {
-          void queryClient.invalidateQueries({ queryKey: comunaKeys.detail(id), exact: true });
-        }
-      }
+      // Voltar dentro da janela de frescor não repete o GET do detalhe.
+      if (focusedOnce.current && !DEMO_MODE) revalidateIfStale(queryKeys.comuna.detail(id), contentPolicy.comuna.staleTime);
       focusedOnce.current = true;
       return () => setStatusBarStyle('dark');
     }, [id]),

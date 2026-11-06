@@ -13,6 +13,7 @@ import { ApiError, NotFoundError } from '@/lib/errors';
 import { initialsOf } from '@/lib/format';
 import type { Page } from '@/lib/pagination';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import type { ContentMention, FeedItem, Tone, TopicId, User } from '@/types/models';
 
 const TONES: Tone[] = ['red', 'black', 'cream'];
@@ -108,8 +109,8 @@ export async function createPost(input: { comunaServerId: string | null; text: s
   const item = toFeedItem(post);
   const slugs = new Set(tokenizePostText(item.text, item.mentions).flatMap((mark) => mark.hashtag ? [mark.hashtag] : []));
   for (const slug of slugs) {
-    void queryClient.invalidateQueries({ queryKey: ['topic-posts', slug] });
-    void queryClient.invalidateQueries({ queryKey: ['topic', slug] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.topic.posts(slug) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.topic.info(slug) });
   }
   return item;
 }

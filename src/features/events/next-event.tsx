@@ -25,7 +25,7 @@ export function NextEvent({ slug }: { slug: string }) {
     queryKey: comunaEventsKey(slug, 'preview'),
     queryFn: ({ signal }) => listEvents(slug, 'upcoming', null, 5, signal),
     retry: false,
-    ...contentPolicy.comuna,
+    ...contentPolicy.event,
     placeholderData: () => previewFromUpcoming(slug),
   }, queryClient);
   if (preview.isError) {

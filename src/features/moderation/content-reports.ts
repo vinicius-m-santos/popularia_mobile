@@ -1,9 +1,9 @@
 /** Denúncias de publicação, comentário, perfil e comuna. A fila da praça e da biblioteca fica nos módulos delas. */
 import type { IconName } from '@/components/icon';
-import { comunaKeys } from '@/features/comunas/keys';
 import { apiRequest } from '@/lib/api/client';
 import type { PageDto } from '@/lib/api/dto';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import type { Page } from '@/lib/pagination';
 
 import { DETAILS_MAX_LENGTH } from './constants';
@@ -85,11 +85,11 @@ export const GRAVE_CONFIRM: Record<string, { title: string; message: string; con
 };
 
 export function comunaReportsKey(slug: string, bucket: ReportBucket) {
-  return ['comuna-reports', slug, bucket] as const;
+  return queryKeys.moderation.comunaReports(slug, bucket);
 }
 
 export function platformReportsKey(bucket: ReportBucket) {
-  return ['platform-reports', bucket] as const;
+  return queryKeys.moderation.platformReports(bucket);
 }
 
 export function contentReportPayload(input: {
@@ -134,14 +134,16 @@ export async function decideReport(id: string, action: string) {
 
 /** Atualiza a fila tocada, o alvo e as listas que ainda poderiam mostrá-lo. */
 export function invalidateAfterModeration(comunaSlug: string | null) {
-  if (comunaSlug) void queryClient.invalidateQueries({ queryKey: ['comuna-reports', comunaSlug] });
-  void queryClient.invalidateQueries({ queryKey: ['platform-reports'] });
-  void queryClient.invalidateQueries({ queryKey: ['feed'] });
-  void queryClient.invalidateQueries({ queryKey: ['post'] });
-  void queryClient.invalidateQueries({ queryKey: ['profile-posts'] });
-  void queryClient.invalidateQueries({ queryKey: ['search'] });
+  if (comunaSlug) void queryClient.invalidateQueries({ queryKey: queryKeys.moderation.comunaReportsAll(comunaSlug) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.moderation.platformReportsAll });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.post.all });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.profile.postsAll });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.discovery.searchAll });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.discovery.all });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.topic.postsAll });
   if (comunaSlug) {
-    void queryClient.invalidateQueries({ queryKey: comunaKeys.pins(comunaSlug) });
-    void queryClient.invalidateQueries({ queryKey: comunaKeys.posts(comunaSlug) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.comuna.posts(comunaSlug) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.comuna.pins(comunaSlug) });
   }
 }

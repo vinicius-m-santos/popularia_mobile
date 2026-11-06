@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { runWithPerformanceScope } from '@/lib/performance';
 import { accessDenied, queryClient } from '@/lib/query/client';
 import { mergeById, reconcileRefreshedPages, type Page } from '@/lib/pagination';
+import { assertPagePayload } from '@/lib/query/payloads';
 
 type PagesData<T> = InfiniteData<Page<T>, string | null>;
 
@@ -20,12 +21,14 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
   performanceScope?: string;
 }) {
   const pendingAction = useRef<'refresh' | 'pagination' | null>(null);
-  const trackedLoad = useCallback((cursor: string | null, signal: AbortSignal) => {
+  const trackedLoad = useCallback(async (cursor: string | null, signal: AbortSignal) => {
     const action = pendingAction.current ?? (cursor ? 'pagination' : 'initial');
     pendingAction.current = null;
     // O escopo é lido de forma síncrona no começo de cada request; respostas que
     // chegam depois de uma navegação não são atribuídas à tela errada.
-    return runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action }, () => load(cursor, signal));
+    const page = await runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action }, () => load(cursor, signal));
+    // Uma resposta parcial não pode substituir páginas boas no cache.
+    return assertPagePayload<T>(page);
   }, [load, performanceScope]);
   const query = useInfiniteQuery({ queryKey, initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => trackedLoad(pageParam, signal),
@@ -43,9 +46,10 @@ export function useCachedPages<T extends { id: string }>({ queryKey, load, stale
   const { fetchNextPage } = query;
   const fetching = query.isFetching;
 
-  const loadForRefresh = useCallback((cursor: string | null, signal: AbortSignal) =>
-    runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action: 'refresh' }, () => load(cursor, signal)),
-  [load, performanceScope]);
+  const loadForRefresh = useCallback(async (cursor: string | null, signal: AbortSignal) => {
+    const page = await runWithPerformanceScope({ screen: performanceScope ?? 'unknown', action: 'refresh' }, () => load(cursor, signal));
+    return assertPagePayload<T>(page);
+  }, [load, performanceScope]);
 
   useEffect(() => () => {
     // Trocar de aba/consulta não pode deixar um refresh antigo escrevendo no

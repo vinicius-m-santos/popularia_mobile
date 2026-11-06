@@ -10,7 +10,10 @@ import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { usePaginatedData } from '@/hooks/use-paginated-data';
+import { useMe } from '@/features/account/account-context';
+import { useCachedPages } from '@/hooks/use-cached-pages';
+import { contentPolicy } from '@/lib/query/client';
+import { libraryKeys } from '@/lib/query/keys';
 import { goBack } from '@/lib/routes';
 import { listCollections } from './api';
 import { CollectionCard } from './collection-card';
@@ -21,11 +24,17 @@ import type { LibraryCollection, LibraryScope } from './types';
 export default function CollectionsScreen() {
   const params = useLocalSearchParams<{ scope?: string }>();
   const scope: LibraryScope = params.scope === 'personal' || params.scope === 'comuna' ? params.scope : 'public';
+  const me = useMe();
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
   const [editor, setEditor] = useState(false);
-  const load = useCallback((cursor: string | null) => listCollections({ scope }, cursor), [scope]);
-  const collections = usePaginatedData(load);
+  const load = useCallback((cursor: string | null, signal: AbortSignal) => listCollections({ scope }, cursor, signal), [scope]);
+  const collections = useCachedPages({
+    queryKey: libraryKeys.collections(me.id, { scope }),
+    load,
+    performanceScope: 'library-collections-screen',
+    ...contentPolicy.library,
+  });
   const filtered = term
     ? collections.items.filter((item) => `${item.name} ${item.origin.name}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(term.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()))
     : collections.items;

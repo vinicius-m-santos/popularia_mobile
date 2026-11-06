@@ -3,6 +3,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, 
 import { DEMO_MODE } from '@/constants/config';
 import { useAccount } from '@/features/account/account-context';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import type { AppNotification } from '@/types/models';
 
 import { getUnreadCount, markAllNotificationsRead, readNotification } from './api';
@@ -38,7 +39,7 @@ function NotificationsSession({ children, active, identity }: { children: ReactN
   const [revision, setRevision] = useState(0);
   const changed = useCallback(() => {
     setRevision((value) => value + 1);
-    void queryClient.invalidateQueries({ queryKey: ['notifications', identity] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notification.session(identity) });
   }, [identity]);
   const reads = useRef(new Map<string, Promise<AppNotification>>());
   const localReadIds = useRef(new Set<string>());
@@ -58,8 +59,8 @@ function NotificationsSession({ children, active, identity }: { children: ReactN
     return () => {
       mounted.current = false;
       unreadFlight.current = null;
-      void queryClient.cancelQueries({ queryKey: ['notifications', identity] });
-      queryClient.removeQueries({ queryKey: ['notifications', identity] });
+      void queryClient.cancelQueries({ queryKey: queryKeys.notification.session(identity) });
+      queryClient.removeQueries({ queryKey: queryKeys.notification.session(identity) });
     };
   }, [identity]);
 
@@ -70,7 +71,7 @@ function NotificationsSession({ children, active, identity }: { children: ReactN
     const pending = unreadFlight.current;
     if (pending) return pending;
     const generation = ++request.current;
-    const flight: Promise<void> = queryClient.fetchQuery({ queryKey: ['notifications', identity, 'unread'], queryFn: ({ signal }) => getUnreadCount(signal), staleTime: 0, retry: false, gcTime: 60_000 })
+    const flight: Promise<void> = queryClient.fetchQuery({ queryKey: queryKeys.notification.unread(identity), queryFn: ({ signal }) => getUnreadCount(signal), staleTime: 0, retry: false, gcTime: 60_000 })
       .then((count) => {
         unreadFetchedAt.current = Date.now();
         if (mounted.current && generation === request.current) updateUnread(count);
@@ -93,7 +94,7 @@ function NotificationsSession({ children, active, identity }: { children: ReactN
     // contador não pode sobrescrever o valor otimista. A próxima leitura começa
     // depois da confirmação, com `force`.
     unreadFlight.current = null;
-    void queryClient.cancelQueries({ queryKey: ['notifications', identity, 'unread'] });
+    void queryClient.cancelQueries({ queryKey: queryKeys.notification.unread(identity) });
     const previouslyRead = localReadIds.current.has(id);
     const optimistic = wasUnread && !localReadIds.current.has(id);
     localReadIds.current.add(id);
@@ -127,7 +128,7 @@ function NotificationsSession({ children, active, identity }: { children: ReactN
   const readAll = useCallback(async () => {
     request.current++;
     unreadFlight.current = null;
-    void queryClient.cancelQueries({ queryKey: ['notifications', identity, 'unread'] });
+    void queryClient.cancelQueries({ queryKey: queryKeys.notification.unread(identity) });
     const count = await markAllNotificationsRead();
     if (mounted.current) {
       request.current++;

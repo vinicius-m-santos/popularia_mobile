@@ -4,13 +4,12 @@ import { moveComunaPin, pinComunaPost, unpinComunaPost } from '@/features/comuna
 import { rememberPost } from '@/features/posts/save';
 import { ApiError } from '@/lib/errors';
 import { queryClient } from '@/lib/query/client';
+import { queryKeys } from '@/lib/query/keys';
 import type { FeedItem } from '@/types/models';
-
-import { comunaKeys } from './keys';
 
 /** Só a lista de fixados daquela comuna e a publicação aberta. O feed não entra. */
 export function pinnedPostsKey(slug: string) {
-  return comunaKeys.pins(slug);
+  return queryKeys.comuna.pins(slug);
 }
 
 type PinOverride = { slug: string; pinned: boolean };
@@ -70,7 +69,7 @@ function withPinned(post: FeedItem, pinned: boolean): FeedItem {
 }
 
 function patchPost(postId: string, pinned: boolean) {
-  for (const key of [['post', postId], ['post-preview', postId]] as const) {
+  for (const key of [queryKeys.post.detail(postId), queryKeys.post.preview(postId)] as const) {
     queryClient.setQueryData<FeedItem>(key, (current) => current && current.id === postId ? withPinned(current, pinned) : current);
   }
 }
@@ -97,7 +96,7 @@ function applyList(slug: string, items: FeedItem[], previous: FeedItem[]) {
 }
 
 function snapshot(slug: string, postId: string): Snapshot[] {
-  return [pinnedPostsKey(slug), ['post', postId], ['post-preview', postId]].map((queryKey) => ({
+  return [pinnedPostsKey(slug), queryKeys.post.detail(postId), queryKeys.post.preview(postId)].map((queryKey) => ({
     queryKey,
     data: queryClient.getQueryData(queryKey),
   }));
