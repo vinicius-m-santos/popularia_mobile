@@ -1,7 +1,14 @@
 import { router, useSegments } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, {
+  Easing,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { CreationIllustration, type CreationAsset } from '@/features/media/creation-assets';
 
 import { AppText } from '@/components/app-text';
@@ -24,50 +31,102 @@ const CREATE_BUTTON_INDEX = 2;
 const HIDDEN_ON_SEGMENTS = ['post'];
 
 /**
+ * A barra não é removida da árvore no mesmo quadro em que a rota de post entra:
+ * o espaço que ela ocupa no layout encolhe junto com a transição da pilha. Sem
+ * isso, a cena inteira ganharia a altura da barra de uma vez no push e no back.
+ */
+const LAYOUT_TRANSITION_MS = 220;
+
+/** Altura mínima de cada item e respiro superior da barra, iguais aos estilos abaixo. */
+const TAB_MIN_HEIGHT = 52;
+const BAR_PADDING_TOP = Spacing.one + 2;
+
+/** Altura inicial antes da primeira medida; `onLayout` corrige se a fonte ou a área segura mudarem. */
+function barHeightFor(insetsBottom: number): number {
+  return BAR_PADDING_TOP + TAB_MIN_HEIGHT + Math.max(insetsBottom, Spacing.three);
+}
+
+/** O mesmo recorte de segmento esconde a barra em qualquer pilha de aba. */
+export function isTabBarHidden(segments: readonly string[]): boolean {
+  return segments.some((segment) => HIDDEN_ON_SEGMENTS.includes(segment));
+}
+
+/**
  * Barra inferior escura do design: quatro abas e o botão vermelho de criar
  * no centro, que abre o menu de criação.
  */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const segments = useSegments() as string[];
-  if (segments.some((s) => HIDDEN_ON_SEGMENTS.includes(s))) return null;
+  const hidden = isTabBarHidden(segments);
+  const progress = useSharedValue(hidden ? 0 : 1);
+  // Altura natural da barra; o host anima entre ela e zero.
+  const [barHeight, setBarHeight] = useState(() => barHeightFor(insets.bottom));
+
+  useEffect(() => {
+    progress.value = withTiming(hidden ? 0 : 1, {
+      duration: LAYOUT_TRANSITION_MS,
+      easing: Easing.out(Easing.cubic),
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [hidden, progress]);
+
+  const hostStyle = useAnimatedStyle(() => ({ height: barHeight * progress.value }));
+  const barStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ translateY: (1 - progress.value) * barHeight }],
+  }));
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }]} role="tablist">
-      {state.routes.map((route, index) => {
-        const focused = index === state.index;
-        const { options } = descriptors[route.key];
-        const label = options.title ?? route.name;
-        const color = focused ? Colors.cream : Colors.navInactive;
+    <Animated.View
+      testID="tab-bar-host"
+      style={[styles.host, hostStyle]}
+      pointerEvents={hidden ? 'none' : 'auto'}
+      aria-hidden={hidden}
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}>
+      <Animated.View
+        onLayout={(event) => {
+          const measured = Math.round(event.nativeEvent.layout.height);
+          if (measured > 0 && measured !== barHeight) setBarHeight(measured);
+        }}
+        style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }, barStyle]}
+        role="tablist">
+        {state.routes.map((route, index) => {
+          const focused = index === state.index;
+          const { options } = descriptors[route.key];
+          const label = options.title ?? route.name;
+          const color = focused ? Colors.cream : Colors.navInactive;
 
-        const onPress = () => {
-          const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (event.defaultPrevented) return;
-          // A aba ativa não dispara POP_TO_TOP: ela já está no topo ou o gesto de
-          // voltar cuida da pilha. O reset automático acontece no blur (popToTopOnBlur).
-          if (!focused) navigateToTab(route.key);
-        };
+          const onPress = () => {
+            const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (event.defaultPrevented) return;
+            // A aba ativa não dispara POP_TO_TOP: ela já está no topo ou o gesto de
+            // voltar cuida da pilha. O reset automático acontece no blur (popToTopOnBlur).
+            if (!focused) navigateToTab(route.key);
+          };
 
-        return (
-          <Fragment key={route.key}>
-            {index === CREATE_BUTTON_INDEX ? <CreateButton /> : null}
-            <Pressable
-              onPress={onPress}
-              role="tab"
-              accessibilityState={{ selected: focused }}
-              accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
-              testID={options.tabBarButtonTestID}
-              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
-              <View>
-                <Icon name={TAB_ICONS[route.name] ?? 'home'} color={color} />
-              </View>
-              <AppText style={styles.label} color={color} maxFontSizeMultiplier={1.2} numberOfLines={1}>
-                {label}
-              </AppText>
-            </Pressable>
-          </Fragment>
-        );
-      })}
-    </View>
+          return (
+            <Fragment key={route.key}>
+              {index === CREATE_BUTTON_INDEX ? <CreateButton /> : null}
+              <Pressable
+                onPress={onPress}
+                role="tab"
+                accessibilityState={{ selected: focused }}
+                accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+                testID={options.tabBarButtonTestID}
+                style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
+                <View>
+                  <Icon name={TAB_ICONS[route.name] ?? 'home'} color={color} />
+                </View>
+                <AppText style={styles.label} color={color} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+                  {label}
+                </AppText>
+              </Pressable>
+            </Fragment>
+          );
+        })}
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -162,16 +221,19 @@ function CreateMenuItem({ title, description, image, onPress }: MenuItemProps) {
 }
 
 const styles = StyleSheet.create({
+  host: {
+    overflow: 'hidden',
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.ink,
-    paddingTop: Spacing.one + 2,
+    paddingTop: BAR_PADDING_TOP,
     paddingHorizontal: Spacing.one + 2,
   },
   tab: {
     flex: 1,
-    minHeight: 52,
+    minHeight: TAB_MIN_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,

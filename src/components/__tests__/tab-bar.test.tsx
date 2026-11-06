@@ -4,9 +4,10 @@ import { router } from 'expo-router';
 import type { ComponentProps } from 'react';
 
 import { FeedHeader } from '@/features/feed/components/feed-header';
-import { TabBar } from '../tab-bar';
+import { TabBar, isTabBarHidden } from '../tab-bar';
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), dismissAll: jest.fn() }, useSegments: () => ['(tabs)', '(inicio)'] }));
+let mockSegments = ['(tabs)', '(inicio)'];
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), dismissAll: jest.fn() }, useSegments: () => mockSegments }));
 let mockUnread = 0;
 jest.mock('@/features/notifications/use-unread-count', () => ({ useUnreadCount: () => mockUnread }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -20,7 +21,7 @@ const props = {
   insets: { top: 0, bottom: 0, left: 0, right: 0 },
 } as unknown as ComponentProps<typeof TabBar>;
 
-beforeEach(() => { jest.clearAllMocks(); mockUnread = 0; });
+beforeEach(() => { jest.clearAllMocks(); mockUnread = 0; mockSegments = ['(tabs)', '(inicio)']; });
 
 describe('badge de avisos', () => {
   it.each([0, 1, 99, 100, 250])('exibe corretamente %i não lidos', async (count) => {
@@ -47,6 +48,38 @@ describe('navegação das abas', () => {
     await render(<TabBar {...props} />);
     await fireEvent.press(screen.getByLabelText('explorar'));
     expect(props.navigateToTab).toHaveBeenCalledWith('explorar');
+  });
+});
+
+describe('rotas de post e a barra', () => {
+  it.each([
+    ['(inicio)', ['(tabs)', '(inicio)', 'post', '[id]']],
+    ['explorar', ['(tabs)', 'explorar', 'post', '[id]']],
+    ['perfil', ['(tabs)', 'perfil', 'post', '[id]']],
+    ['avisos', ['avisos', 'post', '[id]']],
+  ] as const)('oculta a barra na rota de post de %s', async (_tab, segments) => {
+    mockSegments = [...segments];
+    await render(<TabBar {...props} />);
+    const host = screen.getByTestId('tab-bar-host', { includeHiddenElements: true });
+    expect(host.props['aria-hidden']).toBe(true);
+    expect(host.props.accessibilityElementsHidden).toBe(true);
+    expect(host.props.pointerEvents).toBe('none');
+  });
+
+  it('mantém a barra em detalhes que não são post, preservando a pilha até o blur', async () => {
+    mockSegments = ['(tabs)', '(inicio)', 'pessoa', '[id]'];
+    await render(<TabBar {...props} />);
+    const host = screen.getByTestId('tab-bar-host', { includeHiddenElements: true });
+    expect(host.props['aria-hidden']).toBe(false);
+    expect(screen.getByLabelText('explorar')).toBeTruthy();
+  });
+
+  it('detecta post em qualquer profundidade de segmento', () => {
+    expect(isTabBarHidden(['(tabs)', '(inicio)'])).toBe(false);
+    expect(isTabBarHidden(['(tabs)', '(inicio)', 'post', '1'])).toBe(true);
+    expect(isTabBarHidden(['(tabs)', 'explorar', 'post', '1'])).toBe(true);
+    expect(isTabBarHidden(['avisos', 'post', '1'])).toBe(true);
+    expect(isTabBarHidden(['(tabs)', '(inicio)', 'pessoa', '1'])).toBe(false);
   });
 });
 

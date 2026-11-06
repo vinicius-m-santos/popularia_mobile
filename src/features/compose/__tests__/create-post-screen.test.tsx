@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { Alert } from 'react-native';
 
 import { getMyComunas } from '@/features/comunas/api';
 import { getDocument } from '@/features/library/api';
@@ -15,12 +16,17 @@ import { haptic } from '@/lib/haptics';
 import CreatePostScreen from '../create-post-screen';
 
 const mockParams: { documentId?: string } = {};
+type PreventRemoveEvent = { data: { action: unknown }; repeat: () => void };
+let mockPreventRemove: ((event: PreventRemoveEvent) => void) | null = null;
 jest.mock('@/features/library/api', () => ({ getDocument: jest.fn(), listDocuments: jest.fn(), listCollections: jest.fn() }));
 jest.mock('@/features/onboarding/api', () => ({ getTopicGroups: () => Promise.resolve([{ title: 'Cultura e ideias', topics: [{ id: 'tec', label: 'Tecnologia e ciência', shortLabel: 'Tecnologia' }, { id: 'cult', label: 'Cultura popular', shortLabel: 'Cultura' }] }]) }));
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false, USE_MOCKS: true }));
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), canGoBack: () => true, replace: jest.fn(), dismissTo: jest.fn(), push: jest.fn() },
-  usePreventRemove: () => jest.fn(),
+  usePreventRemove: (enabled: boolean, callback: (event: PreventRemoveEvent) => void) => {
+    mockPreventRemove = enabled ? callback : null;
+    return () => { mockPreventRemove = null; };
+  },
   useLocalSearchParams: () => mockParams,
 }));
 jest.mock('react-native-safe-area-context', () => {
@@ -66,12 +72,14 @@ jest.mock('@/components/bottom-sheet', () => {
 beforeEach(() => {
   jest.clearAllMocks();
   delete mockParams.documentId;
+  mockPreventRemove = null;
   jest.mocked(getMyComunas).mockResolvedValue([]);
 });
 
 afterEach(() => {
   setPerformanceInstrumentationOverride(null);
   resetPerformanceSession();
+  jest.restoreAllMocks();
 });
 
 const multiComunas = [
@@ -192,6 +200,26 @@ describe('criação de publicação', () => {
     await view.unmount();
     await render(<CreatePostScreen />);
     expect(screen.getByLabelText('Texto da publicação').props.value).toBe('');
+  });
+
+  it('protege o rascunho sujo com confirmação antes de descartar', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const view = await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Rascunho');
+    expect(mockPreventRemove).not.toBeNull();
+
+    const repeat = jest.fn();
+    mockPreventRemove!({ data: { action: {} }, repeat });
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, message, buttons] = alert.mock.calls[0] as [string, string, { text?: string; onPress?: () => void }[]];
+    expect(title).toBe('Descartar publicação?');
+    expect(message).toContain('serão perdidos');
+    expect(buttons.map((button) => button.text)).toEqual(['Continuar escrevendo', 'Descartar']);
+    expect(repeat).not.toHaveBeenCalled();
+
+    await act(async () => { buttons[1]?.onPress?.(); });
+    expect(repeat).toHaveBeenCalledTimes(1);
+    await view.unmount();
   });
 
   it('falha conserva o rascunho para retry, e o sucesso navega uma única vez', async () => {

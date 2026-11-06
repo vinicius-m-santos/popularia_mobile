@@ -16,6 +16,9 @@ export default function TabsLayout() {
   // em vez de deixar o router escolher outra rota pública como fallback.
   if (!onboarded) return <Redirect href="/boas-vindas" />;
 
+  // Cada aba tem a própria pilha, mas volta ao topo quando perde o foco (POP-32).
+  // O detalhe não fica preso em outra aba e o cache da lista é mantido; o teste
+  // src/components/__tests__/tabs-layout.test.tsx trava essa decisão.
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
