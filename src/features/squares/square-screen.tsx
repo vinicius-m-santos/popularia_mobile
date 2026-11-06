@@ -348,6 +348,7 @@ function Conversation({ id }: { id: string }) {
               labelVariant="button"
               tone="red"
               disabled={busy || reason.trim().length < 3}
+              busy={busy}
               onPress={submitAction}
               style={styles.sheetAction}
             />

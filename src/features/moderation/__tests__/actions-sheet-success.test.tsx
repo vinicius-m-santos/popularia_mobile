@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { AccessibilityInfo, Pressable } from 'react-native';
 
@@ -23,7 +23,7 @@ jest.mock('@/components/bottom-sheet', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { TextInput, View } = require('react-native') as typeof import('react-native');
   return {
-    BottomSheet: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => visible ? React.createElement(View, null, children) : null,
+    BottomSheet: ({ visible, dismissible, children }: { visible: boolean; dismissible?: boolean; children: React.ReactNode }) => visible ? React.createElement(View, { testID: 'actions-sheet', accessibilityState: { disabled: dismissible === false } }, children) : null,
     PopulariaBottomSheetTextInput: (props: Record<string, unknown>) => React.createElement(TextInput, props),
   };
 });
@@ -86,6 +86,25 @@ beforeEach(() => {
 });
 
 describe('confirmação da denúncia no fluxo', () => {
+  it('mostra o envio em andamento e bloqueia o dismiss até terminar', async () => {
+    let release!: (value: { protocol: string; inMyQueue: boolean }) => void;
+    mockSubmitReport.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    await render(<Opener />, { wrapper });
+    await fireEvent.press(screen.getByLabelText('Abrir menu'));
+    await fireEvent.press(screen.getByText('Denunciar publicação'));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Spam' }));
+
+    // Não aguarda o press: o handler só termina quando a promessa de envio for liberada.
+    fireEvent.press(screen.getByRole('button', { name: 'Enviar denúncia' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enviando…' }).props.accessibilityState).toMatchObject({ disabled: true, busy: true }));
+    expect(screen.getByTestId('actions-sheet').props.accessibilityState.disabled).toBe(true);
+
+    await act(async () => { release({ protocol: '', inMyQueue: false }); });
+    await waitFor(() => expect(screen.getByText('DENÚNCIA ENVIADA.')).toBeTruthy());
+    expect(screen.getByTestId('actions-sheet').props.accessibilityState.disabled).toBe(false);
+  });
+
   it('bloqueia direto, anuncia o estado e desfaz', async () => {
     api.mockImplementation(async <T,>(path: string, options?: RequestOptions): Promise<T> => {
       if (path.startsWith('/me/blocks/') && options?.method === 'PUT') return undefined as T;

@@ -57,7 +57,7 @@ export function CollectionEditor({ visible, onClose, onDone, comuna, initial }: 
         editable={!busy}
       />
       {error ? <AppText color={Colors.error} accessibilityLiveRegion="polite">{error}</AppText> : null}
-      <EditorialAction label={busy ? 'Salvando…' : initial ? 'Salvar coleção' : 'Criar e selecionar'} icon={initial ? 'check' : 'plus'} tone="red" disabled={busy} onPress={save} />
+      <EditorialAction label={busy ? 'Salvando…' : initial ? 'Salvar coleção' : 'Criar e selecionar'} icon={initial ? 'check' : 'plus'} tone="red" disabled={busy} busy={busy} onPress={save} />
       {initial ? <EditorialAction label="Excluir coleção vazia" icon="trash" disabled={busy} onPress={remove} /> : null}
     </View>
   </BottomSheet>;

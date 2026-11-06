@@ -13,6 +13,8 @@ type EditorialActionProps = {
   /** 'ghost': ação neutra como "Cancelar" — sem borda nem preenchimento, menor peso visual. */
   tone?: 'paper' | 'red' | 'ghost';
   disabled?: boolean;
+  /** Operação em andamento: mantém o botão bloqueado e anuncia o estado. */
+  busy?: boolean;
   accessibilityLabel?: string;
   iconPosition?: 'leading' | 'trailing';
   /** Mantém o ícone à esquerda sem deslocar o rótulo do centro do botão. */
@@ -21,14 +23,14 @@ type EditorialActionProps = {
 };
 
 /** Ação editorial padrão: retangular, com ícone de 22 px e rótulo mono. */
-export function EditorialAction({ label, labelVariant = 'label', icon, onPress, tone = 'paper', disabled = false, accessibilityLabel, iconPosition = 'leading', pinnedLeadingIcon = false, style }: EditorialActionProps) {
+export function EditorialAction({ label, labelVariant = 'label', icon, onPress, tone = 'paper', disabled = false, busy = false, accessibilityLabel, iconPosition = 'leading', pinnedLeadingIcon = false, style }: EditorialActionProps) {
   const foreground = tone === 'red' ? Colors.paper : tone === 'ghost' ? Colors.inkSoft : Colors.ink;
   const iconNode = <Icon name={icon} size={22} color={foreground} />;
   const pinLeadingIcon = pinnedLeadingIcon && iconPosition === 'leading';
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={accessibilityLabel ?? label}
-    accessibilityState={{ disabled }}
+    accessibilityState={{ disabled, busy }}
     disabled={disabled}
     onPress={onPress}
     style={({ pressed }) => [styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, (pressed || disabled) && styles.pressed]}>

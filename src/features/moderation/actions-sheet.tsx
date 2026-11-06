@@ -61,6 +61,9 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
   const [details, setDetails] = useState('');
   const [block, setBlock] = useState(false);
   const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
+  // Enquanto uma denúncia ou exclusão está em voo, a folha não pode ser fechada:
+  // o estado de envio precisa ficar visível e a operação precisa terminar.
+  const [busy, setBusy] = useState(false);
 
   const open = useCallback((next: ReportTarget, start: 'menu' | 'reason' = 'menu', options?: { onDeleted?: () => void; hideShare?: boolean }) => {
     setTarget(next);
@@ -70,6 +73,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
     setReasonCode('');
     setDetails('');
     setBlock(false);
+    setBusy(false);
     setBlockedHandles(cachedBlockedHandles());
   }, []);
 
@@ -83,7 +87,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, [target]);
 
-  const close = useCallback(() => { setTarget(null); setOnDeleted(undefined); setHideShare(false); }, []);
+  const close = useCallback(() => { setTarget(null); setOnDeleted(undefined); setHideShare(false); setBusy(false); }, []);
   const value = useMemo(() => ({ open }), [open]);
 
   return (
@@ -92,6 +96,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
       <BottomSheet
         visible={target !== null}
         onClose={close}
+        dismissible={!busy}
         appearance={step === 'done' ? 'report' : 'paper'}
         accessibilityLabel={step === 'done' ? 'Denúncia enviada' : undefined}>
         {target ? (
@@ -108,6 +113,7 @@ export function ActionsSheetProvider({ children }: { children: ReactNode }) {
             blocked={blockedHandles.includes(target.author.handle)}
             setBlocked={(handle, blocked) => setBlockedHandles((items) => blocked ? [...new Set([...items, handle])] : items.filter((item) => item !== handle))}
             close={close}
+            onBusyChange={setBusy}
             onDeleted={onDeleted}
             hideShare={hideShare}
           />
@@ -136,12 +142,14 @@ type BodyProps = {
   blocked: boolean;
   setBlocked: (handle: string, blocked: boolean) => void;
   close: () => void;
+  /** Mantém o estado de envio no provedor para bloquear o dismiss da folha. */
+  onBusyChange: (busy: boolean) => void;
   onDeleted?: () => void;
   hideShare: boolean;
 };
 
 function SheetBody(props: BodyProps) {
-  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, blocked, setBlocked, close, onDeleted, hideShare } =
+  const { target, step, setStep, reasonCode, setReasonCode, details, setDetails, block, setBlock, blocked, setBlocked, close, onBusyChange, onDeleted, hideShare } =
     props;
   const toast = useToast();
   const me = useMe();
@@ -154,7 +162,11 @@ function SheetBody(props: BodyProps) {
   useSyncExternalStore(subscribePinStore, pinStoreVersion, pinStoreVersion);
   const { submitReport } = useModeration();
   const sending = useRef(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusyState] = useState(false);
+  const setBusy = useCallback((next: boolean) => {
+    setBusyState(next);
+    onBusyChange(next);
+  }, [onBusyChange]);
 
   const handle = target.author.handle;
   // Conteúdo da API traz a autoria decidida pelo servidor; nos mocks, compara com o ID local "me".
@@ -374,7 +386,7 @@ function SheetBody(props: BodyProps) {
         <AppText style={styles.note} color={Colors.muted}>
           A denúncia vai para {reviews}. Quem foi denunciado não fica sabendo quem denunciou.
         </AppText>
-        <EditorialAction label={busy ? 'Enviando…' : 'Enviar denúncia'} icon="flag" labelVariant="button" tone="red" disabled={busy} onPress={submit} style={styles.primaryAction} />
+        <EditorialAction label={busy ? 'Enviando…' : 'Enviar denúncia'} icon="flag" labelVariant="button" tone="red" disabled={busy} busy={busy} onPress={submit} style={styles.primaryAction} />
         <EditorialAction label="Cancelar" icon="close" labelVariant="button" tone="paper" onPress={close} style={styles.secondaryAction} />
       </View>
     );
