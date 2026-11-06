@@ -8,6 +8,7 @@ import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { listSavedPosts } from '@/features/posts/api';
 import { PostCard } from '@/features/posts/components/post-card';
 import { SAVED_POSTS_QUERY_KEY } from '@/features/posts/save';
+import { ProfileSwipeGuard } from '@/features/profiles/profile-tab-swipe';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { MediaVisibilityProvider, mediaViewabilityConfig, useListVisibility } from '@/hooks/use-list-visibility';
 import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
@@ -19,7 +20,7 @@ export type LibrarySection = 'salvos' | 'documentos';
 const SECTIONS = [{ key: 'salvos' as const, label: 'Salvos' }, { key: 'documentos' as const, label: 'Documentos' }];
 
 export function LibrarySectionTabs({ value, onChange }: { value: LibrarySection; onChange: (value: LibrarySection) => void }) {
-  return <View style={styles.tabs}><UnderlineTabs options={SECTIONS} value={value} onChange={onChange} /></View>;
+  return <View style={styles.tabs}><ProfileSwipeGuard><UnderlineTabs options={SECTIONS} value={value} onChange={onChange} /></ProfileSwipeGuard></View>;
 }
 
 export function useSavedPosts() {
