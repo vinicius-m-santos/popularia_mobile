@@ -81,8 +81,7 @@ export function PillButton({
           borderWidth: size === 'lg' ? 2 : 1.5,
         },
         style,
-        unavailable && styles.unavailable,
-        press.style,
+        unavailable ? styles.unavailable : press.style,
       ]}>
       <View style={styles.content}>
         {icon ? <Icon name={icon} size={size === 'lg' ? 20 : 18} color={colors.fg} filled={iconFilled} /> : null}

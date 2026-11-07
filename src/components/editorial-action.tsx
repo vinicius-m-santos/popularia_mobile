@@ -39,7 +39,7 @@ export function EditorialAction({ label, labelVariant = 'label', icon, onPress, 
     onPress={onPress}
     onPressIn={press.onPressIn}
     onPressOut={press.onPressOut}
-    style={[styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, unavailable && styles.unavailable, press.style]}>
+    style={[styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, unavailable ? styles.unavailable : press.style]}>
     {pinLeadingIcon ? <View style={styles.pinnedLeadingIcon}>{iconNode}</View> : null}
     {iconPosition === 'leading' && !pinLeadingIcon ? iconNode : null}
     <AppText variant={labelVariant} color={foreground} numberOfLines={1}>{label}</AppText>
