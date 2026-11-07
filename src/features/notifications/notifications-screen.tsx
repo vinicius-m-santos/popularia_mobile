@@ -1,4 +1,5 @@
 import { PopulariaList } from '@/components/list/popularia-list';
+import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FlashListRef } from '@shopify/flash-list';
@@ -146,7 +147,7 @@ export default function NotificationsScreen() {
   if (list.status === 'error' && list.items.length === 0) {
     body = <StateView kind="error" message="Não conseguimos carregar seus avisos." onRetry={refresh} />;
   } else if (list.status === 'loading') {
-    body = <StateView kind="loading" message="Carregando avisos" />;
+    body = <PopulariaListSkeleton rows={6} variant="notification" label="Carregando avisos" />;
   } else {
     body = (
       <PopulariaList

@@ -70,6 +70,7 @@ describe('central de avisos', () => {
     mocked.getNotifications.mockReturnValueOnce(first.promise);
     const view = await render(<App />);
     expect(screen.getByLabelText('Carregando avisos')).toBeTruthy();
+    expect(screen.getByTestId('popularia-skeleton-notification')).toBeTruthy();
     await act(async () => { first.resolve({ items: [], nextCursor: null }); });
     expect(screen.getByText('Nenhuma notificação por enquanto.')).toBeTruthy();
     const refreshControl = screen.container.queryAll((element) => element.type === 'RCTRefreshControl')[0];

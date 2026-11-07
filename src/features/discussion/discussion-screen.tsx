@@ -5,6 +5,7 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { KeyboardView } from '@/components/keyboard-view';
 import { IconButton } from '@/components/icon-button';
+import { DiscussionScreenSkeleton, PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
@@ -245,7 +246,7 @@ export default function DiscussionScreen() {
       return (
         <Screen>
           <DiscussionHeader />
-          <StateView kind="loading" message="Carregando discussão" />
+          <DiscussionScreenSkeleton />
         </Screen>
       );
     }
@@ -322,7 +323,7 @@ export default function DiscussionScreen() {
           ListHeaderComponent={<PostDetail post={post} sort={sort} onSortChange={setSort} />}
           ListEmptyComponent={
             comments.status === 'loading' ? (
-              <StateView kind="loading" message="Carregando comentários" />
+              <PopulariaListSkeleton rows={3} variant="comment" label="Carregando comentários" />
             ) : comments.status === 'error' ? (
               <StateView
                 kind="error"

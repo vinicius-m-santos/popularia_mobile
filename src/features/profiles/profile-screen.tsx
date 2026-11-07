@@ -4,7 +4,7 @@ import { useRouteMediaFocus } from '@/hooks/use-route-media-focus';
 import { useQuery } from '@tanstack/react-query';
 import type { FlashListRef } from '@shopify/flash-list';
 import { PopulariaList } from '@/components/list/popularia-list';
-import { PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
+import { PopulariaListSkeleton, ProfileScreenSkeleton } from '@/components/list/popularia-list-skeleton';
 import { useCachedPages } from '@/hooks/use-cached-pages';
 import { accessDenied, contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
 import { mergeById } from '@/lib/pagination';
@@ -90,7 +90,14 @@ export default function ProfileScreen() {
     initialData: isMe && !DEMO_MODE && account ? () => toProfile(account) : undefined,
     initialDataUpdatedAt: 0,
   }, queryClient);
-  const profile = { data: accessDenied(profileQuery.error) ? null : profileQuery.data,
+  // Um resumo da lista pinta o primeiro quadro, mas não substitui o detalhe:
+  // se a leitura falhar, a tela mostra erro e retry em vez de manter contagens vazias.
+  const profileData = accessDenied(profileQuery.error)
+    ? null
+    : profileQuery.isError && profileQuery.isPlaceholderData
+      ? null
+      : profileQuery.data;
+  const profile = { data: profileData,
     status: profileQuery.isPending ? 'loading' : profileQuery.isError ? 'error' : 'success',
     error: profileQuery.error, reload: profileQuery.refetch };
   const posts = useCachedPages({ queryKey: profileKeys.posts(author), load: loadPosts, performanceScope: 'profile', ...contentPolicy.profile, enabled: !!author });
@@ -126,7 +133,7 @@ export default function ProfileScreen() {
     return (
       <Screen>
         {header()}
-        <StateView kind="loading" message="Carregando perfil" />
+        <ProfileScreenSkeleton />
       </Screen>
     );
   }
@@ -378,7 +385,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
                 </View>
               ) : null}
               {posts.status === 'loading' && postItems.length === 0 ? (
-                <PopulariaListSkeleton />
+                <PopulariaListSkeleton rows={3} label="Carregando publicações" />
               ) : null}
               {posts.status === 'error' ? (
                 <StateView kind="error" message="Não conseguimos carregar as publicações." onRetry={posts.refresh} />
@@ -493,7 +500,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
         }}
         ListFooterComponent={pageKey === 'posts' || pageKey === 'media' ? <ProfileSwipeContent><View style={styles.column}>
           {posts.refreshError ? <StateView kind="error" message="Não conseguimos atualizar as publicações." onRetry={posts.refresh} /> : null}
-          {pageKey === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="row" /> : null}
+          {pageKey === 'media' && posts.status === 'loading' ? <PopulariaListSkeleton variant="media" label="Carregando mídia" /> : null}
           {pageKey === 'media' && posts.status === 'error' ? <StateView kind="error" message="Não conseguimos carregar a mídia." onRetry={posts.refresh} /> : null}
           {pageKey === 'media' && rows.length === 3 && posts.status === 'success' ? (
             posts.hasMore ? <AppText style={styles.emptyText} color={Colors.muted}>Nenhuma mídia nesta página. Carregue mais publicações para continuar.</AppText> : (

@@ -8,7 +8,7 @@
  * disparar viewability e a rolagem das abas, eventos que o Jest não emite.
  */
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ComponentType, ReactNode } from 'react';
 
 import { buildQaFeedItems, qaFeedPage, QA_POST_COUNT } from '@/features/performance/qa-fixture';
@@ -237,6 +237,12 @@ function listProps() {
   return (globalThis as { __comunaListProps?: MockListProps }).__comunaListProps;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
 function Harness() {
   return <ComunaScreen />;
 }
@@ -260,6 +266,19 @@ afterEach(() => {
 });
 
 describe('lista de publicações da comuna em FlashList', () => {
+  it('mantém a silhueta da comuna no primeiro frame, sem spinner integral', async () => {
+    const detail = deferred<ComunaDetails>();
+    mocked.getComuna.mockReturnValueOnce(detail.promise);
+
+    await render(<Harness />);
+
+    expect(screen.getByLabelText('Carregando comuna')).toBeTruthy();
+    expect(screen.getByTestId('comuna-skeleton')).toBeTruthy();
+
+    await act(async () => { detail.resolve(comuna()); });
+    expect(await screen.findByText('Hortas')).toBeTruthy();
+  });
+
   it('com 240 publicações monta só a janela visível e pagina por cursor até o fim', async () => {
     await render(<Harness />);
     await screen.findByTestId('post-qa-post-1');
