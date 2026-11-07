@@ -184,6 +184,57 @@ describe('falhas ao atualizar presença', () => {
     expect(mockToast).not.toHaveBeenCalled();
   });
 
+  it('reconhece o tipo absoluto devolvido pela API e mantém o mesmo aviso', async () => {
+    mockPutAttendance.mockRejectedValue(new ApiError(
+      403,
+      'https://api.popularia.com.br/errors/email-not-verified',
+      'Confirme seu e-mail.',
+    ));
+    await card();
+
+    await fireEvent.press(screen.getByLabelText('Eu vou: Ato pela Tarifa Zero'));
+
+    await waitFor(() => expect(screen.getByText(NOTICE)).toBeTruthy());
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('depois da recusa da API, um novo toque não repete a requisição antes de a conta recarregar', async () => {
+    mockReloadAccount.mockImplementation(() => new Promise<void>(() => {}));
+    mockPutAttendance.mockRejectedValue(new ApiError(403, '/errors/email-not-verified', 'Confirme seu e-mail.'));
+    await card();
+
+    await fireEvent.press(screen.getByLabelText('Eu vou: Ato pela Tarifa Zero'));
+    await waitFor(() => expect(screen.getByText(NOTICE)).toBeTruthy());
+    expect(mockPutAttendance).toHaveBeenCalledTimes(1);
+
+    await fireEvent.press(screen.getByLabelText('Talvez: Ato pela Tarifa Zero'));
+
+    expect(mockPutAttendance).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(NOTICE)).toBeTruthy();
+  });
+
+  it('hook considera a restrição conhecida assim que a API recusa, mesmo sem o reload terminar', async () => {
+    mockReloadAccount.mockImplementation(() => new Promise<void>(() => {}));
+    mockPutAttendance.mockRejectedValue(new ApiError(403, '/errors/email-not-verified', 'Confirme seu e-mail.'));
+    const { result } = await renderHook(() => useChamadoAttendance(data()), { wrapper });
+
+    await act(async () => {
+      await result.current.setAttendance('going');
+    });
+
+    expect(result.current.verificationRequired).toBe(true);
+    expect(result.current.verificationPrompt).toBe(true);
+    expect(result.current.going).toBe(false);
+    expect(mockPutAttendance).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.setAttendance('maybe');
+    });
+
+    expect(mockPutAttendance).toHaveBeenCalledTimes(1);
+    expect(result.current.maybe).toBe(false);
+  });
+
   it.each([
     ['servidor', new ApiError(500, '/errors/server', 'Falhou')],
     ['rede', new NetworkError()],

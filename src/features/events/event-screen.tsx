@@ -5,11 +5,13 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-n
 
 import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
+import { EmailVerificationNotice } from '@/components/email-verification-notice';
 import { IconButton } from '@/components/icon-button';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
 import { useAccount } from '@/features/account/account-context';
+import { useEmailVerificationGuard } from '@/features/account/email-verification';
 import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { openDestination } from '@/features/links/destinations';
@@ -40,6 +42,7 @@ export default function EventScreen() {
   }, queryClient);
   const toast = useToast();
   const { account } = useAccount();
+  const verification = useEmailVerificationGuard();
   const nav = useNav();
   const alive = useRef(true);
   const [pending, setPending] = useState(false);
@@ -51,12 +54,23 @@ export default function EventScreen() {
   const respond = (status: AttendanceStatus) => {
     const current = event.data;
     if (!current || pending) return;
+    // A restrição conhecida não chega à API nem pinta o estado otimista.
+    if (verification.required) {
+      verification.showPrompt();
+      return;
+    }
     setPending(true);
     void setAttendance(current, status)
       .then((result) => {
         if (result === 'applied' && status !== 'not_going') acknowledgeGamification(account?.id, toast.show);
       })
-      .catch((error: unknown) => { if (alive.current) toast.show(describeError(error)); })
+      .catch((error: unknown) => {
+        if (!alive.current) return;
+        // A conta em memória pode estar desatualizada: a recusa específica vira o
+        // mesmo aviso do cartão, com o caminho para confirmar o e-mail.
+        if (verification.handleError(error)) return;
+        toast.show(describeError(error));
+      })
       .finally(() => { if (alive.current) setPending(false); });
   };
 
@@ -93,6 +107,15 @@ export default function EventScreen() {
     <EventBar title="Evento" action={<IconButton icon="shareNodes" accessibilityLabel="Compartilhar evento" onPress={() => { void shareDestination({ kind: 'event', id: data.id }); }} />} />
     <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} contentContainerStyle={styles.content}>
       <EventPoster event={data} onOpenComuna={data.comuna ? () => openDestination({ kind: 'comuna', id: data.comuna!.slug }) : undefined} onOpenCounts={() => router.push({ pathname: '/evento/[id]/participantes', params: { id: data.id, status: data.goingCount > 0 ? 'going' : 'maybe' } })} />
+      {verification.prompt ? (
+        <EmailVerificationNotice
+          message="Confirme seu e-mail para responder a esta atividade."
+          onVerify={() => {
+            verification.dismissPrompt();
+            router.push('/verificar-email');
+          }}
+        />
+      ) : null}
       {data.canRespond ? (
         <View style={styles.rsvp}>
           {CHOICES.map((choice) => (

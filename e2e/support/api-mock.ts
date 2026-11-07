@@ -189,6 +189,8 @@ export type MockApiOptions = {
   explore?: unknown;
   /** Corpo de GET /search; sem ele, usa o mesmo corpo de /explore. */
   search?: unknown;
+  /** Quando presente, PUT /events/{id}/attendance responde este problema em vez de 200. */
+  attendanceError?: { status: number; type: string; title: string };
 };
 
 export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, options: MockApiOptions = {}): Promise<MockApi> {
@@ -433,6 +435,17 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
           topics: [], comunas: [], people: [], posts: [], recentPosts: [],
           next: { comunas: null, people: null, posts: null, events: null, documents: null },
         });
+        return;
+      }
+
+      // Presença em chamado: o cenário de e-mail não confirmado força o problema da API.
+      if (/^\/events\/[^/]+\/attendance$/.test(path) && method === 'PUT') {
+        if (options.attendanceError) {
+          const failure = problem(options.attendanceError.status, options.attendanceError.type, options.attendanceError.title);
+          await fulfill(failure.status, failure.body);
+          return;
+        }
+        await fulfill(200, {});
         return;
       }
 
