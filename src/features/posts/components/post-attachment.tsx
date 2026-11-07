@@ -33,6 +33,15 @@ import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
    do React Compiler não se aplica a ele. */
 /* eslint-disable react-hooks/immutability */
 
+/**
+ * Tempo da transição nativa de saída do `Modal` (`animationType="fade"`).
+ * O visualizador só é montado ao abrir; ao fechar, fica mais este instante
+ * montado para a janela nativa terminar o fade antes de seus hooks e gestos
+ * serem liberados. Fora desse intervalo, um cartão fechado não paga o custo
+ * de nenhum `PhotoViewer`.
+ */
+const PHOTO_VIEWER_EXIT_MS = 300;
+
 let activePlayer: VideoPlayer | null = null;
 /** Som é preferência da sessão, como nos apps de vídeo: vale para o próximo vídeo também. */
 let soundEnabled = false;
@@ -108,16 +117,22 @@ export function PostAttachment({ media, localUri, visible = true, chrome, framed
 function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: string; framed?: boolean }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [open, setOpen] = useState(false);
+  // Monta o visualizador só depois do toque. Os hooks, os gestos e a janela
+  // nativa ficam fora de todos os cartões que ninguém abriu. Ao fechar, a
+  // montagem sobrevive por `PHOTO_VIEWER_EXIT_MS` para o fade nativo terminar.
+  const [viewerMounted, setViewerMounted] = useState(false);
   // Variante reduzida para cobrir a primeira decodificação da original em tela
   // cheia. Só é lida no toque e liberada ao fechar, para não reter uma foto por
   // cartão da lista.
   const [preview, setPreview] = useState<ImageRef | null>(null);
   const previewRequest = useRef(0);
   const previewLoading = useRef(false);
+  const viewerCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
     // Uma leitura em voo não pode atualizar estado depois do unmount.
     previewRequest.current += 1;
+    if (viewerCloseTimer.current !== null) clearTimeout(viewerCloseTimer.current);
   }, []);
 
   const loadPreview = () => {
@@ -143,7 +158,14 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
   };
 
   const openViewer = () => {
+    // Reabrir durante o fade de saída cancela a liberação agendada: o mesmo
+    // visualizador volta a ficar visível sem remontar no meio da transição.
+    if (viewerCloseTimer.current !== null) {
+      clearTimeout(viewerCloseTimer.current);
+      viewerCloseTimer.current = null;
+    }
     loadPreview();
+    setViewerMounted(true);
     setOpen(true);
   };
 
@@ -152,6 +174,11 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
     previewLoading.current = false;
     setPreview(null);
     setOpen(false);
+    if (viewerCloseTimer.current !== null) clearTimeout(viewerCloseTimer.current);
+    viewerCloseTimer.current = setTimeout(() => {
+      viewerCloseTimer.current = null;
+      setViewerMounted(false);
+    }, PHOTO_VIEWER_EXIT_MS);
   };
 
   return <>
@@ -177,7 +204,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
       />
       {status === 'error' ? <View style={[StyleSheet.absoluteFill, styles.photoError]}><AppText variant="caption">Não foi possível carregar a imagem.</AppText></View> : null}
     </Pressable>
-    <PhotoViewer
+    {viewerMounted ? <PhotoViewer
       uri={uri}
       preview={preview}
       mediaId={media.id}
@@ -185,7 +212,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
       onClose={closeViewer}
       width={media.width}
       height={media.height}
-    />
+    /> : null}
   </>;
 }
 

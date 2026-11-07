@@ -15,12 +15,20 @@ jest.mock('expo-image', () => {
 });
 
 const mockPhotoViewer = jest.fn();
-jest.mock('../photo-viewer', () => ({
-  PhotoViewer: (props: Record<string, unknown>) => {
-    mockPhotoViewer(props);
-    return null;
-  },
-}));
+const mockViewerLifecycle = { mounts: 0, unmounts: 0 };
+jest.mock('../photo-viewer', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  return {
+    PhotoViewer: (props: Record<string, unknown>) => {
+      mockPhotoViewer(props);
+      React.useEffect(() => {
+        mockViewerLifecycle.mounts += 1;
+        return () => { mockViewerLifecycle.unmounts += 1; };
+      }, []);
+      return null;
+    },
+  };
+});
 
 const photo: PostMediaDto = {
   id: 'photo-1',
@@ -40,17 +48,34 @@ function lastViewerProps(): Record<string, unknown> {
 beforeEach(() => {
   jest.clearAllMocks();
   mockLoadAsync.mockResolvedValue(null);
+  mockViewerLifecycle.mounts = 0;
+  mockViewerLifecycle.unmounts = 0;
 });
 
 describe('PostAttachment · foto em tela cheia', () => {
+  it('não monta nenhum visualizador para cartões fechados', async () => {
+    const photos: PostMediaDto[] = Array.from({ length: 100 }, (_, index) => ({
+      ...photo,
+      id: `photo-${index}`,
+      url: `https://example.test/foto-${index}.jpg`,
+    }));
+
+    await render(<>{photos.map((media) => <PostAttachment key={media.id} media={media} />)}</>);
+
+    // O custo por célula fica no cartão; o PhotoViewer só existe depois do toque.
+    expect(mockPhotoViewer).not.toHaveBeenCalled();
+    expect(mockViewerLifecycle.mounts).toBe(0);
+    expect(screen.getAllByLabelText('Abrir foto em tela cheia')).toHaveLength(100);
+  });
+
   it('carrega uma variante no toque e a entrega ao visualizador', async () => {
     const preview = { width: 400, height: 800 } as unknown as ImageRef;
     mockLoadAsync.mockResolvedValue(preview);
     await render(<PostAttachment media={photo} />);
 
-    // Um cartão da lista não retém bitmap extra só por estar visível.
+    // Um cartão da lista não retém bitmap extra nem monta o viewer só por estar visível.
     expect(mockLoadAsync).not.toHaveBeenCalled();
-    expect(lastViewerProps()).toMatchObject({ visible: false, preview: null });
+    expect(mockPhotoViewer).not.toHaveBeenCalled();
     await fireEvent(screen.getByTestId('post-photo-image'), 'load');
 
     await fireEvent.press(screen.getByLabelText('Abrir foto em tela cheia'));
@@ -69,6 +94,7 @@ describe('PostAttachment · foto em tela cheia', () => {
     }));
     // A abertura lê a variante uma única vez.
     expect(mockLoadAsync).toHaveBeenCalledTimes(1);
+    expect(mockViewerLifecycle.mounts).toBe(1);
   });
 
   it('abre sem preview quando o bitmap ainda não está no cache', async () => {
@@ -93,7 +119,7 @@ describe('PostAttachment · foto em tela cheia', () => {
     expect(mockLoadAsync).not.toHaveBeenCalled();
   });
 
-  it('solta o preview ao fechar e não atualiza estado depois do unmount', async () => {
+  it('solta o preview ao fechar, mantém o fade e libera o visualizador depois', async () => {
     const preview = { width: 400, height: 800 } as unknown as ImageRef;
     mockLoadAsync.mockResolvedValue(preview);
     const view = await render(<PostAttachment media={photo} />);
@@ -105,8 +131,51 @@ describe('PostAttachment · foto em tela cheia', () => {
     await act(async () => {
       (lastViewerProps().onClose as () => void)();
     });
+    // O Modal nativo ainda está no fade de saída: o viewer continua montado,
+    // mas já sem a variante reduzida.
     await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: false, preview: null }));
+    expect(mockViewerLifecycle.unmounts).toBe(0);
 
+    await waitFor(() => expect(mockViewerLifecycle.unmounts).toBe(1));
     await view.unmount();
+  });
+
+  it('reabre durante o fade sem remontar hooks nem perder a transição', async () => {
+    await render(<PostAttachment media={photo} />);
+    await fireEvent(screen.getByTestId('post-photo-image'), 'load');
+
+    await fireEvent.press(screen.getByLabelText('Abrir foto em tela cheia'));
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: true }));
+
+    await act(async () => {
+      (lastViewerProps().onClose as () => void)();
+    });
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: false }));
+
+    // O toque seguinte acontece antes de o timer de 300 ms liberar a montagem.
+    await fireEvent.press(screen.getByLabelText('Abrir foto em tela cheia'));
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: true }));
+
+    expect(mockViewerLifecycle.mounts).toBe(1);
+    expect(mockViewerLifecycle.unmounts).toBe(0);
+  });
+
+  it('não herda o visualizador aberto quando a célula é reciclada', async () => {
+    const view = await render(<PostAttachment media={photo} />);
+    await fireEvent(screen.getByTestId('post-photo-image'), 'load');
+    await fireEvent.press(screen.getByLabelText('Abrir foto em tela cheia'));
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: true }));
+
+    mockPhotoViewer.mockClear();
+    const other: PostMediaDto = {
+      ...photo,
+      id: 'photo-2',
+      url: 'https://example.test/outra.jpg',
+    };
+    await view.rerender(<PostAttachment media={other} />);
+
+    // A nova mídia começa fechada; a montagem da anterior foi liberada.
+    expect(mockPhotoViewer).not.toHaveBeenCalled();
+    expect(mockViewerLifecycle.unmounts).toBe(1);
   });
 });
