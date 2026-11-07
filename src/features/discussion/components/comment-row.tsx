@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
@@ -8,6 +9,7 @@ import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { PostBody } from '@/features/posts/components/post-body';
+import { useReactionFeedback } from '@/hooks/use-reaction-feedback';
 import { formatCount, formatRelative, plural } from '@/lib/format';
 import { withPerformanceProfiler } from '@/lib/performance/profiler';
 
@@ -41,6 +43,7 @@ function CommentRowView({
   const depth = Math.min(row.depth, MAX_VISUAL_DEPTH);
   const time = formatRelative(comment.createdAt);
   const color = supported ? Colors.red : Colors.inkSoft;
+  const supportFeedback = useReactionFeedback(supported);
   const indent = depth > 0 && { marginLeft: 14 + (depth - 1) * 28, ...styles.reply };
 
   // Apagado, removido ou oculto por bloqueio: só o aviso, sem autoria nem ações (as respostas continuam).
@@ -84,10 +87,12 @@ function CommentRowView({
             accessibilityLabel={`Apoiar comentário, ${formatCount(supportCount)}`}
             accessibilityState={{ selected: supported }}
             style={styles.action}>
-            <Icon name="support" size={17} color={color} filled={supported} />
-            <AppText style={styles.actionLabel} color={color}>
-              {formatCount(supportCount)}
-            </AppText>
+            <Animated.View style={[styles.supportContent, supportFeedback]}>
+              <Icon name="support" size={17} color={color} filled={supported} />
+              <AppText style={styles.actionLabel} color={color}>
+                {formatCount(supportCount)}
+              </AppText>
+            </Animated.View>
           </Pressable>
           {onReply ? (
             <Pressable
@@ -208,6 +213,11 @@ const styles = StyleSheet.create({
   action: {
     minHeight: 44,
     paddingHorizontal: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  supportContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,

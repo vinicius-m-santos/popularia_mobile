@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
@@ -12,6 +13,7 @@ import { ChamadoCard } from '@/features/events/chamado-card';
 import { FollowButton } from '@/features/profiles/components/follow-button';
 import { shareDestination } from '@/features/links/share';
 import { useToast } from '@/components/toast';
+import { useReactionFeedback } from '@/hooks/use-reaction-feedback';
 import { AuthorLine } from '@/features/posts/components/author-line';
 import { MediaBox } from '@/features/posts/components/media-box';
 import { PostImages } from '@/features/posts/components/post-images';
@@ -32,6 +34,7 @@ type PostDetailProps = {
 /** Publicação aberta em destaque, ações e o cabeçalho dos comentários (design 1c). */
 export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
   const actions = usePostActions(post);
+  const saveFeedback = useReactionFeedback(actions.saved);
   const toast = useToast();
   const chamado = chamadoCardFor(post);
   const share = () => { shareDestination({ kind: 'post', id: post.id }).catch(() => toast.show('Este conteúdo ainda não possui um link público.')); };
@@ -72,15 +75,16 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
           <CompactAction icon="support" count={actions.supportCount} active={actions.supported} label="Apoiar publicação" onPress={actions.toggleSupport} />
           <CompactAction icon="echo" count={actions.echoCount} active={actions.echoed} label="Ecoar publicação" onPress={actions.toggleEcho} />
           <View style={styles.spacer} />
-          <IconButton
-            icon="bookmark"
-            accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
-            selected={actions.saved}
-            filled={actions.saved}
-            size={20}
-            onPress={actions.toggleSave}
-            style={styles.save}
-          />
+          <Animated.View style={[styles.save, saveFeedback]}>
+            <IconButton
+              icon="bookmark"
+              accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
+              selected={actions.saved}
+              filled={actions.saved}
+              size={20}
+              onPress={actions.toggleSave}
+            />
+          </Animated.View>
         </View>
       </View>
 
@@ -97,9 +101,12 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
 
 function CompactAction({ icon, count, active, label, onPress }: { icon: 'support' | 'echo'; count: number; active: boolean; label: string; onPress: () => void }) {
   const color = active ? Colors.red : Colors.inkSoft;
+  const feedback = useReactionFeedback(active);
   return <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatCount(count)}`} accessibilityState={{ selected: active }} style={styles.compactAction}>
-    <Icon name={icon} size={19} color={color} filled={active && icon === 'support'} />
-    <AppText style={styles.compactCount} color={color}>{formatCount(count)}</AppText>
+    <Animated.View style={[styles.compactContent, feedback]}>
+      <Icon name={icon} size={19} color={color} filled={active && icon === 'support'} />
+      <AppText style={styles.compactCount} color={color}>{formatCount(count)}</AppText>
+    </Animated.View>
   </Pressable>;
 }
 
@@ -143,7 +150,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   authorActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  compactAction: { minWidth: 54, minHeight: 44, paddingHorizontal: Spacing.two, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  compactAction: { minWidth: 54, minHeight: 44, paddingHorizontal: Spacing.two, alignItems: 'center', justifyContent: 'center' },
+  compactContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   spacer: { flex: 1 },
   save: { marginRight: -12 },
   compactCount: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },

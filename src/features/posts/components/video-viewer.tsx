@@ -12,6 +12,7 @@ import { Avatar } from '@/components/avatar';
 import { Icon, type IconName } from '@/components/icon';
 import { Kicker } from '@/components/kicker';
 import { Colors, Spacing } from '@/constants/theme';
+import { useReactionFeedback } from '@/hooks/use-reaction-feedback';
 import { formatCount } from '@/lib/format';
 import type { FeedItem } from '@/types/models';
 
@@ -216,7 +217,7 @@ function FullscreenSurface({ player, VideoView, label, poster, onFirstFrameRende
   </>;
 }
 
-function RailAction({ icon, count, label, active = false, filled = false, showCount = true, onPress }: {
+function RailAction({ icon, count, label, active, filled = false, showCount = true, onPress }: {
   icon: IconName;
   count: number;
   label: string;
@@ -225,6 +226,8 @@ function RailAction({ icon, count, label, active = false, filled = false, showCo
   showCount?: boolean;
   onPress: () => void;
 }) {
+  // Comentar é navegação: o contador dele não pulsa como apoio/eco/salvar.
+  const feedback = useReactionFeedback(active === undefined ? 'comment' : active);
   return <Pressable
     onPress={onPress}
     accessibilityRole="button"
@@ -232,8 +235,10 @@ function RailAction({ icon, count, label, active = false, filled = false, showCo
     accessibilityState={active === undefined ? undefined : { selected: active }}
     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
     style={({ pressed }) => [styles.railAction, pressed && styles.pressed]}>
-    <Icon name={icon} size={26} color={active ? Colors.red : Colors.paper} filled={active && filled} />
-    {showCount ? <AppText variant="label" color={Colors.paper}>{formatCount(count)}</AppText> : null}
+    <Animated.View style={[styles.railContent, feedback]}>
+      <Icon name={icon} size={26} color={active ? Colors.red : Colors.paper} filled={active && filled} />
+      {showCount ? <AppText variant="label" color={Colors.paper}>{formatCount(count)}</AppText> : null}
+    </Animated.View>
   </Pressable>;
 }
 
@@ -254,6 +259,7 @@ const styles = StyleSheet.create({
   identity: { flex: 1, minWidth: 0 },
   text: { fontSize: 14.5, lineHeight: 20 },
   rail: { width: 52, alignItems: 'center', gap: Spacing.three },
-  railAction: { minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  railAction: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  railContent: { alignItems: 'center', justifyContent: 'center', gap: 2 },
   pressed: { opacity: 0.6 },
 });
