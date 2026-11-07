@@ -1,9 +1,9 @@
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
-import Animated, { cancelAnimation, clamp, ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, clamp, ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -11,17 +11,30 @@ import { Icon } from '@/components/icon';
 import { Colors, Spacing } from '@/constants/theme';
 import { haptic } from '@/lib/haptics';
 
-import { clampPan, panLimit, pinchZoom, type ViewerGeometry } from './photo-viewer-geometry';
+import {
+  clampPan,
+  dismissTarget,
+  dragBackdropOpacity,
+  panLimit,
+  pinchZoom,
+  shouldDismiss,
+  type ViewerGeometry,
+} from './photo-viewer-geometry';
 
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
-/** Distância e velocidade a partir das quais arrastar sem zoom descarta a foto. */
-const DISMISS_DISTANCE = 110;
-const DISMISS_VELOCITY = 900;
-// Assentar e duplo toque são transições automáticas: com movimento reduzido no
-// sistema, o Reanimated aplica o valor final sem animar.
+// Assentar, duplo toque e descarte são transições automáticas: com movimento
+// reduzido no sistema, o Reanimated aplica o valor final sem animar.
 const SETTLE = { duration: 180, reduceMotion: ReduceMotion.System };
 const DOUBLE_TAP_SETTLE = { duration: 220, reduceMotion: ReduceMotion.System };
+const DISMISS_SETTLE = { duration: 220, reduceMotion: ReduceMotion.System };
+/** Volta ao centro com mola: acompanha a velocidade da soltura sem travar. */
+const RETURN_SPRING = {
+  damping: 18,
+  stiffness: 220,
+  mass: 0.9,
+  reduceMotion: ReduceMotion.System,
+};
 
 /**
  * Foto em tela cheia sobre tinta, dentro da área útil (nunca sob o recorte),
@@ -48,15 +61,45 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
   const pinchFocalY = useSharedValue(-1);
   // Instante do último movimento (pinça ou arrasto): gesto de movimento nunca vira toque duplo.
   const lastMoveAt = useSharedValue(0);
+  // O fechamento animado termina na UI thread e só então devolve o callback.
+  const closing = useSharedValue(false);
+  // Uma pinça no mesmo contato nunca pode ser confundida com arrasto de descarte.
+  const pinchActive = useSharedValue(false);
+  const pinchTouched = useSharedValue(false);
+  // Só um arrasto que realmente deslocou a foto precisa de retorno ao centro.
+  const dismissDragged = useSharedValue(false);
 
   const ratio = width && height ? width / height : 3 / 2;
 
-  // Sair zera o zoom: a próxima foto sempre abre inteira.
-  const close = () => {
+  // Sair zera zoom e deslocamento: a próxima foto sempre abre inteira e o
+  // backdrop volta opaco, sem herdar o estado do descarte anterior.
+  const reset = () => {
+    cancelAnimation(scale);
+    cancelAnimation(translateX);
+    cancelAnimation(translateY);
     scale.value = 1;
     translateX.value = 0; translateY.value = 0;
     baseX.value = 0; baseY.value = 0;
     pinchFocalX.value = -1; pinchFocalY.value = -1;
+    pinchActive.value = false;
+    pinchTouched.value = false;
+    dismissDragged.value = false;
+    closing.value = false;
+  };
+
+  const finishDismiss = () => {
+    // O callback é a conclusão do fluxo: o backdrop já está transparente e a
+    // foto saiu da área útil. A limpeza acontece na próxima abertura.
+    onClose();
+  };
+
+  const requestClose = () => {
+    // Fechar pelo botão/back cancela uma animação em voo para o callback de
+    // descarte não fechar a tela duas vezes e não deixa o gesto bloqueado.
+    cancelAnimation(scale);
+    cancelAnimation(translateX);
+    cancelAnimation(translateY);
+    closing.value = false;
     onClose();
   };
 
@@ -98,6 +141,8 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
       // pinça cai no centro em vez de reaproveitar o foco do gesto anterior.
       pinchFocalX.value = -1;
       pinchFocalY.value = -1;
+      pinchActive.value = true;
+      pinchTouched.value = true;
       cancelAnimation(scale);
       cancelAnimation(translateX);
       cancelAnimation(translateY);
@@ -106,6 +151,8 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     // tela; a translação compensa cada mudança de escala em volta dele.
     onActivate: (event) => {
       'worklet';
+      pinchActive.value = true;
+      pinchTouched.value = true;
       pinchFocalX.value = event.focalX;
       pinchFocalY.value = event.focalY;
     },
@@ -132,6 +179,7 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     onDeactivate: () => {
       'worklet';
       lastMoveAt.value = Date.now();
+      pinchActive.value = false;
       // Sempre assenta: abaixo do mínimo volta a 1, acima mantém o quadro dentro dos limites.
       if (scale.value <= 1.02) {
         scale.value = withTiming(1, SETTLE);
@@ -147,17 +195,37 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
         baseX.value = nextX; baseY.value = nextY;
       }
     },
+    onFinalize: () => {
+      'worklet';
+      // `onDeactivate` não dispara quando a pinça é cancelada; soltar a flag
+      // evita bloquear o próximo arrasto.
+      pinchActive.value = false;
+    },
   });
 
   const pan = usePanGesture({
     maxPointers: 1,
-    onBegin: () => { 'worklet'; baseX.value = translateX.value; baseY.value = translateY.value; },
+    onBegin: () => {
+      'worklet';
+      if (closing.value) return;
+      // Um arrasto novo começa limpo. Se uma pinça ainda está ativa, preserva a
+      // marca para este contato não virar descarte ao soltar.
+      if (!pinchActive.value) pinchTouched.value = false;
+      dismissDragged.value = false;
+      cancelAnimation(translateX);
+      cancelAnimation(translateY);
+      baseX.value = translateX.value;
+      baseY.value = translateY.value;
+      lastMoveAt.value = Date.now();
+    },
     onUpdate: (event) => {
       'worklet';
+      if (closing.value || pinchActive.value || pinchTouched.value) return;
       lastMoveAt.value = Date.now();
       const view = geometry.value;
       if (scale.value <= 1.02) {
         // Sem zoom, a foto acompanha o dedo: arrastar é o gesto de descartar.
+        dismissDragged.value = true;
         translateX.value = event.translationX * 0.5;
         translateY.value = event.translationY;
         return;
@@ -169,20 +237,46 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     },
     onDeactivate: (event) => {
       'worklet';
+      if (closing.value) return;
       lastMoveAt.value = Date.now();
+      // A pinça é dona do enquadramento: mesmo que ela volte a 1×, soltar o
+      // segundo dedo não pode ser lido como arrasto de descarte.
+      if (pinchActive.value || pinchTouched.value) return;
       if (scale.value > 1.02) {
         baseX.value = translateX.value; baseY.value = translateY.value;
         return;
       }
-      const pulled = Math.abs(translateY.value);
-      const flung = pulled > 48 && Math.abs(event.velocityY) > DISMISS_VELOCITY;
-      if (pulled > DISMISS_DISTANCE || flung) {
-        runOnJS(close)();
+      if (shouldDismiss(translateY.value, event.velocityY)) {
+        closing.value = true;
+        const target = dismissTarget(translateY.value, geometry.value.viewportHeight);
+        translateY.value = withTiming(target, DISMISS_SETTLE, (finished) => {
+          'worklet';
+          if (!finished) {
+            // Outro fechamento/abertura cancelou a animação: libera o gesto sem
+            // chamar o callback de um descarte que não terminou.
+            closing.value = false;
+            return;
+          }
+          runOnJS(finishDismiss)();
+        });
         return;
       }
-      translateX.value = withTiming(0, SETTLE);
-      translateY.value = withTiming(0, SETTLE);
+      translateX.value = withSpring(0, RETURN_SPRING);
+      translateY.value = withSpring(0, { ...RETURN_SPRING, velocity: event.velocityY });
       baseX.value = 0; baseY.value = 0;
+      dismissDragged.value = false;
+    },
+    onFinalize: (event) => {
+      'worklet';
+      if (!event.canceled || !dismissDragged.value || closing.value || pinchActive.value || pinchTouched.value) return;
+      // Gesture cancelado (ex.: perdeu a disputa para outro handler) não pode
+      // deixar a foto parada no meio do arrasto.
+      if (scale.value <= 1.02) {
+        translateX.value = withSpring(0, RETURN_SPRING);
+        translateY.value = withSpring(0, RETURN_SPRING);
+        baseX.value = 0; baseY.value = 0;
+        dismissDragged.value = false;
+      }
     },
   });
 
@@ -191,6 +285,7 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     maxDelay: 280,
     onDeactivate: (event) => {
       'worklet';
+      if (closing.value) return;
       // Puxar forte na beirada solta e recoloca o dedo rápido: se houve movimento agora,
       // esses dois contatos não são um toque duplo.
       if (Date.now() - lastMoveAt.value < 450) return;
@@ -214,10 +309,15 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
 
   const gesture = useSimultaneousGestures(pinch, pan, doubleTap);
   const zoomed = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: scale.value }] }));
+  // O fundo e o chrome somem juntos enquanto a foto acompanha o dedo. O
+  // backdrop transparente revela o feed por baixo sem desmontar o Modal.
+  const overlay = useAnimatedStyle(() => ({ opacity: dragBackdropOpacity(translateY.value, scale.value) }));
 
-  return <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={close}>
+  return <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={requestClose} onShow={reset} testID="photo-viewer-modal">
     <GestureHandlerRootView style={styles.root}>
+      <ResetOnOpen onOpen={reset} />
       <StatusBar hidden />
+      <Animated.View testID="photo-viewer-backdrop" pointerEvents="none" style={[styles.backdrop, overlay]} />
       <View style={[styles.screen, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}>
         <View
           style={styles.viewport}
@@ -239,10 +339,10 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
             </View>
           </GestureDetector>
         </View>
-        <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.four) }]}>
+        <Animated.View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.four) }, overlay]}>
           <AppText variant="label" color={Colors.paper}>Foto</AppText>
           <Pressable
-            onPress={close}
+            onPress={requestClose}
             accessibilityRole="button"
             accessibilityLabel="Fechar foto"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -250,15 +350,31 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
             <AppText variant="label" color={Colors.paper}>Fechar</AppText>
             <Icon name="close" size={18} color={Colors.paper} />
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
     </GestureHandlerRootView>
   </Modal>;
 }
 
+/**
+ * O estado do gesto vive no PhotoViewer, que continua montado entre aberturas.
+ * O Modal desmonta os filhos ao fechar; ao remontar, este marcador limpa zoom,
+ * deslocamento e flags no mesmo commit, antes de a foto reaparecer.
+ */
+function ResetOnOpen({ onOpen }: { onOpen: () => void }) {
+  const open = useRef(onOpen);
+  useLayoutEffect(() => {
+    open.current();
+  }, []);
+  return null;
+}
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.ink },
-  screen: { flex: 1, backgroundColor: Colors.ink },
+  // O Modal é transparente: quem pinta a tela é o backdrop animado, que some
+  // junto com o arrasto e deixa o feed aparecer por baixo.
+  root: { flex: 1 },
+  backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: Colors.ink, opacity: 1 },
+  screen: { flex: 1 },
   viewport: { flex: 1, overflow: 'hidden' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fit: { backgroundColor: Colors.ink },

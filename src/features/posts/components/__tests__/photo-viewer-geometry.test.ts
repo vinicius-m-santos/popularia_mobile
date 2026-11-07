@@ -1,6 +1,16 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { clampPan, focalTranslation, panLimit, pinchZoom, type ViewerGeometry } from '../photo-viewer-geometry';
+import {
+  clampPan,
+  DISMISS_FADE_DISTANCE,
+  dismissTarget,
+  dragBackdropOpacity,
+  focalTranslation,
+  panLimit,
+  pinchZoom,
+  shouldDismiss,
+  type ViewerGeometry,
+} from '../photo-viewer-geometry';
 
 /** Imagem retrato que preenche exatamente a área útil de 400 × 800. */
 const fill: ViewerGeometry = { viewportWidth: 400, viewportHeight: 800, fitWidth: 400, fitHeight: 800 };
@@ -113,5 +123,40 @@ describe('rotação do aparelho', () => {
     // 400 × 800 o limite horizontal encolhe e o vertical zera.
     expect(clampPan(400, 2, 400, 400)).toBe(200);
     expect(clampPan(200, 2, 200, 800)).toBe(0);
+  });
+});
+
+describe('descarte por arrasto', () => {
+  it('fecha acima da distância limite, para cima ou para baixo', () => {
+    expect(shouldDismiss(110, 0)).toBe(false);
+    expect(shouldDismiss(111, 0)).toBe(true);
+    expect(shouldDismiss(-111, 0)).toBe(true);
+  });
+
+  it('aceita um fling curto acima da velocidade limite', () => {
+    expect(shouldDismiss(49, 901)).toBe(true);
+    expect(shouldDismiss(-49, -901)).toBe(true);
+    expect(shouldDismiss(49, 900)).toBe(false);
+    // Um retorno rápido ao centro não é um fling de descarte.
+    expect(shouldDismiss(60, -1200)).toBe(false);
+    expect(shouldDismiss(-60, 1200)).toBe(false);
+    // Um toque trêmulo não percorre distância suficiente para virar fling.
+    expect(shouldDismiss(40, 3000)).toBe(false);
+  });
+
+  it('leva a foto para além da borda na direção do gesto', () => {
+    expect(dismissTarget(140, 800)).toBe(864);
+    expect(dismissTarget(-140, 800)).toBe(-864);
+    // Quem já arrastou além da altura útil continua na mesma direção.
+    expect(dismissTarget(900, 800)).toBe(964);
+  });
+
+  it('some com o backdrop até a distância de fade e o mantém opaco no zoom', () => {
+    expect(dragBackdropOpacity(0, 1)).toBe(1);
+    expect(dragBackdropOpacity(DISMISS_FADE_DISTANCE / 2, 1)).toBe(0.5);
+    expect(dragBackdropOpacity(DISMISS_FADE_DISTANCE, 1)).toBe(0);
+    expect(dragBackdropOpacity(9999, 1)).toBe(0);
+    expect(dragBackdropOpacity(9999, 1.03)).toBe(1);
+    expect(dragBackdropOpacity(130, 2)).toBe(1);
   });
 });

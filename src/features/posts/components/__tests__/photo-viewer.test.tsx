@@ -4,12 +4,21 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { haptic } from '@/lib/haptics';
 
 import { PhotoViewer } from '../photo-viewer';
+import { DISMISS_FADE_DISTANCE } from '../photo-viewer-geometry';
+
+type PanConfig = {
+  onBegin?: () => void;
+  onUpdate?: (event: { translationX: number; translationY: number }) => void;
+  onDeactivate?: (event: { velocityY: number }) => void;
+  onFinalize?: (event: { canceled?: boolean }) => void;
+};
 
 type PinchConfig = {
   onBegin?: () => void;
   onActivate?: (event: { focalX: number; focalY: number }) => void;
   onUpdate?: (event: { scaleChange: number }) => void;
   onDeactivate?: () => void;
+  onFinalize?: () => void;
 };
 
 type TapConfig = {
@@ -17,11 +26,21 @@ type TapConfig = {
 };
 
 type Transform = { transform: Record<string, number>[] };
-type Timing = { value: unknown; config?: { duration?: number; reduceMotion?: string } };
+type Style = Transform | { opacity: number };
+type Timing = {
+  value: unknown;
+  config?: { duration?: number; reduceMotion?: string };
+  callback?: (finished: boolean) => void;
+};
+type Spring = {
+  value: unknown;
+  config?: { reduceMotion?: string; velocity?: number };
+};
 
-const mockGestures: { pinch?: PinchConfig; tap?: TapConfig } = {};
-const mockStyles: (() => Transform)[] = [];
+const mockGestures: { pinch?: PinchConfig; pan?: PanConfig; tap?: TapConfig } = {};
+const mockStyles: (() => Style)[] = [];
 const mockTimings: Timing[] = [];
+const mockSprings: Spring[] = [];
 
 jest.mock('react-native-gesture-handler', () => {
   const React = jest.requireActual<typeof import('react')>('react');
@@ -33,7 +52,10 @@ jest.mock('react-native-gesture-handler', () => {
       mockGestures.pinch = config;
       return { type: 'pinch' };
     },
-    usePanGesture: () => ({ type: 'pan' }),
+    usePanGesture: (config: PanConfig) => {
+      mockGestures.pan = config;
+      return { type: 'pan' };
+    },
     useTapGesture: (config: TapConfig) => {
       mockGestures.tap = config;
       return { type: 'tap' };
@@ -55,12 +77,16 @@ jest.mock('react-native-reanimated', () => {
       const ref = React.useRef({ value });
       return ref.current;
     },
-    useAnimatedStyle: (factory: () => Transform) => {
+    useAnimatedStyle: (factory: () => Style) => {
       mockStyles.push(factory);
       return {};
     },
-    withTiming: (value: unknown, config?: Timing['config']) => {
-      mockTimings.push({ value, config });
+    withTiming: (value: unknown, config?: Timing['config'], callback?: Timing['callback']) => {
+      mockTimings.push({ value, config, callback });
+      return value;
+    },
+    withSpring: (value: unknown, config?: Spring['config']) => {
+      mockSprings.push({ value, config });
       return value;
     },
     cancelAnimation: () => {},
@@ -83,16 +109,30 @@ async function layout(width: number, height: number) {
 }
 
 function currentTransform(): Transform {
-  return mockStyles[mockStyles.length - 1]();
+  for (let index = mockStyles.length - 1; index >= 0; index -= 1) {
+    const style = mockStyles[index]();
+    if ('transform' in style) return style;
+  }
+  throw new Error('Nenhum estilo de transform foi registrado.');
+}
+
+function currentOpacity(): number {
+  for (let index = mockStyles.length - 1; index >= 0; index -= 1) {
+    const style = mockStyles[index]();
+    if ('opacity' in style) return style.opacity;
+  }
+  throw new Error('Nenhum estilo de opacidade foi registrado.');
 }
 
 describe('PhotoViewer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGestures.pinch = undefined;
+    mockGestures.pan = undefined;
     mockGestures.tap = undefined;
     mockStyles.length = 0;
     mockTimings.length = 0;
+    mockSprings.length = 0;
   });
 
   it('amplia em volta do ponto entre os dedos e mantém a imagem dentro das bordas', async () => {
@@ -192,5 +232,150 @@ describe('PhotoViewer', () => {
     ]);
     expect(haptic).toHaveBeenCalledWith('selection');
     now.mockRestore();
+  });
+
+  it('acompanha o dedo e apaga o backdrop durante o arrasto', async () => {
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pan?.onUpdate?.({ translationX: 20, translationY: 60 });
+
+    expect(currentTransform().transform).toEqual([
+      { translateX: 10 },
+      { translateY: 60 },
+      { scale: 1 },
+    ]);
+    expect(currentOpacity()).toBeCloseTo(1 - 60 / DISMISS_FADE_DISTANCE, 5);
+  });
+
+  it('devolve ao centro com mola quando o arrasto é curto', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pan?.onUpdate?.({ translationX: 20, translationY: 60 });
+    mockGestures.pan?.onDeactivate?.({ velocityY: 0 });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mockTimings).toHaveLength(0);
+    expect(mockSprings.map((spring) => spring.value)).toEqual([0, 0]);
+    for (const spring of mockSprings) {
+      expect(spring.config?.reduceMotion).toBe('system');
+    }
+    expect(currentTransform().transform).toEqual([
+      { translateX: 0 },
+      { translateY: 0 },
+      { scale: 1 },
+    ]);
+  });
+
+  it('descarta pela distância e só devolve o callback depois da animação', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pan?.onUpdate?.({ translationX: 0, translationY: 140 });
+    mockGestures.pan?.onDeactivate?.({ velocityY: 0 });
+
+    expect(onClose).not.toHaveBeenCalled();
+    const dismissal = mockTimings[mockTimings.length - 1];
+    expect(dismissal.value).toBe(864);
+    expect(dismissal.config?.reduceMotion).toBe('system');
+
+    dismissal.callback?.(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('descarta por velocidade mesmo com arrasto curto', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pan?.onUpdate?.({ translationX: 0, translationY: 60 });
+    mockGestures.pan?.onDeactivate?.({ velocityY: 1200 });
+
+    const dismissal = mockTimings[mockTimings.length - 1];
+    dismissal.callback?.(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('não descarta quando uma pinça aconteceu no mesmo contato', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pinch?.onBegin?.();
+    mockGestures.pinch?.onActivate?.({ focalX: 200, focalY: 400 });
+    mockGestures.pinch?.onUpdate?.({ scaleChange: 2 });
+    mockGestures.pan?.onUpdate?.({ translationX: 0, translationY: 400 });
+    mockGestures.pan?.onDeactivate?.({ velocityY: 2000 });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mockTimings).toHaveLength(0);
+    expect(currentTransform().transform).toEqual([
+      { translateX: 0 },
+      { translateY: 0 },
+      { scale: 2 },
+    ]);
+    // Com zoom, o fundo continua opaco: a pinça não parece um descarte.
+    expect(currentOpacity()).toBe(1);
+  });
+
+  it('devolve ao centro quando o gesto é cancelado antes de soltar', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pan?.onUpdate?.({ translationX: 0, translationY: 80 });
+    mockGestures.pan?.onFinalize?.({ canceled: true });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mockSprings.map((spring) => spring.value)).toEqual([0, 0]);
+    expect(currentTransform().transform).toEqual([
+      { translateX: 0 },
+      { translateY: 0 },
+      { scale: 1 },
+    ]);
+  });
+
+  it('fecha pelo botão acessível e pelo voltar do Android', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+
+    fireEvent.press(screen.getByLabelText('Fechar foto'));
+    screen.getByTestId('photo-viewer-modal').props.onRequestClose?.();
+
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'Fechar foto' })).toBeTruthy();
+  });
+
+  it('reabre com posição e backdrop limpos depois de um descarte', async () => {
+    const onClose = jest.fn();
+    const view = await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    mockGestures.pan?.onBegin?.();
+    mockGestures.pan?.onUpdate?.({ translationX: 0, translationY: 140 });
+    mockGestures.pan?.onDeactivate?.({ velocityY: 0 });
+    mockTimings[mockTimings.length - 1].callback?.(true);
+
+    await view.rerender(<PhotoViewer uri="https://example.test/foto.jpg" visible={false} onClose={onClose} width={400} height={800} />);
+    await view.rerender(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    // O Modal nativo avisa quando abriu; é o ponto em que o estado do descarte
+    // anterior é limpo antes de a foto reaparecer.
+    screen.getByTestId('photo-viewer-modal').props.onShow?.();
+
+    expect(currentTransform().transform).toEqual([
+      { translateX: 0 },
+      { translateY: 0 },
+      { scale: 1 },
+    ]);
+    expect(currentOpacity()).toBe(1);
   });
 });
