@@ -33,6 +33,26 @@ export class NetworkError extends Error {
   }
 }
 
+/** Tipo estável da API para "confirme o e-mail antes de continuar". */
+export const EMAIL_NOT_VERIFIED_TYPE = '/errors/email-not-verified';
+
+/**
+ * A API pode devolver o `type` como IRI relativa (`/errors/...`) ou absoluta
+ * (`https://api.../errors/...`). A decisão de UI é a mesma: orientar a confirmação.
+ */
+export function isEmailNotVerifiedError(error: unknown): boolean {
+  const type = error instanceof ApiError
+    ? error.type
+    : typeof error === 'object' && error !== null && 'type' in error && typeof (error as { type?: unknown }).type === 'string'
+      ? (error as { type: string }).type
+      : null;
+  if (!type) return false;
+  const normalized = type.replace(/\/+$/, '');
+  return normalized === EMAIL_NOT_VERIFIED_TYPE ||
+    normalized === EMAIL_NOT_VERIFIED_TYPE.slice(1) ||
+    normalized.endsWith(EMAIL_NOT_VERIFIED_TYPE);
+}
+
 /** Texto para mostrar à pessoa, sem detalhes técnicos. */
 export function describeError(error: unknown): string {
   if (error instanceof NetworkError) return 'Sem conexão com o servidor. Confira a internet e tente de novo.';

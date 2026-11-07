@@ -16,14 +16,21 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), ca
 jest.mock('react-native-safe-area-context', () => { const { View } = jest.requireActual<typeof import('react-native')>('react-native'); return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }; });
 jest.mock('@/lib/routes', () => ({ goBack: jest.fn(), useNav: () => ({ openProfile: mockOpenProfile }) }));
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockToast }) }));
+jest.mock('@/constants/config', () => {
+  const actual = jest.requireActual<typeof import('@/constants/config')>('@/constants/config');
+  return { ...actual, DEMO_MODE: false };
+});
 jest.mock('@/features/links/share', () => ({ shareDestination: jest.fn() }));
 jest.mock('@/features/links/destinations', () => ({ openDestination: jest.fn() }));
 jest.mock('../api', () => ({ getEvent: jest.fn(), putAttendance: jest.fn(), cancelEvent: jest.fn() }));
-jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ account: { id: 'conta-1' } }), useMe: () => ({ id: 'conta-1' }) }));
+let mockAccount: { id: string; emailVerified?: boolean } = { id: 'conta-1', emailVerified: true };
+const mockReloadAccount = jest.fn(async () => {});
+jest.mock('@/features/account/account-context', () => ({ useAccount: () => ({ account: mockAccount, reloadAccount: mockReloadAccount }), useMe: () => ({ id: 'conta-1' }) }));
 jest.mock('@/features/gamification/feedback', () => ({ acknowledgeGamification: jest.fn() }));
 
 const mockToast = jest.fn();
 const mockOpenProfile = jest.fn();
+const VERIFY_NOTICE = 'Confirme seu e-mail para responder a esta atividade.';
 const base: ComunaEvent = {
   id: '019abcde-0000-7000-8000-000000000010',
   title: 'Assembleia mensal', description: 'Pauta da noite.', format: 'hybrid', status: 'scheduled', timeZone: 'America/Manaus',
@@ -40,6 +47,8 @@ beforeEach(async () => {
   queryClient.clear();
   resetAttendanceSession();
   jest.clearAllMocks();
+  mockAccount = { id: 'conta-1', emailVerified: true };
+  mockReloadAccount.mockResolvedValue(undefined);
   jest.mocked(getEvent).mockResolvedValue(base);
   jest.mocked(putAttendance).mockImplementation(async (_id, status) => ({ ...base, viewerAttendance: status, goingCount: status === 'going' ? 33 : 32, maybeCount: status === 'maybe' ? 9 : 8 }));
 });
@@ -87,8 +96,37 @@ describe('tela do evento', () => {
     expect(screen.getByLabelText('Vou, selecionado')).toBeTruthy();
   });
 
-  it('evento cancelado, passado ou indisponível não aceita resposta nova', async () => {
-    jest.mocked(getEvent).mockResolvedValue({ ...base, status: 'cancelled', canRespond: false, canManage: false });
+  it('conta não verificada: Vou mostra o aviso e não chama a API nem aplica otimista', async () => {
+    mockAccount = { id: 'conta-1', emailVerified: false };
+    await render(<EventScreen />);
+    await screen.findByText('Assembleia mensal');
+
+    await fireEvent.press(screen.getByLabelText('Vou'));
+
+    expect(screen.getByText(VERIFY_NOTICE)).toBeTruthy();
+    expect(screen.getByLabelText('Verificar e-mail')).toBeTruthy();
+    expect(putAttendance).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Vou, selecionado')).toBeNull();
+    expect(screen.getByText('32 vão · 8 talvez')).toBeTruthy();
+  });
+
+  it('recusa de e-mail não verificado da API vira o mesmo aviso, sem toast genérico', async () => {
+    jest.mocked(putAttendance).mockRejectedValue(new ApiError(403, '/errors/email-not-verified', 'Confirme seu e-mail.'));
+    await render(<EventScreen />);
+    await screen.findByText('Assembleia mensal');
+
+    await fireEvent.press(screen.getByLabelText('Vou'));
+
+    await waitFor(() => expect(screen.getByText(VERIFY_NOTICE)).toBeTruthy());
+    expect(putAttendance).toHaveBeenCalledWith(base.id, 'going');
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(mockReloadAccount).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText('Vou, selecionado')).toBeNull();
+    expect(screen.getByText('32 vão · 8 talvez')).toBeTruthy();
+  });
+
+  it('evento cancelado, passado ou indisponível não aceita resposta nova', async () => {    jest.mocked(getEvent).mockResolvedValue({ ...base, status: 'cancelled', canRespond: false, canManage: false });
     const { unmount } = await render(<EventScreen />);
     expect(await screen.findByText('Evento cancelado')).toBeTruthy();
     expect(screen.queryByLabelText('Vou')).toBeNull();

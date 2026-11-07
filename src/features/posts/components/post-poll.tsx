@@ -11,7 +11,7 @@ import { voteOnPoll } from '@/features/posts/api';
 import { applyPollVote, patchCachedPoll, pollDeadlineLabel, pollIsClosed, pollsMatch, restorePostCaches, snapshotPostCaches, type PostPoll } from '@/features/posts/poll';
 import { queryClient } from '@/lib/query/client';
 import { queryKeys } from '@/lib/query/keys';
-import { ApiError, describeError } from '@/lib/errors';
+import { ApiError, describeError, isEmailNotVerifiedError } from '@/lib/errors';
 import { plural } from '@/lib/format';
 
 type PostPollProps = {
@@ -20,8 +20,8 @@ type PostPollProps = {
 };
 
 function voteError(error: unknown): string {
+  if (isEmailNotVerifiedError(error)) return 'Confirme seu e-mail para votar.';
   if (error instanceof ApiError) {
-    if (error.type === '/errors/email-not-verified') return 'Confirme seu e-mail para votar.';
     if (error.type === '/errors/not-a-member') return 'Entre na comuna para votar.';
     if (error.type === '/errors/comuna-archived') return 'Esta comuna está arquivada.';
     if (error.type === '/errors/poll-closed') return 'Esta enquete já encerrou.';
