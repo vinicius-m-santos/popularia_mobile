@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import type { ImageRef } from 'expo-image';
 
 import { haptic } from '@/lib/haptics';
+import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 
 import { PhotoViewer } from '../photo-viewer';
 import { DISMISS_FADE_DISTANCE } from '../photo-viewer-geometry';
@@ -98,6 +100,12 @@ jest.mock('react-native-reanimated', () => {
 
 jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 
+jest.mock('expo-image', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Image: (props: Record<string, unknown>) => React.createElement(View, props) };
+});
+
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
@@ -127,12 +135,17 @@ function currentOpacity(): number {
 describe('PhotoViewer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setPerformanceInstrumentationOverride(false);
     mockGestures.pinch = undefined;
     mockGestures.pan = undefined;
     mockGestures.tap = undefined;
     mockStyles.length = 0;
     mockTimings.length = 0;
     mockSprings.length = 0;
+  });
+
+  afterEach(() => {
+    setPerformanceInstrumentationOverride(null);
   });
 
   it('amplia em volta do ponto entre os dedos e mantém a imagem dentro das bordas', async () => {
@@ -377,5 +390,79 @@ describe('PhotoViewer', () => {
       { scale: 1 },
     ]);
     expect(currentOpacity()).toBe(1);
+  });
+
+  it('abre com a listra da casa antes do primeiro layout, sem quadro preto', async () => {
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+
+    // O Modal abre antes de a viewport medir: já existe uma superfície editorial,
+    // não o vazio de tinta.
+    expect(screen.getByTestId('photo-viewer-stripes', { includeHiddenElements: true })).toBeTruthy();
+
+    await layout(400, 800);
+    // A listra continua sob a original enquanto a decodificação acontece.
+    expect(screen.getByTestId('photo-viewer-stripes', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId('photo-viewer-image')).toBeTruthy();
+  });
+
+  it('usa o bitmap já decodificado do feed como camada imediata', async () => {
+    const preview = { width: 400, height: 800 } as unknown as ImageRef;
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" preview={preview} visible onClose={() => {}} width={400} height={800} />);
+
+    expect(screen.getByTestId('photo-viewer-preview', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByTestId('photo-viewer-stripes', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('decodifica a original inteira para o zoom e reduz só acima do teto de pixels', async () => {
+    const view = await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await layout(400, 800);
+
+    expect(screen.getByTestId('photo-viewer-image').props.allowDownscaling).toBe(false);
+    expect(screen.getByTestId('photo-viewer-image').props.transition).toEqual({ duration: 160, skipOnCacheHit: 'all' });
+
+    await view.rerender(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={() => {}} width={3000} height={3000} />);
+    await layout(400, 800);
+    expect(screen.getByTestId('photo-viewer-image').props.allowDownscaling).toBe(true);
+  });
+
+  it('mede abertura, carregamento, exibição e o tamanho do bitmap', async () => {
+    setPerformanceInstrumentationOverride(true);
+    resetPerformanceSession();
+    await render(<PhotoViewer mediaId="photo-1" uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await layout(400, 800);
+
+    await fireEvent(screen.getByTestId('photo-viewer-image'), 'load', {
+      source: { width: 400, height: 800 },
+      cacheType: 'memory',
+    });
+    await fireEvent(screen.getByTestId('photo-viewer-image'), 'display');
+    // Eventos repetidos da mesma abertura não inflam a média.
+    await fireEvent(screen.getByTestId('photo-viewer-image'), 'display');
+
+    const photos = getPerformanceSnapshot().photos;
+    expect(photos).toMatchObject({
+      openCount: 1,
+      loadCount: 1,
+      displayCount: 1,
+      errorCount: 0,
+      memoryCacheHits: 1,
+      diskCacheHits: 0,
+      networkLoads: 0,
+      largestDecodedBytes: 400 * 800 * 4,
+    });
+    expect(photos.events.map((event) => event.event)).toEqual(['open', 'load', 'display']);
+    expect(photos.events[1]).toMatchObject({ mediaId: 'photo-1', width: 400, height: 800, cacheType: 'memory' });
+    // A URL não entra no relatório: só o identificador estável.
+    expect(JSON.stringify(photos)).not.toContain('example.test');
+  });
+
+  it('mostra fallback de erro sem apagar a listra', async () => {
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await layout(400, 800);
+
+    await fireEvent(screen.getByTestId('photo-viewer-image'), 'error', { error: 'falhou' });
+
+    expect(screen.getByText('Não foi possível carregar a imagem.')).toBeTruthy();
+    expect(screen.getByTestId('photo-viewer-stripes', { includeHiddenElements: true })).toBeTruthy();
   });
 });

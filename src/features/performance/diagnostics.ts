@@ -10,6 +10,7 @@ import {
   setPerformanceInstrumentationOverride,
   type PerformanceCommitRecord,
   type PerformanceListRecord,
+  type PerformancePhotoStats,
   type PerformanceRequestRecord,
   type PerformanceScreenSummary,
   type PerformanceSnapshot,
@@ -242,6 +243,36 @@ export function videoDiagnostics(snapshot: PerformanceSnapshot): VideoDiagnostic
     errorCount: snapshot.video.events.filter((event) => event.event === 'error').length,
     transitions: videoTransitionDiagnostics(snapshot),
   };
+}
+
+export type PhotoDiagnostics = PerformancePhotoStats & {
+  averageLoadMs: number;
+  averageDisplayMs: number;
+};
+
+/**
+ * Foto em tela cheia (POP-24). `onLoad` cobre busca e decodificação; `onDisplay`
+ * é a confirmação de que a view renderizou o bitmap. Nenhum dos dois mede o
+ * custo nativo de decodificação nem a memória real do aparelho.
+ */
+export function photoDiagnostics(snapshot: PerformanceSnapshot): PhotoDiagnostics {
+  return {
+    ...snapshot.photos,
+    averageLoadMs: snapshot.photos.loadCount > 0
+      ? snapshot.photos.loadTotalMs / snapshot.photos.loadCount
+      : 0,
+    averageDisplayMs: snapshot.photos.displayCount > 0
+      ? snapshot.photos.displayTotalMs / snapshot.photos.displayCount
+      : 0,
+  };
+}
+
+/** Tamanho para leitura humana; aceita a estimativa de bitmap, não uma medição de memória. */
+export function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) return '—';
+  if (value < 1024) return `${Math.round(value)} B`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
 
 /** Duração curta: abaixo de 1 s em ms; acima, em segundos com duas casas. */

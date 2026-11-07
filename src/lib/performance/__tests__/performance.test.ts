@@ -7,6 +7,10 @@ import {
   getPerformanceSnapshot,
   performanceInstrumentationEnabled,
   recordListLoad,
+  recordPhotoDisplayed,
+  recordPhotoError,
+  recordPhotoLoaded,
+  recordPhotoOpen,
   recordProfileCommit,
   recordRequestAttempt,
   recordVideoFirstFrame,
@@ -143,5 +147,33 @@ describe('commits, listas e vídeo', () => {
     ]);
     expect(events[1]).toMatchObject({ mediaId: 'v1', surface: 'fullscreen', valueMs: 42.4 });
     expect(events[3]).toMatchObject({ mediaId: 'v1', surface: 'feed', valueMs: 18.2 });
+  });
+
+  it('mede a foto em tela cheia por abertura, cache, tamanho e exibição', () => {
+    recordPhotoOpen('p1');
+    recordPhotoLoaded('p1', { elapsedMs: 42.4, width: 400, height: 800, cacheType: 'memory' });
+    recordPhotoDisplayed('p1', 55.5);
+    recordPhotoOpen('p2');
+    recordPhotoLoaded('p2', { elapsedMs: 120, width: 1024, height: 1024, cacheType: 'disk' });
+    recordPhotoLoaded('p3', { elapsedMs: 300, width: 0, height: 0, cacheType: 'none' });
+    recordPhotoError('p3');
+
+    const photos = getPerformanceSnapshot().photos;
+    expect(photos).toMatchObject({
+      openCount: 2,
+      loadCount: 3,
+      displayCount: 1,
+      errorCount: 1,
+      loadMaxMs: 300,
+      displayMaxMs: 55.5,
+      memoryCacheHits: 1,
+      diskCacheHits: 1,
+      networkLoads: 1,
+      largestDecodedBytes: 1024 * 1024 * 4,
+    });
+    expect(photos.loadTotalMs).toBeCloseTo(462.4, 2);
+    expect(photos.events.map((event) => event.event)).toEqual(['open', 'load', 'display', 'open', 'load', 'load', 'error']);
+    expect(photos.events[1]).toMatchObject({ mediaId: 'p1', width: 400, height: 800, cacheType: 'memory', estimatedBytes: 1_280_000 });
+    expect(JSON.stringify(photos)).not.toContain('https://');
   });
 });

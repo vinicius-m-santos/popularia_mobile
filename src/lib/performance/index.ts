@@ -73,6 +73,44 @@ export type PerformanceVideoRecord = {
   atMs: number;
 };
 
+export type ImageCacheType = 'none' | 'disk' | 'memory';
+
+export type PerformancePhotoEvent = 'open' | 'load' | 'display' | 'error';
+
+/**
+ * Marcas da foto em tela cheia (POP-24).
+ *
+ * `elapsedMs` vai da abertura do visualizador até `onLoad`/`onDisplay`; não é
+ * um timer de decodificação nativa. `estimatedBytes` é a estimativa de bitmap
+ * ARGB (`width * height * 4`), não uma leitura de memória do aparelho.
+ */
+export type PerformancePhotoRecord = {
+  event: PerformancePhotoEvent;
+  mediaId: string;
+  elapsedMs?: number;
+  width?: number;
+  height?: number;
+  cacheType?: ImageCacheType;
+  estimatedBytes?: number;
+  atMs: number;
+};
+
+export type PerformancePhotoStats = {
+  events: PerformancePhotoRecord[];
+  openCount: number;
+  loadCount: number;
+  displayCount: number;
+  errorCount: number;
+  loadTotalMs: number;
+  loadMaxMs: number;
+  displayTotalMs: number;
+  displayMaxMs: number;
+  memoryCacheHits: number;
+  diskCacheHits: number;
+  networkLoads: number;
+  largestDecodedBytes: number;
+};
+
 export type PerformanceScreenSummary = {
   count: number;
   errors: number;
@@ -121,6 +159,7 @@ export type PerformanceSnapshot = {
     firstFrameTotalMs: number;
     firstFrameMaxMs: number;
   };
+  photos: PerformancePhotoStats;
   posters: PerformancePosterCacheStats;
   counters: {
     logicalRequests: number;
@@ -148,6 +187,7 @@ const MAX_REQUEST_RECORDS = 400;
 const MAX_COMMIT_INSTANCES = 400;
 const MAX_LIST_RECORDS = 100;
 const MAX_VIDEO_RECORDS = 300;
+const MAX_PHOTO_RECORDS = 200;
 const MAX_ATTEMPT_DURATIONS = 10;
 
 const DEFAULT_SCOPE: PerformanceScope = { screen: 'unknown', action: 'other' };
@@ -163,6 +203,19 @@ type SessionState = {
   video: PerformanceVideoRecord[];
   videoMounted: Set<string>;
   videoPlaying: Set<string>;
+  photos: PerformancePhotoRecord[];
+  photoOpenCount: number;
+  photoLoadCount: number;
+  photoDisplayCount: number;
+  photoErrorCount: number;
+  photoLoadTotalMs: number;
+  photoLoadMaxMs: number;
+  photoDisplayTotalMs: number;
+  photoDisplayMaxMs: number;
+  photoMemoryCacheHits: number;
+  photoDiskCacheHits: number;
+  photoNetworkLoads: number;
+  photoLargestDecodedBytes: number;
   firstFrameTotalMs: number;
   firstFrameMaxMs: number;
   firstFrameCount: number;
@@ -261,6 +314,19 @@ function newSession(): SessionState {
     video: [],
     videoMounted: new Set(),
     videoPlaying: new Set(),
+    photos: [],
+    photoOpenCount: 0,
+    photoLoadCount: 0,
+    photoDisplayCount: 0,
+    photoErrorCount: 0,
+    photoLoadTotalMs: 0,
+    photoLoadMaxMs: 0,
+    photoDisplayTotalMs: 0,
+    photoDisplayMaxMs: 0,
+    photoMemoryCacheHits: 0,
+    photoDiskCacheHits: 0,
+    photoNetworkLoads: 0,
+    photoLargestDecodedBytes: 0,
     firstFrameTotalMs: 0,
     firstFrameMaxMs: 0,
     firstFrameCount: 0,
@@ -469,6 +535,72 @@ export function recordVideoError(mediaId: string): void {
   recordVideoEvent('error', mediaId);
 }
 
+/** Bitmap ARGB de 32 bits: referência para comparar o custo de decodificação, não leitura de memória. */
+export function estimateImageBitmapBytes(width: number, height: number): number {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 0;
+  return Math.round(width * height * 4);
+}
+
+function roundMs(value: number): number {
+  return Math.max(0, Math.round(value * 100) / 100);
+}
+
+function recordPhotoEvent(event: PerformancePhotoEvent, mediaId: string, details: Omit<PerformancePhotoRecord, 'event' | 'mediaId' | 'atMs'> = {}): void {
+  if (!session) return;
+  pushBounded(session.photos, {
+    event,
+    mediaId,
+    ...details,
+    atMs: Math.round(performanceNow() - session.startedMonotonic),
+  }, MAX_PHOTO_RECORDS, session);
+}
+
+export function recordPhotoOpen(mediaId: string): void {
+  if (!session) return;
+  session.photoOpenCount += 1;
+  recordPhotoEvent('open', mediaId);
+}
+
+export function recordPhotoLoaded(mediaId: string, input: {
+  elapsedMs: number;
+  width: number;
+  height: number;
+  cacheType: ImageCacheType;
+}): void {
+  if (!session) return;
+  const elapsedMs = roundMs(input.elapsedMs);
+  const estimatedBytes = estimateImageBitmapBytes(input.width, input.height);
+  session.photoLoadCount += 1;
+  session.photoLoadTotalMs += elapsedMs;
+  session.photoLoadMaxMs = Math.max(session.photoLoadMaxMs, elapsedMs);
+  if (input.cacheType === 'memory') session.photoMemoryCacheHits += 1;
+  else if (input.cacheType === 'disk') session.photoDiskCacheHits += 1;
+  else session.photoNetworkLoads += 1;
+  session.photoLargestDecodedBytes = Math.max(session.photoLargestDecodedBytes, estimatedBytes);
+  recordPhotoEvent('load', mediaId, {
+    elapsedMs,
+    width: input.width,
+    height: input.height,
+    cacheType: input.cacheType,
+    estimatedBytes,
+  });
+}
+
+export function recordPhotoDisplayed(mediaId: string, elapsedMs: number): void {
+  if (!session) return;
+  const rounded = roundMs(elapsedMs);
+  session.photoDisplayCount += 1;
+  session.photoDisplayTotalMs += rounded;
+  session.photoDisplayMaxMs = Math.max(session.photoDisplayMaxMs, rounded);
+  recordPhotoEvent('display', mediaId, { elapsedMs: rounded });
+}
+
+export function recordPhotoError(mediaId: string): void {
+  if (!session) return;
+  session.photoErrorCount += 1;
+  recordPhotoEvent('error', mediaId);
+}
+
 export function getPerformanceSnapshot(): PerformanceSnapshot {
   const requests = session ? session.requests.map((record) => ({ ...record, scope: { ...record.scope }, attemptDurationsMs: [...record.attemptDurationsMs] })) : [];
   const requestsByScreen: Record<string, PerformanceScreenSummary> = {};
@@ -502,6 +634,21 @@ export function getPerformanceSnapshot(): PerformanceSnapshot {
       firstFrameCount: session?.firstFrameCount ?? 0,
       firstFrameTotalMs: session?.firstFrameTotalMs ?? 0,
       firstFrameMaxMs: session?.firstFrameMaxMs ?? 0,
+    },
+    photos: {
+      events: session ? session.photos.map((record) => ({ ...record })) : [],
+      openCount: session?.photoOpenCount ?? 0,
+      loadCount: session?.photoLoadCount ?? 0,
+      displayCount: session?.photoDisplayCount ?? 0,
+      errorCount: session?.photoErrorCount ?? 0,
+      loadTotalMs: session?.photoLoadTotalMs ?? 0,
+      loadMaxMs: session?.photoLoadMaxMs ?? 0,
+      displayTotalMs: session?.photoDisplayTotalMs ?? 0,
+      displayMaxMs: session?.photoDisplayMaxMs ?? 0,
+      memoryCacheHits: session?.photoMemoryCacheHits ?? 0,
+      diskCacheHits: session?.photoDiskCacheHits ?? 0,
+      networkLoads: session?.photoNetworkLoads ?? 0,
+      largestDecodedBytes: session?.photoLargestDecodedBytes ?? 0,
     },
     posters: { ...posters },
     counters: {

@@ -1,8 +1,8 @@
 import { useEvent, useEventListener } from 'expo';
-import { Image } from 'expo-image';
+import { Image, type ImageRef } from 'expo-image';
 import type { VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, Dimensions, Platform, Pressable, PixelRatio, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
 
 import { AppText } from '@/components/app-text';
@@ -39,6 +39,25 @@ let soundEnabled = false;
 
 function mediaRatio(media: Pick<PostMediaDto, 'width' | 'height'>) {
   return Math.max(0.8, Math.min(16 / 9, media.width / media.height || 16 / 10));
+}
+
+/**
+ * Tamanho da variante usada só na transição para a tela cheia. O limite é o
+ * quadro em pixels físicos, não a original: em Android/iOS o `loadAsync`
+ * decodifica nesse tamanho e evita reter um segundo bitmap de 2048 × 2048.
+ * A imagem final do visualizador continua sendo a original.
+ */
+function previewSize(media: Pick<PostMediaDto, 'width' | 'height'>) {
+  const window = Dimensions.get('window');
+  const ratio = media.width / media.height || 16 / 10;
+  const windowRatio = window.width / window.height;
+  const fitWidth = ratio > windowRatio ? window.width : window.height * ratio;
+  const fitHeight = fitWidth / ratio;
+  const scale = PixelRatio.get();
+  return {
+    maxWidth: Math.max(1, Math.round(fitWidth * scale)),
+    maxHeight: Math.max(1, Math.round(fitHeight * scale)),
+  };
 }
 
 /**
@@ -89,9 +108,55 @@ export function PostAttachment({ media, localUri, visible = true, chrome, framed
 function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: string; framed?: boolean }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [open, setOpen] = useState(false);
+  // Variante reduzida para cobrir a primeira decodificação da original em tela
+  // cheia. Só é lida no toque e liberada ao fechar, para não reter uma foto por
+  // cartão da lista.
+  const [preview, setPreview] = useState<ImageRef | null>(null);
+  const previewRequest = useRef(0);
+  const previewLoading = useRef(false);
+
+  useEffect(() => () => {
+    // Uma leitura em voo não pode atualizar estado depois do unmount.
+    previewRequest.current += 1;
+  }, []);
+
+  const loadPreview = () => {
+    if (preview || previewLoading.current) return;
+    // Só busca a variante depois que o feed já carregou: assim é cache hit e
+    // não disputa rede com a original em cache frio.
+    if (status !== 'ready') return;
+    if (Platform.OS === 'web' || typeof Image.loadAsync !== 'function') return;
+    const request = previewRequest.current + 1;
+    previewRequest.current = request;
+    previewLoading.current = true;
+    const size = previewSize(media);
+    void Image.loadAsync({ uri }, size)
+      .then((cached) => {
+        if (request === previewRequest.current && cached) setPreview(cached);
+      })
+      .catch(() => {
+        // Sem bitmap em cache, a listra do visualizador continua sendo o fallback.
+      })
+      .finally(() => {
+        if (request === previewRequest.current) previewLoading.current = false;
+      });
+  };
+
+  const openViewer = () => {
+    loadPreview();
+    setOpen(true);
+  };
+
+  const closeViewer = () => {
+    previewRequest.current += 1;
+    previewLoading.current = false;
+    setPreview(null);
+    setOpen(false);
+  };
+
   return <>
     <Pressable
-      onPress={() => setOpen(true)}
+      onPress={openViewer}
       accessibilityRole="button"
       accessibilityLabel="Abrir foto em tela cheia"
       style={({ pressed }) => [styles.photoFrame, framed && styles.framed, { aspectRatio: mediaRatio(media) }, pressed && styles.pressed]}>
@@ -99,6 +164,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
         <StripedPlaceholder label="Foto da publicação" showLabel={false} style={styles.skeletonFill} />
       </View> : null}
       <Image
+        testID="post-photo-image"
         source={{ uri }}
         contentFit="cover"
         cachePolicy="memory-disk"
@@ -111,7 +177,15 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
       />
       {status === 'error' ? <View style={[StyleSheet.absoluteFill, styles.photoError]}><AppText variant="caption">Não foi possível carregar a imagem.</AppText></View> : null}
     </Pressable>
-    <PhotoViewer uri={uri} visible={open} onClose={() => setOpen(false)} width={media.width} height={media.height} />
+    <PhotoViewer
+      uri={uri}
+      preview={preview}
+      mediaId={media.id}
+      visible={open}
+      onClose={closeViewer}
+      width={media.width}
+      height={media.height}
+    />
   </>;
 }
 

@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Image, type ImageLoadEventData, type ImageRef } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
@@ -8,8 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
+import { StripedPlaceholder } from '@/components/striped-placeholder';
 import { Colors, Spacing } from '@/constants/theme';
 import { haptic } from '@/lib/haptics';
+import { performanceNow, recordPhotoDisplayed, recordPhotoError, recordPhotoLoaded, recordPhotoOpen } from '@/lib/performance';
 
 import {
   clampPan,
@@ -23,6 +25,13 @@ import {
 
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
+/**
+ * Acima deste total de pixels, a original é decodificada no tamanho da view.
+ * O upload normaliza fotos em 2048 × 2048 (4,19 MP), então o caminho comum
+ * mantém a resolução inteira para o zoom; arquivos legados muito maiores não
+ * arriscam um bitmap grande demais.
+ */
+const MAX_FULL_DECODE_PIXELS = 2048 * 2048;
 // Assentar, duplo toque e descarte são transições automáticas: com movimento
 // reduzido no sistema, o Reanimated aplica o valor final sem animar.
 const SETTLE = { duration: 180, reduceMotion: ReduceMotion.System };
@@ -41,8 +50,15 @@ const RETURN_SPRING = {
  * com pincel para ampliar, arrasto para percorrer e toque duplo para alternar o zoom.
  * O chrome fica embaixo, sempre alcançável: é a saída garantida da tela.
  */
-export function PhotoViewer({ uri, visible, onClose, width, height }: {
+export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, width, height }: {
   uri: string | null;
+  /**
+   * Variante reduzida já decodificada, usada como camada de transição sob a
+   * original. O contrato de mídia não oferece thumbnail de servidor.
+   */
+  preview?: ImageRef | null;
+  /** Identificador estável para a instrumentação local, nunca a URL. */
+  mediaId?: string;
   visible: boolean;
   onClose: () => void;
   width?: number;
@@ -50,6 +66,10 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
 }) {
   const insets = useSafeAreaInsets();
   const [fold, setFold] = useState<ViewerGeometry>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const openStartedAt = useRef<number | null>(null);
+  const loadRecorded = useRef(false);
+  const displayRecorded = useRef(false);
   const geometry = useSharedValue<ViewerGeometry>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -70,6 +90,9 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
   const dismissDragged = useSharedValue(false);
 
   const ratio = width && height ? width / height : 3 / 2;
+  // O contrato limita a foto a 2048 × 2048; nesse intervalo decodificamos a
+  // original inteira para o zoom não herdar a resolução do feed.
+  const keepsFullResolution = !!width && !!height && width * height <= MAX_FULL_DECODE_PIXELS;
 
   // Sair zera zoom e deslocamento: a próxima foto sempre abre inteira e o
   // backdrop volta opaco, sem herdar o estado do descarte anterior.
@@ -85,6 +108,7 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
     pinchTouched.value = false;
     dismissDragged.value = false;
     closing.value = false;
+    setStatus('loading');
   };
 
   const finishDismiss = () => {
@@ -113,6 +137,37 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
         ? previous
         : next
     ));
+  };
+
+  const elapsedSinceOpen = () => {
+    const startedAt = openStartedAt.current;
+    return startedAt === null ? 0 : performanceNow() - startedAt;
+  };
+
+  const onLoad = (event: ImageLoadEventData) => {
+    setStatus('ready');
+    if (loadRecorded.current) return;
+    // O evento também existe na web; sem `source` não há tamanho confiável.
+    if (!event?.source) return;
+    loadRecorded.current = true;
+    recordPhotoLoaded(mediaId ?? 'unknown', {
+      elapsedMs: elapsedSinceOpen(),
+      width: event.source.width,
+      height: event.source.height,
+      cacheType: event.cacheType ?? 'none',
+    });
+  };
+
+  const onDisplay = () => {
+    setStatus('ready');
+    if (displayRecorded.current) return;
+    displayRecorded.current = true;
+    recordPhotoDisplayed(mediaId ?? 'unknown', elapsedSinceOpen());
+  };
+
+  const onError = () => {
+    setStatus('error');
+    recordPhotoError(mediaId ?? 'unknown');
   };
 
   const onLayout = (layoutWidth: number, layoutHeight: number) => {
@@ -313,6 +368,16 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
   // backdrop transparente revela o feed por baixo sem desmontar o Modal.
   const overlay = useAnimatedStyle(() => ({ opacity: dragBackdropOpacity(translateY.value, scale.value) }));
 
+  // Cada abertura é uma nova medição: zera as marcas sem criar timer nem
+  // observer. A instrumentação é fechada em produção e não recebe a URL.
+  useLayoutEffect(() => {
+    if (!visible) return;
+    openStartedAt.current = performanceNow();
+    loadRecorded.current = false;
+    displayRecorded.current = false;
+    recordPhotoOpen(mediaId ?? 'unknown');
+  }, [mediaId, visible]);
+
   return <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={requestClose} onShow={reset} testID="photo-viewer-modal">
     <GestureHandlerRootView style={styles.root}>
       <ResetOnOpen onOpen={reset} />
@@ -327,15 +392,43 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
           <GestureDetector gesture={gesture}>
             <View style={styles.fill} collapsable={false}>
               {fold.fitWidth > 0 && uri ? <Animated.View style={[styles.fit, { width: fold.fitWidth, height: fold.fitHeight }, zoomed]}>
+                <View style={styles.underlay} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  <PhotoFallback preview={preview} />
+                </View>
                 <Image
+                  testID="photo-viewer-image"
                   source={{ uri }}
                   contentFit="contain"
                   cachePolicy="memory-disk"
-                  transition={120}
+                  priority="high"
+                  recyclingKey={uri}
+                  // A original inteira alimenta o zoom; acima do teto de pixels
+                  // o expo-image pode reduzir o bitmap para não estourar memória.
+                  allowDownscaling={!keepsFullResolution}
+                  // Cache hit aparece direto; cache frio faz cross-dissolve sobre
+                  // a listra ou o bitmap do feed, nunca sobre preto.
+                  transition={{ duration: 160, skipOnCacheHit: 'all' }}
+                  onLoad={onLoad}
+                  onDisplay={onDisplay}
+                  onError={onError}
                   accessibilityLabel="Foto da publicação"
                   style={StyleSheet.absoluteFill}
                 />
-              </Animated.View> : null}
+                {status === 'error' ? (
+                  <View style={[StyleSheet.absoluteFill, styles.photoError]} pointerEvents="none">
+                    <AppText variant="caption" color={Colors.paper}>Não foi possível carregar a imagem.</AppText>
+                  </View>
+                ) : null}
+              </Animated.View> : (
+                <View
+                  testID="photo-viewer-placeholder"
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants">
+                  <PhotoFallback preview={preview} />
+                </View>
+              )}
             </View>
           </GestureDetector>
         </View>
@@ -354,6 +447,23 @@ export function PhotoViewer({ uri, visible, onClose, width, height }: {
       </View>
     </GestureHandlerRootView>
   </Modal>;
+}
+
+/**
+ * Camada imediata sob a original. A variante já decodificada aparece antes da
+ * foto final; sem ela, a listra da casa ocupa o quadro até a foto chegar.
+ * `contain` mantém o mesmo enquadramento do quadro final, que usa a proporção
+ * original — a troca não desloca a imagem.
+ */
+function PhotoFallback({ preview }: { preview: ImageRef | null }) {
+  if (preview) {
+    return <Image testID="photo-viewer-preview" source={preview} contentFit="contain" style={StyleSheet.absoluteFill} accessible={false} />;
+  }
+  return (
+    <View testID="photo-viewer-stripes" style={StyleSheet.absoluteFill}>
+      <StripedPlaceholder label="Foto da publicação" showLabel={false} variant="dark" style={styles.placeholderFill} />
+    </View>
+  );
 }
 
 /**
@@ -378,6 +488,9 @@ const styles = StyleSheet.create({
   viewport: { flex: 1, overflow: 'hidden' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fit: { backgroundColor: Colors.ink },
+  underlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  placeholderFill: { flex: 1, borderRadius: 0 },
+  photoError: { alignItems: 'center', justifyContent: 'center', padding: Spacing.four, backgroundColor: 'rgba(22,18,15,0.72)' },
   bar: {
     minHeight: 52,
     flexDirection: 'row',
