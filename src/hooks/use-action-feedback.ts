@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { ReduceMotion, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
-import { Motion } from '@/constants/theme';
+import { Motion } from '@/constants/motion';
 
 // Mocks de teste antigos podem não exportar o enum; o valor público continua sendo "system".
 const SYSTEM_REDUCE_MOTION = ReduceMotion?.System ?? ('system' as ReduceMotion);
@@ -9,12 +9,12 @@ const SYSTEM_REDUCE_MOTION = ReduceMotion?.System ?? ('system' as ReduceMotion);
 /** Configuração explícita para o teste conseguir travar os tokens e a acessibilidade. */
 export const ACTION_FEEDBACK_TIMING = {
   enter: {
-    duration: Motion.duration.quick,
+    duration: Motion.duration.fast,
     easing: Motion.easing.standard,
     reduceMotion: SYSTEM_REDUCE_MOTION,
   },
   settle: {
-    duration: Motion.duration.base,
+    duration: Motion.duration.normal,
     easing: Motion.easing.settle,
     reduceMotion: SYSTEM_REDUCE_MOTION,
   },
@@ -31,7 +31,7 @@ export function useActionFeedback() {
   const pulse = useCallback(() => {
     // eslint-disable-next-line react-hooks/immutability -- SharedValue é mutável por contrato do Reanimated.
     scale.value = withSequence(
-      withTiming(Motion.scale.confirmation, ACTION_FEEDBACK_TIMING.enter),
+      withTiming(Motion.feedback.confirmationScale, ACTION_FEEDBACK_TIMING.enter),
       withTiming(1, ACTION_FEEDBACK_TIMING.settle),
     );
   }, [scale]);

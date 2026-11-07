@@ -1,9 +1,8 @@
 import { router, useSegments } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
-  Easing,
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
@@ -11,10 +10,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CreationIllustration, type CreationAsset } from '@/features/media/creation-assets';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { Icon, type IconName } from '@/components/icon';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 /** Ícone de cada rota de aba; o nome da rota é o nome do arquivo em `src/app/(tabs)`. */
 const TAB_ICONS: Record<string, IconName> = {
@@ -65,7 +67,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
   useEffect(() => {
     progress.value = withTiming(hidden ? 0 : 1, {
       duration: LAYOUT_TRANSITION_MS,
-      easing: Easing.out(Easing.cubic),
+      easing: Motion.easing.standard,
       reduceMotion: ReduceMotion.System,
     });
   }, [hidden, progress]);
@@ -108,20 +110,15 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
           return (
             <Fragment key={route.key}>
               {index === CREATE_BUTTON_INDEX ? <CreateButton /> : null}
-              <Pressable
-                onPress={onPress}
-                role="tab"
-                accessibilityState={{ selected: focused }}
+              <TabItem
+                focused={focused}
+                label={label}
                 accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
                 testID={options.tabBarButtonTestID}
-                style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
-                <View>
-                  <Icon name={TAB_ICONS[route.name] ?? 'home'} color={color} />
-                </View>
-                <AppText style={styles.label} color={color} maxFontSizeMultiplier={1.2} numberOfLines={1}>
-                  {label}
-                </AppText>
-              </Pressable>
+                color={color}
+                icon={TAB_ICONS[route.name] ?? 'home'}
+                onPress={onPress}
+              />
             </Fragment>
           );
         })}
@@ -130,10 +127,41 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
   );
 }
 
+function TabItem({ focused, label, accessibilityLabel, testID, color, icon, onPress }: {
+  focused: boolean;
+  label: string;
+  accessibilityLabel: string;
+  testID?: string;
+  color: string;
+  icon: IconName;
+  onPress: () => void;
+}) {
+  const press = usePressFeedback();
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      role="tab"
+      accessibilityState={{ selected: focused }}
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+      style={[styles.tab, press.style]}>
+      <View>
+        <Icon name={icon} color={color} />
+      </View>
+      <AppText style={styles.label} color={color} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+        {label}
+      </AppText>
+    </AnimatedPressable>
+  );
+}
+
 function CreateButton() {
   const [menuVisible, setMenuVisible] = useState(false);
   const menuOpen = useRef(false);
   const { width } = useWindowDimensions();
+  const press = usePressFeedback(Motion.feedback.subtle);
   // A arte encosta na borda direita, como no desenho; em telas estreitas ela
   // encolhe mantendo a borda esquerda na guia de 204.
   const artWidth = Math.min(186, Math.max(120, width - 204));
@@ -157,13 +185,15 @@ function CreateButton() {
 
   return (
     <View style={styles.tab}>
-      <Pressable
+      <AnimatedPressable
         onPress={openMenu}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
         accessibilityRole="button"
         accessibilityLabel="Criar"
-        style={({ pressed }) => [styles.createButton, pressed && styles.createPressed]}>
+        style={[styles.createButton, press.style]}>
         <Icon name="plus" color={Colors.paper} />
-      </Pressable>
+      </AnimatedPressable>
       <BottomSheet visible={menuVisible} onClose={closeMenu} appearance="creation">
         <View style={styles.createMenu}>
           <View style={styles.createIntro}>
@@ -204,19 +234,22 @@ type MenuItemProps = {
 };
 
 function CreateMenuItem({ title, description, image, onPress }: MenuItemProps) {
+  const press = usePressFeedback(Motion.feedback.subtle);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       accessibilityRole="button"
       accessibilityLabel={title}
-      style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}>
+      style={[styles.menuItem, press.style]}>
       <View style={styles.menuItemImageFrame}><CreationIllustration asset={image} contentFit="cover" style={styles.menuItemImage} /></View>
       <View style={styles.menuItemContent}>
         <AppText variant="bodyStrong" style={styles.menuItemTitle}>{title}</AppText>
         <AppText variant="caption" style={styles.menuItemDescription}>{description}</AppText>
       </View>
       <Icon name="chevronRight" color={Colors.ink} size={20} />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -243,9 +276,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
   },
-  pressed: {
-    opacity: 0.7,
-  },
   createButton: {
     width: 56,
     height: 44,
@@ -253,9 +283,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.red,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  createPressed: {
-    backgroundColor: Colors.redPressed,
   },
   createMenu: {
     gap: 0,
@@ -317,9 +344,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 3,
-  },
-  menuItemPressed: {
-    backgroundColor: Colors.strawLight,
   },
   menuItemImageFrame: {
     width: 80,

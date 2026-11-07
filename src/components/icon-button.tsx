@@ -1,7 +1,9 @@
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { Icon, type IconName } from '@/components/icon';
 import { Colors, MinTouchTarget } from '@/constants/theme';
+import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 type IconButtonProps = {
   icon: IconName;
@@ -35,22 +37,25 @@ export function IconButton({
   selected,
   style,
 }: IconButtonProps) {
+  const press = usePressFeedback();
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       hitSlop={2}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={selected === undefined ? undefined : { selected }}
-      style={({ pressed }) => [
+      style={[
         styles.base,
         background ? { backgroundColor: background } : null,
         bordered && styles.bordered,
-        pressed && styles.pressed,
         style,
+        press.style,
       ]}>
       <Icon name={icon} size={size} color={color} filled={filled} strokeWidth={strokeWidth} />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -65,8 +70,5 @@ const styles = StyleSheet.create({
   bordered: {
     borderWidth: 1.5,
     borderColor: Colors.ink,
-  },
-  pressed: {
-    opacity: 0.6,
   },
 });
