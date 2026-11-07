@@ -20,6 +20,7 @@ import { JoinButton } from '@/features/comunas/components/join-button';
 import { DocumentCard } from '@/features/library/document-card';
 import { PersonRow } from '@/features/profiles/components/person-row';
 import { useManualRefresh } from '@/hooks/use-manual-refresh';
+import { useStickyControlsScroll } from '@/hooks/use-sticky-controls-scroll';
 import { formatPeople } from '@/lib/format';
 import type { Page } from '@/lib/pagination';
 import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
@@ -44,6 +45,10 @@ const FILTERS: { key: DiscoveryFilter; label: string; action: string }[] = [
 ];
 const PREVIEW_LIMIT = 3;
 const TOPIC_PREVIEW_LIMIT = 6;
+// O título é o cabeçalho da lista (índice 0); a célula de busca/filtros é o
+// primeiro item (índice 1). A referência precisa ser estável entre renders para
+// a lista não reavaliar o header fixo a cada tecla.
+const STICKY_HEADER_INDICES = [1];
 
 type DiscoveryRow =
   | { key: string; kind: 'controls' | 'topics' | 'library' | 'trending' | 'trending-skeleton' | 'comuna-carousel' }
@@ -80,7 +85,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const { reload } = data;
   const list = useRef<FlatList<DiscoveryRow>>(null);
   useScrollToTop(list);
-  const titleHeight = useRef(0);
+  const stickyControls = useStickyControlsScroll(list);
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [filter, setFilter] = useState<DiscoveryFilter>('all');
@@ -148,11 +153,11 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   };
   const changeFilter = (next: DiscoveryFilter) => {
     setFilter(next);
-    list.current?.scrollToOffset({ offset: next === 'all' && !query.trim() ? 0 : titleHeight.current, animated: false });
+    stickyControls.scrollToControls(next === 'all' && !query.trim());
   };
   const changeQuery = (next: string) => {
     setQuery(next);
-    list.current?.scrollToOffset({ offset: !next.trim() && filter === 'all' ? 0 : titleHeight.current, animated: false });
+    stickyControls.scrollToControls(!next.trim() && filter === 'all');
   };
   const openTopic = (selected: Topic) => {
     setTopicsOpen(false);
@@ -204,11 +209,14 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         // O título rola; a primeira célula (busca/filtros) permanece acessível e montada.
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={STICKY_HEADER_INDICES}
+        onLayout={stickyControls.onListLayout}
+        onContentSizeChange={stickyControls.onContentSizeChange}
+        onScrollBeginDrag={stickyControls.onScrollBeginDrag}
         removeClippedSubviews={false}
         initialNumToRender={12}
         refreshControl={<RefreshControl refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} tintColor={Colors.red} />}
-        ListHeaderComponent={<View onLayout={(event) => { titleHeight.current = event.nativeEvent.layout.height; }} style={styles.titleWrap}>
+        ListHeaderComponent={<View onLayout={stickyControls.onHeaderLayout} style={styles.titleWrap}>
           {topicId ? <View style={styles.topicChrome}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><View style={styles.barDivider} /><AppText variant="label">Assuntos da Popularia</AppText></View> : null}
           <AppText variant="display" accessibilityRole="header" style={[styles.title, topicId ? styles.topicTitle : null]}>{title}</AppText>
         </View>}
