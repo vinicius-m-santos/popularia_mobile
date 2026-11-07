@@ -51,7 +51,7 @@ import { FollowButton } from './components/follow-button';
 import { mediaGridData, ProfileMediaGrid } from './components/profile-media-grid';
 import { ProfileTabsOverlay, type ProfileTabsOverlayHandle } from './components/profile-tabs-overlay';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from './profile-tab-swipe';
-import { PROFILE_TABS_HEIGHT, profileTabOptions, type ProfileTabKey } from './profile-tabs';
+import { PROFILE_TABS_HEIGHT, PROFILE_TABS_UNDERLINE_HEIGHT, profileTabOptions, type ProfileTabKey } from './profile-tabs';
 import { profileKeys, profileOptions } from './queries';
 
 type ProfileRow =
@@ -363,7 +363,9 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     <View style={styles.tabs}>
       <View style={styles.tabInner}>
         <View style={styles.column}>
-          <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />
+          {/* Célula reciclada da FlashList: o indicador só anima opacidade/transform,
+              sem mudar a altura da barra nem deslocar o conteúdo da lista. */}
+          <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={PROFILE_TABS_UNDERLINE_HEIGHT} />
         </View>
       </View>
     </View>
@@ -464,7 +466,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const page = pageKey === 'biblioteca' ? (
     <ProfileSwipeContent fill>
       <LibraryPane scope="personal" owner={user.id} canAdd={isMe} profileContext
-        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />} />
+        header={<ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={PROFILE_TABS_UNDERLINE_HEIGHT} />} />
     </ProfileSwipeContent>
   ) : (
     <MediaVisibilityProvider visibility={visibility}>

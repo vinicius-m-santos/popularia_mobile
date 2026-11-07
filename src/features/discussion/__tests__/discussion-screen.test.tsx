@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { LayoutAnimation } from 'react-native';
 
 import DiscussionScreen from '@/features/discussion/discussion-screen';
+import { REPLY_EXPANSION_ANIMATION } from '@/features/discussion/reply-expansion-motion';
 import { haptic } from '@/lib/haptics';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 import type { CommentWithAuthor, FeedItem } from '@/types/models';
@@ -92,6 +94,11 @@ jest.mock('@/features/discussion/api', () => ({
   getComments: jest.fn(),
   createComment: jest.fn(),
   setCommentSupport: jest.fn(),
+}));
+jest.mock('@/hooks/use-reduced-motion', () => ({ useReducedMotion: () => false }));
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: 390, height: 844, scale: 2, fontScale: 1 }),
 }));
 jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 
@@ -199,6 +206,19 @@ describe('estabilidade das linhas da discussão', () => {
 
     expect(screen.getByText('Comentário 2')).toBeTruthy();
     expect(screen.getByText('Comentário 3')).toBeTruthy();
+  });
+
+  it('agenda a animação de layout da expansão em uma lista curta', async () => {
+    const configure = jest.spyOn(LayoutAnimation, 'configureNext').mockImplementation(() => {});
+    try {
+      const comments = [comment(1), comment(2, 'comment-1'), comment(3, 'comment-1')];
+      await renderComments(comments);
+
+      await fireEvent.press(screen.getByText('Ocultar'));
+      expect(configure).toHaveBeenCalledWith(REPLY_EXPANSION_ANIMATION);
+    } finally {
+      configure.mockRestore();
+    }
   });
 
   it('dá feedback de sucesso só depois que o comentário é criado', async () => {

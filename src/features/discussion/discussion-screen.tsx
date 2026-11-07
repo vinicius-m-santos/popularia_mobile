@@ -18,6 +18,7 @@ import { acknowledgeGamification } from '@/features/gamification/feedback';
 import { CommentComposer, type ComposerNotice } from '@/features/discussion/components/comment-composer';
 import { CommentRow } from '@/features/discussion/components/comment-row';
 import { PostDetail } from '@/features/discussion/components/post-detail';
+import { useReplyExpansionMotion } from '@/features/discussion/reply-expansion-motion';
 import { buildThread, type CommentSort, type ThreadRow } from '@/features/discussion/thread';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
@@ -140,6 +141,11 @@ export default function DiscussionScreen() {
     ready: !!post,
     getItemKey: (row) => row.comment.id,
   });
+  // O callback de colapso é estável e lê a versão mais recente da árvore para
+  // decidir se cabe no orçamento da animação de layout.
+  const rowsRef = useRef(rows);
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
+  const animateReplyExpansion = useReplyExpansionMotion();
 
   const onSupport = useCallback(async (commentId: string) => {
     const current = latest.current;
@@ -178,8 +184,18 @@ export default function DiscussionScreen() {
     }
   }, []);
   const onToggleCollapse = useCallback(
-    (commentId: string) => setCollapsed((prev) => ({ ...prev, [commentId]: !prev[commentId] })),
-    [],
+    (commentId: string) => {
+      const row = rowsRef.current.find((item) => item.comment.id === commentId);
+      if (row) {
+        animateReplyExpansion({
+          replyCount: row.replyCount,
+          rowCount: rowsRef.current.length,
+          collapsed: row.collapsed,
+        });
+      }
+      setCollapsed((prev) => ({ ...prev, [commentId]: !prev[commentId] }));
+    },
+    [animateReplyExpansion],
   );
   const onMore = useCallback((commentId: string) => {
     const current = latest.current;
