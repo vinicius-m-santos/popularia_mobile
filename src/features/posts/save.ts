@@ -46,8 +46,16 @@ export function knownPost(postId: string) {
   return known.get(postId);
 }
 
-/** Guarda o cartão para a Biblioteca e para o menu, sem redesenhar a tela. */
+/**
+ * Guarda o cartão para a Biblioteca e para o menu, sem redesenhar a tela.
+ *
+ * Contrato: chamar fora do render (efeito pós-commit ou evento). O React
+ * Compiler e o StrictMode podem renderizar mais de uma vez ou descartar um
+ * render; escrever no render deixaria memorizado um cartão que nunca foi
+ * exibido. Uma entrada só é substituída pela versão mais recente do mesmo id.
+ */
 export function rememberPost(post: FeedItem) {
+  if (known.get(post.id) === post) return;
   known.set(post.id, post);
 }
 
