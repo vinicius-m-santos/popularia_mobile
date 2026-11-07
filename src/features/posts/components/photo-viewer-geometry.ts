@@ -12,6 +12,15 @@ export type ZoomState = {
   translateY: number;
 };
 
+/** Distância vertical (em pontos) a partir da qual arrastar descarta a foto. */
+export const DISMISS_DISTANCE = 110;
+/** Velocidade (em pontos por segundo) de um fling que descarta mesmo com arrasto curto. */
+export const DISMISS_VELOCITY = 900;
+/** Arrasto mínimo para uma soltura rápida ser tratada como fling, não como toque. */
+export const DISMISS_FLING_DISTANCE = 48;
+/** Distância em que o backdrop chega a transparente durante o arrasto. */
+export const DISMISS_FADE_DISTANCE = 260;
+
 /** Limite de deslocamento para a imagem já ampliada não sair do quadro. */
 export function panLimit(scale: number, fit: number, viewport: number): number {
   'worklet';
@@ -46,6 +55,42 @@ export function clampPan(translate: number, scale: number, fit: number, viewport
   'worklet';
   const limit = panLimit(scale, fit, viewport);
   return Math.min(Math.max(translate, -limit), limit);
+}
+
+/**
+ * Decide o descarte a partir da posição e da velocidade na soltura.
+ *
+ * Distância sozinha já fecha; um fling curto também fecha, mas só acima de
+ * `DISMISS_FLING_DISTANCE` — assim um toque trêmulo não vira descarte.
+ */
+export function shouldDismiss(distance: number, velocity: number): boolean {
+  'worklet';
+  const pulled = Math.abs(distance);
+  // O fling só fecha se continuar na direção do arrasto; um retorno rápido ao
+  // centro não pode ser lido como intenção de descartar.
+  const flungAway = distance * velocity > 0;
+  return pulled > DISMISS_DISTANCE
+    || (flungAway && pulled > DISMISS_FLING_DISTANCE && Math.abs(velocity) > DISMISS_VELOCITY);
+}
+
+/**
+ * Alvo da animação de saída: além da borda na direção do gesto, mesmo que a
+ * pessoa já tenha arrastado até perto da borda antes de soltar.
+ */
+export function dismissTarget(distance: number, viewportHeight: number): number {
+  'worklet';
+  const direction = distance < 0 ? -1 : 1;
+  return direction * Math.max(viewportHeight + 64, Math.abs(distance) + 64);
+}
+
+/**
+ * Opacidade do backdrop e do chrome durante o arrasto sem zoom. Com a imagem
+ * ampliada o fundo continua opaco: pinça nunca deve parecer descarte.
+ */
+export function dragBackdropOpacity(distance: number, scale: number): number {
+  'worklet';
+  if (scale > 1.02) return 1;
+  return 1 - Math.min(1, Math.abs(distance) / DISMISS_FADE_DISTANCE);
 }
 
 /**

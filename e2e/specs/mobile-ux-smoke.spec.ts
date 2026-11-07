@@ -253,7 +253,8 @@ test.describe('smoke de UX mobile: folhas, foco e foto', () => {
     await expect(page).toHaveURL(/\/$/);
 
     // Pinça, duplo toque e arrasto para descartar dependem da física do
-    // aparelho e ficam no roteiro manual.
+    // aparelho e da disputa real entre gestos; os limites de pan/velocidade
+    // são cobertos em teste de componente e o roteiro manual continua necessário.
     await expect(page.getByLabel('Foto da publicação')).toHaveCount(0);
   });
 });
