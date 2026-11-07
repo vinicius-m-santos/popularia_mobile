@@ -17,4 +17,25 @@ describe('tokens de texto de publicação', () => {
     const tokens = tokenizePostText('abc#nada email#teste ### # #___ (#2026) #política #किताब');
     expect(tokens.map((token) => token.hashtag)).toEqual(['2026', 'politica', 'किताब']);
   });
+
+  it('reaproveita a tokenização para o mesmo texto e as mesmas menções', () => {
+    const text = '@ana, olha #tecnologia em https://popularia.com.br';
+    const mentions = [{ userId: 'ana', handle: 'ana', displayName: 'Ana', avatarUrl: null, start: 0, end: 4 }];
+    const first = tokenizePostText(text, mentions);
+    expect(tokenizePostText(text, mentions)).toBe(first);
+
+    const renamed = tokenizePostText(text, [{ ...mentions[0], displayName: 'Ana Silva' }]);
+    expect(renamed).not.toBe(first);
+    expect(renamed.find((mark) => mark.mention)?.mention?.displayName).toBe('Ana Silva');
+  });
+
+  it('separa variantes por hashtags desligadas e por mudança de offsets', () => {
+    const text = '@ana e #tecnologia';
+    const mentions = [{ userId: 'ana', handle: 'ana', displayName: 'Ana', avatarUrl: null, start: 0, end: 4 }];
+    const withHashtags = tokenizePostText(text, mentions);
+    const withoutHashtags = tokenizePostText(text, mentions, false);
+    expect(withoutHashtags).not.toBe(withHashtags);
+    expect(withoutHashtags.some((mark) => mark.hashtag)).toBe(false);
+    expect(tokenizePostText(text, [{ ...mentions[0], start: 1, end: 5 }])).not.toBe(withHashtags);
+  });
 });

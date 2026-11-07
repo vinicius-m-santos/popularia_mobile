@@ -47,6 +47,12 @@ describe('cartão de chamado', () => {
     expect(callSchedule('2026-11-07T19:30:00-03:00', zone)).toMatchObject({ time: '19h30' });
   });
 
+  it('reaproveita o calendário do mesmo chamado entre cartões', () => {
+    const first = callSchedule(start, zone);
+    expect(callSchedule(start, zone)).toBe(first);
+    expect(callSchedule(start, 'America/Manaus')).not.toBe(first);
+  });
+
   it('conta os dias no fuso do chamado', () => {
     const now = Date.parse('2026-11-03T12:00:00-03:00');
     expect(countdownLabel(start, zone, now)).toBe('EM 3 DIAS');

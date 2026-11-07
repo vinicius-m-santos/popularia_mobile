@@ -49,6 +49,11 @@ const TOPIC_PREVIEW_LIMIT = 6;
 // primeiro item (índice 1). A referência precisa ser estável entre renders para
 // a lista não reavaliar o header fixo a cada tecla.
 const STICKY_HEADER_INDICES = [1];
+const EMPTY_TOPICS: Topic[] = [];
+const EMPTY_POSTS: FeedItem[] = [];
+const EMPTY_COMUNAS: Comuna[] = [];
+// A busca agrupa os mesmos tipos da descoberta, sem repetir a lista a cada render.
+const SEARCH_SECTIONS = FILTERS.filter((option) => option.key !== 'all');
 
 type DiscoveryRow =
   | { key: string; kind: 'controls' | 'topics' | 'library' | 'trending' | 'trending-skeleton' | 'comuna-carousel' }
@@ -71,16 +76,20 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const nav = useNav();
   const { interests, profile } = useAccount();
   const interestKey = (interests ?? []).join(',');
+  // O contexto pode entregar uma nova referência com o mesmo conteúdo; as listas
+  // abaixo dependem do conteúdo para não recriar as linhas a cada render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- identidade é interestKey
+  const stableInterests = useMemo(() => interests ?? [], [interestKey]);
   // A chave inclui os interesses porque a descoberta é personalizada por eles.
   const discovery = useDiscovery(me.id, topicId, interestKey);
   const data = discovery;
   const trending = useMemo(
-    () => data.data ? selectTrendingPosts([...data.data.posts, ...data.data.recentPosts]) : [],
+    () => data.data ? selectTrendingPosts([...data.data.posts, ...data.data.recentPosts]) : EMPTY_POSTS,
     [data.data],
   );
   const suggestions = useMemo(
-    () => data.data && !topicId ? suggestedComunas(data.data.comunas, interests ?? [], profile.city) : [],
-    [data.data, topicId, interests, profile.city],
+    () => data.data && !topicId ? suggestedComunas(data.data.comunas, stableInterests, profile.city) : EMPTY_COMUNAS,
+    [data.data, topicId, stableInterests, profile.city],
   );
   const { reload } = data;
   const list = useRef<FlatList<DiscoveryRow>>(null);
@@ -106,11 +115,15 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
     // a mesma página em cache em vez de nascer com um loader.
     placeholderData: () => topicId ? cachedSearchPage(queryKeys.discovery.search(me.id, '', 'documents', topicId)) : undefined,
   }, queryClient);
-  const topicDocumentItems = (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents');
+  const topicDocumentItems = useMemo(
+    () => (topicDocuments.data?.items ?? []).filter((entry): entry is Extract<DiscoveryEntry, { kind: 'documents' }> => entry.kind === 'documents'),
+    [topicDocuments.data],
+  );
   const refetchTopicDocuments = topicDocuments.refetch;
-  const showHome = !query.trim() && filter === 'all';
-  const short = !!query.trim() && (query.trim().replace(/^@/, '').length < 3 || !/[\p{L}\p{N}]{3}/u.test(query));
-  const settled = query.trim() === debounced;
+  const trimmedQuery = query.trim();
+  const showHome = !trimmedQuery && filter === 'all';
+  const short = !!trimmedQuery && (trimmedQuery.replace(/^@/, '').length < 3 || !/[\p{L}\p{N}]{3}/u.test(trimmedQuery));
+  const settled = trimmedQuery === debounced;
   const searchEnabled = !!data.data && (!topicId || !!topic) && !showHome && !short && settled;
   const title = topicId ? topic?.shortLabel ?? 'Assunto' : 'Explorar';
   const searchLabel = topicId ? `Buscar em ${title}` : 'Buscar na Popularia';
@@ -147,13 +160,22 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
     } else if (searchEnabled) void refreshSearch();
   }, [showHome, data.data, reload, searchEnabled, refreshSearch, topicId, topic, refetchTopicDocuments]);
   const pullRefresh = useManualRefresh(showHome || !data.data ? data.status === 'loading' : result.isRefetching, refresh);
-  const items = dedupe(result.data?.pages.flatMap((page) => page.items) ?? []);
+  const items = useMemo(
+    () => dedupe(result.data?.pages.flatMap((page) => page.items) ?? []),
+    [result.data],
+  );
+  const filterOptions = useMemo(
+    () => FILTERS.filter((option) => option.key === 'all' || !topicId || option.key !== 'people'),
+    [topicId],
+  );
+  const topics = data.data?.topics ?? EMPTY_TOPICS;
+  const previewTopics = useMemo(() => topics.slice(0, TOPIC_PREVIEW_LIMIT), [topics]);
   const loadMore = () => {
     if (searchEnabled && result.hasNextPage && !result.isFetching) void result.fetchNextPage();
   };
   const changeFilter = (next: DiscoveryFilter) => {
     setFilter(next);
-    stickyControls.scrollToControls(next === 'all' && !query.trim());
+    stickyControls.scrollToControls(next === 'all' && !trimmedQuery);
   };
   const changeQuery = (next: string) => {
     setQuery(next);
@@ -164,42 +186,52 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
     router.push({ pathname: '/explorar/assunto/[id]', params: { id: selected.id } });
   };
 
-  const rows: DiscoveryRow[] = [{ key: 'controls', kind: 'controls' }];
-  const addState = (key: string, content: ReactNode) => rows.push({ key, kind: 'state', content });
-  if (data.status === 'error') addState('discovery-error', <StateView kind="error" message="Não conseguimos atualizar a descoberta." onRetry={reload} />);
-  if (!data.data) {
-    if (data.status === 'loading') {
-      if (showHome) rows.push({ key: 'trending-loading', kind: 'trending-skeleton' });
-      else addState('discovery-loading', <StateView kind="loading" message="Carregando descoberta" />);
-    }
-  } else if (topicId && !topic) {
-    addState('unknown-topic', <StateView kind="empty" title="Assunto não encontrado" />);
-  } else if (showHome) {
-    rows.push(...discoveryRows(data.data, topic, topicDocumentItems, trending, suggestions));
-  } else if (short) {
-    addState('short-query', <StateView kind="empty" title="Continue escrevendo" message="Use pelo menos três letras ou números seguidos para buscar." />);
-  } else if (!settled || result.isPending || result.isPlaceholderData) {
-    addState('search-loading', <PopulariaListSkeleton rows={4} variant="row" />);
-  } else {
-    if (result.isError && !result.isFetchNextPageError) addState('search-error', <StateView kind="error" message={items.length ? 'Não conseguimos atualizar a busca.' : 'Não conseguimos buscar agora.'} onRetry={() => { void refreshSearch(); }} />);
-    if (!result.isError && !items.length) addState('search-empty', <StateView kind="empty" title={debounced ? 'Nada por aqui ainda.' : 'Nada nesta categoria por enquanto.'} message={debounced ? 'Tente outro termo ou explore as comunas.' : undefined} />);
-    if (filter === 'all') {
-      for (const section of FILTERS.filter((option) => option.key !== 'all')) {
-        const group = items.filter((entry) => entry.kind === section.key);
-        if (!group.length) continue;
-        rows.push({ key: `section-${section.key}`, kind: 'section', label: section.label, filter: section.key, action: section.action });
-        rows.push(...hitRows(group));
+  // `query` não entra nas dependências: enquanto o termo ainda aguarda o
+  // debounce, as linhas continuam as mesmas e a lista não recria as células.
+  const rows = useMemo(() => {
+    const next: DiscoveryRow[] = [{ key: 'controls', kind: 'controls' }];
+    const addState = (key: string, content: ReactNode) => next.push({ key, kind: 'state', content });
+    if (data.status === 'error') addState('discovery-error', <StateView kind="error" message="Não conseguimos atualizar a descoberta." onRetry={reload} />);
+    if (!data.data) {
+      if (data.status === 'loading') {
+        if (showHome) next.push({ key: 'trending-loading', kind: 'trending-skeleton' });
+        else addState('discovery-loading', <StateView kind="loading" message="Carregando descoberta" />);
       }
+    } else if (topicId && !topic) {
+      addState('unknown-topic', <StateView kind="empty" title="Assunto não encontrado" />);
+    } else if (showHome) {
+      next.push(...discoveryRows(data.data, topic, topicDocumentItems, trending, suggestions));
+    } else if (short) {
+      addState('short-query', <StateView kind="empty" title="Continue escrevendo" message="Use pelo menos três letras ou números seguidos para buscar." />);
+    } else if (!settled || result.isPending || result.isPlaceholderData) {
+      addState('search-loading', <PopulariaListSkeleton rows={4} variant="row" />);
     } else {
-      rows.push(...hitRows(items));
+      if (result.isError && !result.isFetchNextPageError) addState('search-error', <StateView kind="error" message={items.length ? 'Não conseguimos atualizar a busca.' : 'Não conseguimos buscar agora.'} onRetry={() => { void refreshSearch(); }} />);
+      if (!result.isError && !items.length) addState('search-empty', <StateView kind="empty" title={debounced ? 'Nada por aqui ainda.' : 'Nada nesta categoria por enquanto.'} message={debounced ? 'Tente outro termo ou explore as comunas.' : undefined} />);
+      if (filter === 'all') {
+        for (const section of SEARCH_SECTIONS) {
+          const group = items.filter((entry) => entry.kind === section.key);
+          if (!group.length) continue;
+          next.push({ key: `section-${section.key}`, kind: 'section', label: section.label, filter: section.key, action: section.action });
+          next.push(...hitRows(group));
+        }
+      } else {
+        next.push(...hitRows(items));
+      }
     }
-  }
+    return next;
+  }, [
+    data.data, data.status, debounced, filter, items, reload, refreshSearch,
+    result.isError, result.isFetchNextPageError, result.isPending, result.isPlaceholderData,
+    settled, short, showHome, suggestions, topic, topicDocumentItems, topicId, trending,
+  ]);
 
   return <Screen>
     <KeyboardView style={styles.flex}>
       <FlatList
         ref={list}
         data={rows}
+        testID="explore-list"
         keyExtractor={(item) => item.key}
         style={styles.flex}
         contentContainerStyle={styles.content}
@@ -232,12 +264,12 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
                 {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => changeQuery('')} /> : null}
               </View>
             </View>
-            <ExploreFilters options={FILTERS.filter((f) => f.key === 'all' || !topicId || f.key !== 'people')} value={filter} onChange={changeFilter} />
+            <ExploreFilters options={filterOptions} value={filter} onChange={changeFilter} />
           </View>;
           if (item.kind === 'section') return <View style={styles.section}>
             <SectionHeading appearance="editorial" label={item.label} actionLabel={item.filter ? item.action ?? 'Ver todas' : undefined} onAction={item.filter ? () => changeFilter(item.filter!) : undefined} />
           </View>;
-          if (item.kind === 'hit') return <View style={styles.hit}><DiscoveryHit entry={item.entry} topics={data.data?.topics ?? []} nav={nav} /></View>;
+          if (item.kind === 'hit') return <View style={styles.hit}><DiscoveryHit entry={item.entry} topics={topics} nav={nav} /></View>;
           if (item.kind === 'trending') return <TrendingNowSection posts={trending} onOpenPost={(post) => nav.openPost(post.id)} onSeeAll={() => changeFilter('posts')} />;
           if (item.kind === 'trending-skeleton') return <TrendingNowSkeleton />;
           if (item.kind === 'comuna-carousel') return <ComunasToKnowSection
@@ -247,8 +279,8 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
             onOpenComuna={(comuna) => nav.openComuna(comuna.id)}
             onSeeAll={() => changeFilter('comunas')} />;
           if (item.kind === 'topics') return <View style={styles.topicsSection}>
-            <SectionHeading appearance="editorial" label="Assuntos" actionLabel={(data.data?.topics.length ?? 0) > TOPIC_PREVIEW_LIMIT ? 'Ver todos' : undefined} onAction={() => setTopicsOpen(true)} />
-            <TopicLinks topics={(data.data?.topics ?? []).slice(0, TOPIC_PREVIEW_LIMIT)} onSelect={openTopic} />
+            <SectionHeading appearance="editorial" label="Assuntos" actionLabel={topics.length > TOPIC_PREVIEW_LIMIT ? 'Ver todos' : undefined} onAction={() => setTopicsOpen(true)} />
+            <TopicLinks topics={previewTopics} onSelect={openTopic} />
           </View>;
           if (item.kind === 'library') return <View style={styles.libraryWrap}><LibraryLink /></View>;
           if (item.kind === 'state') return <View style={styles.state}>{item.content}</View>;
@@ -260,7 +292,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
       />
     </KeyboardView>
     <BottomSheet visible={topicsOpen} onClose={() => setTopicsOpen(false)} title="Todos os assuntos">
-      <TopicLinks topics={data.data?.topics ?? []} onSelect={openTopic} />
+      <TopicLinks topics={topics} onSelect={openTopic} />
     </BottomSheet>
   </Screen>;
 }

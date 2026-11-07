@@ -11,7 +11,6 @@ import { mergeById } from '@/lib/pagination';
 import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { SingleLineText } from '@/components/single-line-text';
@@ -49,9 +48,10 @@ import { LibraryPane } from '@/features/library/library-screen';
 import { ProfilePhoto } from './profile-photo';
 import { getUserPostsPage, toProfile } from './api';
 import { FollowButton } from './components/follow-button';
-import { ProfileMediaGrid } from './components/profile-media-grid';
+import { mediaGridData, ProfileMediaGrid } from './components/profile-media-grid';
+import { ProfileTabsOverlay, type ProfileTabsOverlayHandle } from './components/profile-tabs-overlay';
 import { ProfileSwipeContent, ProfileTabs, ProfileTabSwipe, useProfileTabPanGesture } from './profile-tab-swipe';
-import { profileTabOptions, type ProfileTabKey } from './profile-tabs';
+import { PROFILE_TABS_HEIGHT, profileTabOptions, type ProfileTabKey } from './profile-tabs';
 import { profileKeys, profileOptions } from './queries';
 
 type ProfileRow =
@@ -60,8 +60,6 @@ type ProfileRow =
   | { kind: 'content'; id: string }
   | { kind: 'post'; id: string; item: FeedItem; index: number; dayLabel?: string }
   | { kind: 'media'; id: string; items: FeedItem[]; counts?: { total: number; photos: number; videos: number } };
-
-const PROFILE_TABS_HEIGHT = 44;
 
 function SwipeAwarePostCard(props: ComponentProps<typeof PostCard>) {
   const mediaGesture = useProfileTabPanGesture();
@@ -196,37 +194,15 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
   const listRef = useRef<FlashListRef<ProfileRow>>(null);
   useScrollToTop(listRef);
   const tabsOffset = useRef(0);
-  const overlayVisible = useRef(false);
-  const overlayTranslate = useSharedValue(-PROFILE_TABS_HEIGHT);
-  const overlayOpacity = useSharedValue(0);
-  const overlayStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: overlayTranslate.value }],
-    opacity: overlayOpacity.value,
-  }));
-  const [overlayOpen, setOverlayOpen] = useState(false);
-  const [overlayMounted, setOverlayMounted] = useState(false);
-  const setOverlayVisible = useCallback((open: boolean) => {
-    if (overlayVisible.current === open) return;
-    overlayVisible.current = open;
-    if (open) {
-      setOverlayMounted(true);
-      setOverlayOpen(true);
-      // eslint-disable-next-line react-hooks/immutability -- shared values do Reanimated
-      overlayTranslate.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
-      // eslint-disable-next-line react-hooks/immutability -- shared values do Reanimated
-      overlayOpacity.value = withTiming(1, { duration: 160 });
-      return;
-    }
-    setOverlayOpen(false);
-    overlayTranslate.value = withTiming(-PROFILE_TABS_HEIGHT, { duration: 180, easing: Easing.in(Easing.cubic) });
-    overlayOpacity.value = withTiming(0, { duration: 140 });
-  }, [overlayOpacity, overlayTranslate]);
+  // O estado de abrir/fechar vive no overlay: o `onScroll` não re-renderiza a
+  // lista nem recria as linhas a cada mudança de direção.
+  const overlayRef = useRef<ProfileTabsOverlayHandle>(null);
   const selectTab = useCallback((next: ProfileTabKey) => {
     const current = tabs.some((item) => item.key === tab) ? tab : 'posts';
     if (next === current) return;
-    setOverlayVisible(false);
+    overlayRef.current?.hide();
     setTab(next);
-  }, [setOverlayVisible, tab, tabs]);
+  }, [tab, tabs]);
   const pageKey = tabs.some((item) => item.key === tab) ? tab : 'posts';
   // A lista de publicações só existe na aba de posts; a viewport acompanha a aba.
   const visibility = useListVisibility(pageKey);
@@ -240,10 +216,10 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
     if (pageKey === 'biblioteca') return;
     const threshold = tabsOffset.current;
     const delta = y - previous;
-    if (y <= threshold - 2) setOverlayVisible(false);
-    else if (delta > 12 && y > threshold) setOverlayVisible(false);
-    else if (delta < -12) setOverlayVisible(true);
-  }, [pageKey, setOverlayVisible]);
+    if (y <= threshold - 2) overlayRef.current?.setVisible(false);
+    else if (delta > 12 && y > threshold) overlayRef.current?.setVisible(false);
+    else if (delta < -12) overlayRef.current?.setVisible(true);
+  }, [pageKey]);
   useLayoutEffect(() => {
     // Ao trocar de aba, começa no conteúdo (as abas no topo), não no perfil inteiro.
     // A primeira abertura preserva o topo para apresentar a identidade.
@@ -283,20 +259,36 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
 
   const soon = (what: string) => () => toast.show(`${what} chega numa próxima etapa.`);
 
-  const rows: ProfileRow[] = [{ kind: 'identity', id: 'identity' }, { kind: 'tabs', id: 'tabs' }, { kind: 'content', id: 'content' }];
-  if (pageKey === 'posts') postItems.forEach((item, index) => {
-    const previous = index > 0 ? postItems[index - 1] : null;
-    const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
-    rows.push({ kind: 'post', id: item.id, item, index, ...(newDay ? { dayLabel: formatDayRule(item.createdAt) } : {}) });
-  });
-  if (pageKey === 'media') {
-    const media = postItems.filter((item) => item.attachment);
-    const photos = media.filter((item) => item.attachment?.type === 'image').length;
-    const counts = media.length > 0 ? { total: media.length, photos, videos: media.length - photos } : undefined;
-    for (let index = 0; index < media.length; index += 3) {
-      rows.push({ kind: 'media', id: `media-${media[index].id}`, items: media.slice(index, index + 3), ...(index === 0 && counts ? { counts } : {}) });
+  // As duas listas dependem só de `postItems`; separar do corpo evita recalcular
+  // dias/mídia quando a barra de abas muda ou a lista revalida em segundo plano.
+  const postRows = useMemo(() => {
+    if (pageKey !== 'posts') return [];
+    const items: ProfileRow[] = [];
+    postItems.forEach((item, index) => {
+      const previous = index > 0 ? postItems[index - 1] : null;
+      const newDay = !previous || dayKey(previous.createdAt) !== dayKey(item.createdAt);
+      items.push({ kind: 'post', id: item.id, item, index, ...(newDay ? { dayLabel: formatDayRule(item.createdAt) } : {}) });
+    });
+    return items;
+  }, [pageKey, postItems]);
+  const mediaRows = useMemo(() => {
+    if (pageKey !== 'media') return [];
+    const media = mediaGridData(postItems);
+    const items: ProfileRow[] = [];
+    for (let index = 0; index < media.posts.length; index += 3) {
+      items.push({
+        kind: 'media',
+        id: `media-${media.posts[index].id}`,
+        items: media.posts.slice(index, index + 3),
+        ...(index === 0 && media.counts ? { counts: media.counts } : {}),
+      });
     }
-  }
+    return items;
+  }, [pageKey, postItems]);
+
+  const rows: ProfileRow[] = [{ kind: 'identity', id: 'identity' }, { kind: 'tabs', id: 'tabs' }, { kind: 'content', id: 'content' }];
+  if (pageKey === 'posts') rows.push(...postRows);
+  if (pageKey === 'media') rows.push(...mediaRows);
   const identity = (<View style={styles.column} onLayout={(event) => { tabsOffset.current = event.nativeEvent.layout.height; }}>
           {profile.creator ? <Masthead creator={profile.creator} /> : null}
           <View style={styles.identityBlock}>
@@ -521,19 +513,7 @@ function ProfileContent({ profile, isMe, header, posts, allComunas, comunasState
       {header(user.handle, isMe ? undefined : () => sheet.open(profileTarget(user, bio)), pageKey === 'biblioteca' ? () => setTab('posts') : undefined)}
       <ProfileTabSwipe tabs={tabKeys} active={pageKey} onChange={selectTab}>
         {page}
-        {overlayMounted ? (
-          <Animated.View
-            style={[styles.tabsOverlay, overlayStyle]}
-            pointerEvents={overlayOpen ? 'auto' : 'none'}
-            accessibilityElementsHidden={!overlayOpen}
-            importantForAccessibility={overlayOpen ? 'auto' : 'no-hide-descendants'}>
-            <View style={styles.tabInner}>
-              <View style={styles.column}>
-                <ProfileTabs options={tabs} value={pageKey} onChange={selectTab} height={PROFILE_TABS_HEIGHT} labelStyle={styles.tabLabel} activeWeight underlineHeight={4} />
-              </View>
-            </View>
-          </Animated.View>
-        ) : null}
+        <ProfileTabsOverlay ref={overlayRef} options={tabs} value={pageKey} onChange={selectTab} />
       </ProfileTabSwipe>
     </Screen>
   );
@@ -938,15 +918,6 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   tabs: {
-    backgroundColor: Colors.cream,
-  },
-  tabsOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    elevation: 10,
     backgroundColor: Colors.cream,
   },
   tabInner: {

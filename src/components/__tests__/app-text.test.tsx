@@ -22,4 +22,21 @@ describe('AppText line height rule', () => {
     await render(<AppText style={{ fontFamily: Fonts.extrabold, fontSize: 20, lineHeight: 20 }}>Teste</AppText>);
     expect(screen.getByText('Teste').props.style.lineHeight).toBe(28);
   });
+
+  it('reaproveita o estilo resolvido da variante entre renders', async () => {
+    const { rerender } = await render(<AppText variant="body">Primeiro</AppText>);
+    const firstStyle = screen.getByText('Primeiro').props.style;
+    await rerender(<AppText variant="body">Segundo</AppText>);
+    expect(screen.getByText('Segundo').props.style).toBe(firstStyle);
+  });
+
+  it('não aloca um novo estilo quando o line-height já basta', () => {
+    const style = { fontFamily: Fonts.anton, fontSize: 20, lineHeight: 30 };
+    expect(withMinimumLineHeight(style)).toBe(style);
+  });
+
+  it('memoriza o ajuste de line-height por identidade do estilo', () => {
+    const style = { fontFamily: Fonts.anton, fontSize: 20, lineHeight: 20 };
+    expect(withMinimumLineHeight(style)).toBe(withMinimumLineHeight(style));
+  });
 });

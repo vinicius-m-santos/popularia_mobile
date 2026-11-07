@@ -79,7 +79,7 @@ jest.mock('react-native-reanimated', () => {
     clamp: (value, min, max) => Math.min(Math.max(value, min), max),
     interpolate: identity,
     Extrapolation: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
-    Easing: { linear: identity, ease: identity, out: (fn) => fn, inOut: (fn) => fn, bezier: () => identity },
+    Easing: { linear: identity, ease: identity, in: (fn) => fn, out: (fn) => fn, inOut: (fn) => fn, bezier: () => identity },
   };
 });
 
