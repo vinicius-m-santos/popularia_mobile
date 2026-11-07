@@ -5,7 +5,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { Colors, MaxContentWidth } from '@/constants/theme';
 
 import { ProfileTabs } from '../profile-tab-swipe';
-import { PROFILE_TABS_HEIGHT, type ProfileTabKey } from '../profile-tabs';
+import { PROFILE_TABS_HEIGHT, PROFILE_TABS_UNDERLINE_HEIGHT, type ProfileTabKey } from '../profile-tabs';
 
 export type ProfileTabsOverlayHandle = {
   /** Mostra/recolhe a barra. Chamadas repetidas com o mesmo valor são no-op. */
@@ -75,7 +75,7 @@ export const ProfileTabsOverlay = forwardRef<ProfileTabsOverlayHandle, ProfileTa
               height={PROFILE_TABS_HEIGHT}
               labelStyle={styles.tabLabel}
               activeWeight
-              underlineHeight={4}
+              underlineHeight={PROFILE_TABS_UNDERLINE_HEIGHT}
             />
           </View>
         </View>

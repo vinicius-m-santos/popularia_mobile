@@ -3,6 +3,9 @@ export type ProfileTabKey = 'posts' | 'media' | 'episodios' | 'comunas' | 'bibli
 /** Altura da barra fixa de abas; o overlay recolhe exatamente essa faixa. */
 export const PROFILE_TABS_HEIGHT = 44;
 
+/** Espessura única do indicador nas abas inline e no overlay fixo. */
+export const PROFILE_TABS_UNDERLINE_HEIGHT = 4;
+
 /** Distância e velocidade mínimas para trocar de aba. O gesto vertical continua com a lista. */
 export const PROFILE_TAB_SWIPE_DISTANCE = 56;
 export const PROFILE_TAB_SWIPE_VELOCITY = 900;
