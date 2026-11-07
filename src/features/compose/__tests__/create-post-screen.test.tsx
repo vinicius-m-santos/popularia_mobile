@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import { Alert } from 'react-native';
+import { AccessibilityInfo, Alert } from 'react-native';
 
 import { getMyComunas } from '@/features/comunas/api';
 import { getDocument } from '@/features/library/api';
@@ -55,7 +55,8 @@ jest.mock('@/features/posts/post-media', () => ({
   durationLabel: (value: number | null) => value ? '0:15' : '',
   pickPostImage: jest.fn(), pickPostVideo: jest.fn(), uploadPostMedia: jest.fn(),
 }));
-jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
+const mockToastShow = jest.fn();
+jest.mock('@/components/toast', () => ({ useToast: () => ({ show: mockToastShow }) }));
 jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 // O mock global devolve o TextInput nativo; aqui marcamos o componente oficial da folha
 // para garantir que a busca de destinos usa a integração de teclado do bottom sheet.
@@ -222,21 +223,41 @@ describe('criação de publicação', () => {
     await view.unmount();
   });
 
-  it('falha conserva o rascunho para retry, e o sucesso navega uma única vez', async () => {
+  it('falha conserva o rascunho para retry, e o sucesso confirma antes de navegar uma única vez', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
     jest.mocked(createPost).mockRejectedValueOnce(new NetworkError());
     const view = await render(<CreatePostScreen />);
     await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Mutirão');
     await fireEvent.press(screen.getByLabelText('Publicar'));
     expect(screen.getByLabelText('Texto da publicação').props.value).toBe('Mutirão');
     expect(router.replace).not.toHaveBeenCalled();
+    expect(announce).not.toHaveBeenCalled();
     jest.mocked(createPost).mockResolvedValueOnce({} as Awaited<ReturnType<typeof createPost>>);
     const submit = screen.getByLabelText('Publicar');
     await fireEvent.press(submit);
     await fireEvent.press(submit);
     expect(createPost).toHaveBeenCalledTimes(2);
-    expect(router.replace).toHaveBeenCalledWith('/');
+    expect(screen.getByLabelText('Publicado em seu perfil')).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith('Publicação publicada.');
+    expect(mockToastShow).not.toHaveBeenCalledWith(expect.stringContaining('Publicado'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
     expect(router.back).not.toHaveBeenCalled();
     await view.unmount();
+  });
+
+  it('anuncia uma vez ao publicar em vários locais, sem duplicar com o toast', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    jest.mocked(getMyComunas).mockResolvedValue(multiComunas);
+    jest.mocked(createPost).mockResolvedValue({} as Awaited<ReturnType<typeof createPost>>);
+    await render(<CreatePostScreen />);
+    await fireEvent.changeText(screen.getByLabelText('Texto da publicação'), 'Dois locais');
+    await fireEvent.press(screen.getByLabelText(/Publicar em .*Trocar destino/));
+    await fireEvent.press(await screen.findByLabelText(/c\/ Comuna B\./));
+    await fireEvent.press(screen.getByLabelText(/Confirmar publicação em/));
+    await fireEvent.press(screen.getByLabelText('Publicar'));
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(2));
+    expect(mockToastShow).toHaveBeenCalledWith('Publicado em 2 locais.');
+    expect(announce).not.toHaveBeenCalledWith('Publicação publicada.');
   });
 });
 

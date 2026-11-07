@@ -1,11 +1,13 @@
-import { useRef, useState, type ComponentRef, type Ref } from 'react';
+import { useEffect, useRef, useState, type ComponentRef, type Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { PillButton } from '@/components/pill-button';
-import { Colors, Fonts, MinTouchTarget, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, MinTouchTarget, Motion, Radius, Spacing } from '@/constants/theme';
+import { useActionFeedback } from '@/hooks/use-action-feedback';
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import { MentionSuggestions } from '@/features/mentions/mention-suggestions';
 import { useMentionDraft } from '@/features/mentions/use-mention-draft';
@@ -32,11 +34,19 @@ type CommentComposerProps = {
 export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inputRef, storageKey }: CommentComposerProps) {
   const draft = useMentionDraft(storageKey);
   const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const sendingRef = useRef(false);
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardVisible();
+  const { style: feedbackStyle, pulse } = useActionFeedback();
   const composed = draft.compose();
-  const canSend = composed.body.length > 0 && !sending;
+  const canSend = composed.body.length > 0 && !sending && !sent;
+
+  useEffect(() => {
+    if (!sent) return;
+    const timer = setTimeout(() => setSent(false), Motion.duration.confirmation);
+    return () => clearTimeout(timer);
+  }, [sent]);
 
   const send = async () => {
     if (!composed.body || sendingRef.current) return;
@@ -44,7 +54,11 @@ export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inp
     setSending(true);
     try {
       // Se falhar (sem rede, por exemplo), o texto continua no campo para tentar de novo.
-      if (await onSend(composed.body, composed.mentions)) draft.reset();
+      if (await onSend(composed.body, composed.mentions)) {
+        draft.reset();
+        setSent(true);
+        pulse();
+      }
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -88,7 +102,10 @@ export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inp
         <TextInput
           ref={inputRef}
           value={draft.text}
-          onChangeText={draft.onChangeText}
+          onChangeText={(value) => {
+            if (sent) setSent(false);
+            draft.onChangeText(value);
+          }}
           onSelectionChange={(event) => draft.onSelectionChange(event.nativeEvent.selection)}
           {...(draft.selection ? { selection: draft.selection } : {})}
           placeholder={replyingTo ? 'Escreva sua resposta…' : 'Entre na discussão…'}
@@ -104,19 +121,23 @@ export function CommentComposer({ replyingTo, onCancelReply, onSend, notice, inp
           textContentType="none"
           importantForAutofill="no"
         />
-        <Pressable
-          onPress={send}
-          disabled={!canSend}
-          accessibilityRole="button"
-          accessibilityLabel={sending ? 'Enviando comentário' : 'Enviar comentário'}
-          accessibilityState={{ disabled: !canSend, busy: sending }}
-          style={({ pressed }) => [styles.send, !canSend && !sending && styles.sendDisabled, pressed && styles.pressed]}>
-          {sending ? (
-            <ActivityIndicator color={Colors.paper} />
-          ) : (
-            <Icon name="send" size={20} color={canSend ? Colors.paper : Colors.inkSoft} />
-          )}
-        </Pressable>
+        <Animated.View style={feedbackStyle}>
+          <Pressable
+            onPress={send}
+            disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={sent ? 'Comentário enviado' : sending ? 'Enviando comentário' : 'Enviar comentário'}
+            accessibilityState={{ disabled: !canSend, busy: sending }}
+            style={({ pressed }) => [styles.send, sent && styles.sendConfirmed, !canSend && !sending && !sent && styles.sendDisabled, pressed && styles.pressed]}>
+            {sent ? (
+              <Icon name="check" size={20} color={Colors.paper} />
+            ) : sending ? (
+              <ActivityIndicator color={Colors.paper} />
+            ) : (
+              <Icon name="send" size={20} color={canSend ? Colors.paper : Colors.inkSoft} />
+            )}
+          </Pressable>
+        </Animated.View>
       </View>
     </View>
   );
@@ -196,6 +217,9 @@ const styles = StyleSheet.create({
   sendDisabled: {
     backgroundColor: Colors.strawLight,
     opacity: 0.72,
+  },
+  sendConfirmed: {
+    backgroundColor: Colors.ink,
   },
   pressed: {
     opacity: 0.75,

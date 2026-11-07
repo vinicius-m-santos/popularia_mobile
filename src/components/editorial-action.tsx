@@ -27,13 +27,14 @@ export function EditorialAction({ label, labelVariant = 'label', icon, onPress, 
   const foreground = tone === 'red' ? Colors.paper : tone === 'ghost' ? Colors.inkSoft : Colors.ink;
   const iconNode = <Icon name={icon} size={22} color={foreground} />;
   const pinLeadingIcon = pinnedLeadingIcon && iconPosition === 'leading';
+  const unavailable = disabled || busy;
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={accessibilityLabel ?? label}
-    accessibilityState={{ disabled, busy }}
-    disabled={disabled}
+    accessibilityState={{ disabled: unavailable, busy }}
+    disabled={unavailable}
     onPress={onPress}
-    style={({ pressed }) => [styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, (pressed || disabled) && styles.pressed]}>
+    style={({ pressed }) => [styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, (pressed || unavailable) && styles.pressed]}>
     {pinLeadingIcon ? <View style={styles.pinnedLeadingIcon}>{iconNode}</View> : null}
     {iconPosition === 'leading' && !pinLeadingIcon ? iconNode : null}
     <AppText variant={labelVariant} color={foreground} numberOfLines={1}>{label}</AppText>

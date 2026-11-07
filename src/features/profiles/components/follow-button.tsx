@@ -1,10 +1,12 @@
 import type { ComponentProps } from 'react';
 import { StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { EditorialAction } from '@/components/editorial-action';
 import { PillButton } from '@/components/pill-button';
 import { Radius } from '@/constants/theme';
 import { useFollow } from '@/features/interactions/use-post-actions';
+import { useActionFeedback } from '@/hooks/use-action-feedback';
 import type { User } from '@/types/models';
 
 type FollowButtonProps = {
@@ -26,44 +28,59 @@ export function FollowButton({ user, idleLabel = 'Seguir', size = 'sm', display,
     requested: user.viewerRequested,
     isPrivate: user.isPrivate,
   });
+  const { style: feedbackStyle, pulse } = useActionFeedback();
   if (!canFollow) return null;
   const label = requested ? 'Solicitado' : following ? 'Seguindo' : idleLabel;
   const hint = requested ? 'Cancela a solicitação' : following ? 'Deixa de seguir' : user.isPrivate ? 'Envia uma solicitação' : 'Passa a seguir este perfil';
-  const press = async () => { if (await toggleFollow()) onChanged?.(); };
+  const press = async () => {
+    if (await toggleFollow()) {
+      pulse();
+      onChanged?.();
+    }
+  };
 
   if (appearance === 'editorial') {
     return (
-      <EditorialAction
-        label={label}
-        icon={following || requested ? 'check' : 'plus'}
-        tone={following || requested ? 'paper' : 'red'}
-        labelVariant="button"
-        onPress={press}
-        disabled={busy || disabled}
-        accessibilityLabel={`${label}, ${user.name}`}
-        style={[styles.editorial, following || requested ? styles.secondary : null, style]}
-      />
+      <Animated.View style={[styles.editorial, feedbackStyle, style]}>
+        <EditorialAction
+          label={label}
+          icon={following || requested ? 'check' : 'plus'}
+          tone={following || requested ? 'paper' : 'red'}
+          labelVariant="button"
+          onPress={press}
+          disabled={disabled}
+          busy={busy}
+          accessibilityLabel={`${label}, ${user.name}`}
+          style={[styles.editorialAction, following || requested ? styles.secondary : null]}
+        />
+      </Animated.View>
     );
   }
 
   return (
-    <PillButton
-      label={label}
-      onPress={press}
-      disabled={busy || disabled}
-      variant={following ? 'dark' : 'outline'}
-      size={size}
-      display={display}
-      selected={following}
-      accessibilityLabel={`${label}, ${user.name}`}
-      accessibilityHint={hint}
-      style={style}
-    />
+    <Animated.View style={[feedbackStyle, style]}>
+      <PillButton
+        label={label}
+        onPress={press}
+        disabled={disabled}
+        busy={busy}
+        variant={following ? 'dark' : 'outline'}
+        size={size}
+        display={display}
+        selected={following}
+        accessibilityLabel={`${label}, ${user.name}`}
+        accessibilityHint={hint}
+      />
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   editorial: {
+    flex: 1,
+    borderRadius: Radius.sm,
+  },
+  editorialAction: {
     flex: 1,
     borderRadius: Radius.sm,
   },
