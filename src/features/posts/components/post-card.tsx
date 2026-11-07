@@ -4,6 +4,7 @@ import { prepareProfileFromUser } from '@/features/profiles/queries';
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
@@ -15,6 +16,7 @@ import { usePostActions } from '@/features/interactions/use-post-actions';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
 import { useMediaVisible } from '@/hooks/use-list-visibility';
+import { useReactionFeedback } from '@/hooks/use-reaction-feedback';
 import { formatCount, formatRelative } from '@/lib/format';
 import { withPerformanceProfiler } from '@/lib/performance/profiler';
 import { useNav } from '@/lib/routes';
@@ -61,6 +63,8 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
   const mediaVisible = useMediaVisible(item.id, mediaVisibleOverride);
   const { author, comuna, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
+  // O salvar é só ícone: o pulso fica no próprio botão de 44, sem tocar no cartão.
+  const saveFeedback = useReactionFeedback(actions.saved);
   const nav = useNav();
   const sheet = useActionsSheet();
   const { isOn } = useInteractions();
@@ -129,16 +133,18 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
         onPress={actions.toggleEcho}
       />
       <View style={styles.spacer} />
-      <IconButton
-        icon="bookmark"
-        accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
-        selected={actions.saved}
-        filled={actions.saved}
-        color={actions.saved ? Colors.red : Colors.ink}
-        size={20}
-        onPress={actions.toggleSave}
-        style={styles.saveChip}
-      />
+      <Animated.View style={saveFeedback}>
+        <IconButton
+          icon="bookmark"
+          accessibilityLabel={actions.saved ? 'Remover dos salvos' : 'Salvar'}
+          selected={actions.saved}
+          filled={actions.saved}
+          color={actions.saved ? Colors.red : Colors.ink}
+          size={20}
+          onPress={actions.toggleSave}
+          style={styles.saveChip}
+        />
+      </Animated.View>
     </View>
   );
 
@@ -284,6 +290,8 @@ type ActionChipProps = {
 
 function ActionChip({ icon, count, label, onPress, onPressIn, active }: ActionChipProps) {
   const color = active ? Colors.red : Colors.ink;
+  // Comentar é navegação, não alternância: o contador dele não deve pulsar.
+  const material = useReactionFeedback(active === undefined ? 'comment' : active);
   return (
     <Pressable
       onPress={onPress}
@@ -292,10 +300,12 @@ function ActionChip({ icon, count, label, onPress, onPressIn, active }: ActionCh
       accessibilityLabel={`${label}, ${formatCount(count)}`}
       accessibilityState={active === undefined ? undefined : { selected: active }}
       style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
-      <Icon name={icon} size={18} color={color} filled={icon === 'support' && active} />
-      <AppText style={styles.chipCount} color={color}>
-        {formatCount(count)}
-      </AppText>
+      <Animated.View style={[styles.chipContent, material]}>
+        <Icon name={icon} size={18} color={color} filled={icon === 'support' && active} />
+        <AppText style={styles.chipCount} color={color}>
+          {formatCount(count)}
+        </AppText>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -391,15 +401,19 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 44,
     minWidth: 44,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
     paddingHorizontal: 10,
     borderWidth: 2,
     borderColor: Colors.ink,
     borderRadius: Radius.md,
     backgroundColor: Colors.paper,
+  },
+  chipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   chipCount: {
     fontFamily: Fonts.bold,

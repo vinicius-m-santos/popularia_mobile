@@ -124,6 +124,16 @@ export const Motion = {
   },
   scale: {
     confirmation: 1.03,
+    /** Pulso local de apoio, eco e salvar: só o ícone/contador reage. */
+    reaction: 1.14,
+  },
+  spring: {
+    /** Mola curta do pulso de reação; a volta usa a mesma configuração. */
+    reaction: {
+      damping: 13,
+      stiffness: 420,
+      mass: 0.5,
+    },
   },
 } as const;
 
