@@ -23,7 +23,14 @@ export function usePostActions(post: FeedItem) {
   const { isOn, toggle, localCommentsFor, commentCountOf } = useInteractions();
   const { account } = useAccount();
   const toast = useToast();
-  rememberPost(post);
+  // Efeito pós-commit: o render não escreve na store. Renders descartados pelo
+  // React Compiler ou repetidos pelo StrictMode não memorizam um cartão que não
+  // chegou a ser exibido; post atualizado, troca de id e remontagem passam pelo
+  // mesmo contrato. `known` é um cache de sessão: a entrada antiga permanece
+  // disponível para o menu enquanto não for sobrescrita por uma versão nova.
+  useEffect(() => {
+    rememberPost(post);
+  }, [post]);
   // Assinatura por ID: uma reação ou salvamento em outro cartão não re-renderiza este.
   // O snapshot é primitivo (salvar) ou um objeto estável (reações); quando não muda,
   // useSyncExternalStore descarta a notificação.
