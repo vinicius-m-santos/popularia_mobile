@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { describe, expect, it, jest } from '@jest/globals';
 import type { CommentWithAuthor, ContentMention } from '@/types/models';
 import { CommentComposer } from './comment-composer';
@@ -69,5 +69,18 @@ describe('ações de comentário e resposta', () => {
     await fireEvent.changeText(screen.getByLabelText('Escrever comentário'), 'Minha contribuição');
     await fireEvent.press(screen.getByLabelText('Enviar comentário'));
     expect(onSend).toHaveBeenCalledWith('Minha contribuição', []);
+    await waitFor(() => expect(screen.getByLabelText('Comentário enviado')).toBeTruthy());
+    expect(screen.getByLabelText('Escrever comentário').props.value).toBe('');
+  });
+
+  it('mantém o texto e o rótulo de envio quando a publicação falha', async () => {
+    const onSend = jest.fn<(text: string, mentions: ContentMention[]) => Promise<boolean>>().mockResolvedValue(false);
+    await render(<CommentComposer replyingTo={null} onCancelReply={jest.fn()} onSend={onSend} />);
+    await fireEvent.changeText(screen.getByLabelText('Escrever comentário'), 'Tentar de novo');
+    await fireEvent.press(screen.getByLabelText('Enviar comentário'));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText('Enviar comentário')).toBeTruthy();
+    expect(screen.queryByLabelText('Comentário enviado')).toBeNull();
+    expect(screen.getByLabelText('Escrever comentário').props.value).toBe('Tentar de novo');
   });
 });

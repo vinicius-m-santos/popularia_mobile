@@ -23,6 +23,8 @@ type PillButtonProps = {
   display?: boolean;
   /** Ação em andamento (ou indisponível): não responde ao toque e fica esmaecido. */
   disabled?: boolean;
+  /** Mutação em voo: bloqueia o toque e anuncia `busy` ao leitor de tela. */
+  busy?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -48,20 +50,22 @@ export function PillButton({
   accessibilityHint,
   display = false,
   disabled = false,
+  busy = false,
   style,
 }: PillButtonProps) {
   const colors = VARIANTS[variant];
   const height = HEIGHTS[size];
+  const unavailable = disabled || busy;
   const extraHit = Math.max(0, (44 - height) / 2);
 
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={unavailable}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      accessibilityState={selected === undefined && !disabled ? undefined : { selected, disabled }}
+      accessibilityState={selected === undefined && !unavailable ? undefined : { selected, disabled: unavailable, busy }}
       hitSlop={extraHit ? { top: extraHit, bottom: extraHit } : undefined}
       style={({ pressed }) => [
         styles.base,
@@ -71,7 +75,7 @@ export function PillButton({
           borderColor: colors.border,
           borderWidth: size === 'lg' ? 2 : 1.5,
         },
-        (pressed || disabled) && styles.pressed,
+        (pressed || unavailable) && styles.pressed,
         style,
       ]}>
       <View style={styles.content}>

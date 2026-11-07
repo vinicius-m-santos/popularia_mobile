@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -15,7 +16,7 @@ import { KeyboardView } from '@/components/keyboard-view';
 import { Screen } from '@/components/screen';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Fonts, Radius, Shadows, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Motion, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { getComunas, getMyComunas } from '@/features/comunas/api';
 import { ComunaMark } from '@/features/comunas/components/comuna-mark';
@@ -38,6 +39,7 @@ import { comunaEventsKey, type ComunaEvent } from '@/features/events/types';
 import { CallSchedulePicker } from './call-schedule-picker';
 import { callBlockedComunaNames } from './call-permissions';
 import { searchPlaces, type PlaceSuggestion } from './place-search';
+import { useActionFeedback } from '@/hooks/use-action-feedback';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
 import { ApiError, describeError } from '@/lib/errors';
@@ -152,9 +154,16 @@ export default function CreatePostScreen() {
   // Só busca a lista completa quando a pessoa pede "Perto de mim".
   const allComunas = useAsyncData(useCallback(() => (picking && destinationTab === 'near' ? getComunas() : Promise.resolve([] as Comuna[])), [picking, destinationTab]));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [publishing, setPublishing] = useState(false);
+  const [publishPhase, setPublishPhase] = useState<'idle' | 'publishing' | 'published'>('idle');
+  const publishing = publishPhase === 'publishing';
+  const published = publishPhase === 'published';
   const publishingRef = useRef(false);
+  const publishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { style: publishFeedbackStyle, pulse: pulsePublish } = useActionFeedback();
   const [leaving, setLeaving] = useState(false);
+  useEffect(() => () => {
+    if (publishTimer.current) clearTimeout(publishTimer.current);
+  }, []);
   const needsVerification = !DEMO_MODE && account !== null && !account.emailVerified;
 
   const joined = useMemo(
@@ -220,7 +229,7 @@ export default function CreatePostScreen() {
       : callReady;
   const callBlockedNames = mode === 'call' ? callBlockedComunaNames(publishTargets) : [];
   const callBlocked = callBlockedNames.length > 0;
-  const canPublish = modeReady && !publishing && destinationsReady && !callBlocked;
+  const canPublish = modeReady && !publishing && !published && destinationsReady && !callBlocked;
   const comunaTargetCount = publishTargets.filter((target) => target.kind === 'comuna').length;
   const includesProfile = publishTargets.some((target) => target.kind === 'perfil');
   const where = comunaTargetCount === 0
@@ -229,7 +238,7 @@ export default function CreatePostScreen() {
       ? `seu perfil + ${comunaTargetCount} ${comunaTargetCount === 1 ? 'comuna' : 'comunas'}`
       : comunaTargetCount === 1 ? `c/ ${publishTargets[0]?.kind === 'comuna' ? publishTargets[0].comuna.name : 'comuna'}` : `${comunaTargetCount} comunas`;
   const draftTime = useMemo(() => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), []);
-  const dirty = publishing || hasWriteContent || !!document || !!media || poll !== null || call.title.length > 0 || call.details.length > 0 || call.date.length > 0 || call.time.length > 0 || call.place.length > 0 || bring.length > 0;
+  const dirty = publishing || published || hasWriteContent || !!document || !!media || poll !== null || call.title.length > 0 || call.details.length > 0 || call.date.length > 0 || call.time.length > 0 || call.place.length > 0 || bring.length > 0;
   const disablePrevention = usePreventRemove(!leaving && dirty, ({ repeat }) => {
     if (publishingRef.current) return;
     Alert.alert('Descartar publicação?', 'O texto e os anexos deste rascunho serão perdidos.', [
@@ -252,6 +261,25 @@ export default function CreatePostScreen() {
         { text: 'Confirmar e-mail', onPress: () => router.push('/verificar-email') },
       ],
     );
+
+  /**
+   * Confirmação única de publicação: o estado "Publicado" permanece legível por
+   * um movimento curto antes de voltar ao feed. O anúncio só é feito aqui quando
+   * não há toast, para o leitor de tela não receber o mesmo aviso duas vezes.
+   */
+  const completePublish = (toastMessage?: string) => {
+    setPublishPhase('published');
+    pulsePublish();
+    if (toastMessage) toast.show(toastMessage);
+    else AccessibilityInfo.announceForAccessibility('Publicação publicada.');
+    setLeaving(true);
+    disablePrevention();
+    if (publishTimer.current) clearTimeout(publishTimer.current);
+    publishTimer.current = setTimeout(() => {
+      publishTimer.current = null;
+      router.replace('/');
+    }, Motion.duration.confirmation);
+  };
 
   const publish = async () => {
     if (publishingRef.current) return;
@@ -288,8 +316,6 @@ export default function CreatePostScreen() {
 
     if (DEMO_MODE) {
       publishingRef.current = true;
-      setLeaving(true);
-      disablePrevention();
       for (const target of publishTargets) {
         const comunaId = target.kind === 'comuna' ? target.comuna.id : null;
         if (mode === 'call') addPost({ comunaId, text: target.kind === 'perfil' ? callProfileText() : call.details, title: call.title });
@@ -297,14 +323,13 @@ export default function CreatePostScreen() {
       }
       haptic('success');
       setLastPublication(null);
-      toast.show(publishTargets.length > 1 ? `Publicado em ${publishTargets.length} locais só neste aparelho. Nada foi enviado.` : `Publicado em ${where} só neste aparelho. Nada foi enviado.`);
-      router.replace('/');
+      completePublish(publishTargets.length > 1 ? `Publicado em ${publishTargets.length} locais só neste aparelho. Nada foi enviado.` : `Publicado em ${where} só neste aparelho. Nada foi enviado.`);
       return;
     }
 
     if (needsVerification) return askToVerify();
     publishingRef.current = true;
-    setPublishing(true);
+    setPublishPhase('publishing');
     try {
       const posts: FeedItem[] = [];
       let mediaId = media?.uploaded?.id;
@@ -381,14 +406,11 @@ export default function CreatePostScreen() {
         author: account?.handle ?? null,
         comunaIds: posts.map((item) => item.comunaId),
       });
-      setLeaving(true);
-      disablePrevention();
-      if (posts.length > 1) toast.show(`Publicado em ${posts.length} locais.`);
-      router.replace('/');
+      completePublish(posts.length > 1 ? `Publicado em ${posts.length} locais.` : undefined);
       return;
     } catch (error) {
       publishingRef.current = false;
-      setPublishing(false);
+      setPublishPhase('idle');
       if (error instanceof ApiError && error.type === '/errors/email-not-verified') {
         // A conta no aparelho estava desatualizada: recarrega para os avisos ficarem certos.
         reloadAccount().catch(() => {});
@@ -791,16 +813,24 @@ export default function CreatePostScreen() {
         {!keyboardVisible ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={publishing ? 'Publicando' : publishLabel}
+            accessibilityLabel={published ? `Publicado ${destinationSubtitle}` : publishing ? 'Publicando' : publishLabel}
             accessibilityState={{ disabled: !canPublish, busy: publishing }}
-            disabled={!canPublish || publishing}
+            disabled={!canPublish}
             onPress={() => { void publish(); }}
-            style={({ pressed }) => [styles.publishBar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }, (!canPublish || publishing) && styles.publishBarDisabled, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.publishBar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }, !canPublish && !published && styles.publishBarDisabled, pressed && styles.pressed]}>
             <View style={styles.publishCopy}>
-              <AppText style={styles.publishTitle}>{publishing ? 'Publicando…' : publishLabel}</AppText>
+              <AppText style={styles.publishTitle}>{published ? 'Publicado' : publishing ? 'Publicando…' : publishLabel}</AppText>
               <AppText style={styles.publishSubtitle}>{destinationSubtitle}</AppText>
             </View>
-            <View style={styles.publishButton}>{publishing ? <ActivityIndicator color={Colors.ink} /> : <Icon name={mode === 'call' ? 'megaphone' : 'arrowRight'} size={26} color={Colors.ink} />}</View>
+            <Animated.View style={[styles.publishButton, publishFeedbackStyle, published && styles.publishButtonConfirmed]}>
+              {published ? (
+                <Icon name="check" size={26} color={Colors.paper} />
+              ) : publishing ? (
+                <ActivityIndicator color={Colors.ink} />
+              ) : (
+                <Icon name={mode === 'call' ? 'megaphone' : 'arrowRight'} size={26} color={Colors.ink} />
+              )}
+            </Animated.View>
           </Pressable>
         ) : null}
       </KeyboardView>
@@ -1278,6 +1308,7 @@ const styles = StyleSheet.create({
   publishTitle: { fontFamily: Fonts.anton, fontSize: 31, lineHeight: 39, letterSpacing: 0.2, textTransform: 'uppercase', color: Colors.paper },
   publishSubtitle: { fontFamily: Fonts.regular, fontSize: 12.5, lineHeight: 21, color: Colors.cream },
   publishButton: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, ...Shadows.offsetSmall },
+  publishButtonConfirmed: { backgroundColor: Colors.ink },
   sheetNote: { paddingVertical: Spacing.two },
   sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   sheetTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.anton, fontSize: 38, lineHeight: 46, letterSpacing: -0.4, textTransform: 'uppercase' },
