@@ -179,6 +179,8 @@ export type MockApiOptions = {
   feedItems?: unknown[];
   /** Quando presente, GET /feed pagina `feedItems` e as publicações criadas por POST /posts. */
   feedPageSize?: number;
+  /** Publicações devolvidas por GET /users/{id}/posts; vazio por padrão. */
+  profilePosts?: unknown[];
   /** Documentos devolvidos por GET /library/documents; vazio por padrão. */
   libraryDocuments?: unknown[];
   /** Quando presente, GET /library/documents pagina a lista por cursor. */
@@ -474,7 +476,7 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
 
       // Perfil
       if (/^\/users\/[^/]+\/posts$/.test(path) && method === 'GET') {
-        await fulfill(200, pageOf());
+        await fulfill(200, pageOf(options.profilePosts));
         return;
       }
       if (/^\/users\/[^/]+$/.test(path) && method === 'GET') {
