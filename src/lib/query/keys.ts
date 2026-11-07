@@ -28,6 +28,7 @@ export const queryKeys = {
   profile: {
     all: ['profile'] as const,
     detail: (id: string) => ['profile', id] as const,
+    summary: (id: string) => ['profile', id, 'summary'] as const,
     postsAll: ['profile-posts'] as const,
     posts: (author: string) => ['profile-posts', author] as const,
     relationsAll: ['relations'] as const,

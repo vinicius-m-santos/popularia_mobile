@@ -9,7 +9,7 @@ import type { FeedItem, Profile } from '@/types/models';
 
 import * as profileApi from '../api';
 import ProfileScreen from '../profile-screen';
-import { prepareProfile } from '../queries';
+import { prepareProfile, rememberProfileSummary } from '../queries';
 
 let mockProfileId: string | undefined;
 const mockGoBack = jest.fn();
@@ -191,6 +191,12 @@ function scrollLog() {
   return (globalThis as { __profileScroll?: number[] }).__profileScroll ?? [];
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
 async function swipe(translationX: number, velocityX = 0) {
   const onDeactivate = swipeHandlers()?.onDeactivate;
   if (!onDeactivate) throw new Error('O swipe do perfil não foi ligado.');
@@ -338,6 +344,45 @@ describe('swipe das abas do perfil', () => {
     expect(await screen.findByText('Tainá Souza')).toBeTruthy();
     expect(getProfile).not.toHaveBeenCalled();
     expect(getUserPostsPage).not.toHaveBeenCalled();
+  });
+
+  it('pinta identidade de terceiros da lista antes de o detalhe chegar', async () => {
+    mockProfileId = 'taina';
+    const detail = deferred<Profile>();
+    const postsPage = deferred<Awaited<ReturnType<typeof profileApi.getUserPostsPage>>>();
+    getProfile.mockReturnValueOnce(detail.promise);
+    getUserPostsPage.mockReturnValueOnce(postsPage.promise);
+    rememberProfileSummary({ id: 'taina', name: 'Tainá Souza', handle: 'taina', initials: 'TS', tone: 'black' });
+
+    await render(<ProfileScreen />);
+
+    // O primeiro quadro mantém nome, @ e a silhueta da lista; nada de spinner de tela cheia.
+    expect(screen.getByText('Tainá Souza')).toBeTruthy();
+    expect(screen.getAllByText('@taina').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Carregando publicações')).toBeTruthy();
+    expect(screen.queryByTestId('profile-skeleton')).toBeNull();
+
+    await act(async () => {
+      detail.resolve(profile({
+        user: { id: 'taina', name: 'Tainá Souza', handle: 'taina', initials: 'TS', tone: 'black' },
+        bio: 'Bio confirmada pelo servidor',
+      }));
+    });
+    expect(await screen.findByText('Bio confirmada pelo servidor')).toBeTruthy();
+
+    await act(async () => { postsPage.resolve({ items: [], nextCursor: null }); });
+    expect(await screen.findByText('Nenhuma publicação ainda.')).toBeTruthy();
+  });
+
+  it('não esconde o erro quando só existe o resumo da lista em cache', async () => {
+    mockProfileId = 'taina';
+    getProfile.mockRejectedValue(new NetworkError());
+    rememberProfileSummary({ id: 'taina', name: 'Tainá Souza', handle: 'taina', initials: 'TS', tone: 'black' });
+
+    await render(<ProfileScreen />);
+
+    expect(await screen.findByText('Não conseguimos carregar este perfil.', {}, { timeout: 2500 })).toBeTruthy();
+    expect(screen.getByText('Tentar de novo')).toBeTruthy();
   });
 
   it('cai no carregamento normal quando o prefetch não conclui', async () => {

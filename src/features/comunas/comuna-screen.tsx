@@ -10,6 +10,7 @@ import { AppText } from '@/components/app-text';
 import { EditorialAction } from '@/components/editorial-action';
 import { PillButton } from '@/components/pill-button';
 import { PopulariaList } from '@/components/list/popularia-list';
+import { ComunaScreenSkeleton, PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
 import { Screen } from '@/components/screen';
 import { StateView } from '@/components/state-view';
 import { useToast } from '@/components/toast';
@@ -231,7 +232,7 @@ export default function ComunaScreen() {
   if (comuna.status === 'loading' && !comuna.data) {
     return (
       <Screen>
-        <StateView kind="loading" message="Carregando comuna" />
+        <ComunaScreenSkeleton />
       </Screen>
     );
   }
@@ -290,7 +291,7 @@ export default function ComunaScreen() {
               onMove={(postId, position) => { void movePinnedPost(id, postId, position, showToast); }}
             />
           ) : null}
-          {posts.status === 'loading' ? <StateView kind="loading" message="Carregando publicações" /> : null}
+          {posts.status === 'loading' ? <PopulariaListSkeleton rows={2} label="Carregando publicações" /> : null}
           {posts.status === 'error' ? <PostsError error={posts.error} onRetry={posts.refresh} /> : null}
         </>
       )}

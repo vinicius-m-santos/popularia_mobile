@@ -27,6 +27,7 @@ const mockPost: FeedItem = {
 const mockMe = { id: 'me', name: 'Eu', handle: 'eu', initials: 'EU', tone: 'red' as const };
 const mockOpen = jest.fn();
 const mockShow = jest.fn();
+let mockPostState: { data: FeedItem | null; status: 'loading' | 'success' | 'error'; error: Error | null };
 
 jest.mock('@/constants/config', () => ({ DEMO_MODE: false }));
 jest.mock('expo-router', () => ({
@@ -67,7 +68,7 @@ jest.mock('@/features/interactions/interactions-context', () => {
 jest.mock('@/features/moderation/actions-sheet', () => ({ useActionsSheet: () => ({ open: mockOpen }) }));
 jest.mock('@/features/posts/use-local-posts', () => ({ useLocalFeedItems: () => [] }));
 jest.mock('@/features/posts/queries', () => ({
-  useCachedPost: () => ({ data: mockPost, status: 'success', error: null, reload: jest.fn() }),
+  useCachedPost: () => ({ data: mockPostState.data, status: mockPostState.status, error: mockPostState.error, reload: jest.fn() }),
 }));
 jest.mock('@/features/discussion/components/post-detail', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -126,6 +127,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockOpen.mockReset();
   mockShow.mockReset();
+  mockPostState = { data: mockPost, status: 'success', error: null };
   setPerformanceInstrumentationOverride(true);
   resetPerformanceSession();
   apiSupport.mockImplementation(async (commentId: string, supported: boolean) => {
@@ -140,6 +142,16 @@ afterEach(() => {
 });
 
 describe('estabilidade das linhas da discussão', () => {
+  it('mostra a silhueta da discussão enquanto a publicação não chegou', async () => {
+    mockPostState = { data: null, status: 'loading', error: null };
+    apiComments.mockResolvedValue({ items: [], nextCursor: null });
+
+    await render(<DiscussionScreen />);
+
+    expect(screen.getByLabelText('Carregando discussão')).toBeTruthy();
+    expect(screen.getByTestId('discussion-skeleton')).toBeTruthy();
+  });
+
   it('apoia um comentário sem acordar os irmãos', async () => {
     const comments = topLevelComments(8);
     await renderComments(comments);
