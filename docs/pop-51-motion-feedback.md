@@ -5,9 +5,10 @@ dependência nova e sem mudança de contrato de API.
 
 ## O que mudou
 
-- `constants/theme.ts` ganhou `Motion` com durações (140/180/320 ms), easings e
-  a escala de confirmação (1.03). Os avisos (`toast`) e as ações passaram a usar
-  os mesmos valores.
+- `constants/motion.ts` concentra `Motion` com durações (140/180/320 ms),
+  easings e a escala de confirmação (1.03). Os avisos (`toast`) e as ações
+  passaram a usar os mesmos valores; o POP-49 moveu os tokens de `theme.ts`
+  para esse arquivo.
 - `hooks/use-action-feedback.ts` concentra o pulso de confirmação: escala sobe
   uma vez e volta ao repouso. O pulso só é disparado depois que a mutação
   confirma; falha não anima e mantém o aviso de erro.

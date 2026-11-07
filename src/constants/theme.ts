@@ -1,5 +1,3 @@
-import { Easing } from 'react-native';
-
 /**
  * Tokens visuais da Popularia, extraídos da direção visual (Etapa 1 do design).
  * Paleta editorial: papel, tinta e vermelho. O app usa apenas o tema claro por enquanto.
@@ -105,39 +103,6 @@ export const MinTouchTarget = 44;
 export const MaxContentWidth = 640;
 
 /**
- * Unidade de movimento da casa: curta, sem loop e sempre ligada a uma mudança de
- * estado. Use `ReduceMotion.System` nas animações do Reanimated e `useReducedMotion`
- * nas do Animated para que a preferência do sistema seja respeitada.
- */
-export const Motion = {
-  duration: {
-    /** Microtransições de toque e entrada de avisos. */
-    quick: 140,
-    /** Ida e volta de uma confirmação. */
-    base: 180,
-    /** Tempo em que o estado confirmado permanece legível antes de navegar. */
-    confirmation: 320,
-  },
-  easing: {
-    standard: Easing.out(Easing.cubic),
-    settle: Easing.inOut(Easing.quad),
-  },
-  scale: {
-    confirmation: 1.03,
-    /** Pulso local de apoio, eco e salvar: só o ícone/contador reage. */
-    reaction: 1.14,
-  },
-  spring: {
-    /** Mola curta do pulso de reação; a volta usa a mesma configuração. */
-    reaction: {
-      damping: 13,
-      stiffness: 420,
-      mass: 0.5,
-    },
-  },
-} as const;
-
-/**
  * Sombra sólida deslocada da direção dos mockups: sem desfoque, tinta sobre o creme.
  * Use em cartões de destaque e controles principais; não em toda superfície.
  */
@@ -157,3 +122,6 @@ export const Shadows = {
     elevation: 2,
   },
 } as const;
+
+/** Compatibilidade: os tokens de movimento vivem em `constants/motion.ts`. */
+export { Motion } from './motion';

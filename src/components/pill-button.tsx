@@ -1,8 +1,10 @@
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 export type PillVariant = 'primary' | 'dark' | 'outline' | 'light';
 type PillSize = 'sm' | 'md' | 'lg';
@@ -21,7 +23,7 @@ type PillButtonProps = {
   accessibilityHint?: string;
   /** Texto em caixa-alta condensada, como "Participar da comuna". */
   display?: boolean;
-  /** Ação em andamento (ou indisponível): não responde ao toque e fica esmaecido. */
+  /** Ação em andamento (ou indisponível): não responde ao toque e fica esmaecida. */
   disabled?: boolean;
   /** Mutação em voo: bloqueia o toque e anuncia `busy` ao leitor de tela. */
   busy?: boolean;
@@ -57,17 +59,20 @@ export function PillButton({
   const height = HEIGHTS[size];
   const unavailable = disabled || busy;
   const extraHit = Math.max(0, (44 - height) / 2);
+  const press = usePressFeedback();
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       disabled={unavailable}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={selected === undefined && !unavailable ? undefined : { selected, disabled: unavailable, busy }}
       hitSlop={extraHit ? { top: extraHit, bottom: extraHit } : undefined}
-      style={({ pressed }) => [
+      style={[
         styles.base,
         {
           minHeight: height,
@@ -75,8 +80,8 @@ export function PillButton({
           borderColor: colors.border,
           borderWidth: size === 'lg' ? 2 : 1.5,
         },
-        (pressed || unavailable) && styles.pressed,
         style,
+        unavailable ? styles.unavailable : press.style,
       ]}>
       <View style={styles.content}>
         {icon ? <Icon name={icon} size={size === 'lg' ? 20 : 18} color={colors.fg} filled={iconFilled} /> : null}
@@ -87,7 +92,7 @@ export function PillButton({
           {label}
         </AppText>
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -103,7 +108,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-  pressed: {
+  unavailable: {
     opacity: 0.75,
   },
   label: {

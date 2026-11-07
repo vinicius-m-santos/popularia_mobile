@@ -1,8 +1,10 @@
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
 import { Colors, Spacing } from '@/constants/theme';
+import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 type EditorialActionProps = {
   label: string;
@@ -28,18 +30,21 @@ export function EditorialAction({ label, labelVariant = 'label', icon, onPress, 
   const iconNode = <Icon name={icon} size={22} color={foreground} />;
   const pinLeadingIcon = pinnedLeadingIcon && iconPosition === 'leading';
   const unavailable = disabled || busy;
-  return <Pressable
+  const press = usePressFeedback();
+  return <AnimatedPressable
     accessibilityRole="button"
     accessibilityLabel={accessibilityLabel ?? label}
     accessibilityState={{ disabled: unavailable, busy }}
     disabled={unavailable}
     onPress={onPress}
-    style={({ pressed }) => [styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, (pressed || unavailable) && styles.pressed]}>
+    onPressIn={press.onPressIn}
+    onPressOut={press.onPressOut}
+    style={[styles.base, tone === 'red' && styles.red, tone === 'ghost' && styles.ghost, style, unavailable ? styles.unavailable : press.style]}>
     {pinLeadingIcon ? <View style={styles.pinnedLeadingIcon}>{iconNode}</View> : null}
     {iconPosition === 'leading' && !pinLeadingIcon ? iconNode : null}
     <AppText variant={labelVariant} color={foreground} numberOfLines={1}>{label}</AppText>
     {iconPosition === 'trailing' ? iconNode : null}
-  </Pressable>;
+  </AnimatedPressable>;
 }
 
 const styles = StyleSheet.create({
@@ -68,7 +73,7 @@ const styles = StyleSheet.create({
     left: Spacing.two,
     justifyContent: 'center',
   },
-  pressed: {
+  unavailable: {
     opacity: 0.68,
   },
 });

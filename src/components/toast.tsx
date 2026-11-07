@@ -3,7 +3,8 @@ import { AccessibilityInfo, Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { Colors, Fonts, Motion, Radius, Spacing } from '@/constants/theme';
+import { Motion } from '@/constants/motion';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const DURATION_MS = 2600;
@@ -33,8 +34,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     if (!message) return;
     let disposed = false;
     AccessibilityInfo.announceForAccessibility(message);
-    const enterDuration = reducedMotionRef.current ? 0 : Motion.duration.quick;
-    const exitDuration = reducedMotionRef.current ? 0 : Motion.duration.base;
+    const enterDuration = reducedMotionRef.current ? 0 : Motion.duration.fast;
+    const exitDuration = reducedMotionRef.current ? 0 : Motion.duration.normal;
     Animated.timing(opacity, {
       toValue: 1,
       duration: enterDuration,
