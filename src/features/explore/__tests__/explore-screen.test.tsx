@@ -208,6 +208,18 @@ describe('Explorar', () => {
     expect(search).toHaveBeenLastCalledWith('me', 'Linux', 'posts', undefined, null, expect.anything());
   });
 
+  it('mantém as linhas estáveis enquanto o termo ainda aguarda o debounce', async () => {
+    await render(<ExploreScreen />);
+    const input = await screen.findByLabelText('Buscar na Popularia');
+    await fireEvent.changeText(input, 'Linux');
+    const loadingRows = screen.getByTestId('explore-list').props.data;
+    expect(loadingRows).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'search-loading' })]));
+
+    await fireEvent.changeText(input, 'Linuxx');
+    expect(screen.getByTestId('explore-list').props.data).toBe(loadingRows);
+    await debounce();
+  });
+
   it('não mostra resposta antiga como resultado de outro termo', async () => {
     let finish: (page: Page<DiscoveryEntry>) => void = () => {};
     search.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));

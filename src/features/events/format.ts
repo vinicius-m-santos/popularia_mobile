@@ -167,9 +167,27 @@ function civilFromIso(iso: string): CivilDate | null {
   return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(), hour: date.getHours(), minute: date.getMinutes() };
 }
 
+// O feed e a descoberta podem reencontrar o mesmo chamado em vários cartões.
+// O calendário é função pura de (iso, fuso); guardar as últimas entradas evita
+// repetir parsing/Intl a cada commit sem manter o objeto do chamado vivo.
+const MAX_SCHEDULE_CACHE = 200;
+const scheduleCache = new Map<string, CallSchedule>();
+
 /** Partes do horário do chamado no fuso anunciado, como no cartão do feed. */
 export function callSchedule(iso: string, timeZone: string): CallSchedule {
-  void timeZone;
+  const key = `${timeZone}\u0000${iso}`;
+  const cached = scheduleCache.get(key);
+  if (cached) return cached;
+  const schedule = computeSchedule(iso);
+  if (scheduleCache.size >= MAX_SCHEDULE_CACHE) {
+    const oldest = scheduleCache.keys().next().value;
+    if (oldest !== undefined) scheduleCache.delete(oldest);
+  }
+  scheduleCache.set(key, schedule);
+  return schedule;
+}
+
+function computeSchedule(iso: string): CallSchedule {
   const civil = civilFromIso(iso);
   if (!civil) {
     return { weekdayShort: '', weekdayLong: '', day: '', monthShort: '', monthLong: '', time: '', label: '' };

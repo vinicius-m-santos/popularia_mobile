@@ -15,22 +15,58 @@ type ProfileMediaGridProps = {
   counts?: { total: number; photos: number; videos: number };
 };
 
+export type MediaGridData = {
+  posts: FeedItem[];
+  counts?: { total: number; photos: number; videos: number };
+};
+
+const mediaGridCache = new WeakMap<FeedItem[], MediaGridData>();
+
+/**
+ * Separa mídia e conta fotos/vídeos em uma passada. O perfil reusa a mesma lista
+ * de publicações entre renders; o cache por identidade evita refiltrar o acervo
+ * inteiro quando só o estado das abas/rolagem mudou.
+ */
+export function mediaGridData(posts: FeedItem[]): MediaGridData {
+  const cached = mediaGridCache.get(posts);
+  if (cached) return cached;
+  const media: FeedItem[] = [];
+  let photos = 0;
+  let videos = 0;
+  for (const post of posts) {
+    const type = post.attachment?.type;
+    if (type === 'image') {
+      media.push(post);
+      photos += 1;
+    } else if (type === 'video') {
+      media.push(post);
+      videos += 1;
+    }
+  }
+  const data: MediaGridData = {
+    posts: media,
+    counts: media.length > 0 ? { total: media.length, photos, videos } : undefined,
+  };
+  mediaGridCache.set(posts, data);
+  return data;
+}
+
 /**
  * Grade de descoberta da aba Mídia: três colunas de quadrados, fio de tinta de 2 e
  * um resumo mono acima, no desenho aprovado do perfil. Cada bloco abre a publicação.
  */
 export function ProfileMediaGrid({ posts, onOpen, counts }: ProfileMediaGridProps) {
-  const mediaPosts = posts.filter((post) => post.attachment?.type === 'image' || post.attachment?.type === 'video');
+  const { posts: mediaPosts, counts: derivedCounts } = mediaGridData(posts);
 
   if (mediaPosts.length === 0) {
     return <AppText style={styles.empty} color={Colors.muted}>Nenhuma imagem ou vídeo publicado ainda.</AppText>;
   }
 
-  const summary = counts ?? { total: mediaPosts.length, photos: mediaPosts.filter((post) => post.attachment?.type === 'image').length, videos: mediaPosts.filter((post) => post.attachment?.type === 'video').length };
+  const summary = counts ?? derivedCounts;
 
   return (
     <View>
-      {counts ? <View style={styles.summaryRow}>
+      {counts && summary ? <View style={styles.summaryRow}>
         <AppText style={styles.summary} color={Colors.inkSoft}>
           {`${summary.total} ${summary.total === 1 ? 'ITEM' : 'ITENS'} · ${summary.photos} ${summary.photos === 1 ? 'FOTO' : 'FOTOS'}${summary.videos > 0 ? ` · ${summary.videos} ${summary.videos === 1 ? 'VÍDEO' : 'VÍDEOS'}` : ''}`}
         </AppText>
