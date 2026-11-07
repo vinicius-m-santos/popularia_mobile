@@ -18,8 +18,10 @@ import {
   commitComponentDiagnostics,
   commitTotals,
   environmentLabel,
+  formatBytes,
   formatElapsed,
   formatMs,
+  photoDiagnostics,
   recentListLoads,
   recentRequests,
   requestScreenDiagnostics,
@@ -200,6 +202,7 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
   const lists = recentListLoads(snapshot);
   const requests = recentRequests(snapshot);
   const video = videoDiagnostics(snapshot);
+  const photos = photoDiagnostics(snapshot);
   const retries = totalRequestRetries(snapshot);
 
   return (
@@ -333,6 +336,41 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
         </View>
         <AppText variant="caption">
           Espera até o primeiro quadro da surface de destino, medida no host nativo. Não detecta frame preto: valide com gravação de tela em 60/120 fps no iOS e no Android.
+        </AppText>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeading appearance="editorial" label="Fotos em tela cheia" />
+        <View style={styles.metricGrid}>
+          <MetricCard testID="metric-photo-opens" label="Aberturas" value={String(photos.openCount)} />
+          <MetricCard
+            testID="metric-photo-load"
+            label="Até onLoad"
+            value={photos.loadCount > 0 ? formatMs(photos.averageLoadMs) : '—'}
+            detail={photos.loadCount > 0 ? `máx. ${formatMs(photos.loadMaxMs)}` : undefined}
+          />
+          <MetricCard
+            testID="metric-photo-display"
+            label="Até onDisplay"
+            value={photos.displayCount > 0 ? formatMs(photos.averageDisplayMs) : '—'}
+            detail={photos.displayCount > 0 ? `máx. ${formatMs(photos.displayMaxMs)}` : undefined}
+          />
+          <MetricCard
+            testID="metric-photo-cache"
+            label="Cache"
+            value={`${photos.memoryCacheHits} memória`}
+            detail={`${photos.diskCacheHits} disco · ${photos.networkLoads} rede`}
+          />
+          <MetricCard testID="metric-photo-errors" label="Erros" value={String(photos.errorCount)} />
+          <MetricCard
+            testID="metric-photo-bytes"
+            label="Maior bitmap"
+            value={photos.largestDecodedBytes > 0 ? formatBytes(photos.largestDecodedBytes) : '—'}
+            detail="estimativa ARGB"
+          />
+        </View>
+        <AppText variant="caption">
+          onLoad inclui buscar e decodificar; onDisplay confirma que a view renderizou. O bitmap é estimado em largura × altura × 4 bytes: não é leitura de memória do aparelho.
         </AppText>
       </View>
 

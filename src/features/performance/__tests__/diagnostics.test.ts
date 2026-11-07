@@ -9,6 +9,9 @@ import {
   getPerformanceSnapshot,
   performanceDiagnosticsAvailable,
   recordListLoad,
+  recordPhotoDisplayed,
+  recordPhotoLoaded,
+  recordPhotoOpen,
   recordProfileCommit,
   recordRequestAttempt,
   recordVideoFirstFrame,
@@ -23,8 +26,10 @@ import {
 import {
   commitComponentDiagnostics,
   commitTotals,
+  formatBytes,
   formatElapsed,
   formatMs,
+  photoDiagnostics,
   recentListLoads,
   recentRequests,
   requestScreenDiagnostics,
@@ -69,6 +74,9 @@ function seedMeasurements() {
   recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 40);
   recordVideoFullscreen('video-1', 'exit');
   recordVideoSurfaceFirstFrame('video-1', 'feed', 20);
+  recordPhotoOpen('photo-1');
+  recordPhotoLoaded('photo-1', { elapsedMs: 30, width: 800, height: 1200, cacheType: 'memory' });
+  recordPhotoDisplayed('photo-1', 45);
 }
 
 beforeEach(() => {
@@ -186,6 +194,31 @@ describe('agregações exibidas na tela', () => {
       averageExitFirstFrameMs: 15,
       maxExitFirstFrameMs: 20,
     });
+  });
+
+  it('resume a foto em tela cheia sem confundir estimativa com memória medida', () => {
+    startPerformanceMeasurement();
+    seedMeasurements();
+    recordPhotoOpen('photo-2');
+    recordPhotoLoaded('photo-2', { elapsedMs: 90, width: 2048, height: 2048, cacheType: 'disk' });
+    recordPhotoDisplayed('photo-2', 120);
+
+    const photos = photoDiagnostics(getPerformanceSnapshot());
+    expect(photos).toMatchObject({
+      openCount: 2,
+      loadCount: 2,
+      displayCount: 2,
+      memoryCacheHits: 1,
+      diskCacheHits: 1,
+      networkLoads: 0,
+      largestDecodedBytes: 2048 * 2048 * 4,
+      averageLoadMs: 60,
+      averageDisplayMs: 82.5,
+    });
+    expect(formatBytes(photos.largestDecodedBytes)).toBe('16,0 MB');
+    expect(formatBytes(800)).toBe('800 B');
+    expect(formatBytes(2048)).toBe('2 KB');
+    expect(formatBytes(0)).toBe('—');
   });
 
   it('formata durações sem inventar precisão', () => {

@@ -8,6 +8,9 @@ import {
   finishRequest,
   getPerformanceSnapshot,
   recordListLoad,
+  recordPhotoDisplayed,
+  recordPhotoLoaded,
+  recordPhotoOpen,
   recordProfileCommit,
   recordRequestAttempt,
   recordVideoFirstFrame,
@@ -59,6 +62,9 @@ function seedMeasurements() {
   recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 40);
   recordVideoFullscreen('video-1', 'exit');
   recordVideoSurfaceFirstFrame('video-1', 'feed', 20);
+  recordPhotoOpen('photo-1');
+  recordPhotoLoaded('photo-1', { elapsedMs: 30, width: 800, height: 1200, cacheType: 'memory' });
+  recordPhotoDisplayed('photo-1', 45);
 }
 
 function renderScreen() {
@@ -113,6 +119,11 @@ describe('tela de diagnóstico de performance', () => {
     expect(within(screen.getByTestId('metric-video-enter')).getByText('1')).toBeTruthy();
     expect(within(screen.getByTestId('metric-video-enter-first-frame')).getByText('40 ms')).toBeTruthy();
     expect(within(screen.getByTestId('metric-video-exit-first-frame')).getByText('20 ms')).toBeTruthy();
+    expect(screen.getByText('Fotos em tela cheia')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-photo-opens')).getByText('1')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-photo-load')).getByText('30 ms')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-photo-display')).getByText('45 ms')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-photo-bytes')).getByText('3,7 MB')).toBeTruthy();
     expect(screen.getByText('Pôsteres de vídeo')).toBeTruthy();
     expect(screen.getByTestId('metric-poster-cache')).toBeTruthy();
     expect(screen.queryByText('/feed?token=segredo')).toBeNull();
