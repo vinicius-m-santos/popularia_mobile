@@ -92,14 +92,11 @@ export function usePostActions(post: FeedItem) {
       ? post.commentCount + localCommentsFor(post.id).length
       : commentCountOf(post.id, post.commentCount),
     toggleSupport: () => {
-      // Só no gesto direto: apoiar, ecoar e salvar têm um tique curto; rolagem e
-      // renderização de cartões não disparam nada.
-      haptic('light');
+      // O tique de apoio/ecoar fica no SocialAction, junto do pulso e do estado.
       if (DEMO_MODE) { toggle('supportedPosts', post.id); return Promise.resolve(); }
       return flip('support', support);
     },
     toggleEcho: () => {
-      haptic('light');
       if (DEMO_MODE) {
         if (toggle('echoedPosts', post.id)) toast.show('Eco marcado neste aparelho até fechar o app.');
         return Promise.resolve();
@@ -107,6 +104,8 @@ export function usePostActions(post: FeedItem) {
       return flip('echo', echo);
     },
     toggleSave: () => {
+      // Salvar também é acionado por botões fora do SocialAction; o tique fica
+      // no handler compartilhado para todos os caminhos vibrarem uma única vez.
       haptic('light');
       if (DEMO_MODE) {
         if (toggle('savedPosts', post.id)) toast.show('Salvo neste aparelho até fechar o app.');
