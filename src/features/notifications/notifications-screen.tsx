@@ -5,11 +5,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FlashListRef } from '@shopify/flash-list';
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
-import { IconButton } from '@/components/icon-button';
 import { goBack } from '@/lib/routes';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { ChipRow } from '@/components/chip';
+import { EditorialBar } from '@/components/editorial-bar';
 import { Icon, type IconName } from '@/components/icon';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -179,22 +179,27 @@ export default function NotificationsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <View style={styles.bar}>
-          <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-          <View style={styles.barDivider} />
-          <AppText variant="label" accessibilityRole="header" style={styles.barTitle}>Avisos</AppText>
-          <Pressable
-            onPress={markAllRead}
-            disabled={busy || unreadCount === 0}
-            accessibilityState={{ disabled: busy || unreadCount === 0, busy }}
-            accessibilityRole="button"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.readAll}>
-            <AppText style={styles.readAllLabel} color={Colors.red}>
-              {busy ? 'Aguarde…' : 'Ler todas'}
-            </AppText>
-          </Pressable>
-        </View>
+        <EditorialBar
+          onBack={goBack}
+          title={<AppText variant="label" accessibilityRole="header" style={styles.barTitle}>Avisos</AppText>}
+          actions={
+            <Pressable
+              onPress={markAllRead}
+              disabled={busy || unreadCount === 0}
+              accessibilityState={{ disabled: busy || unreadCount === 0, busy }}
+              accessibilityRole="button"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.readAll}>
+              <AppText style={styles.readAllLabel} color={Colors.red}>
+                {busy ? 'Aguarde…' : 'Ler todas'}
+              </AppText>
+            </Pressable>
+          }
+          divider
+          dividerStyle={styles.barDividerSpacing}
+          inset={Spacing.one}
+          gap={0}
+        />
         <View style={styles.filters}>
           <ChipRow options={FILTERS} value={filter} onChange={setFilter} accessibilityLabel="Filtrar avisos" />
         </View>
@@ -294,14 +299,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.ink,
     backgroundColor: Colors.cream,
   },
-  bar: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.one,
-  },
-  barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink, marginRight: Spacing.two },
-  barTitle: { flex: 1, fontSize: 12.5 },
+  barDividerSpacing: { marginRight: Spacing.two },
+  barTitle: { fontSize: 12.5 },
   readAll: {
     marginLeft: 'auto',
     minHeight: 44,

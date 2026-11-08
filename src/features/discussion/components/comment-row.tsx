@@ -1,16 +1,14 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
-import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
+import { SocialAction } from '@/components/social-action';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { PostBody } from '@/features/posts/components/post-body';
-import { useReactionFeedback } from '@/hooks/use-reaction-feedback';
-import { formatCount, formatRelative, plural } from '@/lib/format';
+import { formatRelative, plural } from '@/lib/format';
 import { withPerformanceProfiler } from '@/lib/performance/profiler';
 
 import { MAX_VISUAL_DEPTH, type ThreadRow } from '../thread';
@@ -42,8 +40,6 @@ function CommentRowView({
   const { comment, replyCount, collapsed } = row;
   const depth = Math.min(row.depth, MAX_VISUAL_DEPTH);
   const time = formatRelative(comment.createdAt);
-  const color = supported ? Colors.red : Colors.inkSoft;
-  const supportFeedback = useReactionFeedback(supported);
   const indent = depth > 0 && { marginLeft: 14 + (depth - 1) * 28, ...styles.reply };
 
   // Apagado, removido ou oculto por bloqueio: só o aviso, sem autoria nem ações (as respostas continuam).
@@ -81,19 +77,14 @@ function CommentRowView({
         </View>
         <PostBody text={comment.text} mentions={comment.mentions} hashtagsEnabled={false} style={styles.text} />
         <View style={styles.actions}>
-          <Pressable
+          <SocialAction
+            variant="comment"
+            icon="support"
+            label="Apoiar comentário"
+            count={supportCount}
+            active={supported}
             onPress={() => onSupport(comment.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Apoiar comentário, ${formatCount(supportCount)}`}
-            accessibilityState={{ selected: supported }}
-            style={styles.action}>
-            <Animated.View style={[styles.supportContent, supportFeedback]}>
-              <Icon name="support" size={17} color={color} filled={supported} />
-              <AppText style={styles.actionLabel} color={color}>
-                {formatCount(supportCount)}
-              </AppText>
-            </Animated.View>
-          </Pressable>
+          />
           {onReply ? (
             <Pressable
               onPress={() => onReply(comment.id)}
@@ -213,11 +204,6 @@ const styles = StyleSheet.create({
   action: {
     minHeight: 44,
     paddingHorizontal: Spacing.two,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  supportContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,

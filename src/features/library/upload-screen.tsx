@@ -1,6 +1,7 @@
 import { AppText } from '@/components/app-text';
 import { CheckboxMark, RadioMark } from '@/components/choice-marks';
 import { EditorialAction } from '@/components/editorial-action';
+import { EditorialBar } from '@/components/editorial-bar';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -171,10 +172,18 @@ export default function UploadScreen() {
   const chosenCollection = collections.items.find((item) => item.id === collectionId);
   const topicLabel = topicGroups.data?.flatMap((group) => group.topics).find((item) => item.id === topic)?.label ?? (topic ? 'Assunto selecionado' : '—');
   return <Screen><KeyboardView style={styles.flex}>
-    <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={() => { if (step > 1 && step < 5 && !busy) setStep(step - 1); else goBack(); }} />
-      <View style={styles.barDivider} />
-      <View style={styles.flex}><AppText variant="label" style={styles.barTitle}>{params.edit ? 'Editar documento' : 'Adicionar arquivo'}</AppText><AppText variant="caption" style={styles.barSubtitle}>{comunaSlug ? `Biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText></View>
-      <AppText variant="caption" style={styles.stepCounter}>{step < 5 ? `${step} de 4` : 'Concluído'}</AppText></View>
+    <EditorialBar
+      onBack={() => { if (step > 1 && step < 5 && !busy) setStep(step - 1); else goBack(); }}
+      title={<>
+        <AppText variant="label" style={styles.barTitle}>{params.edit ? 'Editar documento' : 'Adicionar arquivo'}</AppText>
+        <AppText variant="caption" style={styles.barSubtitle}>{comunaSlug ? `Biblioteca de c/ ${origin.data?.name ?? comunaSlug}` : 'Sua biblioteca'}</AppText>
+      </>}
+      actions={<AppText variant="caption" style={styles.stepCounter}>{step < 5 ? `${step} de 4` : 'Concluído'}</AppText>}
+      divider
+      inset={Spacing.one}
+      gap={Spacing.two}
+      rule={1.5}
+    />
     <KeyboardAwareScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       {step === 1 ? <>
         <View style={styles.stepIntro}><AppText variant="display" style={styles.stepTitle}>Arquivo e informações</AppText><AppText style={styles.stepDescription}>Selecione o PDF do seu dispositivo e preencha as informações básicas.</AppText></View>
@@ -298,8 +307,6 @@ export default function UploadScreen() {
 }
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  bar: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.one, gap: Spacing.two, borderBottomWidth: 1.5, borderColor: Colors.ink },
-  barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink },
   barTitle: { fontSize: 12.5 },
   barSubtitle: { color: Colors.muted },
   stepCounter: { paddingHorizontal: Spacing.three },

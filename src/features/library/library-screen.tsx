@@ -5,7 +5,9 @@ import { BottomSheet, InsideBottomSheet, PopulariaBottomSheetFlatList, Popularia
 import { ChipRow } from '@/components/chip';
 import { RadioMark } from '@/components/choice-marks';
 import { EditorialAction } from '@/components/editorial-action';
+import { EditorialBar } from '@/components/editorial-bar';
 import { EditorialHeader } from '@/components/editorial-header';
+import { FilterChipRow, FilterSegments } from '@/components/filter-chips';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
@@ -42,6 +44,11 @@ import type { LibraryCollection, LibraryDocument, LibraryScope } from './types';
 
 /** Voltar de um documento dentro desta janela reaproveita a primeira página já na tela. */
 const LIBRARY_REVALIDATE_AFTER_MS = 30_000;
+const ORIGIN_OPTIONS = [
+  { key: 'all', label: 'Tudo' },
+  { key: 'people', label: 'De pessoas' },
+  { key: 'comunas', label: 'De comunas' },
+] as const;
 
 export default function LibraryScreen() {
   const params = useLocalSearchParams<{ scope?: string; owner?: string; comuna?: string; collection?: string; add?: string; q?: string; topic?: TopicId; section?: string }>();
@@ -72,7 +79,14 @@ export default function LibraryScreen() {
     ) : editorialRoot ? (
       <EditorialHeader onBack={goBack} rule={false} />
     ) : (
-      <View style={styles.bar}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><View style={styles.barDivider} /><AppText variant="label" style={styles.barLabel}>Biblioteca</AppText></View>
+      <EditorialBar
+        onBack={goBack}
+        title={<AppText variant="label" style={styles.barLabel}>Biblioteca</AppText>}
+        divider
+        dividerStyle={styles.barDividerSpacing}
+        inset={0}
+        minHeight={0}
+      />
     )}
     <LibraryPane key={`${scope}-${section}`} initialSection={section} initialQuery={params.q} initialTopic={params.topic} scope={scope} owner={params.owner} comuna={params.comuna} collection={params.collection} canAdd={canAdd}
       collectionData={collection.data ?? undefined} onEditCollection={() => setEditingCollection(true)} />
@@ -272,7 +286,7 @@ function DocumentLibrary({ scope, owner, comuna, collection, canAdd = false, tit
             <Input accessibilityLabel="Buscar na biblioteca" placeholder="Buscar no acervo. Ex.: organização popular" placeholderTextColor={Colors.muted} value={query} onChangeText={setQuery} maxLength={100} autoCorrect={false} returnKeyType="search" style={styles.searchInput} />
             {query ? <IconButton icon="close" size={16} accessibilityLabel="Limpar busca" onPress={() => setQuery('')} /> : null}
           </View>
-          <EditorialOriginTabs value={origin} onChange={setOrigin} stacked={fontScale > 1.2} />
+          <FilterSegments value={origin} onChange={setOrigin} stacked={fontScale > 1.2} options={ORIGIN_OPTIONS} accessibilityLabel="Origem dos documentos" />
           <TopicChips
             topics={allTopics}
             value={topic}
@@ -376,18 +390,6 @@ function cachedCollection(id: string): LibraryCollection | undefined {
   return undefined;
 }
 
-function EditorialOriginTabs({ value, onChange, stacked }: { value: 'all' | 'people' | 'comunas'; onChange: (value: 'all' | 'people' | 'comunas') => void; stacked: boolean }) {
-  const options = [{ key: 'all', label: 'Tudo' }, { key: 'people', label: 'De pessoas' }, { key: 'comunas', label: 'De comunas' }] as const;
-  return <View accessibilityRole="radiogroup" accessibilityLabel="Origem dos documentos" style={[styles.originTabs, stacked && styles.stackedControls]}>
-    {options.map((option, index) => {
-      const active = value === option.key;
-      return <Pressable key={option.key} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => onChange(option.key)} style={({ pressed }) => [styles.originTab, index > 0 && styles.originTabRule, active && styles.originTabActive, pressed && styles.actionPressed]}>
-        <AppText style={styles.originTabLabel} color={active ? Colors.paper : Colors.ink}>{option.label}</AppText>
-      </Pressable>;
-    })}
-  </View>;
-}
-
 function SortButton({ label, onPress }: { label: string; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Ordenar: ${label}`} onPress={onPress} style={({ pressed }) => [styles.sortButton, pressed && styles.actionPressed]}>
     <AppText style={styles.sortLabel}>{label}</AppText>
@@ -400,29 +402,34 @@ function TopicChips({ topics, value, onChange, onMore }: { topics: { id: TopicId
   const visible = featured.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is { id: TopicId; shortLabel: string; label: string } => !!topic);
   const selected = value ? topics.find((topic) => topic.id === value) : undefined;
   const list = selected && !visible.some((topic) => topic.id === selected.id) ? [...visible, selected] : visible;
-  return <ProfileSwipeGuard><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicChips} accessibilityRole="radiogroup" accessibilityLabel="Filtrar por assunto">
-    <Pressable accessibilityRole="radio" accessibilityState={{ checked: value === null }} onPress={() => onChange(null)} style={({ pressed }) => [styles.topicChip, value === null && styles.topicChipActive, pressed && styles.actionPressed]}>
-      <AppText style={styles.topicChipLabel} color={value === null ? Colors.paper : Colors.ink}>Todos</AppText>
-    </Pressable>
-    {list.map((topic) => {
-      const active = value === topic.id;
-      return <Pressable key={topic.id} accessibilityRole="radio" accessibilityLabel={topic.label} accessibilityState={{ checked: active }} onPress={() => onChange(topic.id)} style={({ pressed }) => [styles.topicChip, active && styles.topicChipActive, pressed && styles.actionPressed]}>
-        <AppText style={styles.topicChipLabel} color={active ? Colors.paper : Colors.ink} numberOfLines={1}>{topic.shortLabel}</AppText>
-      </Pressable>;
-    })}
-    <Pressable accessibilityRole="button" accessibilityLabel="Mais assuntos" onPress={onMore} style={({ pressed }) => [styles.topicChip, styles.topicChipMore, pressed && styles.actionPressed]}>
+  const options = [
+    { key: 'all' as const, label: 'Todos' },
+    ...list.map((topic) => ({ key: topic.id, label: topic.shortLabel, accessibilityLabel: topic.label })),
+  ];
+  return <ProfileSwipeGuard><FilterChipRow
+    options={options}
+    value={value ?? 'all'}
+    onChange={(key) => onChange(key === 'all' ? null : key)}
+    accessibilityLabel="Filtrar por assunto"
+    gap={Spacing.two}
+    inset={0}
+    minHeight={42}
+    optionStyle={styles.topicChip}
+    labelStyle={styles.topicChipLabel}
+    singleLine
+    pressedStyle={styles.actionPressed}
+    contentContainerStyle={styles.topicChips}
+    trailing={<Pressable accessibilityRole="button" accessibilityLabel="Mais assuntos" hitSlop={{ top: 1, bottom: 1 }} onPress={onMore} style={({ pressed }) => [styles.topicChip, styles.topicChipMore, pressed && styles.actionPressed]}>
       <AppText style={styles.topicChipLabel}>Mais assuntos</AppText>
       <Icon name="chevronDown" size={14} />
-    </Pressable>
-  </ScrollView></ProfileSwipeGuard>;
+    </Pressable>}
+  /></ProfileSwipeGuard>;
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  bar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  editorialBar: { minHeight: 58, paddingHorizontal: Spacing.one },
-  barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink, marginRight: Spacing.two },
   barLabel: { fontSize: 12.5 },
+  barDividerSpacing: { marginRight: Spacing.two },
   collectionBarTitle: { flex: 1 },
   barSpacer: { width: 44 },
   content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Spacing.seven },
@@ -458,20 +465,13 @@ const styles = StyleSheet.create({
   editorialSubtitle: { fontSize: 15.5, lineHeight: 22, color: Colors.inkSoft },
   editorialIllustrationWrap: { width: '40%', height: 140, marginTop: 0 },
   editorialIllustration: { width: '100%', height: '100%' },
-  stackedControls: { flexDirection: 'column' },
   addAction: { alignSelf: 'stretch', minHeight: 52, borderRadius: Radius.sm, borderWidth: 2 },
   actionPressed: { opacity: 0.68 },
   searchBox: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
   searchInput: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 0, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 22, color: Colors.ink, outlineWidth: 0 },
   publicSearchBox: { borderWidth: 2, borderRadius: Radius.sm, paddingHorizontal: Spacing.four, gap: 10 },
-  originTabs: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  originTab: { flexGrow: 1, flexBasis: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.one },
-  originTabRule: { borderLeftWidth: 2, borderLeftColor: Colors.ink },
-  originTabActive: { backgroundColor: Colors.ink },
-  originTabLabel: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23 },
   topicChips: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingRight: Spacing.five },
   topicChip: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, borderWidth: 1.5, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
-  topicChipActive: { backgroundColor: Colors.ink },
   topicChipMore: { borderStyle: 'dashed' },
   topicChipLabel: { fontFamily: Fonts.bold, fontSize: 14.5, lineHeight: 23 },
   topicOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },

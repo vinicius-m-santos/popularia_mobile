@@ -407,4 +407,17 @@ describe('swipe das abas do perfil', () => {
     expect(getProfile).toHaveBeenCalledTimes(1);
     expect(getUserPostsPage).not.toHaveBeenCalled();
   });
+
+  it('volta pelo chrome do perfil de outra pessoa', async () => {
+    mockProfileId = 'taina';
+    getProfile.mockResolvedValue(profile({
+      user: { id: 'taina', name: 'Tainá Souza', handle: 'taina', initials: 'TS', tone: 'black' },
+      bio: 'Bio da Tainá',
+    }));
+
+    await render(<ProfileScreen />);
+    await screen.findByText('Tainá Souza');
+    await fireEvent.press(screen.getByLabelText('Voltar'));
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
 });
