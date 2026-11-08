@@ -28,7 +28,7 @@ import type { Page } from '@/lib/pagination';
 import { contentPolicy, queryClient, revalidateIfStale } from '@/lib/query/client';
 import { queryKeys } from '@/lib/query/keys';
 import { goBack, useNav } from '@/lib/routes';
-import type { Comuna, FeedItem, Topic } from '@/types/models';
+import type { Comuna, FeedItem, Topic, TopicId } from '@/types/models';
 
 import { searchDiscovery, type DiscoveryData, type DiscoveryEntry, type DiscoveryFilter } from './api';
 import { ComunasToKnowSection, suggestedComunas } from './comunas-carousel';
@@ -52,8 +52,32 @@ const TOPIC_PREVIEW_LIMIT = 6;
 // a lista não reavaliar o header fixo a cada tecla.
 const STICKY_HEADER_INDICES = [1];
 const EMPTY_TOPICS: Topic[] = [];
+const EMPTY_INTERESTS: TopicId[] = [];
 const EMPTY_POSTS: FeedItem[] = [];
 const EMPTY_COMUNAS: Comuna[] = [];
+const INTERESTS_CACHE_LIMIT = 32;
+const interestsCache = new Map<string, TopicId[]>();
+
+/**
+ * A conta pode entregar uma referência nova de `interests` com o mesmo conteúdo
+ * (por exemplo, depois de `reloadAccount`). O cache devolve a referência antiga
+ * para a lista de descoberta não reconstruir as linhas. É um cache de módulo,
+ * então também compartilha a identidade entre montagens; o React Compiler só
+ * memoiza por instância e não cobriria esse caso.
+ */
+export function stableInterestsFor(interests: TopicId[] | undefined, key: string): TopicId[] {
+  const current = interests ?? EMPTY_INTERESTS;
+  const cached = interestsCache.get(key);
+  if (cached && cached.length === current.length && cached.every((id, index) => id === current[index])) {
+    return cached;
+  }
+  if (!cached && interestsCache.size >= INTERESTS_CACHE_LIMIT) {
+    const oldest = interestsCache.keys().next().value;
+    if (oldest !== undefined) interestsCache.delete(oldest);
+  }
+  interestsCache.set(key, current);
+  return current;
+}
 // A busca agrupa os mesmos tipos da descoberta, sem repetir a lista a cada render.
 const SEARCH_SECTIONS = FILTERS.filter((option) => option.key !== 'all');
 
@@ -78,10 +102,7 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
   const nav = useNav();
   const { interests, profile } = useAccount();
   const interestKey = (interests ?? []).join(',');
-  // O contexto pode entregar uma nova referência com o mesmo conteúdo; as listas
-  // abaixo dependem do conteúdo para não recriar as linhas a cada render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- identidade é interestKey
-  const stableInterests = useMemo(() => interests ?? [], [interestKey]);
+  const stableInterests = stableInterestsFor(interests, interestKey);
   // A chave inclui os interesses porque a descoberta é personalizada por eles.
   const discovery = useDiscovery(me.id, topicId, interestKey);
   const data = discovery;

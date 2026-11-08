@@ -8,8 +8,9 @@ import { queryClient } from '@/lib/query/client';
 import { discoveryKeys } from '@/lib/query/keys';
 
 import { searchDiscovery, getDiscoveryData, type DiscoveryData, type DiscoveryEntry } from '../api';
-import ExploreScreen, { TopicScreen } from '../explore-screen';
+import ExploreScreen, { stableInterestsFor, TopicScreen } from '../explore-screen';
 import type { Page } from '@/lib/pagination';
+import type { TopicId } from '@/types/models';
 
 const mockFocusCallbacks = new Set<() => void>();
 const mockOpenProfile = jest.fn();
@@ -33,7 +34,10 @@ jest.mock('@/lib/routes', () => ({
   useNav: () => ({ openProfile: mockOpenProfile, openComuna: mockOpenComuna, openPost: mockOpenPost }),
   goBack: jest.fn(),
 }));
-jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me' }), useAccount: () => ({ interests: ['tec'], profile: { city: 'São Paulo · SP' } }) }));
+jest.mock('@/features/account/account-context', () => {
+  const interests = ['tec'];
+  return { useMe: () => ({ id: 'me' }), useAccount: () => ({ interests, profile: { city: 'São Paulo · SP' } }) };
+});
 jest.mock('@/components/toast', () => ({ useToast: () => ({ show: jest.fn() }) }));
 jest.mock('@/features/interactions/interactions-context', () => ({ useInteractions: () => ({ membershipOf: () => false, setOn: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => {
@@ -95,6 +99,19 @@ async function debounce() {
 }
 
 describe('Explorar', () => {
+  it('reaproveita a referência de interests com o mesmo conteúdo', () => {
+    const first: TopicId[] = ['pol'];
+    const second: TopicId[] = ['pol'];
+    expect(stableInterestsFor(first, 'pol')).toBe(first);
+    expect(stableInterestsFor(second, 'pol')).toBe(first);
+
+    const changed: TopicId[] = ['trab'];
+    expect(stableInterestsFor(changed, 'trab')).toBe(changed);
+
+    const empty = stableInterestsFor(undefined, '');
+    expect(stableInterestsFor(undefined, '')).toBe(empty);
+  });
+
   it('mantém todos os assuntos acessíveis sem alongar a entrada e abre o escolhido', async () => {
     const topics = Array.from({ length: 8 }, (_, index) => ({ id: `topic-${index}` as typeof data.topics[number]['id'], label: `Assunto ${index}`, shortLabel: `Assunto ${index}` }));
     getData.mockResolvedValue({ ...data, topics });

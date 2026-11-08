@@ -2,6 +2,17 @@
 module.exports = ({ config }) => {
   const profile = process.env.EAS_BUILD_PROFILE;
   const environment = process.env.EXPO_PUBLIC_APP_ENV || 'development';
+  const compilerFlag = process.env.EXPO_PUBLIC_REACT_COMPILER;
+  if (compilerFlag && compilerFlag !== '0' && compilerFlag !== '1') {
+    throw new Error('EXPO_PUBLIC_REACT_COMPILER deve ser 0 ou 1.');
+  }
+  // A comparação A/B do POP-66 só existe em build de desenvolvimento. Produção,
+  // staging e TestFlight mantêm o Compiler ligado: desligá-lo nessas builds
+  // exigiria uma justificativa independente, não uma variável de ambiente.
+  const comparisonBuild = compilerFlag === '0';
+  if (comparisonBuild && (environment !== 'development' || (profile && profile !== 'development'))) {
+    throw new Error('React Compiler só pode ser desligado em build de comparação de desenvolvimento.');
+  }
   const api = process.env.EXPO_PUBLIC_API_URL || '';
   if (profile && profile !== 'development') {
     const profileEnvironment = profile === 'production' ? 'production' : ['staging', 'testflight-staging'].includes(profile) ? 'staging' : null;
@@ -25,6 +36,7 @@ module.exports = ({ config }) => {
   return {
     ...config,
     name: environment === 'staging' ? 'Popularia Beta' : 'Popularia',
+    experiments: { ...config.experiments, reactCompiler: !comparisonBuild },
     ios: { ...config.ios, usesAppleSignIn: true, associatedDomains: [...new Set([...(config.ios?.associatedDomains || []), ...(linkUrl.protocol === 'https:' ? [`applinks:${linkUrl.host}`] : [])])], infoPlist: { ...config.ios?.infoPlist, NSAppTransportSecurity: { NSAllowsArbitraryLoads: false } } },
     android: {
       ...config.android,
@@ -42,6 +54,6 @@ module.exports = ({ config }) => {
       ],
     },
     plugins: config.plugins.map((plugin) => plugin === 'expo-secure-store' ? ['expo-secure-store', { faceIDPermission: false }] : Array.isArray(plugin) && plugin[0] === '@react-native-google-signin/google-signin' && iosUrlScheme ? [plugin[0], { ...plugin[1], iosUrlScheme }] : plugin),
-    extra: { ...config.extra, appEnvironment: environment },
+    extra: { ...config.extra, appEnvironment: environment, reactCompiler: !comparisonBuild },
   };
 };
