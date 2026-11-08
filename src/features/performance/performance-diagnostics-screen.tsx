@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -14,6 +14,12 @@ import { formatStamp, plural } from '@/lib/format';
 import { performanceDiagnosticsAvailable, type PerformanceSnapshot } from '@/lib/performance';
 import { goBack } from '@/lib/routes';
 
+import {
+  collectorActionFromParams,
+  collectorNextPath,
+  performanceCollectorExportEnabled,
+  writePerformanceSnapshotForCollector,
+} from './collector-bridge';
 import {
   commitComponentDiagnostics,
   commitTotals,
@@ -62,6 +68,27 @@ function DiagnosticsContent() {
   const toast = useToast();
   const { snapshot, readAt, refresh } = usePerformanceSnapshot();
   const [exporting, setExporting] = useState(false);
+  const params = useLocalSearchParams<{ collector?: string | string[]; nonce?: string | string[]; next?: string | string[] }>();
+  const collectorAction = collectorActionFromParams(params);
+  const collectorNonce = Array.isArray(params.nonce) ? params.nonce[0] : params.nonce;
+  const collectorNext = collectorNextPath(params);
+  const collectorRequest = collectorAction ? `${collectorAction}:${collectorNonce ?? ''}` : null;
+
+  // O coletor ADB (POP-72) usa este deep link para zerar a sessão antes do
+  // cenário e para gravar o snapshot depois. A gravação é opt-in e local.
+  useEffect(() => {
+    if (!collectorRequest || !collectorAction || !performanceCollectorExportEnabled()) return;
+    if (collectorAction === 'reset') startPerformanceMeasurement();
+    let cancelled = false;
+    void writePerformanceSnapshotForCollector()
+      .catch(() => null)
+      .finally(() => {
+        if (cancelled) return;
+        refresh();
+        if (collectorAction === 'reset' && collectorNext) router.replace(collectorNext as never);
+      });
+    return () => { cancelled = true; };
+  }, [collectorAction, collectorNext, collectorRequest, refresh]);
 
   const hasSession = snapshot.sessionId !== null;
   const active = snapshot.enabled && hasSession;

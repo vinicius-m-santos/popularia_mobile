@@ -27,6 +27,13 @@ Para isso use Perfetto/Android Studio e Instruments, como descrito abaixo.
 `elapsedTimeInMs` do `onLoad` não é TTI; `actualDuration` do Profiler inclui o
 overhead do próprio Profiler e varia por build.
 
+O POP-72 adiciona um coletor ADB local (`npm run perf:android`) que reutiliza
+este snapshot e mede, fora do app, frame timing/jank do `gfxinfo`, latência de
+input, startup, PSS, CPU, rede e, quando há `--video-post` + ponte JS, o primeiro
+frame de vídeo. Ele não muda o que a instrumentação do app registra e continua
+sendo execução de emulador; a matriz e as limitações estão em
+`docs/pop-72-performance-metrics-automation.md`.
+
 ## Como ligar (build de diagnóstico)
 
 ```bash
