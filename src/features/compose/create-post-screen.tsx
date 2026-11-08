@@ -3,7 +3,6 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -29,7 +28,7 @@ import { LibraryPane } from '@/features/library/library-screen';
 import type { LibraryDocument } from '@/features/library/types';
 import { MentionSuggestions } from '@/features/mentions/mention-suggestions';
 import { createPost } from '@/features/posts/api';
-import { POLL_MAX_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
+import { draftToPoll, pollDraftError, type PollDraft } from '@/features/posts/poll';
 import { PostCard } from '@/features/posts/components/post-card';
 import { PostAttachment } from '@/features/posts/components/post-attachment';
 import { durationLabel, pickPostImage, pickPostVideo, uploadPostMedia, type LocalPostMedia } from '@/features/posts/post-media';
@@ -37,6 +36,8 @@ import { createEvent, createProfileEvent, listEvents } from '@/features/events/a
 import { deviceTimeZone, formatPoster, parseWall, zonedWallToIso } from '@/features/events/format';
 import { wallStringsToPickerDate } from '@/features/events/date-picker-field';
 import { comunaEventsKey, type ComunaEvent } from '@/features/events/types';
+import { PollComposerCard } from './components/poll-composer-card';
+import { PublishBar } from './components/publish-bar';
 import { CallSchedulePicker } from './call-schedule-picker';
 import { callBlockedComunaNames } from './call-permissions';
 import { searchPlaces, type PlaceSuggestion } from './place-search';
@@ -145,7 +146,7 @@ export default function CreatePostScreen() {
   const [writeDraft] = useState(() => createWriteDraftStore());
   const hasWriteContent = useSyncExternalStore(writeDraft.subscribeContent, writeDraft.getHasContent, writeDraft.getHasContent);
   const [poll, setPoll] = useState<PollDraft | null>(null);
-  const optionSeq = useRef(2);
+  const updatePoll = useCallback((update: (current: PollDraft) => PollDraft) => setPoll((current) => current ? update(current) : current), []);
   const [topics, setTopics] = useState<TopicId[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ComunaEvent | null>(null);
   const [pickingEvent, setPickingEvent] = useState(false);
@@ -618,48 +619,7 @@ export default function CreatePostScreen() {
                 onRemoveMedia={removeMedia}
               />
             ) : mode === 'poll' && poll ? (
-              <View style={styles.pollShadow}>
-              <View style={styles.pollCard}>
-                <View style={styles.pollHeader}>
-                  <AppText variant="label" color={Colors.paper}>Enquete</AppText>
-                  <AppText style={styles.pollCount} color={Colors.onInkMuted}>{poll.options.length}/{POLL_MAX_OPTIONS} opções</AppText>
-                </View>
-                <View style={styles.pollBody}>
-                  <TextInput
-                    value={poll.question}
-                    onChangeText={(question) => setPoll((current) => current ? { ...current, question } : current)}
-                    maxLength={POLL_QUESTION_MAX}
-                    placeholder="Qual a pergunta?"
-                    placeholderTextColor={Colors.placeholder}
-                    accessibilityLabel="Pergunta da enquete"
-                    style={styles.pollQuestion}
-                    multiline
-                    editable={!publishing}
-                  />
-                  <View style={styles.dashedRule} />
-                  <AppText variant="label" color={Colors.muted}>Opções</AppText>
-                  {poll.options.map((option, index) => (
-                    <View key={option.key} style={styles.pollOptionRow}>
-                      <View style={styles.pollLetter}><AppText style={styles.pollLetterText} color={Colors.paper}>{String.fromCharCode(65 + index)}</AppText></View>
-                      <TextInput
-                        value={option.label}
-                        onChangeText={(label) => setPoll((current) => current ? { ...current, options: current.options.map((item) => item.key === option.key ? { ...item, label } : item) } : current)}
-                        maxLength={POLL_OPTION_MAX}
-                        placeholder={`Opção ${String.fromCharCode(65 + index)}`}
-                        placeholderTextColor={Colors.placeholder}
-                        accessibilityLabel={`Opção ${String.fromCharCode(65 + index)}`}
-                        style={styles.pollOptionInput}
-                        editable={!publishing}
-                      />
-                      {poll.options.length > 2 ? <Pressable accessibilityRole="button" accessibilityLabel={`Remover opção ${String.fromCharCode(65 + index)}`} onPress={() => setPoll((current) => current ? { ...current, options: current.options.filter((item) => item.key !== option.key) } : current)} style={styles.pollRemove}><Icon name="close" size={18} /></Pressable> : null}
-                    </View>
-                  ))}
-                  {poll.options.length < POLL_MAX_OPTIONS ? <Pressable accessibilityRole="button" accessibilityLabel="Adicionar opção" onPress={() => { optionSeq.current += 1; const key = `option-${optionSeq.current}`; setPoll((current) => current && current.options.length < POLL_MAX_OPTIONS ? { ...current, options: [...current.options, { key, label: '' }] } : current); }} style={({ pressed }) => [styles.addOption, pressed && styles.pressed]}>
-                    <AppText style={styles.addOptionLabel}>+ Adicionar opção</AppText>
-                  </Pressable> : null}
-                </View>
-              </View>
-              </View>
+              <PollComposerCard poll={poll} publishing={publishing} onChange={updatePoll} />
             ) : (
               <View style={styles.callShadow}>
               <View style={styles.callCard}>
@@ -812,27 +772,17 @@ export default function CreatePostScreen() {
         ) : null}
 
         {!keyboardVisible ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={published ? `Publicado ${destinationSubtitle}` : publishing ? 'Publicando' : publishLabel}
-            accessibilityState={{ disabled: !canPublish, busy: publishing }}
+          <PublishBar
+            mode={mode}
+            published={published}
+            publishing={publishing}
             disabled={!canPublish}
+            label={publishLabel}
+            subtitle={destinationSubtitle}
+            paddingBottom={Math.max(insets.bottom, Spacing.three)}
+            feedbackStyle={publishFeedbackStyle}
             onPress={() => { void publish(); }}
-            style={({ pressed }) => [styles.publishBar, { paddingBottom: Math.max(insets.bottom, Spacing.three) }, !canPublish && !published && styles.publishBarDisabled, pressed && styles.pressed]}>
-            <View style={styles.publishCopy}>
-              <AppText style={styles.publishTitle}>{published ? 'Publicado' : publishing ? 'Publicando…' : publishLabel}</AppText>
-              <AppText style={styles.publishSubtitle}>{destinationSubtitle}</AppText>
-            </View>
-            <Animated.View style={[styles.publishButton, publishFeedbackStyle, published && styles.publishButtonConfirmed]}>
-              {published ? (
-                <Icon name="check" size={26} color={Colors.paper} />
-              ) : publishing ? (
-                <ActivityIndicator color={Colors.ink} />
-              ) : (
-                <Icon name={mode === 'call' ? 'megaphone' : 'arrowRight'} size={26} color={Colors.ink} />
-              )}
-            </Animated.View>
-          </Pressable>
+          />
         ) : null}
       </KeyboardView>
 
@@ -1149,195 +1099,175 @@ function DestinationChoice({ selected, disabled = false, mark, name, subtitle, o
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  pressed: { opacity: 0.68 },
-  content: { paddingTop: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.six },
-  step: { paddingHorizontal: Spacing.five, gap: Spacing.three },
-  stepHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  stepNumber: { minWidth: 30, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm, backgroundColor: Colors.red },
-  stepNumberText: { fontFamily: Fonts.extrabold, fontSize: 12.5, lineHeight: 21, letterSpacing: 0.6 },
-  stepLabel: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 21 },
-  stepAside: { textAlign: 'right' },
-  previewButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  previewButtonActive: { backgroundColor: Colors.ink },
-  previewButtonLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
-  destinationCard: { position: 'relative', minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, padding: Spacing.two + 2, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, ...Shadows.offsetSmall },
-  destinationMark: { borderWidth: 2, borderColor: Colors.ink },
-  tape: { position: 'absolute', top: -9, left: -8, width: 68, height: 20, zIndex: 2, backgroundColor: Colors.straw, opacity: 0.96, borderWidth: 1, borderColor: Colors.strawDark, boxShadow: '2px 2px 0 rgba(22,18,15,0.12)', transform: [{ rotate: '-20deg' }] },
-  tapePhoto: { width: 56, height: 16 },
-  photoFrame: { position: 'relative', marginTop: Spacing.four },
-  destinationCopy: { flex: 1, minWidth: 0, gap: 3 },
-  destinationName: { fontFamily: Fonts.extrabold, fontSize: 17, lineHeight: 25 },
-  visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  visibilityText: { flexShrink: 1, fontSize: 12.5, lineHeight: 21 },
-  visibilityBlocked: { color: Colors.red, fontFamily: Fonts.bold },
-  callBlockedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginHorizontal: Spacing.five, marginBottom: Spacing.two, padding: Spacing.three, borderWidth: 1.5, borderColor: Colors.red, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  callBlockedText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 20, color: Colors.ink },
-  changeDestination: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: Spacing.one },
-  changeLabel: { fontFamily: Fonts.bold, fontSize: 13.5, lineHeight: 21, textDecorationLine: 'underline' },
-  typeGrid: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, overflow: 'hidden', backgroundColor: Colors.paper },
-  typeTile: { flex: 1, minHeight: 112, padding: 6, gap: Spacing.two, borderRightWidth: 2, borderRightColor: Colors.ink },
-  typeTileLast: { borderRightWidth: 0 },
-  typeTileActive: { backgroundColor: Colors.ink },
-  typeTileMarker: { position: 'absolute', top: 0, right: 0, width: 14, height: 14, backgroundColor: Colors.red },
-  typeTileCopy: { gap: 1 },
-  typeTileTitle: { fontFamily: Fonts.extrabold, fontSize: 15.5, lineHeight: 24 },
-  typeTileTitleNarrow: { fontSize: 14.5, lineHeight: 23 },
-  typeTileCaption: { fontSize: 12.5, lineHeight: 21 },
-  previewBox: { gap: Spacing.two },
-  editorShadow: { borderRadius: 8, ...Shadows.offset, boxShadow: '3px 3px 0 #16120F' },
-  editorCard: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, overflow: 'hidden' },
-  editorHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.three, backgroundColor: Colors.ink },
-  editorCounter: { fontFamily: Fonts.mono, fontSize: 10.5, lineHeight: 19 },
-  editorBody: { padding: Spacing.three, gap: Spacing.two },
-  titleField: { gap: Spacing.one, paddingBottom: Spacing.two, borderBottomWidth: 2, borderBottomColor: Colors.ink },
-  titleFieldHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  titleInput: { fontFamily: Fonts.extrabold, fontSize: 20, lineHeight: 28, color: Colors.ink, paddingVertical: 4 },
-  input: { minHeight: 132, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 23, color: Colors.ink, paddingVertical: Spacing.one },
-  editorTools: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  toolButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream },
-  toolLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
-  photoZone: { position: 'relative', minHeight: 178, overflow: 'hidden', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.strawLight, transform: [{ rotate: '-1.2deg' }] },
-  photoPreview: { width: '100%', height: 220 },
-  photoActions: { position: 'absolute', right: Spacing.two, bottom: Spacing.two, flexDirection: 'row', gap: Spacing.two },
-  photoAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  photoEmpty: { flex: 1, minHeight: 178, alignItems: 'center', justifyContent: 'center', gap: Spacing.one },
-  photoEmptyTitle: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23, color: Colors.muted },
-  pollShadow: { borderRadius: 8, ...Shadows.offset, boxShadow: '3px 3px 0 #16120F' },
-  pollCard: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, overflow: 'hidden' },
-  pollHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.three, backgroundColor: Colors.ink },
-  pollCount: { fontFamily: Fonts.mono, fontSize: 10.5, lineHeight: 19 },
-  pollBody: { padding: Spacing.three, gap: Spacing.three },
-  pollQuestion: { fontFamily: Fonts.anton, fontSize: 27, lineHeight: 35, letterSpacing: -0.2, textTransform: 'uppercase', color: Colors.ink, minHeight: 60, paddingTop: Spacing.one },
-  dashedRule: { borderBottomWidth: 2, borderStyle: 'dashed', borderBottomColor: Colors.ink },
-  pollOptionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'stretch', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream, overflow: 'hidden' },
-  pollLetter: { width: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.red },
-  pollLetterText: { fontFamily: Fonts.anton, fontSize: 22, lineHeight: 30 },
-  pollOptionInput: { flex: 1, minWidth: 0, paddingHorizontal: Spacing.three, fontFamily: Fonts.regular, fontSize: 15.5, lineHeight: 21, color: Colors.ink },
-  pollRemove: { width: 40, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 2, borderLeftColor: Colors.ink },
-  addOption: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.ink, borderRadius: Radius.sm },
-  addOptionLabel: { fontFamily: Fonts.extrabold, fontSize: 14, lineHeight: 22 },
-  callCard: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, overflow: 'hidden' },
-  callHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.three, backgroundColor: Colors.red },
-  callMissing: { paddingTop: Spacing.two },
-  callBody: { padding: Spacing.three, gap: Spacing.two },
-  callCover: { height: 160, marginHorizontal: Spacing.three, marginTop: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden' },
-  callCoverImage: { width: '100%', height: '100%' },
-  callCoverRemove: { position: 'absolute', right: 8, bottom: 8, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.ink },
-  callTitle: { fontFamily: Fonts.anton, fontSize: 28, lineHeight: 36, letterSpacing: -0.2, textTransform: 'uppercase', color: Colors.ink, paddingVertical: 0 },
-  callDetails: { minHeight: 56, fontFamily: Fonts.regular, fontSize: 15.5, lineHeight: 22, color: Colors.ink },
-  callLabel: { paddingTop: Spacing.two },
-  dateRow: { flexDirection: 'row', gap: Spacing.two },
-  dateField: { flex: 1.5 },
-  timeField: { flex: 0.9 },
-  quickDates: { flexDirection: 'row', gap: Spacing.two },
-  quickChip: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream },
-  quickChipActive: { backgroundColor: Colors.ink },
-  quickChipLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
-  callPlace: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream, paddingHorizontal: Spacing.three },
-  callPlaceInput: { flex: 1, minWidth: 0, fontFamily: Fonts.regular, fontSize: 15.5, lineHeight: 21, color: Colors.ink, paddingVertical: Spacing.two },
-  rulesCard: { padding: Spacing.three, gap: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  rulesTitle: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 24 },
-  durationRow: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden' },
-  durationChip: { flex: 1, minHeight: 47, alignItems: 'center', justifyContent: 'center', borderRightWidth: 2, borderRightColor: Colors.ink, backgroundColor: Colors.paper },
-  durationChipActive: { backgroundColor: Colors.ink },
-  durationLabel: { fontFamily: Fonts.bold, fontSize: 13.5, lineHeight: 21 },
-  ruleDivider: { height: 1, backgroundColor: Colors.strawDark },
-  topicPicker: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  topicPickerLabel: { flex: 1, minWidth: 0, fontFamily: Fonts.bold, fontSize: 15.5, lineHeight: 24 },
-  topicTriggerCopy: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.one },
-  topicSelected: { paddingVertical: 4, paddingHorizontal: 7, borderRadius: Radius.sm, backgroundColor: Colors.strawLight },
-  topicSelectedLabel: { fontFamily: Fonts.bold, fontSize: 12.5, lineHeight: 21 }, 
-  topicOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
-  topicOptionDisabled: { opacity: 0.45 },
-  topicDone: { marginTop: Spacing.three },
-  topicGroup: { paddingTop: Spacing.four, paddingBottom: Spacing.one },
-  attachmentSection: { paddingHorizontal: Spacing.five, gap: Spacing.two },
-  attachmentHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
-  eventPreview: { padding: Spacing.three, gap: 2, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  eventTitle: { fontFamily: Fonts.extrabold, fontSize: 15.5, lineHeight: 24 },
-  inlineLink: { fontFamily: Fonts.bold, textDecorationLine: 'underline' },
-  pdfNotice: { padding: Spacing.two, backgroundColor: Colors.strawLight, borderRadius: Radius.sm },
-  attachmentActions: { flexDirection: 'row', gap: Spacing.two },
-  flexAction: { flex: 1 },
-  attachmentToolbar: { flexDirection: 'row', marginHorizontal: Spacing.five, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: Colors.paper },
-  toolbarHint: { paddingHorizontal: Spacing.five, marginTop: -Spacing.three },
-  callShadow: { borderRadius: 8, ...Shadows.offset, boxShadow: '3px 3px 0 #16120F' },
-  whenGrid: { flexDirection: 'row', minHeight: 64, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: Colors.paper },
-  whenCell: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 2, paddingHorizontal: 8, paddingVertical: 6, borderRightWidth: 2, borderRightColor: Colors.ink },
-  whenCellActive: { backgroundColor: Colors.ink },
-  whenCellLast: { borderRightWidth: 0 },
-  whenLabel: { fontFamily: Fonts.monoSemibold, fontSize: 9.5, lineHeight: 18, letterSpacing: 0.35, textTransform: 'uppercase', color: Colors.muted },
-  whenValue: { fontFamily: Fonts.anton, fontSize: 25, lineHeight: 33, letterSpacing: -0.2, textTransform: 'uppercase', color: Colors.ink },
-  placeHint: { marginTop: -Spacing.one },
-  placeSuggestions: { marginTop: -Spacing.one, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, overflow: 'hidden' },
-  placeSuggestion: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one, borderBottomWidth: 1, borderBottomColor: Colors.rule },
-  capacityTabs: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden' },
-  capacityTab: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRightWidth: 2, borderRightColor: Colors.ink, paddingHorizontal: 2 },
-  capacityTabLast: { borderRightWidth: 0 },
-  capacityTabActive: { backgroundColor: Colors.ink },
-  capacityTabLabel: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 21 },
-  counterRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingTop: Spacing.one },
-  counterCopy: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  counterNumber: { fontFamily: Fonts.anton, fontSize: 42, lineHeight: 50, color: Colors.red, letterSpacing: -0.6 },
-  counterPeople: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23 },
-  counterActions: { flexDirection: 'row', gap: Spacing.two },
-  counterButton: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  counterButtonDark: { backgroundColor: Colors.ink },
-  capacityMarks: { flexDirection: 'row', gap: Spacing.one },
-  capacityMark: { flex: 1, height: 20, borderWidth: 2, borderColor: Colors.ink, borderRadius: 2, backgroundColor: Colors.paper },
-  capacityMarkFilled: { backgroundColor: Colors.ink },
-  bringHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Spacing.two },
-  bringChips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.two },
-  bringChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
-  bringChipActive: { backgroundColor: Colors.ink },
-  bringChipLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
-  bringAdd: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.three, borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.ink, borderRadius: Radius.sm },
-  bringAddLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
-  bringAddRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  bringInput: { width: 112, minHeight: 44, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, paddingHorizontal: Spacing.two, fontFamily: Fonts.regular, fontSize: 14, color: Colors.ink },
-  bringConfirm: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.ink },
-  callFootnote: { paddingTop: Spacing.two },
-  toolbarButton: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center', gap: 3, borderRightWidth: 2, borderRightColor: Colors.ink, paddingHorizontal: 2 },
-  toolbarButtonLast: { borderRightWidth: 0 },
-  toolbarButtonActive: { backgroundColor: Colors.ink },
-  toolbarLabel: { fontFamily: Fonts.bold, fontSize: 11.5, lineHeight: 20 },
-  publishBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderTopWidth: 2, borderTopColor: Colors.ink, backgroundColor: Colors.red, paddingHorizontal: Spacing.five, paddingTop: Spacing.three },
-  publishBarDisabled: { opacity: 0.55 },
-  publishCopy: { flex: 1, minWidth: 0, gap: 1 },
-  publishTitle: { fontFamily: Fonts.anton, fontSize: 31, lineHeight: 39, letterSpacing: 0.2, textTransform: 'uppercase', color: Colors.paper },
-  publishSubtitle: { fontFamily: Fonts.regular, fontSize: 12.5, lineHeight: 21, color: Colors.cream },
-  publishButton: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, ...Shadows.offsetSmall },
-  publishButtonConfirmed: { backgroundColor: Colors.ink },
-  sheetNote: { paddingVertical: Spacing.two },
-  sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  sheetTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.anton, fontSize: 38, lineHeight: 46, letterSpacing: -0.4, textTransform: 'uppercase' },
-  sheetClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper },
-  sheetSubtitle: { marginTop: -Spacing.one },
-  sheetSearch: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
-  sheetInput: { flex: 1, minWidth: 0, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 22, color: Colors.ink, paddingVertical: Spacing.two },
-  sheetTabs: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, overflow: 'hidden' },
-  sheetTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.paper, borderRightWidth: 2, borderRightColor: Colors.ink },
-  sheetTabLast: { borderRightWidth: 0 },
-  sheetTabActive: { backgroundColor: Colors.ink },
-  sheetTabLabel: { fontFamily: Fonts.extrabold, fontSize: 14, lineHeight: 22 },
-  choiceRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.two + 2, borderWidth: 2, borderColor: Colors.inkSoft, borderRadius: 8, backgroundColor: Colors.paper },
-  choiceMark: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8 },
-  choiceRowDisabled: { opacity: 0.45 },
-  choiceRowSelected: { borderColor: Colors.ink, borderWidth: 2, backgroundColor: Colors.paper, shadowColor: Colors.red, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3, boxShadow: '3px 3px 0 #D62718' },
-  choiceCopy: { flex: 1, minWidth: 0, gap: 1 },
-  choiceName: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 24 },
-  choiceCheck: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 6, backgroundColor: Colors.paper },
-  choiceCheckOn: { backgroundColor: Colors.ink },
-  createComuna: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.ink, borderRadius: 8 },
-  createComunaLabel: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23 },
-  sheetConfirm: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: Colors.red, borderRadius: 0, paddingHorizontal: Spacing.five, paddingVertical: Spacing.three, marginTop: Spacing.two, marginHorizontal: -Spacing.five },
-  sheetConfirmName: { fontFamily: Fonts.anton, fontSize: 26, lineHeight: 34, letterSpacing: 0.2, textTransform: 'uppercase' },
-  sheetConfirmCheck: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper },
-  optionRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
-  optionName: { fontFamily: Fonts.bold, fontSize: 15.5, lineHeight: 24 },
-  verify: { marginHorizontal: Spacing.five, padding: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
-  verifyText: { fontFamily: Fonts.regular, fontSize: 14, lineHeight: 22 },
-  verifyLink: { fontFamily: Fonts.bold, textDecorationLine: 'underline' },
+const styles = StyleSheet.create({flex: { flex: 1 },
+pressed: { opacity: 0.68 },
+content: { paddingTop: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.six },
+step: { paddingHorizontal: Spacing.five, gap: Spacing.three },
+stepHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+stepNumber: { minWidth: 30, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm, backgroundColor: Colors.red },
+stepNumberText: { fontFamily: Fonts.extrabold, fontSize: 12.5, lineHeight: 21, letterSpacing: 0.6 },
+stepLabel: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 21 },
+stepAside: { textAlign: 'right' },
+previewButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+previewButtonActive: { backgroundColor: Colors.ink },
+previewButtonLabel: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
+destinationCard: { position: 'relative', minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, padding: Spacing.two + 2, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, ...Shadows.offsetSmall },
+destinationMark: { borderWidth: 2, borderColor: Colors.ink },
+tape: { position: 'absolute', top: -9, left: -8, width: 68, height: 20, zIndex: 2, backgroundColor: Colors.straw, opacity: 0.96, borderWidth: 1, borderColor: Colors.strawDark, boxShadow: '2px 2px 0 rgba(22,18,15,0.12)', transform: [{ rotate: '-20deg' }] },
+tapePhoto: { width: 56, height: 16 },
+photoFrame: { position: 'relative', marginTop: Spacing.four },
+destinationCopy: { flex: 1, minWidth: 0, gap: 3 },
+destinationName: { fontFamily: Fonts.extrabold, fontSize: 17, lineHeight: 25 },
+visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+visibilityText: { flexShrink: 1, fontSize: 12.5, lineHeight: 21 },
+visibilityBlocked: { color: Colors.red, fontFamily: Fonts.bold },
+callBlockedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginHorizontal: Spacing.five, marginBottom: Spacing.two, padding: Spacing.three, borderWidth: 1.5, borderColor: Colors.red, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+callBlockedText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 20, color: Colors.ink },
+changeDestination: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: Spacing.one },
+changeLabel: { fontFamily: Fonts.bold, fontSize: 13.5, lineHeight: 21, textDecorationLine: 'underline' },
+typeGrid: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, overflow: 'hidden', backgroundColor: Colors.paper },
+typeTile: { flex: 1, minHeight: 112, padding: 6, gap: Spacing.two, borderRightWidth: 2, borderRightColor: Colors.ink },
+typeTileLast: { borderRightWidth: 0 },
+typeTileActive: { backgroundColor: Colors.ink },
+typeTileMarker: { position: 'absolute', top: 0, right: 0, width: 14, height: 14, backgroundColor: Colors.red },
+typeTileCopy: { gap: 1 },
+typeTileTitle: { fontFamily: Fonts.extrabold, fontSize: 15.5, lineHeight: 24 },
+typeTileTitleNarrow: { fontSize: 14.5, lineHeight: 23 },
+typeTileCaption: { fontSize: 12.5, lineHeight: 21 },
+previewBox: { gap: Spacing.two },
+editorShadow: { borderRadius: 8, ...Shadows.offset, boxShadow: '3px 3px 0 #16120F' },
+editorCard: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, overflow: 'hidden' },
+editorHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.three, backgroundColor: Colors.ink },
+editorCounter: { fontFamily: Fonts.mono, fontSize: 10.5, lineHeight: 19 },
+editorBody: { padding: Spacing.three, gap: Spacing.two },
+titleField: { gap: Spacing.one, paddingBottom: Spacing.two, borderBottomWidth: 2, borderBottomColor: Colors.ink },
+titleFieldHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+titleInput: { fontFamily: Fonts.extrabold, fontSize: 20, lineHeight: 28, color: Colors.ink, paddingVertical: 4 },
+input: { minHeight: 132, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 23, color: Colors.ink, paddingVertical: Spacing.one },
+editorTools: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+toolButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream },
+toolLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
+photoZone: { position: 'relative', minHeight: 178, overflow: 'hidden', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.strawLight, transform: [{ rotate: '-1.2deg' }] },
+photoPreview: { width: '100%', height: 220 },
+photoActions: { position: 'absolute', right: Spacing.two, bottom: Spacing.two, flexDirection: 'row', gap: Spacing.two },
+photoAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+photoEmpty: { flex: 1, minHeight: 178, alignItems: 'center', justifyContent: 'center', gap: Spacing.one },
+photoEmptyTitle: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23, color: Colors.muted },
+callCard: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, overflow: 'hidden' },
+callHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.three, backgroundColor: Colors.red },
+callMissing: { paddingTop: Spacing.two },
+callBody: { padding: Spacing.three, gap: Spacing.two },
+callCover: { height: 160, marginHorizontal: Spacing.three, marginTop: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden' },
+callCoverImage: { width: '100%', height: '100%' },
+callCoverRemove: { position: 'absolute', right: 8, bottom: 8, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.ink },
+callTitle: { fontFamily: Fonts.anton, fontSize: 28, lineHeight: 36, letterSpacing: -0.2, textTransform: 'uppercase', color: Colors.ink, paddingVertical: 0 },
+callDetails: { minHeight: 56, fontFamily: Fonts.regular, fontSize: 15.5, lineHeight: 22, color: Colors.ink },
+callLabel: { paddingTop: Spacing.two },
+dateRow: { flexDirection: 'row', gap: Spacing.two },
+dateField: { flex: 1.5 },
+timeField: { flex: 0.9 },
+quickDates: { flexDirection: 'row', gap: Spacing.two },
+quickChip: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream },
+quickChipActive: { backgroundColor: Colors.ink },
+quickChipLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
+callPlace: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream, paddingHorizontal: Spacing.three },
+callPlaceInput: { flex: 1, minWidth: 0, fontFamily: Fonts.regular, fontSize: 15.5, lineHeight: 21, color: Colors.ink, paddingVertical: Spacing.two },
+rulesCard: { padding: Spacing.three, gap: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+rulesTitle: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 24 },
+durationRow: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden' },
+durationChip: { flex: 1, minHeight: 47, alignItems: 'center', justifyContent: 'center', borderRightWidth: 2, borderRightColor: Colors.ink, backgroundColor: Colors.paper },
+durationChipActive: { backgroundColor: Colors.ink },
+durationLabel: { fontFamily: Fonts.bold, fontSize: 13.5, lineHeight: 21 },
+ruleDivider: { height: 1, backgroundColor: Colors.strawDark },
+topicPicker: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+topicPickerLabel: { flex: 1, minWidth: 0, fontFamily: Fonts.bold, fontSize: 15.5, lineHeight: 24 },
+topicTriggerCopy: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.one },
+topicSelected: { paddingVertical: 4, paddingHorizontal: 7, borderRadius: Radius.sm, backgroundColor: Colors.strawLight },
+topicSelectedLabel: { fontFamily: Fonts.bold, fontSize: 12.5, lineHeight: 21 },
+topicOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+topicOptionDisabled: { opacity: 0.45 },
+topicDone: { marginTop: Spacing.three },
+topicGroup: { paddingTop: Spacing.four, paddingBottom: Spacing.one },
+attachmentSection: { paddingHorizontal: Spacing.five, gap: Spacing.two },
+attachmentHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+eventPreview: { padding: Spacing.three, gap: 2, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+eventTitle: { fontFamily: Fonts.extrabold, fontSize: 15.5, lineHeight: 24 },
+inlineLink: { fontFamily: Fonts.bold, textDecorationLine: 'underline' },
+pdfNotice: { padding: Spacing.two, backgroundColor: Colors.strawLight, borderRadius: Radius.sm },
+attachmentActions: { flexDirection: 'row', gap: Spacing.two },
+flexAction: { flex: 1 },
+attachmentToolbar: { flexDirection: 'row', marginHorizontal: Spacing.five, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: Colors.paper },
+toolbarHint: { paddingHorizontal: Spacing.five, marginTop: -Spacing.three },
+callShadow: { borderRadius: 8, ...Shadows.offset, boxShadow: '3px 3px 0 #16120F' },
+whenGrid: { flexDirection: 'row', minHeight: 64, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: Colors.paper },
+whenCell: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 2, paddingHorizontal: 8, paddingVertical: 6, borderRightWidth: 2, borderRightColor: Colors.ink },
+whenCellActive: { backgroundColor: Colors.ink },
+whenCellLast: { borderRightWidth: 0 },
+whenLabel: { fontFamily: Fonts.monoSemibold, fontSize: 9.5, lineHeight: 18, letterSpacing: 0.35, textTransform: 'uppercase', color: Colors.muted },
+whenValue: { fontFamily: Fonts.anton, fontSize: 25, lineHeight: 33, letterSpacing: -0.2, textTransform: 'uppercase', color: Colors.ink },
+placeHint: { marginTop: -Spacing.one },
+placeSuggestions: { marginTop: -Spacing.one, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, overflow: 'hidden' },
+placeSuggestion: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+capacityTabs: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, overflow: 'hidden' },
+capacityTab: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRightWidth: 2, borderRightColor: Colors.ink, paddingHorizontal: 2 },
+capacityTabLast: { borderRightWidth: 0 },
+capacityTabActive: { backgroundColor: Colors.ink },
+capacityTabLabel: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 21 },
+counterRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingTop: Spacing.one },
+counterCopy: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+counterNumber: { fontFamily: Fonts.anton, fontSize: 42, lineHeight: 50, color: Colors.red, letterSpacing: -0.6 },
+counterPeople: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23 },
+counterActions: { flexDirection: 'row', gap: Spacing.two },
+counterButton: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+counterButtonDark: { backgroundColor: Colors.ink },
+capacityMarks: { flexDirection: 'row', gap: Spacing.one },
+capacityMark: { flex: 1, height: 20, borderWidth: 2, borderColor: Colors.ink, borderRadius: 2, backgroundColor: Colors.paper },
+capacityMarkFilled: { backgroundColor: Colors.ink },
+bringHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Spacing.two },
+bringChips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.two },
+bringChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.three, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper },
+bringChipActive: { backgroundColor: Colors.ink },
+bringChipLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
+bringAdd: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.three, borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.ink, borderRadius: Radius.sm },
+bringAddLabel: { fontFamily: Fonts.extrabold, fontSize: 13.5, lineHeight: 21 },
+bringAddRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+bringInput: { width: 112, minHeight: 44, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, paddingHorizontal: Spacing.two, fontFamily: Fonts.regular, fontSize: 14, color: Colors.ink },
+bringConfirm: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.ink },
+callFootnote: { paddingTop: Spacing.two },
+pollCount: { fontFamily: Fonts.mono, fontSize: 10.5, lineHeight: 19 },
+dashedRule: { borderBottomWidth: 2, borderStyle: 'dashed', borderBottomColor: Colors.ink },
+toolbarButton: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center', gap: 3, borderRightWidth: 2, borderRightColor: Colors.ink, paddingHorizontal: 2 },
+toolbarButtonLast: { borderRightWidth: 0 },
+toolbarButtonActive: { backgroundColor: Colors.ink },
+toolbarLabel: { fontFamily: Fonts.bold, fontSize: 11.5, lineHeight: 20 },
+sheetNote: { paddingVertical: Spacing.two },
+sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+sheetTitle: { flex: 1, minWidth: 0, fontFamily: Fonts.anton, fontSize: 38, lineHeight: 46, letterSpacing: -0.4, textTransform: 'uppercase' },
+sheetClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper },
+sheetSubtitle: { marginTop: -Spacing.one },
+sheetSearch: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
+sheetInput: { flex: 1, minWidth: 0, fontFamily: Fonts.regular, fontSize: 16, lineHeight: 22, color: Colors.ink, paddingVertical: Spacing.two },
+sheetTabs: { flexDirection: 'row', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, overflow: 'hidden' },
+sheetTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.paper, borderRightWidth: 2, borderRightColor: Colors.ink },
+sheetTabLast: { borderRightWidth: 0 },
+sheetTabActive: { backgroundColor: Colors.ink },
+sheetTabLabel: { fontFamily: Fonts.extrabold, fontSize: 14, lineHeight: 22 },
+choiceRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.two + 2, borderWidth: 2, borderColor: Colors.inkSoft, borderRadius: 8, backgroundColor: Colors.paper },
+choiceMark: { borderWidth: 2, borderColor: Colors.ink, borderRadius: 8 },
+choiceRowDisabled: { opacity: 0.45 },
+choiceRowSelected: { borderColor: Colors.ink, borderWidth: 2, backgroundColor: Colors.paper, shadowColor: Colors.red, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3, boxShadow: '3px 3px 0 #D62718' },
+choiceCopy: { flex: 1, minWidth: 0, gap: 1 },
+choiceName: { fontFamily: Fonts.extrabold, fontSize: 16, lineHeight: 24 },
+choiceCheck: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 6, backgroundColor: Colors.paper },
+choiceCheckOn: { backgroundColor: Colors.ink },
+createComuna: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.ink, borderRadius: 8 },
+createComunaLabel: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 23 },
+sheetConfirm: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: Colors.red, borderRadius: 0, paddingHorizontal: Spacing.five, paddingVertical: Spacing.three, marginTop: Spacing.two, marginHorizontal: -Spacing.five },
+sheetConfirmName: { fontFamily: Fonts.anton, fontSize: 26, lineHeight: 34, letterSpacing: 0.2, textTransform: 'uppercase' },
+sheetConfirmCheck: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.ink, borderRadius: 8, backgroundColor: Colors.paper },
+optionRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },
+optionName: { fontFamily: Fonts.bold, fontSize: 15.5, lineHeight: 24 },
+verify: { marginHorizontal: Spacing.five, padding: Spacing.three, borderWidth: 1.5, borderColor: Colors.ink, backgroundColor: Colors.paper },
+verifyText: { fontFamily: Fonts.regular, fontSize: 14, lineHeight: 22 },
+verifyLink: { fontFamily: Fonts.bold, textDecorationLine: 'underline' },
 });
