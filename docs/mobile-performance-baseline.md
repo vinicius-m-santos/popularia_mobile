@@ -252,6 +252,9 @@ registrar o motivo.
    lista; confirmar `refreshCount`, requests e `onLoad`/commits.
 7. **Sheet**: abrir/fechar o menu "⋯", o sheet de denúncia e voltar; medir
    frames nativos e requests disparados. Teclado fica para o roteiro de acessibilidade.
+   A decisão de manter um `Modal` por folha e o protocolo de trace estão em
+   `docs/pop-62-bottom-sheet-host.md`; a linha "Sheet abrir/fechar" abaixo
+   continua **NÃO MEDIDA**.
 8. **Fotos**: abrir uma foto no feed e em tela cheia; medir frames nativos,
    memória e tempo de carregamento. Repetir com cache quente.
 9. **Vídeo**: com rede Wi-Fi e com throttling lento, medir TTFF (primeiro
