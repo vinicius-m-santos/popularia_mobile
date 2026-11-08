@@ -17,6 +17,7 @@ import { SingleLineText } from '@/components/single-line-text';
 import { Badge } from '@/components/badge';
 import { DayRule } from '@/components/day-rule';
 import { EditorialAction } from '@/components/editorial-action';
+import { EditorialBar } from '@/components/editorial-bar';
 import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { PillButton } from '@/components/pill-button';
@@ -525,23 +526,28 @@ type ProfileBarProps = { isMe: boolean; canGoBack: boolean; handle?: string; onM
 
 function ProfileBar({ isMe, canGoBack, handle, onMore, onBack, onShare }: ProfileBarProps) {
   return (
-    <View style={styles.bar}>
-      {canGoBack ? <IconButton icon="back" accessibilityLabel="Voltar" onPress={onBack ?? goBack} /> : <View style={styles.barSpacer} />}
-      {canGoBack ? <View style={styles.barDivider} /> : null}
-      <AppText variant="label" style={styles.barHandle} numberOfLines={1} accessibilityRole="header">
-        {handle ? `@${handle}` : 'Perfil'}
-      </AppText>
-      {isMe ? (
+    <EditorialBar
+      onBack={canGoBack ? onBack ?? goBack : undefined}
+      divider={canGoBack}
+      title={
+        <AppText variant="label" style={styles.barHandle} numberOfLines={1} accessibilityRole="header">
+          {handle ? `@${handle}` : 'Perfil'}
+        </AppText>
+      }
+      actions={isMe ? (
         <View style={styles.barActions}>
           <IconButton icon="shareNodes" accessibilityLabel="Compartilhar perfil" onPress={() => onShare?.()} />
           <IconButton icon="settings" accessibilityLabel="Conta e sessões" onPress={() => router.push('/conta')} />
         </View>
       ) : onMore ? (
         <IconButton icon="more" size={20} accessibilityLabel="Mais opções do perfil" onPress={onMore} />
-      ) : (
-        <View style={styles.barSpacerRight} />
-      )}
-    </View>
+      ) : undefined}
+      reserveActionSpace={!isMe && !onMore}
+      minHeight={58}
+      inset={Spacing.one}
+      gap={Spacing.two}
+      rule={2}
+    />
   );
 }
 
@@ -642,29 +648,7 @@ function RoleTag({ label }: { label: string }) {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.one,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.ink,
-    backgroundColor: Colors.cream,
-  },
-  barDivider: {
-    width: 1.5,
-    height: 28,
-    backgroundColor: Colors.ink,
-  },
-  barSpacer: {
-    width: 44,
-  },
-  barSpacerRight: {
-    width: 44,
-  },
   barHandle: {
-    flex: 1,
     fontSize: 12.5,
     lineHeight: 18,
     letterSpacing: 0.4,

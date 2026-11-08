@@ -6,6 +6,7 @@ import DiscussionScreen from '@/features/discussion/discussion-screen';
 import { REPLY_EXPANSION_ANIMATION } from '@/features/discussion/reply-expansion-motion';
 import { haptic } from '@/lib/haptics';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
+import { goBack } from '@/lib/routes';
 import type { CommentWithAuthor, FeedItem } from '@/types/models';
 
 import { createComment, getComments, setCommentSupport } from '../api';
@@ -235,5 +236,11 @@ describe('estabilidade das linhas da discussão', () => {
 
     await waitFor(() => expect(createComment).toHaveBeenCalledTimes(1));
     expect(haptic).toHaveBeenCalledWith('success');
+  });
+
+  it('volta pelo chrome da discussão', async () => {
+    await render(<DiscussionScreen />);
+    await fireEvent.press(screen.getByLabelText('Voltar'));
+    expect(goBack).toHaveBeenCalledTimes(1);
   });
 });

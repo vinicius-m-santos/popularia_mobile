@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { router } from 'expo-router';
 
 import { settleQueryClient } from '@/features/events/query-test-utils';
+import { goBack } from '@/lib/routes';
 import { queryClient } from '@/lib/query/client';
 import { discoveryKeys } from '@/lib/query/keys';
 
@@ -368,5 +369,11 @@ describe('página de Assunto', () => {
     expect(screen.queryByText('Em destaque')).toBeNull();
     await fireEvent.press(screen.getByText('Descobrir outros assuntos'));
     expect(router.navigate).toHaveBeenCalledWith('/explorar');
+  });
+
+  it('volta pelo chrome do assunto', async () => {
+    await render(<TopicScreen />);
+    await fireEvent.press(screen.getByLabelText('Voltar'));
+    expect(goBack).toHaveBeenCalledTimes(1);
   });
 });
