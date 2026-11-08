@@ -45,6 +45,9 @@ Os testes ficam em pastas `__tests__/` ao lado do código (nunca em `src/app/`, 
 o cliente HTTP (renovação de sessão), a paginação, a participação em comunas e o contrato com a API
 (caminhos, corpos enviados e conversão das respostas).
 
+Definition of Done por ticket, gates 0–5, baseline reproduzível e política de
+tracing do Sentry: `docs/pop-67-quality-gates.md`.
+
 Para adicionar pacotes, use sempre `npx expo install <pacote>`: ele escolhe versões compatíveis com o SDK.
 
 ## Estrutura
