@@ -138,6 +138,10 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   const contentStyle = StyleSheet.flatten([styles.content, creation ? styles.creationContent : null, report ? styles.reportContent : null, { paddingBottom }]);
   const backgroundStyle = StyleSheet.flatten([styles.background, creation ? styles.creationBackground : null, report ? styles.reportBackground : null, surface === 'cream' ? styles.creamBackground : null]);
   if (!mounted) return null;
+  // POP-62: o Modal nativo por folha é intencional. Ele entrega back, foco modal,
+  // teclado e empilhamento sem uma fila própria; um host global medido evitaria
+  // só ~1 ms de remontagem JS por reabertura, e o custo nativo ainda não foi medido.
+  // Ver docs/pop-62-bottom-sheet-host.md antes de trocar esta apresentação.
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close} testID="bottom-sheet-modal">
     <GestureHandlerRootView
       testID="bottom-sheet-root"

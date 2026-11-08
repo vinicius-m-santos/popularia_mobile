@@ -122,6 +122,14 @@ describe('BottomSheet', () => {
     expect(screen.getByText('Comuna B')).toBeTruthy();
   });
 
+  it('fecha pelo voltar do Android quando dismissível e libera o conteúdo', async () => {
+    const close = jest.fn();
+    await render(<BottomSheet visible onClose={close}><AppText>Conteúdo</AppText></BottomSheet>);
+    await fireEvent(screen.getByTestId('bottom-sheet-modal'), 'requestClose');
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Conteúdo')).toBeNull();
+  });
+
   it('não fecha por pan nem pelo voltar do Android quando não está dismissível', async () => {
     const close = jest.fn();
     await render(<BottomSheet visible dismissible={false} onClose={close}><AppText>Enviando</AppText></BottomSheet>);
