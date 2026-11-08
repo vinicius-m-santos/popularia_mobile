@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import { ToastProvider } from '@/components/toast';
@@ -29,11 +30,14 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 20, bottom: 0, left: 0, right: 0 }) };
 });
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
   return {
-    router: { push: (...args: unknown[]) => mockPush(...args), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) },
+    router: { push: (...args: unknown[]) => mockPush(...args), replace: (...args: unknown[]) => mockReplace(...args), back: jest.fn(), canGoBack: jest.fn(() => true) },
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
+    useLocalSearchParams: () => mockParams,
     useSegments: () => ['(tabs)'],
   };
 });
@@ -73,6 +77,9 @@ function renderScreen() {
 
 beforeEach(() => {
   process.env.EXPO_PUBLIC_APP_ENV = 'development';
+  delete process.env.EXPO_PUBLIC_PERFORMANCE_DEVICE_EXPORT;
+  mockParams = {};
+  mockReplace.mockClear();
   setPerformanceInstrumentationOverride(null);
   resetPerformanceSession();
   jest.clearAllMocks();
@@ -81,6 +88,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setPerformanceInstrumentationOverride(null);
+  delete process.env.EXPO_PUBLIC_PERFORMANCE_DEVICE_EXPORT;
   if (originalEnvironment === undefined) delete process.env.EXPO_PUBLIC_APP_ENV;
   else process.env.EXPO_PUBLIC_APP_ENV = originalEnvironment;
 });
@@ -163,6 +171,46 @@ describe('tela de diagnóstico de performance', () => {
 
     expect(getPerformanceSnapshot().sessionId).not.toBeNull();
     expect(mockPush).toHaveBeenCalledWith('/diagnostico-performance-harness');
+  });
+
+  it('inicia uma sessão e grava o snapshot no deep link do coletor', async () => {
+    process.env.EXPO_PUBLIC_PERFORMANCE_DEVICE_EXPORT = '1';
+    mockParams = { collector: 'reset', nonce: 'run-1', next: '/' };
+
+    await renderScreen();
+
+    await waitFor(() => expect(getPerformanceSnapshot().sessionId).not.toBeNull());
+    await waitFor(() => expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+      'file:///cache/popularia-performance-diagnostico.json',
+      expect.stringContaining('"enabled": true'),
+    ));
+    expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('grava o snapshot existente sem zerar a sessão no modo snapshot', async () => {
+    process.env.EXPO_PUBLIC_PERFORMANCE_DEVICE_EXPORT = '1';
+    setPerformanceInstrumentationOverride(true);
+    resetPerformanceSession();
+    seedMeasurements();
+    const sessionId = getPerformanceSnapshot().sessionId;
+    mockParams = { collector: 'snapshot', nonce: 'run-2' };
+
+    await renderScreen();
+
+    await waitFor(() => expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+      'file:///cache/popularia-performance-diagnostico.json',
+      expect.stringContaining(sessionId!),
+    ));
+    expect(getPerformanceSnapshot().sessionId).toBe(sessionId);
+  });
+
+  it('ignora o deep link do coletor sem a flag de exportação', async () => {
+    mockParams = { collector: 'reset', nonce: 'run-3' };
+
+    await renderScreen();
+
+    expect(getPerformanceSnapshot().sessionId).toBeNull();
+    expect(FileSystem.writeAsStringAsync).not.toHaveBeenCalled();
   });
 
   it('não expõe a tela em produção', async () => {

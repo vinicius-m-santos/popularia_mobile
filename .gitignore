@@ -32,6 +32,9 @@ yarn-error.*
 /blob-report/
 /playwright/.cache/
 
+# Performance Android (prints, XML, snapshots e relatórios são evidência local)
+/artifacts/performance/
+
 # macOS
 .DS_Store
 *.pem

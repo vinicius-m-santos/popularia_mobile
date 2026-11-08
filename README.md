@@ -38,6 +38,7 @@ Atalhos no terminal: `r` recarrega e `m` abre o menu de desenvolvimento.
 | `npm run lint`      | ESLint (`eslint-config-expo`)   |
 | `npm run typecheck` | Verificação de tipos (`tsc`)    |
 | `npm test`          | Testes (Jest com `jest-expo`)   |
+| `npm run perf:android` | Coleta ADB de performance por cenário (POP-72; ver `docs/pop-72-performance-metrics-automation.md`) |
 | `npx expo-doctor`   | Diagnóstico de dependências     |
 
 Os testes ficam em pastas `__tests__/` ao lado do código (nunca em `src/app/`, que é só de rotas) e cobrem
