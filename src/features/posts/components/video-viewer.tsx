@@ -17,6 +17,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { FeedItem } from '@/types/models';
 
+import { useVideoHold, VIDEO_HOLD_DELAY_MS } from './video-hold';
 import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
 
 /** O que a tela cheia mostra do post: autoria, contexto e as ações. */
@@ -47,6 +48,8 @@ type VideoViewerProps = {
   playing: boolean;
   ended: boolean;
   muted: boolean;
+  /** O 2× está ativo; a tela cheia também mostra o estado. */
+  holding: boolean;
   /** Primeiro quadro já conhecido: cobre a nova surface até ela receber o quadro atual. */
   poster?: VideoThumbnail | null;
   chrome?: VideoChrome;
@@ -73,13 +76,16 @@ export const VIDEO_VIEWER_RETURN_TIMING = {
  * Arrastar para baixo devolve ao feed.
  */
 export function VideoViewer({
-  visible, surfaceKey, player, VideoView, label, remaining, playing, ended, muted, poster, chrome,
+  visible, surfaceKey, player, VideoView, label, remaining, playing, ended, muted, holding, poster, chrome,
   onSurfaceFirstFrame, onClose, onTogglePlay, onToggleMute, onHoldStart, onHoldEnd,
 }: VideoViewerProps) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const hold = useVideoHold(onHoldStart, onHoldEnd);
   const dragY = useSharedValue(0);
   const close = () => {
+    // Fechar encerra o 2× mesmo que o toque ainda esteja pressionado.
+    hold.stop();
     dragY.value = 0;
     onClose();
   };
@@ -118,11 +124,16 @@ export function VideoViewer({
 
           <Pressable
             onPress={onTogglePlay}
-            onLongPress={onHoldStart}
-            delayLongPress={220}
-            onPressOut={onHoldEnd}
+            onPressIn={hold.begin}
+            onPressMove={hold.track}
+            onTouchMove={hold.track}
+            onLongPress={hold.activate}
+            delayLongPress={VIDEO_HOLD_DELAY_MS}
+            onPressOut={hold.stop}
+            onTouchCancel={hold.stop}
             accessibilityRole="button"
             accessibilityLabel={ended ? `${label}. Ver de novo` : playing ? `${label}. Pausar` : `${label}. Reproduzir`}
+            accessibilityHint={ended ? undefined : 'Segure para reproduzir em 2×'}
             style={styles.tap}>
             {ended ? (
               <View style={styles.replay}>
@@ -133,7 +144,19 @@ export function VideoViewer({
           </Pressable>
 
           <View style={[styles.top, { top: insets.top }]}>
-            <View style={styles.counter}><AppText variant="label" color={Colors.paper}>{remaining}</AppText></View>
+            <View style={styles.topLeft}>
+              <View style={styles.counter}><AppText variant="label" color={Colors.paper}>{remaining}</AppText></View>
+              {holding || hold.holding ? (
+                <View
+                  style={styles.speed}
+                  pointerEvents="none"
+                  accessible
+                  accessibilityLabel="Reprodução em 2×"
+                  accessibilityLiveRegion="polite">
+                  <AppText variant="label" color={Colors.paper}>2×</AppText>
+                </View>
+              ) : null}
+            </View>
             <View style={styles.topActions}>
               <Pressable
                 onPress={onToggleMute}
@@ -237,7 +260,9 @@ const styles = StyleSheet.create({
   stage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   tap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   top: { position: 'absolute', top: 0, left: 0, right: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: Spacing.five, paddingRight: Spacing.three },
+  topLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   counter: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 5 },
+  speed: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 5 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   round: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
   replay: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, backgroundColor: Colors.paper },
