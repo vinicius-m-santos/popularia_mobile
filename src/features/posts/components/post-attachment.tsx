@@ -1,5 +1,5 @@
 import { useEvent, useEventListener } from 'expo';
-import { Image, type ImageRef } from 'expo-image';
+import { Image, type ImageLoadEventData, type ImageRef } from 'expo-image';
 import type { VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
 import { AppState, Dimensions, Platform, Pressable, PixelRatio, StyleSheet, View } from 'react-native';
@@ -12,7 +12,10 @@ import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { durationLabel, remainingLabel, type PostMediaDto } from '@/features/posts/post-media';
 import { haptic } from '@/lib/haptics';
 import {
+  performanceInstrumentationEnabled,
   performanceNow,
+  recordFeedPhotoError,
+  recordFeedPhotoLoaded,
   recordVideoError,
   recordVideoFirstFrame,
   recordVideoFullscreen,
@@ -26,6 +29,7 @@ import {
 import { posterCache } from '../poster-cache';
 import { PhotoViewer } from './photo-viewer';
 import { measurePhotoOrigin, type WindowRect } from './photo-viewer-transition';
+import { photoRenderMetrics } from './photo-render-metrics';
 import { VideoViewer, type VideoChrome } from './video-viewer';
 import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
 
@@ -142,6 +146,17 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
   const previewRequest = useRef(0);
   const previewLoading = useRef(false);
   const viewerCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Medição do tamanho efetivo do feed (POP-65). O layout fica em DIP; a
+  // conversão para pixels físicos acontece no onLoad, quando a fonte também é
+  // conhecida. Um cartão reciclado não reaproveita o quadro do anterior.
+  const frameSize = useRef<{ width: number; height: number } | null>(null);
+  const loadStartedAt = useRef(performanceNow());
+  const feedLoadRecordedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    loadStartedAt.current = performanceNow();
+    feedLoadRecordedFor.current = null;
+  }, [media.id]);
 
   useEffect(() => () => {
     // Uma leitura em voo não pode atualizar estado depois do unmount.
@@ -211,6 +226,63 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
     setOpen(true);
   };
 
+  const onPhotoLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
+    const { width, height } = event.nativeEvent.layout;
+    frameSize.current = width > 0 && height > 0 ? { width, height } : null;
+  };
+
+  const onPhotoLoad = (event: ImageLoadEventData) => {
+    setStatus('ready');
+    if (!performanceInstrumentationEnabled() || feedLoadRecordedFor.current === media.id) return;
+    const source = event?.source;
+    if (!source || source.width <= 0 || source.height <= 0) return;
+    feedLoadRecordedFor.current = media.id;
+    const layout = frameSize.current;
+    const pixelRatio = PixelRatio.get();
+    const metrics = layout
+      ? photoRenderMetrics({
+        sourceWidth: source.width,
+        sourceHeight: source.height,
+        layoutWidth: layout.width,
+        layoutHeight: layout.height,
+        pixelRatio,
+      })
+      : null;
+    // A API conhece as dimensões do upload; o evento pode reportar o bitmap já
+    // reduzido pelo decoder. Guardar os dois separa "quanto a fonte tinha" de
+    // "quanto o nativo realmente decodificou".
+    const uploadMetrics = layout && media.width > 0 && media.height > 0
+      ? photoRenderMetrics({
+        sourceWidth: media.width,
+        sourceHeight: media.height,
+        layoutWidth: layout.width,
+        layoutHeight: layout.height,
+        pixelRatio,
+      })
+      : null;
+    recordFeedPhotoLoaded(media.id, {
+      elapsedMs: performanceNow() - loadStartedAt.current,
+      cacheType: event.cacheType ?? 'none',
+      sourceWidth: source.width,
+      sourceHeight: source.height,
+      ...(uploadMetrics ? {
+        uploadWidth: media.width,
+        uploadHeight: media.height,
+        uploadBytes: uploadMetrics.decodedBytes,
+        uploadCoverRatio: uploadMetrics.sourceCoverRatio,
+      } : {}),
+      ...(metrics ? {
+        renderedWidthPx: metrics.renderedWidthPx,
+        renderedHeightPx: metrics.renderedHeightPx,
+        neededWidthPx: metrics.neededWidthPx,
+        neededHeightPx: metrics.neededHeightPx,
+        decodedBytes: metrics.decodedBytes,
+        neededBytes: metrics.neededBytes,
+        sourceCoverRatio: metrics.sourceCoverRatio,
+      } : {}),
+    });
+  };
+
   const closeViewer = () => {
     previewRequest.current += 1;
     previewLoading.current = false;
@@ -229,6 +301,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
       ref={frame}
       onPressIn={measureOrigin}
       onPress={openViewer}
+      onLayout={onPhotoLayout}
       accessibilityRole="button"
       accessibilityLabel="Abrir foto em tela cheia"
       style={({ pressed }) => [styles.photoFrame, framed && styles.framed, { aspectRatio: mediaRatio(media) }, pressed && styles.pressed]}>
@@ -242,8 +315,8 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
         cachePolicy="memory-disk"
         recyclingKey={media.id}
         transition={180}
-        onLoad={() => setStatus('ready')}
-        onError={() => setStatus('error')}
+        onLoad={onPhotoLoad}
+        onError={() => { setStatus('error'); recordFeedPhotoError(media.id); }}
         accessible={false}
         style={StyleSheet.absoluteFill}
       />

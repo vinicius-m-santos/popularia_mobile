@@ -16,6 +16,7 @@ O módulo `src/lib/performance/` coleta, em memória e apenas quando ligado:
 | Commits e duração de render de `PostCard` e `CommentRow` | React `Profiler` em `src/lib/performance/profiler.tsx` | 400 instâncias agregadas |
 | `FlashList.onLoad` (`elapsedTimeInMs`) por lista | `PopulariaList` | 100 registros |
 | Players montados/tocando, play/pause, erro e tempo até o primeiro quadro | `post-attachment.tsx` | 300 eventos |
+| Fotos do feed: fonte, render efetivo, bitmap estimado, cache e até `onLoad` | `post-attachment.tsx` | 240 eventos (POP-65) |
 
 O caminho da API é gravado **sem query string**; tokens, corpos, conteúdo de
 posts, comentários e URLs assinadas não entram na coleta. Nada é enviado ao
@@ -113,7 +114,10 @@ O que a tela faz:
   o fluxo normal é iniciar, navegar pelo app e voltar;
 - **Abrir harness de 20 posts**: monta o `PerformanceQaHarness` com o fixture de
   QA na rota `/diagnostico-performance-harness`, sem precisar de uma entrada
-  temporária no app.
+  temporária no app;
+- **Abrir feed de 120 fotos**: monta o `PhotoQaHarness` na rota
+  `/diagnostico-performance-fotos`, com fotos de até 2048 px e o modo de
+  comparação com variante simulada.
 
 Os números exibidos são exatamente os do snapshot: requests lógicas, tentativas
 HTTP, retries (tentativas extras das requests concluídas), requests por tela,
@@ -208,6 +212,15 @@ sério, sirva assets próprios com dimensões, duração e cache conhecidos.
 O harness usa `mediaVisible={false}` de propósito: o cenário de 20 cartões mede o
 fanout de like/render sem 20 players concorrentes. O cenário de vídeo é medido
 separadamente, com um ou poucos vídeos visíveis.
+
+Para a foto de 2048 px (POP-65), o harness `PhotoQaHarness` monta 120 fotos de
+oito proporções em uma `FlashList` na rota `/diagnostico-performance-fotos`. Ele
+registra a fonte recebida, o layout em pixels físicos, o bitmap necessário para
+cobrir o quadro, a razão fonte/render e o cache de cada `onLoad`. O modo
+**Variante 512** serve uma simulação de 1/4 das dimensões em sessão separada;
+não é um contrato novo da API. O cenário ADB `photo-feed` coleta PSS e frames
+desse feed. Protocolo, modelo de memória e critérios de intervenção estão em
+`docs/pop-65-photo-decode-2048.md`.
 
 ## Matriz de build e aparelho
 

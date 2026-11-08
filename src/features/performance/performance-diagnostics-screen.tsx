@@ -24,6 +24,7 @@ import {
   commitComponentDiagnostics,
   commitTotals,
   environmentLabel,
+  feedPhotoDiagnostics,
   formatBytes,
   formatElapsed,
   formatMs,
@@ -125,6 +126,20 @@ function DiagnosticsContent() {
     router.push('/diagnostico-performance-harness' as never);
   };
 
+  const openPhotoHarness = () => {
+    // O feed de fotos também depende de uma sessão: sem ela, as imagens
+    // carregariam sem registrar o tamanho efetivo do render.
+    if (!hasSession) {
+      if (!startPerformanceMeasurement()) {
+        toast.show('Não foi possível iniciar a medição neste ambiente.');
+        return;
+      }
+      toast.show('Medição iniciada.');
+      refresh();
+    }
+    router.push('/diagnostico-performance-fotos' as never);
+  };
+
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
@@ -216,7 +231,7 @@ function DiagnosticsContent() {
           </View>
         )}
 
-        <HarnessSection onOpen={openHarness} />
+        <HarnessSection onOpen={openHarness} onOpenPhotos={openPhotoHarness} />
       </ScrollView>
     </Screen>
   );
@@ -230,6 +245,7 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
   const requests = recentRequests(snapshot);
   const video = videoDiagnostics(snapshot);
   const photos = photoDiagnostics(snapshot);
+  const feedPhotos = feedPhotoDiagnostics(snapshot);
   const retries = totalRequestRetries(snapshot);
 
   return (
@@ -414,6 +430,65 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
       </View>
 
       <View style={styles.section}>
+        <SectionHeading appearance="editorial" label="Fotos no feed" />
+        <View style={styles.metricGrid}>
+          <MetricCard testID="metric-feed-photo-loads" label="Carregamentos" value={String(feedPhotos.loadCount)} detail={`${feedPhotos.errorCount} erros`} />
+          <MetricCard
+            testID="metric-feed-photo-load"
+            label="Até onLoad"
+            value={feedPhotos.loadCount > 0 ? formatMs(feedPhotos.averageLoadMs) : '—'}
+            detail={feedPhotos.loadCount > 0 ? `máx. ${formatMs(feedPhotos.loadMaxMs)}` : undefined}
+          />
+          <MetricCard
+            testID="metric-feed-photo-cache"
+            label="Cache"
+            value={`${feedPhotos.memoryCacheHits} memória`}
+            detail={`${feedPhotos.diskCacheHits} disco · ${feedPhotos.networkLoads} rede`}
+          />
+          <MetricCard
+            testID="metric-feed-photo-decodes"
+            label="Decodes estimados"
+            value={String(feedPhotos.decodeEstimate)}
+            detail="carga − hit de memória"
+          />
+          <MetricCard
+            testID="metric-feed-photo-upload-bytes"
+            label="Maior bitmap do upload"
+            value={feedPhotos.largestUploadBytes > 0 ? formatBytes(feedPhotos.largestUploadBytes) : '—'}
+            detail="metadado da API"
+          />
+          <MetricCard
+            testID="metric-feed-photo-decoded-bytes"
+            label="Maior bitmap decodificado"
+            value={feedPhotos.largestDecodedBytes > 0 ? formatBytes(feedPhotos.largestDecodedBytes) : '—'}
+            detail="evento de carga"
+          />
+          <MetricCard
+            testID="metric-feed-photo-needed-bytes"
+            label="Necessário no render"
+            value={feedPhotos.largestNeededBytes > 0 ? formatBytes(feedPhotos.largestNeededBytes) : '—'}
+            detail="pior caso medido"
+          />
+          <MetricCard
+            testID="metric-feed-photo-ratio"
+            label="Razão upload/render"
+            value={feedPhotos.maxUploadCoverRatio > 0 ? `${feedPhotos.maxUploadCoverRatio.toFixed(2).replace('.', ',')}×` : '—'}
+            detail={`${feedPhotos.over2xUploadCount} acima de 2×`}
+          />
+          <MetricCard
+            testID="metric-feed-photo-decoded-ratio"
+            label="Decodificado/render"
+            value={feedPhotos.maxSourceCoverRatio > 0 ? `${feedPhotos.maxSourceCoverRatio.toFixed(2).replace('.', ',')}×` : '—'}
+            detail={`${feedPhotos.over2xCount} acima de 2×`}
+          />
+          <MetricCard testID="metric-feed-photo-measured" label="Com render medido" value={String(feedPhotos.renderMeasuredCount)} detail={`de ${feedPhotos.loadCount} cargas`} />
+        </View>
+        <AppText variant="caption">
+          Upload vem das dimensões da API; decodificado é o bitmap que o evento de carga reportou. Necessário é o bitmap que cobre o quadro em pixels físicos (DPR incluído) preservando a proporção da fonte; um decoder que recorta antes de decodificar pode usar menos. Se decodificado/render for ~1 e upload/render for maior, o downsample nativo aconteceu. Tudo é estimativa por pixels, não PSS.
+        </AppText>
+      </View>
+
+      <View style={styles.section}>
         <SectionHeading appearance="editorial" label="Pôsteres de vídeo" />
         <View style={styles.metricGrid}>
           <MetricCard testID="metric-poster-cache" label="Cache" value={`${snapshot.posters.size}/${snapshot.posters.capacity}`} detail={`${snapshot.posters.retained} em uso`} />
@@ -435,7 +510,7 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
   );
 }
 
-function HarnessSection({ onOpen }: { onOpen: () => void }) {
+function HarnessSection({ onOpen, onOpenPhotos }: { onOpen: () => void; onOpenPhotos: () => void }) {
   return (
     <View style={styles.section}>
       <SectionHeading appearance="editorial" label="Harness de renderização" />
@@ -451,6 +526,20 @@ function HarnessSection({ onOpen }: { onOpen: () => void }) {
           iconPosition="trailing"
           labelVariant="button"
           onPress={onOpen}
+        />
+      </View>
+      <View style={styles.harnessCard}>
+        <AppText style={styles.harnessTitle}>Feed de 120 fotos de até 2048 px</AppText>
+        <AppText variant="caption">
+          Fotos de tamanhos e proporções variados em uma lista virtualizada, com o tamanho efetivo do render instrumentado.
+          Permite comparar a fonte original com uma variante simulada de 512 px.
+        </AppText>
+        <EditorialAction
+          label="Abrir feed de 120 fotos"
+          icon="arrowRight"
+          iconPosition="trailing"
+          labelVariant="button"
+          onPress={onOpenPhotos}
         />
       </View>
     </View>

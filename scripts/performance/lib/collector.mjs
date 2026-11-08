@@ -298,7 +298,11 @@ async function runSteps({ controller, scenario, options, runDir, evidence, error
     if (error) errors.push(error);
 
     const isLast = index === (scenario.steps ?? []).length - 1;
-    if (!isLast && (index + 1) % 4 === 0) samples.push(await captureSample(controller));
+    // Cenários de memória (ex.: feed de fotos) amostram a cada passo; os demais
+    // mantêm a cadência de 4 passos para não poluir o gfxinfo.
+    if (!isLast && (scenario.sampleMemoryEveryStep || (index + 1) % 4 === 0)) {
+      samples.push(await captureSample(controller));
+    }
   }
 
   return { steps, samples, stepScreenshots };

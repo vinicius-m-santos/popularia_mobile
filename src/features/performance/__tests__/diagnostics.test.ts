@@ -8,6 +8,7 @@ import {
   finishRequest,
   getPerformanceSnapshot,
   performanceDiagnosticsAvailable,
+  recordFeedPhotoLoaded,
   recordListLoad,
   recordPhotoDisplayed,
   recordPhotoLoaded,
@@ -27,6 +28,7 @@ import {
   commitComponentDiagnostics,
   commitTotals,
   formatBytes,
+  feedPhotoDiagnostics,
   formatElapsed,
   formatMs,
   photoDiagnostics,
@@ -206,6 +208,57 @@ describe('agregações exibidas na tela', () => {
       averageExitFirstFrameMs: 15,
       maxExitFirstFrameMs: 20,
     });
+  });
+
+  it('resume a foto do feed e separa carga de decodificação', () => {
+    startPerformanceMeasurement();
+    recordFeedPhotoLoaded('f1', {
+      elapsedMs: 40,
+      cacheType: 'memory',
+      sourceWidth: 2048,
+      sourceHeight: 1365,
+      uploadWidth: 2048,
+      uploadHeight: 1365,
+      renderedWidthPx: 1080,
+      renderedHeightPx: 1350,
+      neededWidthPx: 2025,
+      neededHeightPx: 1350,
+      sourceCoverRatio: 1.01,
+      uploadCoverRatio: 1.01,
+    });
+    recordFeedPhotoLoaded('f2', {
+      elapsedMs: 80,
+      cacheType: 'disk',
+      sourceWidth: 1080,
+      sourceHeight: 1080,
+      uploadWidth: 2048,
+      uploadHeight: 2048,
+      renderedWidthPx: 720,
+      renderedHeightPx: 900,
+      neededWidthPx: 900,
+      neededHeightPx: 900,
+      sourceCoverRatio: 1.2,
+      uploadCoverRatio: 2.28,
+    });
+
+    const feed = feedPhotoDiagnostics(getPerformanceSnapshot());
+    expect(feed).toMatchObject({
+      loadCount: 2,
+      errorCount: 0,
+      averageLoadMs: 60,
+      decodeEstimate: 1,
+      memoryCacheHits: 1,
+      diskCacheHits: 1,
+      networkLoads: 0,
+      renderMeasuredCount: 2,
+      over2xCount: 0,
+      over2xUploadCount: 1,
+      maxSourceCoverRatio: 1.2,
+      maxUploadCoverRatio: 2.28,
+      largestDecodedBytes: 2048 * 1365 * 4,
+      largestNeededBytes: 2025 * 1350 * 4,
+    });
+    expect(formatBytes(feed.largestUploadBytes)).toBe('16,0 MB');
   });
 
   it('resume a foto em tela cheia sem confundir estimativa com memória medida', () => {

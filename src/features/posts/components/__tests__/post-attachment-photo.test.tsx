@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { PixelRatio } from 'react-native';
 import type { ImageRef } from 'expo-image';
+
+import {
+  getPerformanceSnapshot,
+  resetPerformanceSession,
+  setPerformanceInstrumentationOverride,
+} from '@/lib/performance';
 
 import { PostAttachment } from '../post-attachment';
 import type { PostMediaDto } from '../../post-media';
@@ -63,6 +70,11 @@ beforeEach(() => {
   mockViewerLifecycle.unmounts = 0;
 });
 
+afterEach(() => {
+  setPerformanceInstrumentationOverride(null);
+  resetPerformanceSession();
+});
+
 describe('PostAttachment · foto em tela cheia', () => {
   it('não monta nenhum visualizador para cartões fechados', async () => {
     const photos: PostMediaDto[] = Array.from({ length: 100 }, (_, index) => ({
@@ -77,6 +89,38 @@ describe('PostAttachment · foto em tela cheia', () => {
     expect(mockPhotoViewer).not.toHaveBeenCalled();
     expect(mockViewerLifecycle.mounts).toBe(0);
     expect(screen.getAllByLabelText('Abrir foto em tela cheia')).toHaveLength(100);
+  });
+
+  it('registra fonte, cache e tamanho efetivo do render no feed', async () => {
+    setPerformanceInstrumentationOverride(true);
+    resetPerformanceSession();
+    await render(<PostAttachment media={photo} />);
+
+    await fireEvent(screen.getByLabelText('Abrir foto em tela cheia'), 'layout', {
+      nativeEvent: { layout: { width: 360, height: 450 } },
+    });
+    await fireEvent(screen.getByTestId('post-photo-image'), 'load', {
+      cacheType: 'memory',
+      source: { url: photo.url, width: 2048, height: 1365, mediaType: 'image/jpeg' },
+    });
+
+    const stats = getPerformanceSnapshot().feedPhotos;
+    expect(stats.loadCount).toBe(1);
+    expect(stats.memoryCacheHits).toBe(1);
+    expect(stats.decodeEstimate).toBe(0);
+    expect(stats.renderMeasuredCount).toBe(1);
+    expect(stats.largestDecodedBytes).toBe(2048 * 1365 * 4);
+    expect(stats.events[0]).toMatchObject({
+      mediaId: photo.id,
+      cacheType: 'memory',
+      sourceWidth: 2048,
+      sourceHeight: 1365,
+      uploadWidth: 400,
+      uploadHeight: 800,
+      renderedWidthPx: Math.round(360 * PixelRatio.get()),
+      renderedHeightPx: Math.round(450 * PixelRatio.get()),
+    });
+    expect(stats.events[0].sourceCoverRatio).toBeGreaterThan(1);
   });
 
   it('carrega uma variante no toque e a entrega ao visualizador', async () => {
