@@ -93,6 +93,55 @@ describe('vídeo em listas', () => {
     expect(haptic).toHaveBeenCalledWith('light');
   });
 
+  it('não ativa o 2× quando o toque vira arrasto lento', async () => {
+    await render(<PostAttachment media={video} />);
+    const target = screen.getByLabelText('Vídeo da publicação, 0:15. Reproduzir');
+
+    await fireEvent(target, 'pressIn', { nativeEvent: { pageX: 100, pageY: 100 } });
+    await fireEvent(target, 'touchMove', { nativeEvent: { pageX: 100, pageY: 140 } });
+    await fireEvent(target, 'longPress');
+
+    expect(screen.queryByText('2×')).toBeNull();
+    expect(haptic).not.toHaveBeenCalled();
+  });
+
+  it('encerra o 2× se o arrasto começar depois do long press', async () => {
+    await render(<PostAttachment media={video} />);
+    const target = screen.getByLabelText('Vídeo da publicação, 0:15. Reproduzir');
+
+    await fireEvent(target, 'pressIn', { nativeEvent: { pageX: 100, pageY: 100 } });
+    await fireEvent(target, 'longPress');
+    expect(screen.getByText('2×')).toBeTruthy();
+
+    await fireEvent(target, 'pressMove', { nativeEvent: { pageX: 100, pageY: 160 } });
+
+    expect(screen.queryByText('2×')).toBeNull();
+  });
+
+  it('desativa o 2× ao soltar o dedo', async () => {
+    await render(<PostAttachment media={video} />);
+    const target = screen.getByLabelText('Vídeo da publicação, 0:15. Reproduzir');
+
+    await fireEvent(target, 'pressIn', { nativeEvent: { pageX: 100, pageY: 100 } });
+    await fireEvent(target, 'longPress');
+    expect(screen.getByText('2×')).toBeTruthy();
+    expect(mockPlayer.playbackRate).toBe(2);
+
+    await fireEvent(target, 'pressOut');
+
+    expect(screen.queryByText('2×')).toBeNull();
+    expect(mockPlayer.playbackRate).toBe(1);
+  });
+
+  it('mantém o toque simples para reproduzir e pausar', async () => {
+    await render(<PostAttachment media={video} />);
+    mockPlay.mockClear();
+
+    await fireEvent.press(screen.getByLabelText('Vídeo da publicação, 0:15. Reproduzir'));
+
+    expect(mockPlay).toHaveBeenCalledTimes(1);
+  });
+
   it('alterna o som pelo botão sobre o vídeo', async () => {
     await render(<PostAttachment media={video} />);
     await fireEvent.press(screen.getByLabelText('Ativar som'));

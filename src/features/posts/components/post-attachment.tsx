@@ -30,6 +30,7 @@ import { posterCache } from '../poster-cache';
 import { PhotoViewer } from './photo-viewer';
 import { measurePhotoOrigin, type WindowRect } from './photo-viewer-transition';
 import { photoRenderMetrics } from './photo-render-metrics';
+import { useVideoHold, VIDEO_HOLD_DELAY_MS } from './video-hold';
 import { VideoViewer, type VideoChrome } from './video-viewer';
 import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
 
@@ -381,6 +382,10 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false, view
   const [feedCoverVisible, setFeedCoverVisible] = useState(false);
   // Um toque que veio de um "segurar para acelerar" não deve pausar o vídeo.
   const heldAt = useRef(0);
+  const hold = useVideoHold(
+    useCallback(() => { haptic('light'); heldAt.current = Date.now(); setSpeed(2); }, []),
+    useCallback(() => setSpeed(1), []),
+  );
   // TTFF: do pedido de reprodução ao primeiro quadro, uma vez por instância montada.
   const playIntentAt = useRef<number | null>(null);
   // POP-25: separa o custo de montagem/commit (viewport → player) do custo de
@@ -534,6 +539,8 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false, view
   const closeFullscreen = () => {
     feedReturnStartedAt.current = performanceNow();
     recordVideoFullscreen(media.id, 'exit');
+    // O gesto de segurar pertence à surface que está saindo: a volta começa em 1×.
+    setSpeed(1);
     setFeedCoverVisible(true);
     setExpanded(false);
   };
@@ -587,9 +594,13 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false, view
         if (!player.playing) { toggle(); return; }
         openFullscreen();
       }}
-      onLongPress={() => { haptic('light'); heldAt.current = Date.now(); setSpeed(2); }}
-      delayLongPress={220}
-      onPressOut={() => setSpeed(1)}
+      onPressIn={hold.begin}
+      onPressMove={hold.track}
+      onTouchMove={hold.track}
+      onLongPress={hold.activate}
+      delayLongPress={VIDEO_HOLD_DELAY_MS}
+      onPressOut={hold.stop}
+      onTouchCancel={hold.stop}
       accessibilityRole="button"
       accessibilityLabel={ended ? `${label}. Ver de novo` : playing ? `${label}. Abrir em tela cheia` : `${label}. Reproduzir`}
       accessibilityHint={playing ? 'Abre o vídeo com as ações da publicação' : undefined}
@@ -599,7 +610,12 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false, view
       ) : null}
     </Pressable>
     {speed === 2 ? (
-      <View style={styles.speed} pointerEvents="none">
+      <View
+        style={styles.speed}
+        pointerEvents="none"
+        accessible
+        accessibilityLabel="Reprodução em 2×"
+        accessibilityLiveRegion="polite">
         <AppText variant="label" color={Colors.paper}>2×</AppText>
       </View>
     ) : null}
@@ -646,6 +662,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false, view
       playing={playing}
       ended={ended}
       muted={muted}
+      holding={speed === 2}
       poster={poster}
       chrome={chrome ? { ...chrome, onComment: () => { closeFullscreen(); chrome.onComment(); } } : undefined}
       onSurfaceFirstFrame={onFullscreenFirstFrame}
