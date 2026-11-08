@@ -4,15 +4,17 @@ import type { VideoPlayer, VideoThumbnail } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Icon, type IconName } from '@/components/icon';
 import { Kicker } from '@/components/kicker';
+import { Motion } from '@/constants/motion';
 import { Colors, Spacing } from '@/constants/theme';
 import { useReactionFeedback } from '@/hooks/use-reaction-feedback';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { formatCount } from '@/lib/format';
 import type { FeedItem } from '@/types/models';
 
@@ -59,6 +61,12 @@ type VideoViewerProps = {
 
 const DISMISS_DISTANCE = 120;
 
+/** Volta ao centro depois de soltar o dedo: transição automática, não o arrasto. */
+export const VIDEO_VIEWER_RETURN_TIMING = {
+  duration: 180,
+  reduceMotion: ReduceMotion.System,
+} as const;
+
 /**
  * Vídeo em tela cheia: o quadro ocupa toda a área útil e o chrome flutua por cima —
  * topo com tempo e controles, base com autoria e as ações do post na coluna da direita.
@@ -70,6 +78,7 @@ export function VideoViewer({
   onSurfaceFirstFrame, onClose, onTogglePlay, onToggleMute, onHoldStart, onHoldEnd,
 }: VideoViewerProps) {
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const dragY = useSharedValue(0);
   const close = () => {
     dragY.value = 0;
@@ -83,13 +92,17 @@ export function VideoViewer({
         runOnJS(close)();
         return;
       }
-      dragY.value = withTiming(0, { duration: 180 });
+      dragY.value = withTiming(0, VIDEO_VIEWER_RETURN_TIMING);
     },
   });
   const drag = useAnimatedStyle(() => ({ transform: [{ translateY: dragY.value }] }));
 
-  return <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={close}>
-    <GestureHandlerRootView style={styles.root}>
+  return <Modal testID="video-viewer-modal" visible={visible} animationType={reducedMotion ? 'none' : 'fade'} statusBarTranslucent onRequestClose={close}>
+    <GestureHandlerRootView
+      testID="video-viewer-root"
+      style={styles.root}
+      accessibilityViewIsModal
+      onAccessibilityEscape={close}>
       <StatusBar hidden />
       <GestureDetector gesture={pan}>
         <Animated.View style={[styles.screen, drag]}>
@@ -261,5 +274,5 @@ const styles = StyleSheet.create({
   rail: { width: 52, alignItems: 'center', gap: Spacing.three },
   railAction: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   railContent: { alignItems: 'center', justifyContent: 'center', gap: 2 },
-  pressed: { opacity: 0.6 },
+  pressed: { opacity: Motion.feedback.pressed.opacity },
 });

@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
 type ChipOption<K extends string> = { key: K; label: string };
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.ink,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: Motion.feedback.pressed.opacity,
   },
   label: {
     fontFamily: Fonts.bold,

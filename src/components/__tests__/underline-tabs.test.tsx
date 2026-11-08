@@ -35,6 +35,11 @@ describe('indicador das abas', () => {
     expect(screen.getByRole('tab', { name: 'Seguindo', selected: true })).toBeTruthy();
   });
 
+  it('mantém o rótulo em uma linha para a fonte ampliada não estourar a barra', async () => {
+    await render(<UnderlineTabs options={[...OPTIONS]} value="para-voce" onChange={() => {}} />);
+    expect(screen.getByText('Minhas comunas').props.numberOfLines).toBe(1);
+  });
+
   it('usa os tokens da casa e respeita o movimento reduzido do sistema', () => {
     expect(TAB_INDICATOR_TIMING).toEqual({
       duration: Motion.duration.normal,

@@ -9,7 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import { StripedPlaceholder } from '@/components/striped-placeholder';
+import { Motion } from '@/constants/motion';
 import { Colors, Spacing } from '@/constants/theme';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { haptic } from '@/lib/haptics';
 import { performanceNow, recordPhotoDisplayed, recordPhotoError, recordPhotoLoaded, recordPhotoOpen } from '@/lib/performance';
 
@@ -65,6 +67,7 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
   height?: number;
 }) {
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const [fold, setFold] = useState<ViewerGeometry>({ viewportWidth: 0, viewportHeight: 0, fitWidth: 0, fitHeight: 0 });
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const openStartedAt = useRef<number | null>(null);
@@ -378,8 +381,12 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
     recordPhotoOpen(mediaId ?? 'unknown');
   }, [mediaId, visible]);
 
-  return <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={requestClose} onShow={reset} testID="photo-viewer-modal">
-    <GestureHandlerRootView style={styles.root}>
+  return <Modal transparent visible={visible} animationType={reducedMotion ? 'none' : 'fade'} statusBarTranslucent onRequestClose={requestClose} onShow={reset} testID="photo-viewer-modal">
+    <GestureHandlerRootView
+      testID="photo-viewer-root"
+      style={styles.root}
+      accessibilityViewIsModal
+      onAccessibilityEscape={requestClose}>
       <ResetOnOpen onOpen={reset} />
       <StatusBar hidden />
       <Animated.View testID="photo-viewer-backdrop" pointerEvents="none" style={[styles.backdrop, overlay]} />
@@ -406,12 +413,15 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
                   // o expo-image pode reduzir o bitmap para não estourar memória.
                   allowDownscaling={!keepsFullResolution}
                   // Cache hit aparece direto; cache frio faz cross-dissolve sobre
-                  // a listra ou o bitmap do feed, nunca sobre preto.
-                  transition={{ duration: 160, skipOnCacheHit: 'all' }}
+                  // a listra ou o bitmap do feed, nunca sobre preto. Com movimento
+                  // reduzido a troca é imediata.
+                  transition={reducedMotion ? null : { duration: 160, skipOnCacheHit: 'all' }}
                   onLoad={onLoad}
                   onDisplay={onDisplay}
                   onError={onError}
-                  accessibilityLabel="Foto da publicação"
+                  accessible
+                  accessibilityRole="image"
+                  accessibilityLabel="Foto da publicação em tela cheia"
                   style={StyleSheet.absoluteFill}
                 />
                 {status === 'error' ? (
@@ -438,6 +448,7 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
             onPress={requestClose}
             accessibilityRole="button"
             accessibilityLabel="Fechar foto"
+            accessibilityHint="Volta para a publicação"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
             <AppText variant="label" color={Colors.paper}>Fechar</AppText>
@@ -510,5 +521,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     marginRight: -Spacing.two,
   },
-  pressed: { opacity: 0.6 },
+  pressed: { opacity: Motion.feedback.pressed.opacity },
 });

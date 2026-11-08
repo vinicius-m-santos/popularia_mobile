@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { useCallback, useMemo } from 'react';
+import { ReduceMotion, interpolateColor, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { Motion } from '@/constants/motion';
 
@@ -23,6 +23,14 @@ type PressFeedbackOptions = {
   opacity?: number;
   /** Escala no estado pressionado; 1 deixa o feedback só na opacidade. */
   scale?: number;
+  /**
+   * Fundo de repouso. Quando informado junto de `pressedBackgroundColor`, o
+   * feedback troca a superfície em vez de apagar o controle inteiro. É o
+   * caminho para texto claro sobre vermelho/tinta não perder contraste.
+   */
+  backgroundColor?: string;
+  /** Fundo do estado pressionado, usado em conjunto com `backgroundColor`. */
+  pressedBackgroundColor?: string;
 };
 
 /**
@@ -36,8 +44,14 @@ type PressFeedbackOptions = {
 export function usePressFeedback({
   opacity = Motion.feedback.pressed.opacity,
   scale = Motion.feedback.pressed.scale,
+  backgroundColor,
+  pressedBackgroundColor,
 }: PressFeedbackOptions = {}) {
   const pressed = useSharedValue(0);
+  const surfaceColors = useMemo(
+    () => (backgroundColor && pressedBackgroundColor ? [backgroundColor, pressedBackgroundColor] as const : null),
+    [backgroundColor, pressedBackgroundColor],
+  );
 
   const onPressIn = useCallback(() => {
     // eslint-disable-next-line react-hooks/immutability -- SharedValue é mutável por contrato do Reanimated.
@@ -50,9 +64,14 @@ export function usePressFeedback({
   }, [pressed]);
 
   const style = useAnimatedStyle(() => ({
-    opacity: 1 - pressed.value * (1 - opacity),
+    // A troca de superfície mantém o texto opaco; o alpha só é usado quando não
+    // há um par de cores que preserve o contraste.
+    opacity: surfaceColors ? 1 : 1 - pressed.value * (1 - opacity),
     transform: [{ scale: 1 - pressed.value * (1 - scale) }],
-  }), [opacity, pressed, scale]);
+    ...(surfaceColors
+      ? { backgroundColor: interpolateColor(pressed.value, [0, 1], surfaceColors) }
+      : null),
+  }), [opacity, pressed, scale, surfaceColors]);
 
   return { style, onPressIn, onPressOut };
 }

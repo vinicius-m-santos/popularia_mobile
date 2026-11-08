@@ -3,7 +3,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, PressedColors, Radius, Spacing } from '@/constants/theme';
 import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 export type PillVariant = 'primary' | 'dark' | 'outline' | 'light';
@@ -59,7 +59,13 @@ export function PillButton({
   const height = HEIGHTS[size];
   const unavailable = disabled || busy;
   const extraHit = Math.max(0, (44 - height) / 2);
-  const press = usePressFeedback();
+  // Vermelho e tinta com texto claro trocam a superfície: reduzir a opacidade
+  // do botão inteiro derrubaria o contraste de `paper` sobre `red` para 3,19:1.
+  const press = usePressFeedback(variant === 'primary'
+    ? { backgroundColor: colors.bg, pressedBackgroundColor: PressedColors.red }
+    : variant === 'dark'
+      ? { backgroundColor: colors.bg, pressedBackgroundColor: PressedColors.ink }
+      : {});
 
   return (
     <AnimatedPressable

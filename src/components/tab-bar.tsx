@@ -15,7 +15,7 @@ import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { Icon, type IconName } from '@/components/icon';
 import { Motion } from '@/constants/motion';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, PressedColors, Radius, Spacing } from '@/constants/theme';
 import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 /** Ícone de cada rota de aba; o nome da rota é o nome do arquivo em `src/app/(tabs)`. */
@@ -136,7 +136,7 @@ function TabItem({ focused, label, accessibilityLabel, testID, color, icon, onPr
   icon: IconName;
   onPress: () => void;
 }) {
-  const press = usePressFeedback();
+  const press = usePressFeedback({ backgroundColor: Colors.ink, pressedBackgroundColor: PressedColors.ink });
   return (
     <AnimatedPressable
       onPress={onPress}
@@ -161,7 +161,11 @@ function CreateButton() {
   const [menuVisible, setMenuVisible] = useState(false);
   const menuOpen = useRef(false);
   const { width } = useWindowDimensions();
-  const press = usePressFeedback(Motion.feedback.subtle);
+  const press = usePressFeedback({
+    ...Motion.feedback.subtle,
+    backgroundColor: Colors.red,
+    pressedBackgroundColor: PressedColors.red,
+  });
   // A arte encosta na borda direita, como no desenho; em telas estreitas ela
   // encolhe mantendo a borda esquerda na guia de 204.
   const artWidth = Math.min(186, Math.max(120, width - 204));
@@ -234,7 +238,11 @@ type MenuItemProps = {
 };
 
 function CreateMenuItem({ title, description, image, onPress }: MenuItemProps) {
-  const press = usePressFeedback(Motion.feedback.subtle);
+  const press = usePressFeedback({
+    ...Motion.feedback.subtle,
+    backgroundColor: Colors.paper,
+    pressedBackgroundColor: PressedColors.paper,
+  });
   return (
     <AnimatedPressable
       onPress={onPress}

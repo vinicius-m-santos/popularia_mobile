@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Avatar } from '@/components/avatar';
 import { Badge } from '@/components/badge';
+import { Motion } from '@/constants/motion';
 import { Colors, Spacing } from '@/constants/theme';
 import { prepareProfileFromUser } from '@/features/profiles/queries';
 import type { User } from '@/types/models';
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   pressed: {
-    opacity: 0.7,
+    opacity: Motion.feedback.pressed.opacity,
   },
   text: {
     flex: 1,

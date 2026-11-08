@@ -137,7 +137,10 @@ function Tab<K extends string>({
       accessibilityState={{ selected: active }}
       hitSlop={{ top: 4, bottom: 4 }}
       style={[styles.tab, { minHeight: Math.max(height, 44) }]}>
-      <AppText style={[styles.label, labelStyle, activeWeight && active && styles.labelActive]} color={active ? Colors.ink : Colors.muted}>
+      <AppText
+        style={[styles.label, labelStyle, activeWeight && active && styles.labelActive]}
+        color={active ? Colors.ink : Colors.muted}
+        numberOfLines={1}>
         {option.label}
       </AppText>
       <Animated.View

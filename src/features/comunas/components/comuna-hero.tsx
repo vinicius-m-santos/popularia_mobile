@@ -11,7 +11,7 @@ import { Icon, type IconName } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, PressedColors, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { formatPeople } from '@/lib/format';
@@ -347,7 +347,13 @@ function MiniJoin({ label, tone, disabled, onPress, accessibilityLabel, accessib
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.miniJoin, tone === 'red' ? styles.miniJoinRed : styles.miniJoinPaper, pressed && styles.miniJoinPressed, disabled && styles.miniJoinDisabled]}>
+      style={({ pressed }) => [
+        styles.miniJoin,
+        tone === 'red'
+          ? (pressed ? styles.miniJoinRedPressed : styles.miniJoinRed)
+          : (pressed ? styles.miniJoinPaperPressed : styles.miniJoinPaper),
+        disabled && styles.miniJoinDisabled,
+      ]}>
       <AppText style={styles.miniJoinLabel} color={tone === 'red' ? Colors.paper : Colors.ink} numberOfLines={1} maxFontSizeMultiplier={1.3}>
         {label}
       </AppText>
@@ -545,11 +551,14 @@ const styles = StyleSheet.create({
   miniJoinRed: {
     backgroundColor: Colors.red,
   },
+  miniJoinRedPressed: {
+    backgroundColor: PressedColors.red,
+  },
   miniJoinPaper: {
     backgroundColor: Colors.paper,
   },
-  miniJoinPressed: {
-    opacity: 0.75,
+  miniJoinPaperPressed: {
+    backgroundColor: PressedColors.paper,
   },
   miniJoinDisabled: {
     opacity: 0.6,

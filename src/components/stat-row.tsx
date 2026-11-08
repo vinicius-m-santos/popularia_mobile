@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 
 type Stat = { value: string; label: string; onPress?: () => void; accessibilityHint?: string };
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
   cellProfile: { paddingVertical: 12 },
   dividerProfile: { paddingLeft: 14 },
   pressed: {
-    opacity: 0.7,
+    opacity: Motion.feedback.pressed.opacity,
   },
   value: {
     fontFamily: Fonts.condensed,

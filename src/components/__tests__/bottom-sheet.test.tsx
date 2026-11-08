@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { BottomSheet, PopulariaBottomSheetFlatList } from '@/components/bottom-sheet';
 import { MinTouchTarget } from '@/constants/theme';
+import { resetReducedMotionCache } from '@/hooks/use-reduced-motion';
 
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) }));
 
@@ -17,12 +18,29 @@ beforeEach(() => {
   gorhom.__close.mockClear();
 });
 
+afterEach(() => {
+  resetReducedMotionCache();
+  jest.restoreAllMocks();
+});
+
 describe('BottomSheet', () => {
   it('apresenta o título no handle e fecha por ação acessível', async () => {
     const close = jest.fn();
     await render(<BottomSheet visible onClose={close} title="Escolher assunto"><AppText>Conteúdo</AppText></BottomSheet>);
     expect(screen.getByText('Escolher assunto')).toBeTruthy();
     await fireEvent(screen.getByTestId('bottom-sheet-drag-header'), 'accessibilityEscape');
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('prende o foco no modal e zera a animação com movimento reduzido', async () => {
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    const close = jest.fn();
+    await render(<BottomSheet visible onClose={close} title="Escolher assunto"><AppText>Conteúdo</AppText></BottomSheet>);
+
+    const root = screen.getByTestId('bottom-sheet-root');
+    expect(root.props.accessibilityViewIsModal).toBe(true);
+    await waitFor(() => expect(screen.getByTestId('gorhom-sheet').props.animationConfigs).toEqual({ duration: 0 }));
+    await fireEvent(root, 'accessibilityEscape');
     expect(close).toHaveBeenCalledTimes(1);
   });
 

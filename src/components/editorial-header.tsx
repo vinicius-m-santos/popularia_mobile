@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
 type HeaderAction = {
@@ -132,6 +133,6 @@ const styles = StyleSheet.create({
     color: Colors.onInkMuted,
   },
   pressed: {
-    opacity: 0.7,
+    opacity: Motion.feedback.pressed.opacity,
   },
 });

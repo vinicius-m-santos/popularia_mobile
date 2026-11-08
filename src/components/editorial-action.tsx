@@ -3,7 +3,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, PressedColors, Spacing } from '@/constants/theme';
 import { usePressFeedback } from '@/hooks/use-press-feedback';
 
 type EditorialActionProps = {
@@ -30,7 +30,11 @@ export function EditorialAction({ label, labelVariant = 'label', icon, onPress, 
   const iconNode = <Icon name={icon} size={22} color={foreground} />;
   const pinLeadingIcon = pinnedLeadingIcon && iconPosition === 'leading';
   const unavailable = disabled || busy;
-  const press = usePressFeedback();
+  const press = usePressFeedback(tone === 'red'
+    ? { backgroundColor: Colors.red, pressedBackgroundColor: PressedColors.red }
+    : tone === 'paper'
+      ? { backgroundColor: Colors.paper, pressedBackgroundColor: PressedColors.paper }
+      : {});
   return <AnimatedPressable
     accessibilityRole="button"
     accessibilityLabel={accessibilityLabel ?? label}

@@ -33,6 +33,7 @@ jest.mock('react-native-reanimated', () => {
     },
     withSpring: (value: number) => value,
     runOnJS: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+    interpolateColor: (value: number, _input: number[], output: string[]) => output[value >= 1 ? output.length - 1 : 0],
   };
 });
 

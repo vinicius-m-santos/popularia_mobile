@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import { cleanup, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
-import { ProfileSwipeGuard, ProfileTabSwipe } from '../profile-tab-swipe';
+import { PROFILE_SWIPE_CANCEL_TIMING, PROFILE_SWIPE_RETURN_TIMING, ProfileSwipeGuard, ProfileTabSwipe } from '../profile-tab-swipe';
 
 type GestureLog = {
   panGestures: { type: string; config?: unknown }[];
@@ -20,10 +20,12 @@ jest.mock('react-native-reanimated', () => {
     __esModule: true,
     default: { View: MockAnimatedView },
     cancelAnimation: () => {},
+    ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
     useSharedValue: (value: number) => ({ value }),
     useAnimatedStyle: (updater: () => object) => updater(),
     withTiming: (value: number) => value,
     runOnJS: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+    interpolateColor: (value: number, _input: number[], output: string[]) => output[value >= 1 ? output.length - 1 : 0],
   };
 });
 
@@ -65,6 +67,13 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+describe('movimento do swipe de abas', () => {
+  it('consulta o Reduce Motion no assentamento automático, não no arrasto preso ao dedo', () => {
+    expect(PROFILE_SWIPE_RETURN_TIMING).toEqual({ duration: 200, reduceMotion: 'system' });
+    expect(PROFILE_SWIPE_CANCEL_TIMING).toEqual({ duration: 160, reduceMotion: 'system' });
+  });
+});
 
 describe('trilhos horizontais sob o swipe de abas', () => {
   it('bloqueia o pan da aba com um gesto nativo do trilho', async () => {

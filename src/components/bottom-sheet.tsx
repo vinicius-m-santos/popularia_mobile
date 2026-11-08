@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Colors, Fonts, MaxContentWidth, MinTouchTarget, Radius, Spacing } from '@/constants/theme';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export { BottomSheetFlatList as PopulariaBottomSheetFlatList, BottomSheetScrollView as PopulariaBottomSheetScrollView, BottomSheetTextInput as PopulariaBottomSheetTextInput } from '@gorhom/bottom-sheet';
 export const InsideBottomSheet = createContext(false);
@@ -57,6 +58,7 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   const openFrame = useRef<number | null>(null);
   const closeFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const { height, width } = useWindowDimensions();
 
   const cancelScheduledOpen = useCallback(() => {
@@ -137,7 +139,11 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
   const backgroundStyle = StyleSheet.flatten([styles.background, creation ? styles.creationBackground : null, report ? styles.reportBackground : null, surface === 'cream' ? styles.creamBackground : null]);
   if (!mounted) return null;
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={close} testID="bottom-sheet-modal">
-    <GestureHandlerRootView style={styles.overlay}>
+    <GestureHandlerRootView
+      testID="bottom-sheet-root"
+      style={styles.overlay}
+      accessibilityViewIsModal
+      onAccessibilityEscape={close}>
     <GorhomBottomSheet ref={sheet}
     onClose={() => {
       Keyboard.dismiss();
@@ -154,6 +160,8 @@ export function BottomSheet({ visible, onClose, title, accessibilityLabel, child
     // seguida de salto de altura quando o conteúdo dinâmico termina de medir.
     index={-1}
     animateOnMount={false}
+    // Sem animação de abertura/fechamento quando o sistema pede movimento reduzido.
+    animationConfigs={reducedMotion ? { duration: 0 } : undefined}
     enablePanDownToClose={dismissible}
     enableHandlePanningGesture={dismissible}
     enableContentPanningGesture={canPanContent}

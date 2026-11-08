@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { VideoThumbnail } from 'expo-video';
 import type { ComponentProps } from 'react';
-import { View } from 'react-native';
+import { AccessibilityInfo, View } from 'react-native';
 
-import { VideoViewer } from '../video-viewer';
+import { resetReducedMotionCache } from '@/hooks/use-reduced-motion';
+import { VIDEO_VIEWER_RETURN_TIMING, VideoViewer } from '../video-viewer';
 import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from '../video-surface';
 
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
@@ -67,6 +68,19 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+  resetReducedMotionCache();
+  jest.restoreAllMocks();
+});
+
+describe('VideoViewer · acessibilidade e movimento', () => {
+  it('consulta o Reduce Motion no retorno do arrasto e desliga o fade do modal', async () => {
+    expect(VIDEO_VIEWER_RETURN_TIMING).toEqual({ duration: 180, reduceMotion: 'system' });
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    await renderViewer();
+
+    await waitFor(() => expect(screen.getByTestId('video-viewer-modal').props.animationType).toBe('none'));
+    expect(screen.getByTestId('video-viewer-root').props.accessibilityViewIsModal).toBe(true);
+  });
 });
 
 describe('VideoViewer · troca de surface', () => {

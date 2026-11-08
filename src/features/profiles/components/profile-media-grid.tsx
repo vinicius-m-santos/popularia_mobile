@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts, Radius } from '@/constants/theme';
 import { durationLabel } from '@/features/posts/post-media';
 import type { FeedItem } from '@/types/models';
@@ -173,6 +174,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.ink,
   },
   duration: { fontFamily: Fonts.monoSemibold, fontSize: 11, lineHeight: 14 },
-  pressed: { opacity: 0.82 },
+  pressed: { opacity: Motion.feedback.subtle.opacity },
   empty: { paddingHorizontal: 24, paddingVertical: 38, fontSize: 15, textAlign: 'center' },
 });

@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { Motion } from '@/constants/motion';
 import { Colors, MaxContentWidth } from '@/constants/theme';
 
 import { ProfileTabs } from '../profile-tab-swipe';
@@ -18,6 +19,17 @@ type ProfileTabsOverlayProps = {
   value: ProfileTabKey;
   onChange: (key: ProfileTabKey) => void;
 };
+
+/**
+ * O overlay acompanha a rolagem; nenhuma das transições é comandada pelo dedo.
+ * Com Reduce Motion, o Reanimated aplica o valor final sem animar a barra.
+ */
+export const PROFILE_TABS_OVERLAY_TIMING = {
+  enter: { duration: Motion.duration.normal, easing: Motion.easing.standard, reduceMotion: ReduceMotion.System },
+  enterOpacity: { duration: Motion.duration.fast, reduceMotion: ReduceMotion.System },
+  exit: { duration: Motion.duration.normal, easing: Motion.easing.settle, reduceMotion: ReduceMotion.System },
+  exitOpacity: { duration: Motion.duration.fast, reduceMotion: ReduceMotion.System },
+} as const;
 
 /**
  * Barra de abas que recolhe enquanto a lista do perfil rola.
@@ -41,13 +53,13 @@ export const ProfileTabsOverlay = forwardRef<ProfileTabsOverlayHandle, ProfileTa
       if (next) {
         setMounted(true);
         setOpen(true);
-        translate.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
-        opacity.value = withTiming(1, { duration: 160 });
+        translate.value = withTiming(0, PROFILE_TABS_OVERLAY_TIMING.enter);
+        opacity.value = withTiming(1, PROFILE_TABS_OVERLAY_TIMING.enterOpacity);
         return;
       }
       setOpen(false);
-      translate.value = withTiming(-PROFILE_TABS_HEIGHT, { duration: 180, easing: Easing.in(Easing.cubic) });
-      opacity.value = withTiming(0, { duration: 140 });
+      translate.value = withTiming(-PROFILE_TABS_HEIGHT, PROFILE_TABS_OVERLAY_TIMING.exit);
+      opacity.value = withTiming(0, PROFILE_TABS_OVERLAY_TIMING.exitOpacity);
     }, [opacity, translate]);
 
     const hide = useCallback(() => setVisible(false), [setVisible]);

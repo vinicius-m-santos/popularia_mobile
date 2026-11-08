@@ -6,6 +6,7 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { RadioMark } from '@/components/choice-marks';
 import { Icon } from '@/components/icon';
 import { StateView } from '@/components/state-view';
+import { Motion } from '@/constants/motion';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAsyncData } from '@/hooks/use-async-data';
 import type { TopicId } from '@/types/models';
@@ -57,7 +58,7 @@ const styles = StyleSheet.create({
   editorialTrigger: { minHeight: 46, borderRadius: 0, backgroundColor: Colors.paper, paddingHorizontal: Spacing.four },
   filterTrigger: { minHeight: 44, paddingVertical: Spacing.two, borderWidth: 1, borderColor: Colors.inkSoft, borderRadius: Radius.sm, backgroundColor: Colors.paper },
   filterSelected: { borderColor: Colors.ink, backgroundColor: Colors.strawLight },
-  filterPressed: { opacity: 0.68 },
+  filterPressed: { opacity: Motion.feedback.pressed.opacity },
   name: { flex: 1, minWidth: 0 },
   option: { minHeight: 48, paddingVertical: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.rule },
   group: { paddingTop: Spacing.five, paddingBottom: Spacing.two },

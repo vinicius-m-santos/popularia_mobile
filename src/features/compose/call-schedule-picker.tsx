@@ -4,7 +4,7 @@ import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, PressedColors, Radius, Spacing } from '@/constants/theme';
 import { pickerDateToWallStrings, wallStringsToPickerDate } from '@/features/events/date-picker-field';
 
 type Props = {
@@ -73,7 +73,7 @@ export function CallSchedulePicker({ visible, date, time, onClose, onConfirm }: 
             return;
           }
           commit(pending);
-        }} accessibilityRole="button" accessibilityLabel="Confirmar horário" style={({ pressed }) => [styles.confirm, pressed && styles.pressed]}>
+        }} accessibilityRole="button" accessibilityLabel="Confirmar horário" style={({ pressed }) => [styles.confirm, pressed && styles.confirmPressed]}>
           <AppText style={styles.confirmLabel} color={Colors.paper}>Confirmar</AppText>
         </Pressable>
       </View>
@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
   webField: { flex: 1, gap: Spacing.one },
   webInput: { minHeight: 50, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.cream, paddingHorizontal: Spacing.three, fontFamily: Fonts.regular, fontSize: 16, color: Colors.ink },
   confirm: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm, backgroundColor: Colors.red, borderWidth: 2, borderColor: Colors.ink },
+  // O rótulo `paper` continua opaco: sobre `redPressed` o contraste sobe para 7,09:1.
+  confirmPressed: { backgroundColor: PressedColors.red },
   confirmLabel: { fontFamily: Fonts.extrabold, fontSize: 15, lineHeight: 20 },
-  pressed: { opacity: 0.7 },
 });

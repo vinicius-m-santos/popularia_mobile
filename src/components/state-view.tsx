@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Motion } from '@/constants/motion';
 import { Colors, MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 
 type StateViewProps =
@@ -66,6 +67,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: {
-    opacity: 0.8,
+    opacity: Motion.feedback.pressed.opacity,
   },
 });
