@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Colors, Fonts, Radius } from '@/constants/theme';
+import { Motion } from '@/constants/motion';
+import { Colors, Fonts, PressedColors, Radius } from '@/constants/theme';
 import type { Comuna } from '@/types/models';
 
 import { useComunaMembership } from '../use-membership';
@@ -31,9 +32,12 @@ export function JoinButton({ comuna, short = false, height = 38, style }: JoinBu
       hitSlop={extraHit ? { top: extraHit, bottom: extraHit } : undefined}
       style={({ pressed }) => [
         styles.button,
-        { height },
-        joined ? styles.joined : styles.idle,
-        (pressed || pending) && styles.pressed,
+        // `height` é um piso: com fonte ampliada o botão cresce em vez de cortar o rótulo.
+        { minHeight: height },
+        // O fundo muda e o rótulo continua opaco: em vermelho, apagar o botão
+        // inteiro derrubaria `paper` para 3,19:1 de contraste.
+        joined ? (pressed ? styles.joinedPressed : styles.joined) : (pressed ? styles.idlePressed : styles.idle),
+        pending && styles.pending,
         style,
       ]}>
       <AppText style={styles.label} color={joined ? Colors.ink : Colors.paper} numberOfLines={1}>
@@ -55,12 +59,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.red,
     borderColor: Colors.red,
   },
+  idlePressed: {
+    backgroundColor: PressedColors.red,
+    borderColor: PressedColors.red,
+  },
   joined: {
     backgroundColor: 'transparent',
     borderColor: Colors.ink,
   },
-  pressed: {
-    opacity: 0.75,
+  joinedPressed: {
+    backgroundColor: PressedColors.paper,
+    borderColor: Colors.ink,
+  },
+  pending: {
+    opacity: Motion.feedback.pressed.opacity,
   },
   label: {
     fontFamily: Fonts.extrabold,

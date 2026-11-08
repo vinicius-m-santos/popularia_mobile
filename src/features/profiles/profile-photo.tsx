@@ -6,6 +6,7 @@ import { AppText } from '@/components/app-text';
 import { avatarPalette } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { useToast } from '@/components/toast';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts } from '@/constants/theme';
 import { ImageChangeSheet } from '@/features/media/image-change-sheet';
 import { publishAvatar } from '@/features/media/image-cache';
@@ -95,5 +96,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.red, borderWidth: 2, borderColor: Colors.ink,
   },
-  pressed: { opacity: 0.92 },
+  pressed: { opacity: Motion.feedback.subtle.opacity },
 });

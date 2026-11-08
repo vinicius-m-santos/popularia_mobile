@@ -1,5 +1,8 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo, Animated } from 'react-native';
+
+import { resetReducedMotionCache } from '@/hooks/use-reduced-motion';
 
 import { WelcomeBanner } from '../components/welcome-banner';
 
@@ -14,6 +17,11 @@ let mockJoined: string[] = ['hortas'];
 
 jest.mock('@/features/account/account-context', () => ({ useAccount: () => mockAccount }));
 jest.mock('@/features/interactions/interactions-context', () => ({ useInteractions: () => ({ joinedComunaIds: mockJoined }) }));
+
+afterEach(() => {
+  resetReducedMotionCache();
+  jest.restoreAllMocks();
+});
 
 describe('card de boas-vindas do feed', () => {
   it('mostra o primeiro nome, a frase e as etiquetas com singular e plural', async () => {
@@ -36,6 +44,18 @@ describe('card de boas-vindas do feed', () => {
     expect(screen.getByLabelText('SEU FEED ESTÁ PRONTO.')).toBeTruthy();
     expect(screen.queryByText(/ASSUNTO/)).toBeNull();
     expect(screen.queryByText(/COMUNA/)).toBeNull();
+  });
+
+  it('recolhe sem animação quando o sistema pede movimento reduzido', async () => {
+    mockAccount = { ...mockAccount, showWelcome: true };
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    const timing = jest.spyOn(Animated, 'timing');
+    await render(<WelcomeBanner />);
+    // O hook lê a preferência em uma promise antes de o botão ser usado.
+    await act(async () => { await Promise.resolve(); });
+
+    await fireEvent.press(screen.getByLabelText('Fechar boas-vindas'));
+    expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ duration: 0 }));
   });
 
   it('não renderiza quando as boas-vindas já foram fechadas', async () => {

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { Icon } from '@/components/icon';
+import { Motion } from '@/constants/motion';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
 export type SelectOption = { value: string; label: string };
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
   setupError: { fontFamily: Fonts.bold, fontSize: 14, lineHeight: 22 },
   value: { flex: 1, fontSize: 16, lineHeight: 21 },
   disabled: { opacity: 0.55 },
-  pressed: { opacity: 0.72 },
+  pressed: { opacity: Motion.feedback.pressed.opacity },
   error: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },
   options: { paddingBottom: Spacing.four },
   option: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, borderBottomWidth: 1, borderBottomColor: Colors.rule },

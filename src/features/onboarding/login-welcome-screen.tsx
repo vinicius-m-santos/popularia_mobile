@@ -8,8 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
+import { Motion } from '@/constants/motion';
 import { Fonts } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const COLORS = {
   paper: '#F5E9D4',
@@ -44,6 +46,13 @@ function entering(delay: number) {
 export default function LoginWelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
+  // As entradas já usam `ReduceMotion.System`; estas transições da linha do
+  // tempo usam o `Animated` clássico e precisam da mesma preferência.
+  const messagesExitDuration = reducedMotion ? 0 : MESSAGES_EXIT_DURATION;
+  const posterFadeDuration = reducedMotion ? 0 : POSTER_FADE_DURATION;
+  const posterSettleDuration = reducedMotion ? 0 : POSTER_SETTLE_DURATION;
+  const illustrationFadeDuration = reducedMotion ? 0 : 900;
   const { dismissLoginWelcome } = useAccount();
   const hasContinued = useRef(false);
   const [assetsReady, setAssetsReady] = useState(false);
@@ -85,29 +94,29 @@ export default function LoginWelcomeScreen() {
       () => setPosterStarted(true),
       MESSAGES_END +
         MESSAGES_HOLD +
-        MESSAGES_EXIT_DURATION +
+        messagesExitDuration +
         PAPER_PAUSE +
-        POSTER_SETTLE_DURATION +
+        posterSettleDuration +
         POSTER_HOLD_DURATION,
     );
     const autoContinueTimer = setTimeout(
       continueToApp,
-      MESSAGES_END + MESSAGES_HOLD + MESSAGES_EXIT_DURATION + PAPER_PAUSE + POSTER_SETTLE_DURATION + POSTER_HOLD_DURATION + CONTINUE_AUTO_ADVANCE_DELAY,
+      MESSAGES_END + MESSAGES_HOLD + messagesExitDuration + PAPER_PAUSE + posterSettleDuration + POSTER_HOLD_DURATION + CONTINUE_AUTO_ADVANCE_DELAY,
     );
     const transition = NativeAnimated.sequence([
       NativeAnimated.delay(MESSAGES_END + MESSAGES_HOLD),
-      NativeAnimated.timing(messagesOpacity, { toValue: 0, duration: MESSAGES_EXIT_DURATION, useNativeDriver: true }),
+      NativeAnimated.timing(messagesOpacity, { toValue: 0, duration: messagesExitDuration, useNativeDriver: true }),
       NativeAnimated.delay(PAPER_PAUSE),
       NativeAnimated.parallel([
         NativeAnimated.timing(posterOpacity, {
           toValue: 1,
-          duration: POSTER_FADE_DURATION,
+          duration: posterFadeDuration,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         NativeAnimated.timing(posterScale, {
           toValue: 1,
-          duration: POSTER_SETTLE_DURATION,
+          duration: posterSettleDuration,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -119,7 +128,7 @@ export default function LoginWelcomeScreen() {
       clearTimeout(autoContinueTimer);
       transition.stop();
     };
-  }, [assetsReady, continueToApp, messagesOpacity, posterOpacity, posterScale]);
+  }, [assetsReady, continueToApp, messagesExitDuration, messagesOpacity, posterFadeDuration, posterOpacity, posterScale, posterSettleDuration]);
 
   const horizontal = Math.max(32, Math.min(40, Math.round(width * 0.095)));
   const contentWidth = Math.min(width, 480) - horizontal * 2;
@@ -145,7 +154,7 @@ export default function LoginWelcomeScreen() {
               source={MESSAGE_ILLUSTRATION}
               resizeMode="cover"
               style={[styles.illustration, { opacity: illustrationOpacity }]}
-              onLoadEnd={() => NativeAnimated.timing(illustrationOpacity, { toValue: 1, duration: 900, useNativeDriver: true }).start()}
+              onLoadEnd={() => NativeAnimated.timing(illustrationOpacity, { toValue: 1, duration: illustrationFadeDuration, useNativeDriver: true }).start()}
               accessible={false}
             />
             <View style={[styles.content, { paddingHorizontal: horizontal, paddingTop: contentTop }]}>
@@ -254,6 +263,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   continuePressed: {
-    opacity: 0.62,
+    opacity: Motion.feedback.pressed.opacity,
   },
 });

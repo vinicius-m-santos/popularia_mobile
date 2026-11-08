@@ -1,7 +1,7 @@
 import { createContext, use, useCallback, useEffect, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture, type PanGesture } from 'react-native-gesture-handler';
-import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withTiming, runOnJS, type SharedValue } from 'react-native-reanimated';
+import Animated, { cancelAnimation, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming, runOnJS, type SharedValue } from 'react-native-reanimated';
 
 import { UnderlineTabs, type TabOption } from '@/components/underline-tabs';
 
@@ -14,6 +14,20 @@ function settleProfileSwipe<T extends string>(current: SwipeState<T>, translatio
 
 const DragContext = createContext<SharedValue<number> | null>(null);
 const PanGestureContext = createContext<PanGesture | null>(null);
+
+/**
+ * Assentamento automático depois de soltar o dedo. O arrasto em si continua
+ * preso ao gesto; só a volta ao repouso consulta o Reduce Motion do sistema.
+ */
+export const PROFILE_SWIPE_RETURN_TIMING = {
+  duration: 200,
+  reduceMotion: ReduceMotion.System,
+} as const;
+
+export const PROFILE_SWIPE_CANCEL_TIMING = {
+  duration: 160,
+  reduceMotion: ReduceMotion.System,
+} as const;
 
 type SwipeState<T extends string> = {
   tabs: readonly T[];
@@ -62,12 +76,12 @@ export function ProfileTabSwipe<T extends string>({ tabs, active, onChange, chil
     onDeactivate: (event) => {
       'worklet';
       if (!event.canceled) runOnJS(finishSwipe)(event.translationX, event.velocityX);
-      dragX.value = withTiming(0, { duration: event.canceled ? 160 : 200 });
+      dragX.value = withTiming(0, event.canceled ? PROFILE_SWIPE_CANCEL_TIMING : PROFILE_SWIPE_RETURN_TIMING);
     },
     onFinalize: (event) => {
       'worklet';
       // Também restaura quando o pan falha antes de ativar (por exemplo, scroll vertical).
-      if (event.canceled) dragX.value = withTiming(0, { duration: 160 });
+      if (event.canceled) dragX.value = withTiming(0, PROFILE_SWIPE_CANCEL_TIMING);
     },
   });
   return (

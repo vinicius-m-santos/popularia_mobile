@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { createRef } from 'react';
 
-import { ProfileTabsOverlay, type ProfileTabsOverlayHandle } from '../profile-tabs-overlay';
+import { PROFILE_TABS_OVERLAY_TIMING, ProfileTabsOverlay, type ProfileTabsOverlayHandle } from '../profile-tabs-overlay';
 
 jest.mock('react-native-gesture-handler', () => {
   const React = jest.requireActual<typeof import('react')>('react');
@@ -23,6 +23,12 @@ const options = [
 beforeEach(() => { jest.clearAllMocks(); });
 
 describe('overlay de abas do perfil', () => {
+  it('consulta o Reduce Motion em todas as transições automáticas da barra', () => {
+    for (const timing of Object.values(PROFILE_TABS_OVERLAY_TIMING)) {
+      expect(timing.reduceMotion).toBe('system');
+    }
+  });
+
   it('monta sob demanda, alterna sem duplicar e mantém as abas acessíveis', async () => {
     const ref = createRef<ProfileTabsOverlayHandle>();
     const onChange = jest.fn();

@@ -7,6 +7,7 @@ import { Kicker } from '@/components/kicker';
 import { Fonts } from '@/constants/theme';
 import { useAccount } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const P = {
   card: '#15120F',
@@ -31,6 +32,7 @@ export function WelcomeBanner() {
   const [measuredHeight, setMeasuredHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const [progress] = useState(() => new Animated.Value(1));
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!showWelcome) return;
@@ -53,13 +55,13 @@ export function WelcomeBanner() {
     setClosing(true);
     Animated.timing(progress, {
       toValue: 0,
-      duration: CLOSE_MS,
+      duration: reducedMotion ? 0 : CLOSE_MS,
       easing: Easing.out(Easing.quad),
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) dismissWelcome();
     });
-  }, [closing, dismissWelcome, progress]);
+  }, [closing, dismissWelcome, progress, reducedMotion]);
 
   if (!showWelcome) return null;
 

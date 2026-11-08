@@ -43,6 +43,19 @@ export const Colors = {
 export type ColorName = keyof typeof Colors;
 
 /**
+ * Superfícies do feedback pressed que preservam o contraste do texto.
+ *
+ * Animar a opacidade do controle inteiro também apaga o rótulo sobre o fundo.
+ * Em superfícies escuras ou vermelhas, o pressed troca só o fundo e mantém o
+ * texto opaco; a razão de contraste de `paper` sobre `redPressed` é 7,09:1.
+ */
+export const PressedColors = {
+  red: Colors.redPressed,
+  ink: Colors.inkSoft,
+  paper: Colors.strawLight,
+} as const;
+
+/**
  * Identidade das coleções: tons mais saturados que a paleta de avatar, para a faixa de
  * coleções não ficar em marrons e olivas. A ordem é fixa; o ID da coleção escolhe a posição.
  */

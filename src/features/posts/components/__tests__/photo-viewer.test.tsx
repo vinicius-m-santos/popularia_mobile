@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ImageRef } from 'expo-image';
+import { AccessibilityInfo } from 'react-native';
 
+import { resetReducedMotionCache } from '@/hooks/use-reduced-motion';
 import { haptic } from '@/lib/haptics';
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 
@@ -94,6 +96,7 @@ jest.mock('react-native-reanimated', () => {
     cancelAnimation: () => {},
     runOnJS: (run: unknown) => run,
     clamp: (value: number, min: number, max: number) => Math.min(Math.max(value, min), max),
+    interpolateColor: (value: number, _input: number[], output: string[]) => output[value >= 1 ? output.length - 1 : 0],
     ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
   };
 });
@@ -135,6 +138,8 @@ function currentOpacity(): number {
 describe('PhotoViewer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetReducedMotionCache();
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
     setPerformanceInstrumentationOverride(false);
     mockGestures.pinch = undefined;
     mockGestures.pan = undefined;
@@ -146,6 +151,8 @@ describe('PhotoViewer', () => {
 
   afterEach(() => {
     setPerformanceInstrumentationOverride(null);
+    resetReducedMotionCache();
+    jest.restoreAllMocks();
   });
 
   it('amplia em volta do ponto entre os dedos e mantém a imagem dentro das bordas', async () => {
@@ -355,6 +362,27 @@ describe('PhotoViewer', () => {
       { translateY: 0 },
       { scale: 1 },
     ]);
+  });
+
+  it('desliga o fade do modal e a transição da imagem com movimento reduzido', async () => {
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await layout(400, 800);
+
+    await waitFor(() => expect(screen.getByTestId('photo-viewer-modal').props.animationType).toBe('none'));
+    expect(screen.getByTestId('photo-viewer-image').props.transition).toBeNull();
+  });
+
+  it('expõe foco modal, imagem rotulada e saída por gesto assistivo', async () => {
+    const onClose = jest.fn();
+    await render(<PhotoViewer uri="https://example.test/foto.jpg" visible onClose={onClose} width={400} height={800} />);
+    await layout(400, 800);
+
+    expect(screen.getByTestId('photo-viewer-root').props.accessibilityViewIsModal).toBe(true);
+    const image = screen.getByLabelText('Foto da publicação em tela cheia');
+    expect(image.props.accessibilityRole).toBe('image');
+    await fireEvent(screen.getByTestId('photo-viewer-root'), 'accessibilityEscape');
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('fecha pelo botão acessível e pelo voltar do Android', async () => {
