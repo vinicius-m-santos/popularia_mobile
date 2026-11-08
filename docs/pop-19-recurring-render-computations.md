@@ -6,6 +6,13 @@ Data: 2026-11-09. Escopo: mobile, sem endpoint novo e sem trocar bibliotecas.
 > **medição de dispositivo**. Nenhum ganho de FPS, frame time ou memória é
 > declarado aqui: essas métricas exigem build de profiling e aparelho real, como
 > descrito em `docs/mobile-performance-baseline.md`.
+>
+> **Atualização POP-66 (08/11/2026).** A auditoria do React Compiler confirmou
+> que os caches de módulo continuam sendo o ganho real e que o Compiler absorve
+> os `useMemo`/`useCallback` de `PostCard`, `ProfileScreen` e `explore-screen`.
+> Também encontrou um bailout em `DiscoveryScreen` causado por um `useMemo` com
+> dependências divergentes; a correção e as decisões estão em
+> `docs/pop-66-react-compiler-effect.md`.
 
 ## Ponto de partida
 
