@@ -41,6 +41,28 @@ describe('conversa viva', () => {
     expect(mocked.getMessages).toHaveBeenLastCalledWith('square1', { cursor: 'm003' });
     expect(result.current.messages.map((m) => m.id)).toEqual(['m003', 'm002', 'm001']);
   });
+  it('anexa anteriores ao fim visual sem recriar as linhas recentes', async () => {
+    mocked.getMessages.mockResolvedValueOnce(page([message('m003'), message('m002')], { nextCursor: 'm002' }));
+    const { result } = await open();
+    const recent = result.current.messages[0];
+    mocked.getMessages.mockResolvedValueOnce(page([message('m001'), message('m000')], { nextCursor: null }));
+    await act(() => result.current.loadOlder());
+    expect(result.current.messages.map((m) => m.id)).toEqual(['m003', 'm002', 'm001', 'm000']);
+    // A lista invertida anexa no topo visual; as referências já lidas continuam iguais.
+    expect(result.current.messages[0]).toBe(recent);
+    expect(result.current.messages[1].id).toBe('m002');
+  });
+  it('insere mensagem nova no fim visual quando a pessoa está nas recentes', async () => {
+    const initial = [message('m003'), message('m002')];
+    mocked.getMessages.mockResolvedValueOnce(page(initial));
+    const { result } = await open();
+    const previousLatest = result.current.messages[0];
+    mocked.getMessages.mockResolvedValueOnce(page([message('m004'), ...initial], { changeCursor: 2 }));
+    await act(() => result.current.reload());
+    expect(result.current.messages.map((m) => m.id)).toEqual(['m004', 'm003', 'm002']);
+    expect(result.current.messages[1]).toBe(previousLatest);
+    expect(result.current.newCount).toBe(0);
+  });
   it('recebe novas sem marcar leitura ou modificar o trecho histórico e volta às recentes ao tocar', async () => {
     const { result } = await open();
     await act(() => result.current.onBottom(false));
@@ -157,6 +179,18 @@ describe('conversa viva', () => {
     await act(() => result.current.reload());
     expect(result.current.messages).toHaveLength(200);
     expect(result.current.nextCursor).toBe('m001');
+  });
+  it('ao passar da janela preserva o trecho antigo e oferece voltar às recentes', async () => {
+    const rows = Array.from({ length: 200 }, (_, i) => message(`m${String(i).padStart(3, '0')}`)).reverse();
+    mocked.getMessages.mockResolvedValueOnce(page(rows, { nextCursor: 'm000' }));
+    const { result } = await open();
+    const older = Array.from({ length: 30 }, (_, i) => message(`a${String(i).padStart(3, '0')}`));
+    mocked.getMessages.mockResolvedValueOnce(page(older, { nextCursor: null }));
+    await act(() => result.current.loadOlder());
+    expect(result.current.messages).toHaveLength(200);
+    expect(result.current.messages[0].id).toBe('m169');
+    expect(result.current.messages.at(-1)?.id).toBe('a000');
+    expect(result.current.hasRecentGap).toBe(true);
   });
   it('não envia quando a Praça está fechada ou sem membership', async () => {
     mocked.getSquare.mockResolvedValue(square({ status: 'closed', viewer: { ...square().viewer, canWrite: false } }));

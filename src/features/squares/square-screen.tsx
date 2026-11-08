@@ -192,50 +192,57 @@ function Conversation({ id }: { id: string }) {
           </Pressable>
         ) : null}
         {/* Páginas antigas entram no topo visual desta lista invertida. */}
-        <FlatList
-          contentInsetAdjustmentBehavior="never"
-          automaticallyAdjustContentInsets={false}
-          automaticallyAdjustsScrollIndicatorInsets={false}
-          ref={list}
-          data={chat.messages}
-          inverted
-          keyExtractor={(m) => m.id}
-          renderItem={({ item, index }) => {
-            const older = chat.messages[index + 1];
-            const newDay = !chat.separatorId && (!older || dayKey(older.createdAt) !== dayKey(item.createdAt));
-            const sameGroup = !!older && !newDay && older.author?.id === item.author?.id && older.status === 'published' && item.status === 'published';
-            return <>
-              <MessageRow
-                message={item}
-                separator={chat.separatorId === item.id}
-                inverted
-                showAuthor={!sameGroup}
-                onOpenPicker={openPicker}
-                onReply={onReply}
-                onReact={chat.react}
-                onOriginal={original}
-              />
-              {newDay ? <ChatDayRule label={formatDayRule(item.createdAt)} /> : null}
-            </>;
-          }}
-          initialNumToRender={20}
-          maxToRenderPerBatch={12}
-          windowSize={9}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={[styles.messages, styles.messagesGrow]}
-          onScroll={(event) => { const bottom = event.nativeEvent.contentOffset.y < 80; atBottom.current = bottom; chat.onBottom(bottom); }}
-          scrollEventThrottle={100}
-          onScrollBeginDrag={() => setPicker(null)}
-          onEndReached={() => { if (!chat.loading) void chat.loadOlder(); }}
-          onEndReachedThreshold={0.25}
-          onScrollToIndexFailed={() => toast.show('Role um pouco mais para encontrar a mensagem original.')}
-          ListEmptyComponent={<View style={styles.emptyWrap}>{chat.loading ? <StateView kind="loading" message="Carregando conversa" /> : chat.error ? <StateView kind="error" message={chat.error} onRetry={() => { void chat.reload(); }} /> : <StateView kind="empty" title="Onde a comunidade se encontra" message="Abra a conversa com a primeira mensagem." />}</View>}
-          ListFooterComponent={<View style={styles.olderWrap}>{chat.olderError ? <StateView kind="error" message="Não conseguimos carregar mensagens anteriores." onRetry={() => { void chat.loadOlder(); }} /> : chat.nextCursor ? <PillButton label={chat.loadingOlder ? 'Carregando anteriores…' : 'Mensagens anteriores'} variant="outline" disabled={chat.loadingOlder} onPress={() => { void chat.loadOlder(); }} style={styles.older} /> : null}</View>}
-        />
-        {chat.newCount > 0 || chat.hasRecentGap ? (
-          <PillButton label={chat.newCount > 0 ? `↓ ${chat.newCount} novas mensagens` : '↓ Ir às recentes'} variant="dark" size="sm" style={styles.new} onPress={() => { void chat.jumpRecent().then(() => list.current?.scrollToOffset({ offset: 0, animated: true })); }} />
-        ) : null}
+        <View style={styles.messagesArea}>
+          <FlatList
+            testID="square-messages"
+            contentInsetAdjustmentBehavior="never"
+            automaticallyAdjustContentInsets={false}
+            automaticallyAdjustsScrollIndicatorInsets={false}
+            ref={list}
+            data={chat.messages}
+            inverted
+            keyExtractor={(m) => m.id}
+            renderItem={({ item, index }) => {
+              const older = chat.messages[index + 1];
+              const newDay = !chat.separatorId && (!older || dayKey(older.createdAt) !== dayKey(item.createdAt));
+              const sameGroup = !!older && !newDay && older.author?.id === item.author?.id && older.status === 'published' && item.status === 'published';
+              return <>
+                <MessageRow
+                  message={item}
+                  separator={chat.separatorId === item.id}
+                  inverted
+                  showAuthor={!sameGroup}
+                  onOpenPicker={openPicker}
+                  onReply={onReply}
+                  onReact={chat.react}
+                  onOriginal={original}
+                />
+                {newDay ? <ChatDayRule label={formatDayRule(item.createdAt)} /> : null}
+              </>;
+            }}
+            initialNumToRender={20}
+            maxToRenderPerBatch={12}
+            windowSize={9}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={[styles.messages, styles.messagesGrow]}
+            onScroll={(event) => { const bottom = event.nativeEvent.contentOffset.y < 80; atBottom.current = bottom; chat.onBottom(bottom); }}
+            scrollEventThrottle={100}
+            onScrollBeginDrag={() => setPicker(null)}
+            onEndReached={() => { if (!chat.loading) void chat.loadOlder(); }}
+            onEndReachedThreshold={0.25}
+            onScrollToIndexFailed={() => toast.show('Role um pouco mais para encontrar a mensagem original.')}
+            ListEmptyComponent={<View style={styles.emptyWrap}>{chat.loading ? <StateView kind="loading" message="Carregando conversa" /> : chat.error ? <StateView kind="error" message={chat.error} onRetry={() => { void chat.reload(); }} /> : <StateView kind="empty" title="Onde a comunidade se encontra" message="Abra a conversa com a primeira mensagem." />}</View>}
+            ListFooterComponent={<View style={styles.olderWrap}>{chat.olderError ? <StateView kind="error" message="Não conseguimos carregar mensagens anteriores." onRetry={() => { void chat.loadOlder(); }} /> : chat.nextCursor ? <PillButton label={chat.loadingOlder ? 'Carregando anteriores…' : 'Mensagens anteriores'} variant="outline" disabled={chat.loadingOlder} onPress={() => { void chat.loadOlder(); }} style={styles.older} /> : null}</View>}
+          />
+          {chat.newCount > 0 || chat.hasRecentGap ? (
+            // Sobreposto à lista: entrar no fluxo reduziria a viewport e deslocaria
+            // o trecho que a pessoa está lendo quando o contador aparece.
+            <View testID="square-new-messages" pointerEvents="box-none" style={styles.newWrap}>
+              <PillButton label={chat.newCount > 0 ? `↓ ${chat.newCount} novas mensagens` : '↓ Ir às recentes'} variant="dark" size="sm" style={styles.new} onPress={() => { void chat.jumpRecent().then(() => list.current?.scrollToOffset({ offset: 0, animated: true })); }} />
+            </View>
+          ) : null}
+        </View>
         {s.viewer.canWrite ? (
           <SquareComposer inputRef={input} reply={reply} onCancel={() => setReplyId(null)} sending={chat.sending} onSend={send} onStickers={() => openSheet('stickers')} />
         ) : (
@@ -576,10 +583,12 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.rule,
   },
   messages: { paddingVertical: Spacing.two },
+  messagesArea: { flex: 1 },
   messagesGrow: { flexGrow: 1, justifyContent: 'flex-end' },
   emptyWrap: { minHeight: 280 },
   olderWrap: { paddingVertical: Spacing.three },
   older: { alignSelf: 'center' },
+  newWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   new: { alignSelf: 'center', marginVertical: Spacing.two },
   notice: {
     borderTopWidth: 1,

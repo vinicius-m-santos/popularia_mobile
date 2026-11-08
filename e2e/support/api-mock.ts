@@ -191,6 +191,18 @@ export type MockApiOptions = {
   explore?: unknown;
   /** Corpo de GET /search; sem ele, usa o mesmo corpo de /explore. */
   search?: unknown;
+  /** Praças devolvidas por GET /squares?section=mine e section=discover. */
+  squares?: { mine?: unknown[]; discover?: unknown[] };
+  /** Corpo de GET /squares/{id}; necessário para abrir uma Praça. */
+  square?: unknown;
+  /**
+   * Mensagens de GET /squares/{id}/messages, da mais nova para a mais antiga.
+   * O teste pode modificar este array (unshift) para simular o polling trazendo
+   * mensagens novas. A paginação usa `squareMessagePageSize`.
+   */
+  squareMessages?: unknown[];
+  /** Mensagens por página do histórico da Praça; padrão 30. */
+  squareMessagePageSize?: number;
   /** Quando presente, PUT /events/{id}/attendance responde este problema em vez de 200. */
   attendanceError?: { status: number; type: string; title: string };
 };
@@ -202,6 +214,8 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
     createdPosts: [],
     requests: [],
   };
+  // Última mensagem já entregue ao app; o polling pede só o que veio depois.
+  let latestSquareMessageId: string | null = null;
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -334,6 +348,60 @@ export async function installApiMock(page: Page, initial: Partial<MockMe> = {}, 
       }
       if (path === '/me/saved-posts' && method === 'GET') {
         await fulfill(200, pageOf());
+        return;
+      }
+
+      // Praças: lista, detalhe, histórico paginado e presença/leitura.
+      if (path === '/squares' && method === 'GET') {
+        const section = url.searchParams.get('section');
+        await fulfill(200, pageOf(section === 'mine' ? options.squares?.mine ?? [] : options.squares?.discover ?? []));
+        return;
+      }
+      if (/^\/squares\/[^/]+\/messages$/.test(path) && method === 'GET') {
+        const all = options.squareMessages ?? [];
+        const after = url.searchParams.get('after');
+        const cursor = url.searchParams.get('cursor');
+        const size = options.squareMessagePageSize ?? 30;
+        let items: unknown[];
+        let nextCursor: string | null = null;
+        if (after !== null) {
+          // O app informa o changeCursor numérico; a mensagem nova é a que veio
+          // depois da última entregue nesta página.
+          items = all.filter((item) => {
+            const id = (item as { id?: string }).id ?? '';
+            return latestSquareMessageId === null || id > latestSquareMessageId;
+          });
+        } else if (cursor) {
+          const index = all.findIndex((item) => (item as { id?: string }).id === cursor);
+          const start = index >= 0 ? index + 1 : 0;
+          items = all.slice(start, start + size);
+          nextCursor = start + size < all.length ? (items.at(-1) as { id?: string })?.id ?? null : null;
+        } else {
+          items = all.slice(0, size);
+          nextCursor = size < all.length ? (items.at(-1) as { id?: string })?.id ?? null : null;
+        }
+        const newest = (items[0] as { id?: string } | undefined)?.id;
+        if (newest) latestSquareMessageId = newest;
+        await fulfill(200, {
+          items,
+          nextCursor,
+          changeCursor: 1,
+          hasMoreChanges: false,
+          refreshed: [],
+          square: options.square,
+        });
+        return;
+      }
+      if (/^\/squares\/[^/]+\/presence$/.test(path)) {
+        await fulfill(200, { count: 2, people: [] });
+        return;
+      }
+      if (/^\/squares\/[^/]+\/read$/.test(path) && method === 'PUT') {
+        await fulfill(204);
+        return;
+      }
+      if (/^\/squares\/[^/]+$/.test(path) && method === 'GET') {
+        await fulfill(200, options.square);
         return;
       }
 
