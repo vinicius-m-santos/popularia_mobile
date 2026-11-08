@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createRef, type ComponentRef } from 'react';
-import { TextInput } from 'react-native';
+import { TextInput, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 
 import { SquareComposer } from '../components/square-composer';
@@ -179,10 +179,35 @@ describe('Praças no aplicativo', () => {
     expect(screen.getByText('Praça encerrada · somente leitura')).toBeTruthy();
     expect(screen.queryByLabelText('Conversar na praça')).toBeNull();
   });
+  it('mantém a FlatList invertida e a janela de renderização do chat', async () => {
+    const messages = Array.from({ length: 40 }, (_, i) => message(`m${String(40 - i).padStart(3, '0')}`));
+    const state = chat({ messages });
+    jest.mocked(useSquare).mockReturnValue(state);
+    const ui = await render(<SquareScreen />);
+    const list = ui.getByTestId('square-messages');
+    expect(list.props.inverted).toBe(true);
+    expect(list.props.initialNumToRender).toBe(20);
+    expect(list.props.maxToRenderPerBatch).toBe(12);
+    expect(list.props.windowSize).toBe(9);
+    expect(list.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(list.props.keyboardDismissMode).toBe('on-drag');
+    expect(list.props.data[0].id).toBe('m040');
+    expect(list.props.data.at(-1)?.id).toBe('m001');
+    expect(StyleSheet.flatten(list.props.contentContainerStyle)).toMatchObject({ flexGrow: 1, justifyContent: 'flex-end' });
+    await act(async () => { list.props.onEndReached(); });
+    expect(state.loadOlder).toHaveBeenCalledTimes(1);
+    const scroll = (y: number) => ({ nativeEvent: { contentOffset: { y }, contentSize: { width: 390, height: 2_000 }, layoutMeasurement: { width: 390, height: 700 } } });
+    await act(async () => { list.props.onScroll(scroll(40)); });
+    expect(state.onBottom).toHaveBeenCalledWith(true);
+    await act(async () => { list.props.onScroll(scroll(200)); });
+    expect(state.onBottom).toHaveBeenCalledWith(false);
+  });
   it('botão de novas mensagens leva às recentes sem inventar mensagens na lista', async () => {
     const state = chat({ newCount: 7 });
     jest.mocked(useSquare).mockReturnValue(state);
     await render(<SquareScreen />);
+    // Sobreposto, não no fluxo: aparecer não pode encolher a viewport da lista.
+    expect(StyleSheet.flatten(screen.getByTestId('square-new-messages').props.style)).toMatchObject({ position: 'absolute' });
     await fireEvent.press(screen.getByText('↓ 7 novas mensagens'));
     expect(state.jumpRecent).toHaveBeenCalled();
   });

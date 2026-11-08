@@ -54,6 +54,7 @@ aberto e é encerrado ao fim da execução. Para outra porta, use
 - Conta: `GET/PATCH /me`, gamificação, avisos não lidos.
 - Feed e listas: `/feed`, `/comunas`, `/me/comunas`, `/users/*/posts`, `/topics`.
 - Descoberta: `GET /explore` e `GET /search` usam os fixtures opcionais `explore` e `search`.
+- Praças: `GET /squares` usa `squares.mine`/`squares.discover`; `GET /squares/{id}` usa `square`; `GET /squares/{id}/messages` pagina `squareMessages` com `squareMessagePageSize` e devolve mensagens novas depois da última entregue (polling). Sem fixture, a Praça cai no estado vazio/erro.
 - Cadastro: sugestão de `@`, disponibilidade de `@`, países, estados e municípios.
 - Provedores sociais: `POST /auth/social` existe no mock, mas **o fluxo nativo
   Google/Apple não é exercitado** — os módulos não rodam no navegador.
@@ -74,6 +75,7 @@ vez de deixar a tela cair no estado de erro.
 | `explore-sections.spec.ts` | Ordem Em alta → Assuntos → Comunas → Pessoas; card das três publicações em alta; carrossel e participação otimista; card abre a comuna; os dois “Ver todas” trocam a lista. |
 | `explore-sticky.spec.ts` | POP-33: header de busca/filtros fixo ao rolar; troca de resultado curto para longo sem perder o scroll do cabeçalho; dataset curto com filtros visíveis e utilizáveis. |
 | `profile-scroll.spec.ts` | POP-33: volta de uma publicação e troca de aba inferior preservam a posição; alternância Posts ↔ Mídia é determinística e mantém a barra de abas visível. Usa `profilePosts` do mock. |
+| `praca-chat.spec.ts` | POP-34: chat invertido com 120 mensagens; prepend preserva a posição e não deixa células em branco; nova mensagem fora do fim não desloca a leitura e o atalho leva às recentes; rolagem rápida mantém as células renderizadas; foco/digitação no composer não muda o histórico. Usa os fixtures `squares`, `square` e `squareMessages`. |
 | `session-guards.spec.ts` | Rotas protegidas (`/biblioteca`, `/avisos`, `/conta`, `/perfil`, `/criar`, `/progresso`, `/post/[id]`) sem sessão; login e Sobre e legal públicos; documento legal por link direto com a âncora no voltar. |
 | `report-success.spec.ts` | Denúncia de uma enquete no feed até a confirmação; cartão do conteúdo, link das Regras; contrato de `POST /reports`; bloquear, desfazer, bloquear de novo e confirmar que a publicação sai do feed ao fechar; linha oculta para quem já está bloqueado. Usa `installApiMock(page, {}, { feedItems, blockedHandles })` para semear feed e bloqueios. |
 | `performance-diagnostics.spec.ts` | Conta → Diagnóstico de performance (rota de dev/staging), início da coleta, harness de 20 cartões, navegação pelas abas e retorno com requests registradas; download do JSON com o snapshot da sessão. |
