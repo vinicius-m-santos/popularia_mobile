@@ -16,7 +16,7 @@ import UploadScreen, { titleFromFilename } from '../upload-screen';
 import { pickPdf } from '../transfers';
 import { collection, document } from '../testing/fixtures';
 
-const params: { composerKey?: string; edit?: string; collection?: string } = {};
+const params: { composerKey?: string; edit?: string; collection?: string; scope?: string } = {};
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => params, useFocusEffect: () => {}, usePreventRemove: () => jest.fn() }));
 jest.mock('react-native-safe-area-context', () => { const { View } = jest.requireActual<typeof import('react-native')>('react-native'); return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }; });
 jest.mock('@/features/account/account-context', () => ({ useMe: () => ({ id: 'me', name: 'Camila' }) }));
@@ -37,7 +37,7 @@ beforeEach(() => {
   queryClient.clear();
   clearScreenMemory();
   queryClient.setDefaultOptions({ queries: { retry: false } });
-  jest.clearAllMocks(); delete params.composerKey; delete params.edit; delete params.collection;
+  jest.clearAllMocks(); delete params.composerKey; delete params.edit; delete params.collection; delete params.scope;
   jest.mocked(listDocuments).mockResolvedValue({ items: [], nextCursor: null });
   jest.mocked(listCollections).mockResolvedValue({ items: [collection], nextCursor: null });
   jest.mocked(getCollection).mockResolvedValue(collection);
@@ -81,6 +81,12 @@ describe('bibliotecas reais', () => {
   it('protege a barra de seções da biblioteca pessoal', async () => {
     await render(<LibraryPane scope="personal" owner="me" />);
     expect(screen.getAllByTestId('profile-swipe-guard')).toHaveLength(1);
+  });
+  it('volta pelo chrome da biblioteca sem coleção editorial', async () => {
+    params.scope = 'personal';
+    await render(<LibraryScreen />);
+    await fireEvent.press(screen.getByLabelText('Voltar'));
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
   it('apresenta a coleção com identidade, ações e filtros próprios', async () => {
     const onEdit = jest.fn();

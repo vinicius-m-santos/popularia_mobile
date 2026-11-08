@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 
 import { mediaViewabilityConfig } from '@/hooks/use-list-visibility';
@@ -112,6 +113,14 @@ describe('tela de tópico', () => {
     expect(mockListState?.hasMore).toBe(true);
     mockListState?.loadMore();
     expect(mockLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('volta pelo chrome do tópico', async () => {
+    jest.clearAllMocks();
+    mockUseCachedPages.mockReturnValue({ items: [], status: 'success', hasMore: false, loadMore: mockLoadMore, refresh: jest.fn(), loadingMore: false, loadMoreError: null, isRefreshing: false, refreshError: null });
+    await render(<TopicScreen />);
+    await fireEvent.press(screen.getByLabelText('Voltar'));
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it('libera a mídia só do post na viewport e acompanha a rolagem', async () => {

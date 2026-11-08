@@ -1,10 +1,12 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams, useScrollToTop } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { BottomSheet } from '@/components/bottom-sheet';
+import { EditorialBar } from '@/components/editorial-bar';
+import { FilterChipRow } from '@/components/filter-chips';
 import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { KeyboardView } from '@/components/keyboard-view';
@@ -249,7 +251,13 @@ function DiscoveryScreen({ topicId }: { topicId?: string }) {
         initialNumToRender={12}
         refreshControl={<RefreshControl refreshing={pullRefresh.refreshing} onRefresh={pullRefresh.onRefresh} tintColor={Colors.red} />}
         ListHeaderComponent={<View onLayout={stickyControls.onHeaderLayout} style={styles.titleWrap}>
-          {topicId ? <View style={styles.topicChrome}><IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} /><View style={styles.barDivider} /><AppText variant="label">Assuntos da Popularia</AppText></View> : null}
+          {topicId ? <EditorialBar
+            onBack={goBack}
+            title={<AppText variant="label">Assuntos da Popularia</AppText>}
+            divider
+            minHeight={58}
+            inset={0}
+          /> : null}
           <AppText variant="display" accessibilityRole="header" style={[styles.title, topicId ? styles.topicTitle : null]}>{title}</AppText>
         </View>}
         renderItem={({ item }) => {
@@ -332,17 +340,16 @@ function discoveryRows(data: DiscoveryData, topic: Topic | undefined, topicDocum
 function ExploreFilters({ options, value, onChange }: {
   options: { key: DiscoveryFilter; label: string }[]; value: DiscoveryFilter; onChange: (filter: DiscoveryFilter) => void;
 }) {
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  const positions = useRef<Record<string, number>>({});
-  useEffect(() => { scroll.current?.scrollTo({ x: Math.max(0, (positions.current[value] ?? 0) - Spacing.five), animated: true }); }, [value]);
-  return <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="Filtrar resultados">
-    {options.map((option) => <Pressable key={option.key} accessibilityRole="radio" accessibilityLabel={option.label}
-      accessibilityState={{ checked: value === option.key }} onPress={() => onChange(option.key)}
-      onLayout={(event) => { positions.current[option.key] = event.nativeEvent.layout.x; }}
-      style={({ pressed }) => [styles.filter, value === option.key && styles.filterActive, pressed && styles.pressed]}>
-      <AppText variant="button" color={value === option.key ? Colors.paper : Colors.ink}>{option.label}</AppText>
-    </Pressable>)}
-  </ScrollView>;
+  return <FilterChipRow
+    options={options}
+    value={value}
+    onChange={onChange}
+    accessibilityLabel="Filtrar resultados"
+    appearance="soft"
+    gap={Spacing.one}
+    inset={Spacing.five}
+    labelVariant="button"
+  />;
 }
 
 function TopicLinks({ topics, onSelect }: { topics: Topic[]; onSelect: (topic: Topic) => void }) {
@@ -406,16 +413,11 @@ const styles = StyleSheet.create({
   titleWrap: { paddingHorizontal: Spacing.five, paddingTop: Spacing.three, paddingBottom: Spacing.one },
   title: { fontFamily: Fonts.anton, fontSize: 54, lineHeight: 68, letterSpacing: -0.8 },
   topicTitle: { lineHeight: 80 },
-  topicChrome: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 58 },
-  barDivider: { width: 1.5, height: 28, backgroundColor: Colors.ink },
   controls: { backgroundColor: Colors.cream, paddingTop: Spacing.two, paddingBottom: Spacing.three, gap: Spacing.two },
   searchGroup: { marginHorizontal: Spacing.five, gap: Spacing.two },
   searchLabel: { lineHeight: 16 },
   search: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 2, borderColor: Colors.ink, borderRadius: Radius.sm, backgroundColor: Colors.paper, paddingHorizontal: Spacing.three },
   input: { flex: 1, minWidth: 0, minHeight: 48, fontFamily: Fonts.regular, fontSize: 18, lineHeight: 24, color: Colors.ink, paddingVertical: Spacing.two, outlineWidth: 0 },
-  filters: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.five },
-  filter: { minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.strawLight, borderRadius: Radius.sm, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  filterActive: { backgroundColor: Colors.ink },
   section: { paddingHorizontal: Spacing.five, paddingTop: Spacing.three, paddingBottom: Spacing.one },
   hit: { paddingHorizontal: Spacing.five },
   state: { paddingHorizontal: Spacing.five },

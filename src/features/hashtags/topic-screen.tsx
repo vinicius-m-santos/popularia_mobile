@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { EditorialBar } from '@/components/editorial-bar';
 import { StateView } from '@/components/state-view';
 import { IconButton } from '@/components/icon-button';
 import { PopulariaList } from '@/components/list/popularia-list';
@@ -48,12 +49,16 @@ export function TopicScreen() {
         emptyTitle="Sem publicações visíveis"
         emptyMessage="Ainda não há publicações deste tópico que você possa ver."
         ListHeaderComponent={<View>
-          <View style={styles.chrome}>
-            <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-            <View style={styles.divider} />
-            <AppText variant="label" style={styles.chromeTitle}>Tópico</AppText>
-            {!DEMO_MODE && valid ? <IconButton icon="shareNodes" accessibilityLabel="Compartilhar tópico" onPress={() => { void shareDestination({ kind: 'hashtag', id: slug }); }} /> : <View style={styles.spacer} />}
-          </View>
+          <EditorialBar
+            onBack={goBack}
+            title={<AppText variant="label" style={styles.chromeTitle}>Tópico</AppText>}
+            actions={!DEMO_MODE && valid ? <IconButton icon="shareNodes" accessibilityLabel="Compartilhar tópico" onPress={() => { void shareDestination({ kind: 'hashtag', id: slug }); }} /> : undefined}
+            reserveActionSpace
+            divider
+            minHeight={58}
+            inset={Spacing.one}
+            gap={Spacing.two}
+          />
           <View style={styles.heading}>
             <AppText style={styles.name}>#{info.data?.displayName ?? slug}</AppText>
             <AppText style={styles.intro}>Publicações sobre este assunto</AppText>
@@ -68,10 +73,7 @@ export function TopicScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.cream },
   content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', flexGrow: 1, paddingBottom: Spacing.seven },
-  chrome: { minHeight: 58, paddingHorizontal: Spacing.one, flexDirection: 'row', alignItems: 'center' },
-  divider: { width: 1.5, height: 28, backgroundColor: Colors.ink, marginHorizontal: Spacing.two },
-  chromeTitle: { flex: 1 },
-  spacer: { width: 44 },
+  chromeTitle: { fontSize: 12.5 },
   heading: { paddingHorizontal: Spacing.five, paddingTop: Spacing.two, paddingBottom: Spacing.four, borderBottomWidth: 1.5, borderBottomColor: Colors.ink },
   name: { fontFamily: Fonts.condensed, fontSize: 38, lineHeight: 48, color: Colors.ink },
   intro: { color: Colors.muted, marginTop: Spacing.one },

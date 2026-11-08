@@ -1,8 +1,9 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { EditorialBar } from '@/components/editorial-bar';
 import { KeyboardView } from '@/components/keyboard-view';
 import { IconButton } from '@/components/icon-button';
 import { DiscussionScreenSkeleton, PopulariaListSkeleton } from '@/components/list/popularia-list-skeleton';
@@ -394,9 +395,9 @@ type HeaderProps = {
 function DiscussionHeader({ comuna, onMore }: HeaderProps) {
   const nav = useNav();
   return (
-    <View style={styles.header}>
-      <IconButton icon="back" accessibilityLabel="Voltar" onPress={goBack} />
-      <View style={styles.headerTitle}>
+    <EditorialBar
+      onBack={goBack}
+      title={<>
         <AppText variant="heading" accessibilityRole="header">
           Discussão
         </AppText>
@@ -411,13 +412,15 @@ function DiscussionHeader({ comuna, onMore }: HeaderProps) {
             </AppText>
           </Pressable>
         ) : null}
-      </View>
-      {onMore ? (
-        <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={onMore} />
-      ) : (
-        <View style={styles.headerSpacer} />
-      )}
-    </View>
+      </>}
+      titleStyle={styles.headerTitle}
+      actions={onMore ? <IconButton icon="more" size={20} accessibilityLabel="Mais opções da publicação" onPress={onMore} /> : undefined}
+      reserveActionSpace
+      minHeight={56}
+      inset={Spacing.two}
+      gap={Spacing.one}
+      rule={1.5}
+    />
   );
 }
 
@@ -429,21 +432,7 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderBottomWidth: 1.5,
-    borderBottomColor: Colors.ink,
-    backgroundColor: Colors.cream,
-  },
-  headerSpacer: {
-    width: 44,
-  },
   headerTitle: {
-    flex: 1,
     alignItems: 'center',
     gap: 2,
   },
