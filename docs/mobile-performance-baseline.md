@@ -111,8 +111,11 @@ O que a tela faz:
 Os números exibidos são exatamente os do snapshot: requests lógicas, tentativas
 HTTP, retries (tentativas extras das requests concluídas), requests por tela,
 commits e `actualDuration` do React Profiler, `onLoad` da FlashList, players
-montados/tocando e TTFF (média e máximo). A tela não calcula FPS, memória, TTI
-nem qualquer métrica que a instrumentação não registre.
+montados/tocando, TTFF e, para vídeos em lista, **Viewport → 1º quadro** e
+**Viewport → player** (média e máximo). A tela não calcula FPS, memória, TTI nem
+qualquer métrica que a instrumentação não registre. O roteiro específico de
+atraso de vídeo e a decisão sobre prefetch estão em
+`docs/pop-25-video-viewport-first-frame.md`.
 
 ### Validar no iPhone
 
@@ -245,11 +248,14 @@ registrar o motivo.
 8. **Fotos**: abrir uma foto no feed e em tela cheia; medir frames nativos,
    memória e tempo de carregamento. Repetir com cache quente.
 9. **Vídeo**: com rede Wi-Fi e com throttling lento, medir TTFF (primeiro
-   quadro), players montados/tocando, pausa ao sair da viewport/rota/background,
-   erro de rede e retomada. Abrir a tela cheia e voltar sem duplicar player;
-   alinhar os eventos `fullscreen-enter`, `fullscreen-exit` e
-   `surface-first-frame` do snapshot com a gravação de tela. Roteiro e critério
-   de frame preto em `docs/pop-26-video-fullscreen-transition.md`.
+   quadro), **Viewport → 1º quadro** e **Viewport → player**, players
+   montados/tocando, pausa ao sair da viewport/rota/background, erro de rede e
+   retomada. Usar pelo menos 3 vídeos consecutivos, 5 repetições por rede e
+   cache frio/quente. Abrir a tela cheia e voltar sem duplicar player; alinhar
+   os eventos `fullscreen-enter`, `fullscreen-exit` e `surface-first-frame` do
+   snapshot com a gravação de tela. Roteiro e critério de frame preto em
+   `docs/pop-26-video-fullscreen-transition.md`; decisão de prefetch e tabela
+   de Wi-Fi/3G em `docs/pop-25-video-viewport-first-frame.md`.
 10. **Background/foreground**: com vídeo tocando, ir para segundo plano e voltar;
     confirmar pausa e retomada e o efeito na memória.
 11. **Discussão**: abrir um post, rolar comentários, responder, apoiar e voltar
@@ -293,6 +299,12 @@ neste ticket.
 | Vídeo rede lenta | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | — | — | NÃO MEDIDO | NÃO MEDIDO |
 | Vídeo background | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | — | — | — | NÃO MEDIDO |
 | Discussão | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | NÃO MEDIDO | — | NÃO MEDIDO |
+
+Para os cenários de vídeo, registrar separadamente **Viewport → 1º quadro** e
+**Viewport → player** na tabela de execução de
+`docs/pop-25-video-viewport-first-frame.md`. A coluna TTFF desta tabela mede do
+pedido de reprodução ao primeiro quadro e não substitui a espera desde a
+viewport.
 
 ## Comparação antes/depois
 

@@ -308,11 +308,23 @@ function DiagnosticsResults({ snapshot, readAt }: { snapshot: PerformanceSnapsho
           <MetricCard testID="metric-video-playing" label="Tocando agora" value={String(video.playingNow)} />
           <MetricCard testID="metric-ttff-average" label="TTFF médio" value={video.firstFrameCount > 0 ? formatMs(video.averageFirstFrameMs) : '—'} />
           <MetricCard testID="metric-ttff-max" label="TTFF máximo" value={video.firstFrameCount > 0 ? formatMs(video.firstFrameMaxMs) : '—'} />
+          <MetricCard
+            testID="metric-viewport-first-frame"
+            label="Viewport → 1º quadro"
+            value={video.viewportFirstFrameCount > 0 ? formatMs(video.averageViewportFirstFrameMs) : '—'}
+            detail={video.viewportFirstFrameCount > 0 ? `máx. ${formatMs(video.viewportFirstFrameMaxMs)}` : undefined}
+          />
+          <MetricCard
+            testID="metric-viewport-to-mount"
+            label="Viewport → player"
+            value={video.viewportToMountCount > 0 ? formatMs(video.averageViewportToMountMs) : '—'}
+            detail={video.viewportToMountCount > 0 ? `máx. ${formatMs(video.viewportToMountMaxMs)}` : undefined}
+          />
           <MetricCard testID="metric-video-first-frame" label="Primeiros quadros" value={String(video.firstFrameCount)} />
           <MetricCard testID="metric-video-errors" label="Erros de vídeo" value={String(video.errorCount)} />
         </View>
         <AppText variant="caption">
-          TTFF vai do pedido de reprodução ao primeiro quadro, uma vez por player. “Players montados” e “Tocando agora” são o instante da leitura.
+          TTFF vai do pedido de reprodução ao primeiro quadro. “Viewport → 1º quadro” vai da confirmação da lista (20% por 100 ms) ao mesmo evento e inclui montagem/commit; “Viewport → player” mostra só a parcela até o player montar. Rode Wi-Fi e 3G em sessões separadas.
         </AppText>
       </View>
 

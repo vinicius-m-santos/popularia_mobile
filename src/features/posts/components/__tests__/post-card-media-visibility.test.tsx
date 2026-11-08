@@ -1,16 +1,19 @@
 /**
  * POP-20/POP-30: o cartão só monta o player quando a lista confirma que ele está na viewport.
  *
- * Nas listas, o cartão assina a viewport pelo `postId`; aqui a prop explícita
- * isola o efeito no cartão real: nenhum player fora da viewport, no máximo um
- * tocando e o player desmontado ao rolar para fora.
+ * Nas listas, o cartão assina a viewport pelo `postId`; a prop explícita isola
+ * o efeito no cartão real (nenhum player fora da viewport, no máximo um tocando
+ * e o player desmontado ao rolar para fora). O caso com provider confirma que
+ * o marco da viewport chega até o evento de primeiro quadro (POP-25).
  */
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { useVideoPlayer } from 'expo-video';
 import { AppState, ScrollView } from 'react-native';
+import type { ViewToken } from '@shopify/flash-list';
 
 import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
+import { MediaVisibilityProvider, useListVisibility } from '@/hooks/use-list-visibility';
 import { preparePost } from '@/features/posts/queries';
 import type { FeedItem } from '@/types/models';
 
@@ -33,7 +36,7 @@ const store = globalThis as { __postCardPlayers?: MockPlayer[] };
 
 jest.mock('expo-video', () => {
   const React = jest.requireActual<typeof import('react')>('react');
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { Pressable } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     __esModule: true,
     useVideoPlayer: jest.fn((_source: unknown, setup?: (player: MockPlayer) => void) => {
@@ -66,7 +69,8 @@ jest.mock('expo-video', () => {
       }
       return ref.current;
     }),
-    VideoView: View,
+    VideoView: (props: { onFirstFrameRender?: () => void; accessibilityLabel?: string }) =>
+      React.createElement(Pressable, { testID: 'post-video-surface', onPress: props.onFirstFrameRender, accessibilityLabel: props.accessibilityLabel }),
   };
 });
 
@@ -242,5 +246,31 @@ describe('mídia do PostCard na viewport', () => {
     expect(players[1].pause).toHaveBeenCalled();
     expect(getPerformanceSnapshot().video.mountedNow).toBe(3);
     expect(getPerformanceSnapshot().video.playingNow).toBe(1);
+  });
+
+  it('leva o marco da viewport do cartão até a métrica de primeiro quadro', async () => {
+    const { result } = await renderHook(() => useListVisibility());
+    await render(
+      <MediaVisibilityProvider visibility={result.current}>
+        <PostCard item={VIDEOS[0]} />
+      </MediaVisibilityProvider>,
+    );
+    expect(useVideoPlayer).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.onViewableItemsChanged({ viewableItems: [{ key: 'v1' } as ViewToken<unknown>] });
+    });
+    await waitFor(() => expect(store.__postCardPlayers).toHaveLength(1));
+    await waitFor(() => expect(screen.getByTestId('post-video-surface')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('post-video-surface'));
+
+    const firstFrame = getPerformanceSnapshot().video.events.find((event) => event.event === 'first-frame');
+    expect(firstFrame).toMatchObject({
+      mediaId: 'media-v1',
+      viewportMs: expect.any(Number),
+      viewportToMountMs: expect.any(Number),
+    });
+    expect(getPerformanceSnapshot().video.viewportFirstFrameCount).toBe(1);
   });
 });

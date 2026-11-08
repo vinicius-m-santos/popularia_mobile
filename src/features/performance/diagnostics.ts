@@ -193,6 +193,8 @@ export type VideoTransitionDiagnostics = {
 
 export type VideoDiagnostics = PerformanceSnapshot['video'] & {
   averageFirstFrameMs: number;
+  averageViewportFirstFrameMs: number;
+  averageViewportToMountMs: number;
   errorCount: number;
   transitions: VideoTransitionDiagnostics;
 };
@@ -239,6 +241,12 @@ export function videoDiagnostics(snapshot: PerformanceSnapshot): VideoDiagnostic
     ...snapshot.video,
     averageFirstFrameMs: snapshot.video.firstFrameCount > 0
       ? snapshot.video.firstFrameTotalMs / snapshot.video.firstFrameCount
+      : 0,
+    averageViewportFirstFrameMs: snapshot.video.viewportFirstFrameCount > 0
+      ? snapshot.video.viewportFirstFrameTotalMs / snapshot.video.viewportFirstFrameCount
+      : 0,
+    averageViewportToMountMs: snapshot.video.viewportToMountCount > 0
+      ? snapshot.video.viewportToMountTotalMs / snapshot.video.viewportToMountCount
       : 0,
     errorCount: snapshot.video.events.filter((event) => event.event === 'error').length,
     transitions: videoTransitionDiagnostics(snapshot),

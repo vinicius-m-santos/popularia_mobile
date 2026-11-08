@@ -3,7 +3,7 @@ import { act, render, renderHook, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import type { ViewToken } from '@shopify/flash-list';
 
-import { MediaVisibilityProvider, useListVisibility, useMediaVisible, type MediaVisibility } from '../use-list-visibility';
+import { MediaVisibilityProvider, useListVisibility, useMediaVisibility, useMediaVisible, type MediaVisibility } from '../use-list-visibility';
 
 function viewport(ids: string[]): { viewableItems: ViewToken<unknown>[] } {
   return { viewableItems: ids.map((key) => ({ key } as ViewToken<unknown>)) };
@@ -46,12 +46,15 @@ describe('useListVisibility', () => {
     expect(listenerA).toHaveBeenCalledTimes(1);
     expect(listenerB).not.toHaveBeenCalled();
     expect(result.current.isVisible('a')).toBe(true);
+    const enteredAt = result.current.visibleSince('a');
+    expect(enteredAt).not.toBeNull();
 
-    // A mesma janela não muta nada nem notifica de novo.
+    // A mesma janela não muta nada, não notifica de novo e preserva o marco.
     await act(async () => {
       result.current.onViewableItemsChanged(viewport(['a']));
     });
     expect(listenerA).toHaveBeenCalledTimes(1);
+    expect(result.current.visibleSince('a')).toBe(enteredAt);
 
     // Trocar a janela notifica quem saiu e quem entrou, não os demais.
     await act(async () => {
@@ -60,7 +63,9 @@ describe('useListVisibility', () => {
     expect(listenerA).toHaveBeenCalledTimes(2);
     expect(listenerB).toHaveBeenCalledTimes(1);
     expect(result.current.isVisible('a')).toBe(false);
+    expect(result.current.visibleSince('a')).toBeNull();
     expect(result.current.isVisible('b')).toBe(true);
+    expect(result.current.visibleSince('b')).not.toBeNull();
   });
 
   it('clear esquece a viewport e notifica apenas os ids visíveis', async () => {
@@ -82,6 +87,8 @@ describe('useListVisibility', () => {
     expect(listenerB).toHaveBeenCalledTimes(1);
     expect(result.current.isVisible('a')).toBe(false);
     expect(result.current.isVisible('b')).toBe(false);
+    expect(result.current.visibleSince('a')).toBeNull();
+    expect(result.current.visibleSince('b')).toBeNull();
 
     // Limpar de novo não dispara notificações.
     await act(async () => {
@@ -145,6 +152,7 @@ describe('useListVisibility', () => {
     });
     expect(screen.getByTestId('card-a').props.children).toBe('visible');
     expect(screen.getByTestId('card-b').props.children).toBe('visible');
+    expect(result.current.visibleSince('a')).not.toBeNull();
 
     await act(async () => {
       result.current.setFocused(false);
@@ -153,6 +161,7 @@ describe('useListVisibility', () => {
     expect(screen.getByTestId('card-a').props.children).toBe('hidden');
     expect(screen.getByTestId('card-b').props.children).toBe('hidden');
     expect(result.current.isVisible('a')).toBe(false);
+    expect(result.current.visibleSince('a')).toBeNull();
 
     // A viewport pode mudar com a rota coberta; ainda não é hora de montar.
     await act(async () => {
@@ -161,13 +170,36 @@ describe('useListVisibility', () => {
     expect(screen.getByTestId('card-b').props.children).toBe('hidden');
     expect(screen.getByTestId('card-c').props.children).toBe('hidden');
 
-    // No retorno, só quem está visível agora é habilitado.
+    // No retorno, só quem está visível agora é habilitado e a espera
+    // viewport → primeiro quadro recomeça no foco, não na entrada antiga.
     await act(async () => {
       result.current.setFocused(true);
     });
     expect(screen.getByTestId('card-a').props.children).toBe('hidden');
     expect(screen.getByTestId('card-b').props.children).toBe('visible');
     expect(screen.getByTestId('card-c').props.children).toBe('visible');
+    expect(result.current.visibleSince('a')).toBeNull();
+    expect(result.current.visibleSince('b')).not.toBeNull();
+  });
+
+  it('entrega visibilidade e marco de viewport na mesma assinatura', async () => {
+    const { result } = await renderHook(() => useListVisibility());
+    function EntryCard({ id }: { id: string }) {
+      const state = useMediaVisibility(id);
+      return <Text testID={`entry-${id}`}>{`${state.visible}:${state.viewportEnteredAt ?? 'null'}`}</Text>;
+    }
+    await render(
+      <MediaVisibilityProvider visibility={result.current}>
+        <EntryCard id="a" />
+      </MediaVisibilityProvider>,
+    );
+    expect(screen.getByTestId('entry-a').props.children).toBe('false:null');
+
+    await act(async () => {
+      result.current.onViewableItemsChanged(viewport(['a']));
+    });
+    const rendered = String(screen.getByTestId('entry-a').props.children);
+    expect(rendered).toMatch(/^true:\d+(\.\d+)?$/);
   });
 
   it('sem provider mantém o default seguro falso', async () => {

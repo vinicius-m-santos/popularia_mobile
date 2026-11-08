@@ -91,7 +91,7 @@ function usePoster(mediaId: string) {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
-export function PostAttachment({ media, localUri, visible = true, chrome, framed = false }: {
+export function PostAttachment({ media, localUri, visible = true, chrome, framed = false, viewportEnteredAt = null }: {
   media: PostMediaDto;
   localUri?: string;
   visible?: boolean;
@@ -101,11 +101,17 @@ export function PostAttachment({ media, localUri, visible = true, chrome, framed
   blockGesture?: PanGesture | null;
   /** No cartão a mídia é emoldurada como um quadro; na prévia do compositor, não. */
   framed?: boolean;
+  /**
+   * Instante em que o cartão entrou na viewport confirmada da lista. Só a lista
+   * conhece esse marco; a prévia do compositor e o harness passam `null` e não
+   * entram na métrica de viewport (POP-25).
+   */
+  viewportEnteredAt?: number | null;
 }) {
   const uri = localUri ?? media.url;
   if (!uri) return <View style={styles.error}><AppText variant="caption">Mídia indisponível.</AppText></View>;
   if (media.type === 'video') return visible
-    ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} framed={framed} />
+    ? <PostVideo key={uri} media={media} uri={uri} chrome={chrome} framed={framed} viewportEnteredAt={viewportEnteredAt} />
     : <VideoPoster key={media.id} media={media} framed={framed} />;
   return <PostPhoto key={uri} media={media} uri={uri} framed={framed} />;
 }
@@ -227,7 +233,7 @@ function VideoPoster({ media, framed = false }: { media: PostMediaDto; framed?: 
   </View>;
 }
 
-function PostVideo({ media, uri, chrome, framed = false }: { media: PostMediaDto; uri: string; chrome?: VideoChrome; framed?: boolean }) {
+function PostVideo({ media, uri, chrome, framed = false, viewportEnteredAt = null }: { media: PostMediaDto; uri: string; chrome?: VideoChrome; framed?: boolean; viewportEnteredAt?: number | null }) {
   let videoModule: typeof import('expo-video');
   try {
     // Evita derrubar a inicialização em development builds feitos antes da inclusão do módulo nativo.
@@ -236,10 +242,10 @@ function PostVideo({ media, uri, chrome, framed = false }: { media: PostMediaDto
   } catch {
     return <View style={styles.error}><AppText variant="caption">Atualize o app para reproduzir este vídeo.</AppText></View>;
   }
-  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} chrome={chrome} framed={framed} />;
+  return <LoadedPostVideo media={media} uri={uri} videoModule={videoModule} chrome={chrome} framed={framed} viewportEnteredAt={viewportEnteredAt} />;
 }
 
-function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); chrome?: VideoChrome; framed?: boolean }) {
+function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false, viewportEnteredAt = null }: { media: PostMediaDto; uri: string; videoModule: typeof import('expo-video'); chrome?: VideoChrome; framed?: boolean; viewportEnteredAt?: number | null }) {
   const useVideoPlayer = videoModule.useVideoPlayer;
   const VideoView = videoModule.VideoView;
   const player = useVideoPlayer({ uri, useCaching: false }, (instance) => {
@@ -264,6 +270,9 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const heldAt = useRef(0);
   // TTFF: do pedido de reprodução ao primeiro quadro, uma vez por instância montada.
   const playIntentAt = useRef<number | null>(null);
+  // POP-25: separa o custo de montagem/commit (viewport → player) do custo de
+  // rede/decodificação (play → primeiro quadro).
+  const mountedAt = useRef<number | null>(null);
   const firstFrameRecorded = useRef(false);
   const errorRecorded = useRef(false);
   // Transição feed → tela cheia → feed: cada surface remontada tem seu primeiro quadro.
@@ -271,6 +280,7 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const feedReturnStartedAt = useRef<number | null>(null);
 
   useEffect(() => {
+    mountedAt.current = performanceNow();
     recordVideoMount(media.id);
     return () => recordVideoUnmount(media.id);
   }, [media.id]);
@@ -389,8 +399,16 @@ function LoadedPostVideo({ media, uri, videoModule, chrome, framed = false }: { 
   const recordInitialFirstFrame = () => {
     if (firstFrameRecorded.current) return;
     firstFrameRecorded.current = true;
+    const frameAt = performanceNow();
     const startedAt = playIntentAt.current;
-    if (startedAt !== null) recordVideoFirstFrame(media.id, performanceNow() - startedAt);
+    const mountStartedAt = mountedAt.current;
+    const viewport = viewportEnteredAt !== null && mountStartedAt !== null
+      ? {
+          totalMs: frameAt - viewportEnteredAt,
+          toMountMs: mountStartedAt - viewportEnteredAt,
+        }
+      : undefined;
+    if (startedAt !== null) recordVideoFirstFrame(media.id, frameAt - startedAt, viewport);
   };
 
   const openFullscreen = () => {

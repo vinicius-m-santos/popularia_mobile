@@ -15,6 +15,7 @@ function fakeVisibility(): MediaVisibility {
   let focused = true;
   return {
     isVisible: () => focused,
+    visibleSince: () => (focused ? 1 : null),
     setFocused: jest.fn((next: boolean) => { focused = next; }),
     subscribe: () => () => {},
     onViewableItemsChanged: jest.fn(),

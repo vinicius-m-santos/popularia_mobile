@@ -70,6 +70,14 @@ export type PerformanceVideoRecord = {
   mediaId: string;
   valueMs?: number;
   surface?: VideoSurface;
+  /**
+   * POP-25: da confirmação na viewport (20% por 100 ms) até o primeiro quadro.
+   * Só existe quando o cartão recebe o marco da lista; prévias e cartões
+   * isolados ficam de fora para não misturar montagem direta com viewport.
+   */
+  viewportMs?: number;
+  /** POP-25: da confirmação na viewport até este player montar. */
+  viewportToMountMs?: number;
   atMs: number;
 };
 
@@ -158,6 +166,14 @@ export type PerformanceSnapshot = {
     firstFrameCount: number;
     firstFrameTotalMs: number;
     firstFrameMaxMs: number;
+    /** POP-25: amostras viewport → primeiro quadro (só listas com viewability). */
+    viewportFirstFrameCount: number;
+    viewportFirstFrameTotalMs: number;
+    viewportFirstFrameMaxMs: number;
+    /** POP-25: amostras viewport → player montado. */
+    viewportToMountCount: number;
+    viewportToMountTotalMs: number;
+    viewportToMountMaxMs: number;
   };
   photos: PerformancePhotoStats;
   posters: PerformancePosterCacheStats;
@@ -219,6 +235,12 @@ type SessionState = {
   firstFrameTotalMs: number;
   firstFrameMaxMs: number;
   firstFrameCount: number;
+  viewportFirstFrameTotalMs: number;
+  viewportFirstFrameMaxMs: number;
+  viewportFirstFrameCount: number;
+  viewportToMountTotalMs: number;
+  viewportToMountMaxMs: number;
+  viewportToMountCount: number;
   listLoads: number;
   videoMounts: number;
   dropped: number;
@@ -330,6 +352,12 @@ function newSession(): SessionState {
     firstFrameTotalMs: 0,
     firstFrameMaxMs: 0,
     firstFrameCount: 0,
+    viewportFirstFrameTotalMs: 0,
+    viewportFirstFrameMaxMs: 0,
+    viewportFirstFrameCount: 0,
+    viewportToMountTotalMs: 0,
+    viewportToMountMaxMs: 0,
+    viewportToMountCount: 0,
     listLoads: 0,
     videoMounts: 0,
     dropped: 0,
@@ -471,13 +499,23 @@ export function recordListLoad(list: string, elapsedTimeInMs: number, itemCount:
   }, MAX_LIST_RECORDS, session);
 }
 
-function recordVideoEvent(event: PerformanceVideoEvent, mediaId: string, valueMs?: number, surface?: VideoSurface): void {
+function recordVideoEvent(
+  event: PerformanceVideoEvent,
+  mediaId: string,
+  valueMs?: number,
+  surface?: VideoSurface,
+  viewport?: { totalMs: number; toMountMs: number },
+): void {
   if (!session) return;
   pushBounded(session.video, {
     event,
     mediaId,
     ...(valueMs === undefined ? {} : { valueMs: Math.max(0, Math.round(valueMs * 100) / 100) }),
     ...(surface === undefined ? {} : { surface }),
+    ...(viewport === undefined ? {} : {
+      viewportMs: Math.max(0, Math.round(viewport.totalMs * 100) / 100),
+      viewportToMountMs: Math.max(0, Math.round(viewport.toMountMs * 100) / 100),
+    }),
     atMs: Math.round(performanceNow() - session.startedMonotonic),
   }, MAX_VIDEO_RECORDS, session);
 }
@@ -508,12 +546,32 @@ export function recordVideoPause(mediaId: string): void {
   recordVideoEvent('pause', mediaId);
 }
 
-export function recordVideoFirstFrame(mediaId: string, elapsedMs: number): void {
+/**
+ * Primeiro quadro de um player. `elapsedMs` é o TTFF desde o pedido de
+ * reprodução; `viewport`, quando a lista fornece o marco de entrada, acrescenta
+ * a espera total desde a viewport e a parcela gasta até o player montar.
+ */
+export function recordVideoFirstFrame(
+  mediaId: string,
+  elapsedMs: number,
+  viewport?: { totalMs: number; toMountMs: number },
+): void {
   if (!session) return;
+  const firstFrameMs = Math.max(0, elapsedMs);
   session.firstFrameCount += 1;
-  session.firstFrameTotalMs += Math.max(0, elapsedMs);
-  session.firstFrameMaxMs = Math.max(session.firstFrameMaxMs, elapsedMs);
-  recordVideoEvent('first-frame', mediaId, elapsedMs);
+  session.firstFrameTotalMs += firstFrameMs;
+  session.firstFrameMaxMs = Math.max(session.firstFrameMaxMs, firstFrameMs);
+  if (viewport) {
+    const totalMs = Math.max(0, viewport.totalMs);
+    const toMountMs = Math.max(0, viewport.toMountMs);
+    session.viewportFirstFrameCount += 1;
+    session.viewportFirstFrameTotalMs += totalMs;
+    session.viewportFirstFrameMaxMs = Math.max(session.viewportFirstFrameMaxMs, totalMs);
+    session.viewportToMountCount += 1;
+    session.viewportToMountTotalMs += toMountMs;
+    session.viewportToMountMaxMs = Math.max(session.viewportToMountMaxMs, toMountMs);
+  }
+  recordVideoEvent('first-frame', mediaId, firstFrameMs, undefined, viewport);
 }
 
 /**
@@ -634,6 +692,12 @@ export function getPerformanceSnapshot(): PerformanceSnapshot {
       firstFrameCount: session?.firstFrameCount ?? 0,
       firstFrameTotalMs: session?.firstFrameTotalMs ?? 0,
       firstFrameMaxMs: session?.firstFrameMaxMs ?? 0,
+      viewportFirstFrameCount: session?.viewportFirstFrameCount ?? 0,
+      viewportFirstFrameTotalMs: session?.viewportFirstFrameTotalMs ?? 0,
+      viewportFirstFrameMaxMs: session?.viewportFirstFrameMaxMs ?? 0,
+      viewportToMountCount: session?.viewportToMountCount ?? 0,
+      viewportToMountTotalMs: session?.viewportToMountTotalMs ?? 0,
+      viewportToMountMaxMs: session?.viewportToMountMaxMs ?? 0,
     },
     photos: {
       events: session ? session.photos.map((record) => ({ ...record })) : [],
