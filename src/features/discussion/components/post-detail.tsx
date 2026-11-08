@@ -4,8 +4,8 @@ import Animated from 'react-native-reanimated';
 import { DocumentCard } from '@/features/library/document-card';
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/icon-button';
-import { Icon } from '@/components/icon';
 import { Kicker } from '@/components/kicker';
+import { SocialAction } from '@/components/social-action';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { usePostActions } from '@/features/interactions/use-post-actions';
 import { chamadoCardFor } from '@/features/events/chamado-data';
@@ -72,8 +72,8 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
         <AppText style={styles.stamp} color={Colors.muted}>{formatStamp(post.createdAt)}</AppText>
 
         <View style={styles.actions}>
-          <CompactAction icon="support" count={actions.supportCount} active={actions.supported} label="Apoiar publicação" onPress={actions.toggleSupport} />
-          <CompactAction icon="echo" count={actions.echoCount} active={actions.echoed} label="Ecoar publicação" onPress={actions.toggleEcho} />
+          <SocialAction variant="editorial" icon="support" count={actions.supportCount} active={actions.supported} label="Apoiar publicação" onPress={actions.toggleSupport} />
+          <SocialAction variant="editorial" icon="echo" count={actions.echoCount} active={actions.echoed} label="Ecoar publicação" onPress={actions.toggleEcho} />
           <View style={styles.spacer} />
           <Animated.View style={[styles.save, saveFeedback]}>
             <IconButton
@@ -97,17 +97,6 @@ export function PostDetail({ post, sort, onSortChange }: PostDetailProps) {
       </View>
     </View>
   );
-}
-
-function CompactAction({ icon, count, active, label, onPress }: { icon: 'support' | 'echo'; count: number; active: boolean; label: string; onPress: () => void }) {
-  const color = active ? Colors.red : Colors.inkSoft;
-  const feedback = useReactionFeedback(active);
-  return <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatCount(count)}`} accessibilityState={{ selected: active }} style={styles.compactAction}>
-    <Animated.View style={[styles.compactContent, feedback]}>
-      <Icon name={icon} size={19} color={color} filled={active && icon === 'support'} />
-      <AppText style={styles.compactCount} color={color}>{formatCount(count)}</AppText>
-    </Animated.View>
-  </Pressable>;
 }
 
 function SortChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -150,11 +139,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   authorActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  compactAction: { minWidth: 54, minHeight: 44, paddingHorizontal: Spacing.two, alignItems: 'center', justifyContent: 'center' },
-  compactContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   spacer: { flex: 1 },
   save: { marginRight: -12 },
-  compactCount: { fontFamily: Fonts.bold, fontSize: 13, lineHeight: 17 },
   commentsHeader: {
     borderTopWidth: 1,
     borderTopColor: Colors.rule,

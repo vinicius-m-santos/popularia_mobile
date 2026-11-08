@@ -151,8 +151,8 @@ export default function DiscussionScreen() {
     const current = latest.current;
     const comment = current.commentsById.get(commentId);
     if (!comment || supportPending.current.has(commentId)) return;
-    // Tato imediato no item tocado; a trava acima evita repetir durante a requisição.
-    haptic('light');
+    // O tato imediato fica no SocialAction da linha; a trava acima evita repetir
+    // durante a requisição.
     if (DEMO_MODE || commentId.startsWith('local-')) {
       current.toggle('supportedComments', commentId);
       return;
