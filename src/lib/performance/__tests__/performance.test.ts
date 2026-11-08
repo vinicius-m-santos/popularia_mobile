@@ -6,6 +6,8 @@ import {
   finishRequest,
   getPerformanceSnapshot,
   performanceInstrumentationEnabled,
+  recordFeedPhotoError,
+  recordFeedPhotoLoaded,
   recordListLoad,
   recordPhotoDisplayed,
   recordPhotoError,
@@ -189,5 +191,82 @@ describe('commits, listas e vídeo', () => {
     expect(photos.events.map((event) => event.event)).toEqual(['open', 'load', 'display', 'open', 'load', 'load', 'error']);
     expect(photos.events[1]).toMatchObject({ mediaId: 'p1', width: 400, height: 800, cacheType: 'memory', estimatedBytes: 1_280_000 });
     expect(JSON.stringify(photos)).not.toContain('https://');
+  });
+
+  it('mede fonte, render necessário e cache das fotos do feed', () => {
+    recordFeedPhotoLoaded('f1', {
+      elapsedMs: 42.4,
+      cacheType: 'memory',
+      sourceWidth: 2048,
+      sourceHeight: 1365,
+      uploadWidth: 2048,
+      uploadHeight: 1365,
+      renderedWidthPx: 1080,
+      renderedHeightPx: 1350,
+      neededWidthPx: 2025,
+      neededHeightPx: 1350,
+      sourceCoverRatio: 1.01,
+      uploadCoverRatio: 1.01,
+    });
+    recordFeedPhotoLoaded('f2', {
+      elapsedMs: 120,
+      cacheType: 'disk',
+      sourceWidth: 1080,
+      sourceHeight: 1080,
+      uploadWidth: 2048,
+      uploadHeight: 2048,
+      renderedWidthPx: 720,
+      renderedHeightPx: 900,
+      neededWidthPx: 900,
+      neededHeightPx: 900,
+      sourceCoverRatio: 1.2,
+      uploadCoverRatio: 2.28,
+    });
+    recordFeedPhotoLoaded('f3', {
+      elapsedMs: 300,
+      cacheType: 'none',
+      sourceWidth: 900,
+      sourceHeight: 1200,
+      // Sem layout medido: entra no cache/tempo, mas não na razão fonte/render.
+    });
+    recordFeedPhotoLoaded('invalid', {
+      elapsedMs: 10,
+      cacheType: 'none',
+      sourceWidth: 0,
+      sourceHeight: 0,
+    });
+    recordFeedPhotoError('f4');
+
+    const feed = getPerformanceSnapshot().feedPhotos;
+    expect(feed.events.some((event) => event.mediaId === 'invalid')).toBe(false);
+    expect(feed).toMatchObject({
+      loadCount: 3,
+      errorCount: 1,
+      decodeEstimate: 2,
+      memoryCacheHits: 1,
+      diskCacheHits: 1,
+      networkLoads: 1,
+      renderMeasuredCount: 2,
+      over2xCount: 0,
+      over2xUploadCount: 1,
+      largestDecodedBytes: 2048 * 1365 * 4,
+      largestUploadBytes: 2048 * 2048 * 4,
+      largestNeededBytes: 2025 * 1350 * 4,
+      maxSourceCoverRatio: 1.2,
+      maxUploadCoverRatio: 2.28,
+    });
+    expect(feed.loadTotalMs).toBeCloseTo(462.4, 2);
+    expect(feed.events.map((event) => event.event)).toEqual(['load', 'load', 'load', 'error']);
+    expect(feed.events[0]).toMatchObject({
+      mediaId: 'f1',
+      renderedWidthPx: 1080,
+      neededWidthPx: 2025,
+      decodedBytes: 2048 * 1365 * 4,
+      uploadBytes: 2048 * 1365 * 4,
+      sourceCoverRatio: 1.01,
+      uploadCoverRatio: 1.01,
+    });
+    expect(feed.events[2].sourceCoverRatio).toBeUndefined();
+    expect(JSON.stringify(feed)).not.toContain('https://');
   });
 });

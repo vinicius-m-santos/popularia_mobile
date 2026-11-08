@@ -9,6 +9,7 @@ import {
   resetPerformanceSession,
   setPerformanceInstrumentationOverride,
   type PerformanceCommitRecord,
+  type PerformanceFeedPhotoStats,
   type PerformanceListRecord,
   type PerformancePhotoStats,
   type PerformanceRequestRecord,
@@ -271,6 +272,25 @@ export function photoDiagnostics(snapshot: PerformanceSnapshot): PhotoDiagnostic
       : 0,
     averageDisplayMs: snapshot.photos.displayCount > 0
       ? snapshot.photos.displayTotalMs / snapshot.photos.displayCount
+      : 0,
+  };
+}
+
+export type FeedPhotoDiagnostics = PerformanceFeedPhotoStats & {
+  averageLoadMs: number;
+};
+
+/**
+ * Fotos carregadas no feed (POP-65). `decodedBytes` e `neededBytes` são
+ * estimativas ARGB por pixels; o tamanho efetivo vem do layout em DPR real.
+ * `decodeEstimate` supõe que todo hit de memória já está decodificado e que
+ * disco/rede decodificam de novo — não é uma contagem nativa de decodes.
+ */
+export function feedPhotoDiagnostics(snapshot: PerformanceSnapshot): FeedPhotoDiagnostics {
+  return {
+    ...snapshot.feedPhotos,
+    averageLoadMs: snapshot.feedPhotos.loadCount > 0
+      ? snapshot.feedPhotos.loadTotalMs / snapshot.feedPhotos.loadCount
       : 0,
   };
 }

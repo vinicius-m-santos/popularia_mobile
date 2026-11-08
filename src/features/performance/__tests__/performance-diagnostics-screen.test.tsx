@@ -8,6 +8,7 @@ import {
   createRequestTrace,
   finishRequest,
   getPerformanceSnapshot,
+  recordFeedPhotoLoaded,
   recordListLoad,
   recordPhotoDisplayed,
   recordPhotoLoaded,
@@ -69,6 +70,34 @@ function seedMeasurements() {
   recordPhotoOpen('photo-1');
   recordPhotoLoaded('photo-1', { elapsedMs: 30, width: 800, height: 1200, cacheType: 'memory' });
   recordPhotoDisplayed('photo-1', 45);
+  recordFeedPhotoLoaded('feed-photo-1', {
+    elapsedMs: 40,
+    cacheType: 'memory',
+    sourceWidth: 2048,
+    sourceHeight: 1365,
+    uploadWidth: 2048,
+    uploadHeight: 1365,
+    renderedWidthPx: 1080,
+    renderedHeightPx: 1350,
+    neededWidthPx: 2025,
+    neededHeightPx: 1350,
+    sourceCoverRatio: 1.01,
+    uploadCoverRatio: 1.01,
+  });
+  recordFeedPhotoLoaded('feed-photo-2', {
+    elapsedMs: 80,
+    cacheType: 'disk',
+    sourceWidth: 1080,
+    sourceHeight: 1080,
+    uploadWidth: 2048,
+    uploadHeight: 2048,
+    renderedWidthPx: 720,
+    renderedHeightPx: 900,
+    neededWidthPx: 900,
+    neededHeightPx: 900,
+    sourceCoverRatio: 1.2,
+    uploadCoverRatio: 2.28,
+  });
 }
 
 function renderScreen() {
@@ -134,6 +163,14 @@ describe('tela de diagnóstico de performance', () => {
     expect(within(screen.getByTestId('metric-photo-load')).getByText('30 ms')).toBeTruthy();
     expect(within(screen.getByTestId('metric-photo-display')).getByText('45 ms')).toBeTruthy();
     expect(within(screen.getByTestId('metric-photo-bytes')).getByText('3,7 MB')).toBeTruthy();
+    expect(screen.getByText('Fotos no feed')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-loads')).getByText('2')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-load')).getByText('60 ms')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-decodes')).getByText('1')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-upload-bytes')).getByText('16,0 MB')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-decoded-bytes')).getByText('10,7 MB')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-ratio')).getByText('2,28×')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-feed-photo-decoded-ratio')).getByText('1,20×')).toBeTruthy();
     expect(screen.getByText('Pôsteres de vídeo')).toBeTruthy();
     expect(screen.getByTestId('metric-poster-cache')).toBeTruthy();
     expect(screen.queryByText('/feed?token=segredo')).toBeNull();
@@ -171,6 +208,14 @@ describe('tela de diagnóstico de performance', () => {
 
     expect(getPerformanceSnapshot().sessionId).not.toBeNull();
     expect(mockPush).toHaveBeenCalledWith('/diagnostico-performance-harness');
+  });
+
+  it('inicia uma sessão ao abrir o feed de fotos e navega para a rota dedicada', async () => {
+    await renderScreen();
+    await fireEvent.press(screen.getByLabelText('Abrir feed de 120 fotos'));
+
+    expect(getPerformanceSnapshot().sessionId).not.toBeNull();
+    expect(mockPush).toHaveBeenCalledWith('/diagnostico-performance-fotos');
   });
 
   it('inicia uma sessão e grava o snapshot no deep link do coletor', async () => {

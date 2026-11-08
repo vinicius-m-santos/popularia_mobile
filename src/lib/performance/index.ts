@@ -119,6 +119,61 @@ export type PerformancePhotoStats = {
   largestDecodedBytes: number;
 };
 
+/**
+ * Foto carregada no feed (POP-65).
+ *
+ * `decodedBytes` estima o bitmap da fonte recebida; `neededBytes` estima o
+ * bitmap mínimo para cobrir o quadro em pixels físicos. Nenhum dos dois é uma
+ * leitura de memória: são o modelo para comparar a fonte de 2048 px com o
+ * tamanho efetivo do render. `sourceCoverRatio` > 1 significa que a fonte tem
+ * mais pixels do que o quadro pede.
+ */
+export type PerformanceFeedPhotoRecord = {
+  event: 'load' | 'error';
+  mediaId: string;
+  elapsedMs?: number;
+  cacheType?: ImageCacheType;
+  sourceWidth?: number;
+  sourceHeight?: number;
+  /** Dimensões declaradas pela API para o upload (antes do downsample nativo). */
+  uploadWidth?: number;
+  uploadHeight?: number;
+  renderedWidthPx?: number;
+  renderedHeightPx?: number;
+  neededWidthPx?: number;
+  neededHeightPx?: number;
+  decodedBytes?: number;
+  uploadBytes?: number;
+  neededBytes?: number;
+  sourceCoverRatio?: number;
+  uploadCoverRatio?: number;
+  atMs: number;
+};
+
+export type PerformanceFeedPhotoStats = {
+  events: PerformanceFeedPhotoRecord[];
+  loadCount: number;
+  errorCount: number;
+  /** Hits de memória não decodificam de novo; disco e rede decodificam. */
+  decodeEstimate: number;
+  loadTotalMs: number;
+  loadMaxMs: number;
+  memoryCacheHits: number;
+  diskCacheHits: number;
+  networkLoads: number;
+  totalDecodedBytes: number;
+  totalUploadBytes: number;
+  totalNeededBytes: number;
+  largestDecodedBytes: number;
+  largestUploadBytes: number;
+  largestNeededBytes: number;
+  maxSourceCoverRatio: number;
+  maxUploadCoverRatio: number;
+  over2xCount: number;
+  over2xUploadCount: number;
+  renderMeasuredCount: number;
+};
+
 export type PerformanceScreenSummary = {
   count: number;
   errors: number;
@@ -176,6 +231,7 @@ export type PerformanceSnapshot = {
     viewportToMountMaxMs: number;
   };
   photos: PerformancePhotoStats;
+  feedPhotos: PerformanceFeedPhotoStats;
   posters: PerformancePosterCacheStats;
   counters: {
     logicalRequests: number;
@@ -204,6 +260,7 @@ const MAX_COMMIT_INSTANCES = 400;
 const MAX_LIST_RECORDS = 100;
 const MAX_VIDEO_RECORDS = 300;
 const MAX_PHOTO_RECORDS = 200;
+const MAX_FEED_PHOTO_RECORDS = 240;
 const MAX_ATTEMPT_DURATIONS = 10;
 
 const DEFAULT_SCOPE: PerformanceScope = { screen: 'unknown', action: 'other' };
@@ -232,6 +289,25 @@ type SessionState = {
   photoDiskCacheHits: number;
   photoNetworkLoads: number;
   photoLargestDecodedBytes: number;
+  feedPhotos: PerformanceFeedPhotoRecord[];
+  feedPhotoLoadCount: number;
+  feedPhotoErrorCount: number;
+  feedPhotoLoadTotalMs: number;
+  feedPhotoLoadMaxMs: number;
+  feedPhotoMemoryCacheHits: number;
+  feedPhotoDiskCacheHits: number;
+  feedPhotoNetworkLoads: number;
+  feedPhotoTotalDecodedBytes: number;
+  feedPhotoTotalUploadBytes: number;
+  feedPhotoTotalNeededBytes: number;
+  feedPhotoLargestDecodedBytes: number;
+  feedPhotoLargestUploadBytes: number;
+  feedPhotoLargestNeededBytes: number;
+  feedPhotoMaxSourceCoverRatio: number;
+  feedPhotoMaxUploadCoverRatio: number;
+  feedPhotoOver2xCount: number;
+  feedPhotoOver2xUploadCount: number;
+  feedPhotoRenderMeasuredCount: number;
   firstFrameTotalMs: number;
   firstFrameMaxMs: number;
   firstFrameCount: number;
@@ -349,6 +425,25 @@ function newSession(): SessionState {
     photoDiskCacheHits: 0,
     photoNetworkLoads: 0,
     photoLargestDecodedBytes: 0,
+    feedPhotos: [],
+    feedPhotoLoadCount: 0,
+    feedPhotoErrorCount: 0,
+    feedPhotoLoadTotalMs: 0,
+    feedPhotoLoadMaxMs: 0,
+    feedPhotoMemoryCacheHits: 0,
+    feedPhotoDiskCacheHits: 0,
+    feedPhotoNetworkLoads: 0,
+    feedPhotoTotalDecodedBytes: 0,
+    feedPhotoTotalUploadBytes: 0,
+    feedPhotoTotalNeededBytes: 0,
+    feedPhotoLargestDecodedBytes: 0,
+    feedPhotoLargestUploadBytes: 0,
+    feedPhotoLargestNeededBytes: 0,
+    feedPhotoMaxSourceCoverRatio: 0,
+    feedPhotoMaxUploadCoverRatio: 0,
+    feedPhotoOver2xCount: 0,
+    feedPhotoOver2xUploadCount: 0,
+    feedPhotoRenderMeasuredCount: 0,
     firstFrameTotalMs: 0,
     firstFrameMaxMs: 0,
     firstFrameCount: 0,
@@ -659,6 +754,126 @@ export function recordPhotoError(mediaId: string): void {
   recordPhotoEvent('error', mediaId);
 }
 
+function validDimension(value: number | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Registra uma foto carregada no feed. O tamanho efetivo do render vem do
+ * layout em pixels físicos; se ele ainda não mediu, a carga entra no cache e no
+ * tempo, mas fica fora da comparação fonte/render.
+ */
+export function recordFeedPhotoLoaded(mediaId: string, input: {
+  elapsedMs: number;
+  cacheType: ImageCacheType;
+  sourceWidth: number;
+  sourceHeight: number;
+  uploadWidth?: number;
+  uploadHeight?: number;
+  renderedWidthPx?: number;
+  renderedHeightPx?: number;
+  neededWidthPx?: number;
+  neededHeightPx?: number;
+  decodedBytes?: number;
+  uploadBytes?: number;
+  neededBytes?: number;
+  sourceCoverRatio?: number;
+  uploadCoverRatio?: number;
+}): void {
+  if (!session) return;
+  if (!validDimension(input.sourceWidth) || !validDimension(input.sourceHeight)) return;
+  const elapsedMs = roundMs(input.elapsedMs);
+  const decodedBytes = input.decodedBytes ?? estimateImageBitmapBytes(input.sourceWidth, input.sourceHeight);
+  const uploadBytes = input.uploadBytes ?? (
+    validDimension(input.uploadWidth) && validDimension(input.uploadHeight)
+      ? estimateImageBitmapBytes(input.uploadWidth, input.uploadHeight)
+      : undefined
+  );
+  const neededBytes = input.neededBytes ?? (
+    validDimension(input.neededWidthPx) && validDimension(input.neededHeightPx)
+      ? estimateImageBitmapBytes(input.neededWidthPx, input.neededHeightPx)
+      : undefined
+  );
+  const sourceCoverRatio = input.sourceCoverRatio ?? (
+    validDimension(input.neededWidthPx) && validDimension(input.neededHeightPx)
+      ? Math.min(
+        input.sourceWidth / input.neededWidthPx,
+        input.sourceHeight / input.neededHeightPx,
+      )
+      : undefined
+  );
+  const uploadCoverRatio = input.uploadCoverRatio ?? (
+    validDimension(input.uploadWidth) && validDimension(input.uploadHeight)
+      && validDimension(input.neededWidthPx) && validDimension(input.neededHeightPx)
+      ? Math.min(
+        input.uploadWidth / input.neededWidthPx,
+        input.uploadHeight / input.neededHeightPx,
+      )
+      : undefined
+  );
+
+  session.feedPhotoLoadCount += 1;
+  session.feedPhotoLoadTotalMs += elapsedMs;
+  session.feedPhotoLoadMaxMs = Math.max(session.feedPhotoLoadMaxMs, elapsedMs);
+  if (input.cacheType === 'memory') session.feedPhotoMemoryCacheHits += 1;
+  else if (input.cacheType === 'disk') session.feedPhotoDiskCacheHits += 1;
+  else session.feedPhotoNetworkLoads += 1;
+  session.feedPhotoTotalDecodedBytes += Math.max(0, decodedBytes);
+  session.feedPhotoLargestDecodedBytes = Math.max(session.feedPhotoLargestDecodedBytes, decodedBytes);
+  if (uploadBytes !== undefined) {
+    session.feedPhotoTotalUploadBytes += Math.max(0, uploadBytes);
+    session.feedPhotoLargestUploadBytes = Math.max(session.feedPhotoLargestUploadBytes, uploadBytes);
+  }
+  if (neededBytes !== undefined) {
+    session.feedPhotoTotalNeededBytes += Math.max(0, neededBytes);
+    session.feedPhotoLargestNeededBytes = Math.max(session.feedPhotoLargestNeededBytes, neededBytes);
+  }
+  if (sourceCoverRatio !== undefined && Number.isFinite(sourceCoverRatio)) {
+    session.feedPhotoRenderMeasuredCount += 1;
+    session.feedPhotoMaxSourceCoverRatio = Math.max(session.feedPhotoMaxSourceCoverRatio, sourceCoverRatio);
+    if (sourceCoverRatio >= 2) session.feedPhotoOver2xCount += 1;
+  }
+  if (uploadCoverRatio !== undefined && Number.isFinite(uploadCoverRatio)) {
+    session.feedPhotoMaxUploadCoverRatio = Math.max(session.feedPhotoMaxUploadCoverRatio, uploadCoverRatio);
+    if (uploadCoverRatio >= 2) session.feedPhotoOver2xUploadCount += 1;
+  }
+
+  pushBounded(session.feedPhotos, {
+    event: 'load',
+    mediaId,
+    elapsedMs,
+    cacheType: input.cacheType,
+    sourceWidth: input.sourceWidth,
+    sourceHeight: input.sourceHeight,
+    ...(validDimension(input.uploadWidth) ? { uploadWidth: input.uploadWidth } : {}),
+    ...(validDimension(input.uploadHeight) ? { uploadHeight: input.uploadHeight } : {}),
+    ...(validDimension(input.renderedWidthPx) ? { renderedWidthPx: input.renderedWidthPx } : {}),
+    ...(validDimension(input.renderedHeightPx) ? { renderedHeightPx: input.renderedHeightPx } : {}),
+    ...(validDimension(input.neededWidthPx) ? { neededWidthPx: input.neededWidthPx } : {}),
+    ...(validDimension(input.neededHeightPx) ? { neededHeightPx: input.neededHeightPx } : {}),
+    decodedBytes: Math.max(0, decodedBytes),
+    ...(uploadBytes === undefined ? {} : { uploadBytes: Math.max(0, uploadBytes) }),
+    ...(neededBytes === undefined ? {} : { neededBytes: Math.max(0, neededBytes) }),
+    ...(sourceCoverRatio === undefined || !Number.isFinite(sourceCoverRatio)
+      ? {}
+      : { sourceCoverRatio: Math.round(sourceCoverRatio * 100) / 100 }),
+    ...(uploadCoverRatio === undefined || !Number.isFinite(uploadCoverRatio)
+      ? {}
+      : { uploadCoverRatio: Math.round(uploadCoverRatio * 100) / 100 }),
+    atMs: Math.round(performanceNow() - session.startedMonotonic),
+  }, MAX_FEED_PHOTO_RECORDS, session);
+}
+
+export function recordFeedPhotoError(mediaId: string): void {
+  if (!session) return;
+  session.feedPhotoErrorCount += 1;
+  pushBounded(session.feedPhotos, {
+    event: 'error',
+    mediaId,
+    atMs: Math.round(performanceNow() - session.startedMonotonic),
+  }, MAX_FEED_PHOTO_RECORDS, session);
+}
+
 export function getPerformanceSnapshot(): PerformanceSnapshot {
   const requests = session ? session.requests.map((record) => ({ ...record, scope: { ...record.scope }, attemptDurationsMs: [...record.attemptDurationsMs] })) : [];
   const requestsByScreen: Record<string, PerformanceScreenSummary> = {};
@@ -713,6 +928,28 @@ export function getPerformanceSnapshot(): PerformanceSnapshot {
       diskCacheHits: session?.photoDiskCacheHits ?? 0,
       networkLoads: session?.photoNetworkLoads ?? 0,
       largestDecodedBytes: session?.photoLargestDecodedBytes ?? 0,
+    },
+    feedPhotos: {
+      events: session ? session.feedPhotos.map((record) => ({ ...record })) : [],
+      loadCount: session?.feedPhotoLoadCount ?? 0,
+      errorCount: session?.feedPhotoErrorCount ?? 0,
+      decodeEstimate: Math.max(0, (session?.feedPhotoLoadCount ?? 0) - (session?.feedPhotoMemoryCacheHits ?? 0)),
+      loadTotalMs: session?.feedPhotoLoadTotalMs ?? 0,
+      loadMaxMs: session?.feedPhotoLoadMaxMs ?? 0,
+      memoryCacheHits: session?.feedPhotoMemoryCacheHits ?? 0,
+      diskCacheHits: session?.feedPhotoDiskCacheHits ?? 0,
+      networkLoads: session?.feedPhotoNetworkLoads ?? 0,
+      totalDecodedBytes: session?.feedPhotoTotalDecodedBytes ?? 0,
+      totalUploadBytes: session?.feedPhotoTotalUploadBytes ?? 0,
+      totalNeededBytes: session?.feedPhotoTotalNeededBytes ?? 0,
+      largestDecodedBytes: session?.feedPhotoLargestDecodedBytes ?? 0,
+      largestUploadBytes: session?.feedPhotoLargestUploadBytes ?? 0,
+      largestNeededBytes: session?.feedPhotoLargestNeededBytes ?? 0,
+      maxSourceCoverRatio: session?.feedPhotoMaxSourceCoverRatio ?? 0,
+      maxUploadCoverRatio: session?.feedPhotoMaxUploadCoverRatio ?? 0,
+      over2xCount: session?.feedPhotoOver2xCount ?? 0,
+      over2xUploadCount: session?.feedPhotoOver2xUploadCount ?? 0,
+      renderMeasuredCount: session?.feedPhotoRenderMeasuredCount ?? 0,
     },
     posters: { ...posters },
     counters: {

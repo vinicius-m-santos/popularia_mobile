@@ -183,6 +183,7 @@ function RootStack() {
         <Stack.Protected guard={performanceDiagnosticsAvailable()}>
           <Stack.Screen name="diagnostico-performance" />
           <Stack.Screen name="diagnostico-performance-harness" />
+          <Stack.Screen name="diagnostico-performance-fotos" />
         </Stack.Protected>
       </Stack.Protected>
       <Stack.Protected guard={!onboarded || showLoginWelcome}>

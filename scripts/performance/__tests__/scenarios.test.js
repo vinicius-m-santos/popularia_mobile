@@ -18,6 +18,20 @@ describe('cenários do POP-72', () => {
     expect(resolveScenarios(['video'], { videoPostId: 'abc' })[0].skipped).toBe(false);
   });
 
+  it('mantém o feed de fotos fora da matriz padrão e aponta para a rota dedicada', () => {
+    expect(DEFAULT_SCENARIO_IDS).not.toContain('photo-feed');
+    expect(SCENARIOS['photo-feed']).toMatchObject({
+      id: 'photo-feed',
+      measure: 'interaction',
+      deepLink: 'populariamobile://diagnostico-performance-fotos',
+      waitForLabel: 'Fotos 2048px',
+      sampleMemoryEveryStep: true,
+      captureSnapshot: true,
+    });
+    expect(SCENARIOS['photo-feed'].steps.filter((step) => step.type === 'swipe')).toHaveLength(2);
+    expect(resolveScenarios(['photo-feed'], {})[0].skipped).toBe(false);
+  });
+
   it('registra o próximo destino no deep link do coletor', () => {
     expect(collectorDeepLink('reset', 'n1', { next: '/' })).toContain('collector=reset&nonce=n1&next=%2F');
     expect(collectorDeepLink('snapshot', 'n2')).not.toContain('next=');

@@ -32,6 +32,14 @@ test.describe('diagnóstico de performance', () => {
     await visibleButton(page, 'Voltar').click();
     await expect(page).toHaveURL(/\/diagnostico-performance$/);
 
+    // O feed de fotos usa a lista virtualizada e a instrumentação de render.
+    await visibleButton(page, 'Abrir feed de 120 fotos').click();
+    await expect(page).toHaveURL(/\/diagnostico-performance-fotos$/);
+    await expect(page.getByText('Fotos 2048px')).toBeVisible();
+    await expect(page.getByText(/Foto de QA 1 ·/)).toBeVisible();
+    await visibleButton(page, 'Voltar').click();
+    await expect(page).toHaveURL(/\/diagnostico-performance$/);
+
     // Volta para as abas e navega durante a coleta.
     await visibleButton(page, 'Voltar').click();
     await visibleButton(page, 'Voltar').click();
