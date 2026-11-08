@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { VideoThumbnail } from 'expo-video';
 import { AppState } from 'react-native';
 
-import { getPerformanceSnapshot, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
+import { getPerformanceSnapshot, performanceNow, resetPerformanceSession, setPerformanceInstrumentationOverride } from '@/lib/performance';
 
 import { PostAttachment } from '../post-attachment';
 import type { PostMediaDto } from '../../post-media';
@@ -130,6 +130,43 @@ describe('PostAttachment · transição de tela cheia', () => {
     });
 
     expect(screen.queryByTestId('video-feed-transition-cover')).toBeNull();
+    await view.unmount();
+  });
+
+  it('mede viewport → player e viewport → primeiro quadro', async () => {
+    const viewportEnteredAt = performanceNow() - 500;
+    const view = await render(<PostAttachment media={video} viewportEnteredAt={viewportEnteredAt} />);
+
+    await fireEvent.press(screen.getByTestId('feed-video-surface'));
+
+    const snapshot = getPerformanceSnapshot();
+    const firstFrame = snapshot.video.events.find((event) => event.event === 'first-frame');
+    expect(firstFrame).toMatchObject({
+      mediaId: video.id,
+      viewportMs: expect.any(Number),
+      viewportToMountMs: expect.any(Number),
+    });
+    // O player monta durante a confirmação da viewport; a espera total inclui
+    // a montagem e o tempo até o evento nativo de primeiro quadro.
+    expect(firstFrame!.viewportMs).toBeGreaterThanOrEqual(500);
+    expect(firstFrame!.viewportToMountMs).toBeGreaterThanOrEqual(500);
+    expect(firstFrame!.viewportMs).toBeGreaterThanOrEqual(firstFrame!.viewportToMountMs!);
+    expect(snapshot.video.viewportFirstFrameCount).toBe(1);
+    expect(snapshot.video.viewportToMountCount).toBe(1);
+
+    await view.unmount();
+  });
+
+  it('não registra métrica de viewport para cartão isolado', async () => {
+    const view = await render(<PostAttachment media={video} />);
+    await fireEvent.press(screen.getByTestId('feed-video-surface'));
+
+    const firstFrame = getPerformanceSnapshot().video.events.find((event) => event.event === 'first-frame');
+    expect(firstFrame).toBeTruthy();
+    expect(firstFrame).not.toHaveProperty('viewportMs');
+    expect(firstFrame).not.toHaveProperty('viewportToMountMs');
+    expect(getPerformanceSnapshot().video.viewportFirstFrameCount).toBe(0);
+
     await view.unmount();
   });
 

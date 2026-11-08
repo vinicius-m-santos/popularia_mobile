@@ -57,7 +57,7 @@ function seedMeasurements() {
   recordListLoad('feed:para-voce', 84.4, 20);
   recordVideoMount('video-1');
   recordVideoPlay('video-1');
-  recordVideoFirstFrame('video-1', 320);
+  recordVideoFirstFrame('video-1', 320, { totalMs: 810, toMountMs: 90 });
   recordVideoFullscreen('video-1', 'enter');
   recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 40);
   recordVideoFullscreen('video-1', 'exit');
@@ -115,6 +115,8 @@ describe('tela de diagnóstico de performance', () => {
     expect(screen.getByText('feed:para-voce')).toBeTruthy();
     expect(screen.getByText('TTFF máximo')).toBeTruthy();
     expect(screen.getAllByText('320 ms').length).toBeGreaterThanOrEqual(2);
+    expect(within(screen.getByTestId('metric-viewport-first-frame')).getByText('810 ms')).toBeTruthy();
+    expect(within(screen.getByTestId('metric-viewport-to-mount')).getByText('90 ms')).toBeTruthy();
     expect(screen.getByText('Transição de vídeo')).toBeTruthy();
     expect(within(screen.getByTestId('metric-video-enter')).getByText('1')).toBeTruthy();
     expect(within(screen.getByTestId('metric-video-enter-first-frame')).getByText('40 ms')).toBeTruthy();

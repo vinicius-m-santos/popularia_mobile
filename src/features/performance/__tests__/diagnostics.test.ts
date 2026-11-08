@@ -69,7 +69,7 @@ function seedMeasurements() {
   recordListLoad('feed:para-voce', 84.4, 20);
   recordVideoMount('video-1');
   recordVideoPlay('video-1');
-  recordVideoFirstFrame('video-1', 320);
+  recordVideoFirstFrame('video-1', 320, { totalMs: 810, toMountMs: 90 });
   recordVideoFullscreen('video-1', 'enter');
   recordVideoSurfaceFirstFrame('video-1', 'fullscreen', 40);
   recordVideoFullscreen('video-1', 'exit');
@@ -162,8 +162,20 @@ describe('agregações exibidas na tela', () => {
     const video = videoDiagnostics(snapshot);
 
     expect(recentListLoads(snapshot)[0]).toMatchObject({ list: 'feed:para-voce', itemCount: 20 });
-    expect(video).toMatchObject({ mountedNow: 1, playingNow: 1, firstFrameCount: 1, firstFrameMaxMs: 320, errorCount: 0 });
+    expect(video).toMatchObject({
+      mountedNow: 1,
+      playingNow: 1,
+      firstFrameCount: 1,
+      firstFrameMaxMs: 320,
+      viewportFirstFrameCount: 1,
+      viewportFirstFrameMaxMs: 810,
+      viewportToMountCount: 1,
+      viewportToMountMaxMs: 90,
+      errorCount: 0,
+    });
     expect(video.averageFirstFrameMs).toBe(320);
+    expect(video.averageViewportFirstFrameMs).toBe(810);
+    expect(video.averageViewportToMountMs).toBe(90);
     expect(video.transitions).toMatchObject({
       enterCount: 1,
       exitCount: 1,

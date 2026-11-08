@@ -14,7 +14,7 @@ import { useInteractions } from '@/features/interactions/interactions-context';
 import { usePostActions } from '@/features/interactions/use-post-actions';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { postTarget } from '@/features/moderation/targets';
-import { useMediaVisible } from '@/hooks/use-list-visibility';
+import { useMediaVisibility } from '@/hooks/use-list-visibility';
 import { formatCount, formatRelative } from '@/lib/format';
 import { withPerformanceProfiler } from '@/lib/performance/profiler';
 import { useNav } from '@/lib/routes';
@@ -58,7 +58,8 @@ type PostCardProps = {
  * linha do destino, como no desenho do feed.
  */
 function PostCardView({ item, showRule = false, showComuna = true, showMuted = false, mediaVisible: mediaVisibleOverride, mediaGesture }: PostCardProps) {
-  const mediaVisible = useMediaVisible(item.id, mediaVisibleOverride);
+  const mediaVisibility = useMediaVisibility(item.id, mediaVisibleOverride);
+  const mediaVisible = mediaVisibility.visible;
   const { author, comuna, media, topComment, topCommentAuthor } = item;
   const actions = usePostActions(item);
   const nav = useNav();
@@ -155,6 +156,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
           key={item.attachment.id}
           media={item.attachment}
           visible={mediaVisible}
+          viewportEnteredAt={mediaVisibility.viewportEnteredAt}
           framed
           chrome={{
             author: item.author,
@@ -218,6 +220,7 @@ function PostCardView({ item, showRule = false, showComuna = true, showMuted = f
         key={item.attachment.id}
         media={item.attachment}
         visible={mediaVisible}
+        viewportEnteredAt={mediaVisibility.viewportEnteredAt}
         framed
         chrome={{
           author: item.author,

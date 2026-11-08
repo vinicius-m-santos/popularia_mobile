@@ -119,11 +119,25 @@ describe('commits, listas e vídeo', () => {
     recordVideoPlay('v1');
     recordVideoMount('v2');
     recordVideoFirstFrame('v1', 480);
+    recordVideoFirstFrame('v2', 200, { totalMs: 940.5, toMountMs: 120.25 });
     let video = getPerformanceSnapshot().video;
     expect(video.mountedNow).toBe(2);
     expect(video.playingNow).toBe(1);
-    expect(video.firstFrameCount).toBe(1);
+    expect(video.firstFrameCount).toBe(2);
     expect(video.firstFrameMaxMs).toBe(480);
+    expect(video).toMatchObject({
+      viewportFirstFrameCount: 1,
+      viewportFirstFrameTotalMs: 940.5,
+      viewportFirstFrameMaxMs: 940.5,
+      viewportToMountCount: 1,
+      viewportToMountTotalMs: 120.25,
+      viewportToMountMaxMs: 120.25,
+    });
+
+    const viewportFrame = video.events.find((event) => event.event === 'first-frame' && event.mediaId === 'v2');
+    expect(viewportFrame).toMatchObject({ valueMs: 200, viewportMs: 940.5, viewportToMountMs: 120.25 });
+    const plainFrame = video.events.find((event) => event.event === 'first-frame' && event.mediaId === 'v1');
+    expect(plainFrame).not.toHaveProperty('viewportMs');
 
     recordVideoUnmount('v1');
     video = getPerformanceSnapshot().video;
