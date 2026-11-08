@@ -7,26 +7,24 @@ import { AppText } from '@/components/app-text';
 import { SingleLineText } from '@/components/single-line-text';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { EditorialAction } from '@/components/editorial-action';
-import { Icon, type IconName } from '@/components/icon';
+import { Icon } from '@/components/icon';
 import { IconButton } from '@/components/icon-button';
 import { useToast } from '@/components/toast';
 import { DEMO_MODE } from '@/constants/config';
-import { Colors, Fonts, PressedColors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useMe } from '@/features/account/account-context';
 import { useInteractions } from '@/features/interactions/interactions-context';
 import { formatPeople } from '@/lib/format';
 import { useActionsSheet } from '@/features/moderation/actions-sheet';
 import { comunaTarget } from '@/features/moderation/targets';
 import { ImageChangeSheet } from '@/features/media/image-change-sheet';
-import { publishMark } from '@/features/media/image-cache';
-import { tryLockImageUpload, unlockImageUpload } from '@/features/media/image-lock';
-import type { PickedImage } from '@/features/media/pick-image';
-import { uploadMark } from '@/features/media/upload-image';
-import { describeError } from '@/lib/errors';
 import { goBack, openManageComuna, openModeration } from '@/lib/routes';
 import type { ComunaDetails } from '@/types/models';
 
+import { comunaJoinState } from '../comuna-hero-state';
 import { ComunaCover } from './comuna-cover';
+import { ComunaMenuAction, ComunaStat, MiniJoin } from './comuna-hero-parts';
+import { useComunaMark } from './use-comuna-mark';
 import { cancelJoinRequest, requestToJoin, respondToTransfer, roleLabel } from '../api';
 import { comunaErrorMessage } from '../errors';
 import { useComunaMembership } from '../use-membership';
@@ -49,30 +47,10 @@ export function ComunaHero({ comuna, onChanged, postCountLabel = '0' }: { comuna
   const manages = !DEMO_MODE && (comuna.viewerRole === 'founder' || comuna.viewerRole === 'moderator');
   const archived = comuna.status === 'archived';
   const markEditable = !DEMO_MODE && !archived && !!perms?.canEditDetails;
-  const [markSheetOpen, setMarkSheetOpen] = useState(false);
-  const [markPreview, setMarkPreview] = useState<string | null>(null);
-  const [markUploading, setMarkUploading] = useState(false);
-  const markShown = markPreview ?? comuna.markUrl ?? null;
+  const mark = useComunaMark(comuna, onChanged);
+  const markShown = mark.shown;
+  const markUploading = mark.uploading;
 
-  const sendMark = async (image: PickedImage) => {
-    const lock = `mark:${comuna.id}`;
-    if (!tryLockImageUpload(lock)) return;
-    setMarkPreview(image.uri);
-    setMarkUploading(true);
-    try {
-      const url = await uploadMark(comuna.id, image);
-      publishMark(comuna, url);
-      try { await Image.prefetch(url); } catch { /* a marca local continua até a URL nova entrar */ }
-      onChanged?.();
-      setMarkPreview(null);
-    } catch (error) {
-      setMarkPreview(null);
-      toast.show(describeError(error));
-    } finally {
-      setMarkUploading(false);
-      unlockImageUpload(lock);
-    }
-  };
   const membership = useComunaMembership(comuna);
   const { joined } = membership;
   // Comuna privada, na API, sem participação: a entrada é por pedido aprovado pela moderação.
@@ -122,22 +100,9 @@ export function ComunaHero({ comuna, onChanged, postCountLabel = '0' }: { comuna
     toast.show(on ? 'Avisos ligados nesta simulação. Nada será enviado.' : 'Avisos desta comuna desligados.');
   };
 
-  const joinDisabled = archived && !joined ? true : requestsEntry ? pending : membership.pending || (archived && !joined);
-  const joinLabel = archived && !joined
-    ? 'Comuna arquivada'
-    : requestsEntry
-      ? pending ? 'Enviando…' : requested ? 'Pedido enviado · retirar' : 'Pedir para entrar'
-      : membership.pending
-        ? joined ? 'Saindo…' : 'Entrando…'
-        : joined ? 'Participando' : 'Participar da comuna';
-  const joinTone: 'paper' | 'red' = archived && !joined ? 'paper' : requestsEntry ? requested ? 'paper' : 'red' : joined ? 'paper' : 'red';
-  const miniJoinLabel = archived && !joined
-    ? 'Arquivada'
-    : requestsEntry
-      ? pending ? 'Enviando…' : requested ? 'Pedido enviado' : 'Pedir entrada'
-      : membership.pending
-        ? 'Aguarde…'
-        : joined ? 'Participando' : 'Participar';
+  const joinState = comunaJoinState({ archived, joined, pending, requestsEntry, requested });
+  const { disabled: joinDisabled, label: joinLabel, tone: joinTone, miniLabel: miniJoinLabel } = joinState;
+
   const onJoin = () => {
     if (archived && !joined) return;
     if (requestsEntry) { void onRequest(); return; }
@@ -185,7 +150,7 @@ export function ComunaHero({ comuna, onChanged, postCountLabel = '0' }: { comuna
             accessibilityHint="Abre a escolha de uma nova imagem"
             accessibilityState={{ busy: markUploading, disabled: markUploading }}
             disabled={markUploading}
-            onPress={() => { if (!markUploading) setMarkSheetOpen(true); }}>
+            onPress={() => { if (!markUploading) mark.setSheetOpen(true); }}>
             <AppText style={styles.markText} color={Colors.paper} maxFontSizeMultiplier={1}>
               {comuna.initials}
             </AppText>
@@ -319,115 +284,51 @@ export function ComunaHero({ comuna, onChanged, postCountLabel = '0' }: { comuna
       </BottomSheet>
       {markEditable ? (
         <ImageChangeSheet
-          visible={markSheetOpen}
+          visible={mark.sheetOpen}
           title="Marca da comuna"
           kind="mark"
           busy={markUploading}
-          onClose={() => setMarkSheetOpen(false)}
-          onConfirm={(image) => { setMarkSheetOpen(false); void sendMark(image); }}
+          onClose={() => mark.setSheetOpen(false)}
+          onConfirm={(image) => { mark.setSheetOpen(false); void mark.send(image); }}
         />
       ) : null}
     </View>
   );
 }
 
-function MiniJoin({ label, tone, disabled, onPress, accessibilityLabel, accessibilityHint }: {
-  label: string;
-  tone: 'paper' | 'red';
-  disabled?: boolean;
-  onPress: () => void;
-  accessibilityLabel: string;
-  accessibilityHint?: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.miniJoin,
-        tone === 'red'
-          ? (pressed ? styles.miniJoinRedPressed : styles.miniJoinRed)
-          : (pressed ? styles.miniJoinPaperPressed : styles.miniJoinPaper),
-        disabled && styles.miniJoinDisabled,
-      ]}>
-      <AppText style={styles.miniJoinLabel} color={tone === 'red' ? Colors.paper : Colors.ink} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
-function ComunaStat({ value, label, divider = false }: { value: string; label: string; divider?: boolean }) {
-  return (
-    <View style={[styles.statCell, divider && styles.statDivider]} accessible accessibilityLabel={`${value} ${label}`}>
-      <AppText style={styles.statValue} maxFontSizeMultiplier={1.3}>{value}</AppText>
-      <AppText style={styles.statLabel}>{label}</AppText>
-    </View>
-  );
-}
-
-function ComunaMenuAction({ icon, label, tone = 'ink', detail, selected = false, onPress }: {
-  icon: IconName;
-  label: string;
-  tone?: 'ink' | 'red';
-  detail?: string;
-  selected?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}>
-      <View style={[styles.menuIcon, tone === 'red' ? styles.menuIconRed : styles.menuIconInk]}>
-        <Icon name={icon} size={19} color={tone === 'red' ? Colors.red : Colors.ink} />
-      </View>
-      <AppText style={styles.menuLabel}>{label}</AppText>
-      {detail ? <AppText variant="label" color={selected ? Colors.red : Colors.muted}>{detail}</AppText> : <Icon name="chevronRight" size={18} color={Colors.muted} />}
-    </Pressable>
-  );
-}
-
-
-const styles = StyleSheet.create({
-  archived: {
+const styles = StyleSheet.create({archived: {
     backgroundColor: Colors.ink,
     borderLeftWidth: 3,
     borderLeftColor: Colors.red,
     padding: Spacing.three,
     gap: 2,
   },
-  archivedTitle: {
+archivedTitle: {
     fontFamily: Fonts.condensed,
     fontSize: 19,
     lineHeight: 22,
     textTransform: 'uppercase',
   },
-  archivedText: {
+archivedText: {
     fontSize: 13.5,
     lineHeight: 18,
   },
-  chips: {
+chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  roleChip: {
+roleChip: {
     minHeight: 24,
     justifyContent: 'center',
     paddingHorizontal: 7,
     backgroundColor: Colors.ink,
   },
-  roleChipRed: {
+roleChipRed: {
     backgroundColor: Colors.red,
   },
-  topicChip: {
+topicChip: {
     minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
@@ -435,53 +336,53 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     backgroundColor: Colors.strawLight,
   },
-  topicMark: {
+topicMark: {
     width: 7,
     height: 7,
     backgroundColor: Colors.red,
   },
-  offer: {
+offer: {
     gap: Spacing.two,
     padding: Spacing.three,
     borderWidth: 1,
     borderColor: Colors.red,
     backgroundColor: Colors.paper,
   },
-  offerHead: {
+offerHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  offerMark: {
+offerMark: {
     width: 30,
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.redSoft,
   },
-  offerTitle: {
+offerTitle: {
     flex: 1,
     fontFamily: Fonts.extrabold,
     fontSize: 14.5,
     lineHeight: 19,
   },
-  offerText: {
+offerText: {
     fontSize: 14.5,
     lineHeight: 20,
   },
-  offerActions: {
+offerActions: {
     flexDirection: 'row',
     gap: Spacing.two,
   },
-  offerAction: {
+offerAction: {
     flex: 1,
     borderRadius: Radius.sm,
   },
-  secondaryAction: {
+secondaryAction: {
     borderRadius: Radius.sm,
     borderWidth: 1,
   },
-  modTools: {
+modTools: {
     minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
@@ -489,23 +390,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: Colors.ink,
   },
-  modLabel: {
+modLabel: {
     flex: 1,
     fontFamily: Fonts.bold,
     fontSize: 14,
     lineHeight: 19,
   },
-  pressed: {
+pressed: {
     opacity: 0.8,
   },
-  cover: {
+cover: {
     height: COVER_HEIGHT,
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: Colors.cream,
   },
-  coverFrame: { height: COVER_HEIGHT, position: 'relative' },
-  coverButtons: {
+coverFrame: { height: COVER_HEIGHT, position: 'relative' },
+coverButtons: {
     zIndex: 1,
     position: 'absolute',
     top: Spacing.two,
@@ -515,13 +416,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  coverBack: {
+coverBack: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coverBackIcon: {
+coverBackIcon: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -530,7 +431,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  topActions: {
+topActions: {
     position: 'absolute',
     top: COVER_HEIGHT + Spacing.two,
     right: Spacing.five,
@@ -539,42 +440,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one + 2,
   },
-  miniJoin: {
-    maxWidth: 150,
-    minHeight: 30,
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    borderRadius: Radius.sm,
-  },
-  miniJoinRed: {
-    backgroundColor: Colors.red,
-  },
-  miniJoinRedPressed: {
-    backgroundColor: PressedColors.red,
-  },
-  miniJoinPaper: {
-    backgroundColor: Colors.paper,
-  },
-  miniJoinPaperPressed: {
-    backgroundColor: PressedColors.paper,
-  },
-  miniJoinDisabled: {
-    opacity: 0.6,
-  },
-  miniJoinLabel: {
-    fontFamily: Fonts.extrabold,
-    fontSize: 11.5,
-    lineHeight: 14,
-  },
-  content: {
+content: {
     paddingHorizontal: Spacing.five,
     paddingTop: 48,
     paddingBottom: Spacing.four,
     gap: 10,
   },
-  mark: {
+mark: {
     position: 'absolute',
     left: Spacing.five,
     bottom: -44,
@@ -588,7 +460,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     transform: [{ rotate: '-4deg' }],
   },
-  markBadge: {
+markBadge: {
     position: 'absolute',
     right: -8,
     bottom: -8,
@@ -600,7 +472,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.ink,
   },
-  markText: {
+markText: {
     alignSelf: 'stretch',
     fontFamily: Fonts.anton,
     fontSize: 50,
@@ -610,84 +482,29 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     transform: [{ translateY: 1 }],
   },
-  titleRow: {
+titleRow: {
     gap: Spacing.two,
   },
-  title: { fontFamily: Fonts.anton, fontSize: 52, lineHeight: 62, letterSpacing: -1.1, textTransform: 'uppercase' },
-  meta: {
+title: { fontFamily: Fonts.anton, fontSize: 52, lineHeight: 62, letterSpacing: -1.1, textTransform: 'uppercase' },
+meta: {
     fontFamily: Fonts.mono,
     fontSize: 11.5,
     lineHeight: 17,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  description: {
+description: {
     fontSize: 18,
     lineHeight: 27,
   },
-  stats: {
+stats: {
     flexDirection: 'row',
     borderTopWidth: 1.5,
     borderBottomWidth: 1.5,
     borderColor: Colors.ink,
     marginTop: Spacing.one,
   },
-  statCell: {
-    flex: 1,
-    paddingVertical: 6,
-  },
-  statDivider: {
-    borderLeftWidth: 1,
-    borderLeftColor: Colors.rule,
-    paddingLeft: Spacing.three,
-  },
-  statValue: {
-    fontFamily: Fonts.anton,
-    fontSize: 42,
-    lineHeight: 50,
-    letterSpacing: -0.6,
-  },
-  statLabel: {
-    fontFamily: Fonts.mono,
-    fontSize: 10.5,
-    lineHeight: 14,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  manageAction: {
+manageAction: {
     borderRadius: Radius.sm,
-  },
-  menuAction: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.two + 2,
-    borderWidth: 1,
-    borderColor: Colors.inkSoft,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.paper,
-  },
-  menuActionPressed: {
-    backgroundColor: Colors.strawLight,
-  },
-  menuIcon: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIconInk: {
-    backgroundColor: Colors.strawLight,
-  },
-  menuIconRed: {
-    backgroundColor: Colors.redSoft,
-  },
-  menuLabel: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: Fonts.extrabold,
-    fontSize: 14.5,
-    lineHeight: 19,
   },
 });

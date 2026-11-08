@@ -1,7 +1,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -9,7 +9,6 @@ import { Avatar } from '@/components/avatar';
 import { BottomSheet } from '@/components/bottom-sheet';
 import { RadioMark } from '@/components/choice-marks';
 import { EditorialAction } from '@/components/editorial-action';
-import { Icon, type IconName } from '@/components/icon';
 import { KeyboardView } from '@/components/keyboard-view';
 import { PillButton } from '@/components/pill-button';
 import { Screen } from '@/components/screen';
@@ -17,7 +16,7 @@ import { SectionHeading } from '@/components/section-heading';
 import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
 import { useToast } from '@/components/toast';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAccount, useMe } from '@/features/account/account-context';
 import { absoluteMediaUrl } from '@/features/media/media-url';
 import { joinComuna, requestToJoin } from '@/features/comunas/api';
@@ -26,12 +25,14 @@ import { REPORT_REASONS } from '@/features/moderation/constants';
 import type { AuthorDto } from '@/lib/api/dto';
 import { describeError } from '@/lib/errors';
 import { dayKey, formatDayRule, initialsOf } from '@/lib/format';
-import { goBack, openModeration, useNav } from '@/lib/routes';
+import { openModeration, useNav } from '@/lib/routes';
 
 import * as api from './api';
-import { MessageRow, QUICK_REACTIONS, type MessageAnchor } from './components/message-row';
+import { MessageRow, type MessageAnchor } from './components/message-row';
 import { SquareComposer } from './components/square-composer';
 import { StickerTile } from './components/sticker-tile';
+import { ChatDayRule, SquareHeader } from './components/square-header';
+import { ReactionPicker, SheetAction } from './components/square-overlays';
 import { useSquare } from './use-square';
 
 export default function SquareScreen() {
@@ -374,203 +375,23 @@ function Conversation({ id }: { id: string }) {
   </Screen>;
 }
 
-function SquareHeader({ square, people, locked, onComuna, onPresence, onManage }: {
-  square: api.Square | null;
-  people: AuthorDto[];
-  locked: boolean;
-  onComuna: () => void;
-  onPresence: () => void;
-  onManage: () => void;
-}) {
-  const presence = square?.presence ?? 0;
-  const active = square?.status === 'active';
-  const presenceText = locked
-    ? 'Comuna privada'
-    : square?.status === 'closed'
-      ? 'Somente leitura · encerrada'
-      : presence > 0
-        ? `${presence} na praça agora`
-        : 'Ninguém na praça agora';
-  const stack = people.slice(0, 3);
-  return <View style={styles.header}>
-    <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={goBack} style={({ pressed }) => [styles.backBox, pressed && styles.headerPressed]}>
-      <Icon name="arrowLeft" color={Colors.cream} size={24} />
-    </Pressable>
-    <View style={styles.headerText}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Ver comuna" onPress={onComuna} disabled={!square?.comuna} style={styles.titlePress}>
-        <AppText style={styles.headerTitle} color={Colors.cream} numberOfLines={1}>{square?.title ?? 'Praça'}</AppText>
-      </Pressable>
-      <Pressable
-        onPress={onPresence}
-        disabled={!square?.viewer.canRead || !active}
-        accessibilityRole="button"
-        accessibilityLabel={`Pessoas na Praça. ${presenceText}`}
-        hitSlop={{ top: 6, bottom: 6 }}
-        style={styles.presence}>
-        {stack.length ? <View style={styles.presenceStack}>
-          {stack.map((person) => <View key={person.id} style={styles.presenceAvatar}>
-            <Avatar initials={initialsOf(person.displayName)} tone="cream" size={18} shape="square" userId={person.id} imageUrl={absoluteMediaUrl(person.avatarUrl)} />
-          </View>)}
-        </View> : null}
-        <AppText style={styles.presenceText} color={Colors.onInkMuted} numberOfLines={1}>{presenceText}</AppText>
-      </Pressable>
-    </View>
-    {square?.viewer.canRead ? <Pressable accessibilityRole="button" accessibilityLabel="Opções da Praça" onPress={onManage} style={({ pressed }) => [styles.moreButton, pressed && styles.headerPressed]}>
-      <Icon name="more" color={Colors.cream} size={24} />
-    </Pressable> : <View style={styles.headerSpacer} />}
-  </View>;
-}
-
-function ChatDayRule({ label }: { label: string }) {
-  return <View style={styles.dayRule} accessibilityRole="header">
-    <View style={styles.dayRuleLine} />
-    <AppText variant="label" color={Colors.muted} style={styles.dayRuleLabel}>{label}</AppText>
-    <View style={styles.dayRuleLine} />
-  </View>;
-}
-
-/** Ação de folha com ícone colorido: cor no ícone e superfície discreta. */
-function SheetAction({ icon, label, tone = 'ink', disabled = false, onPress }: {
-  icon: IconName;
-  label: string;
-  tone?: 'ink' | 'red';
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.sheetRow, pressed && styles.sheetRowPressed, disabled && styles.sheetRowDisabled]}>
-      <View style={[styles.sheetIcon, tone === 'red' ? styles.sheetIconRed : styles.sheetIconInk]}>
-        <Icon name={icon} size={19} color={tone === 'red' ? Colors.red : Colors.ink} />
-      </View>
-      <AppText style={styles.sheetLabel}>{label}</AppText>
-      <Icon name="chevronRight" size={18} color={Colors.muted} />
-    </Pressable>
-  );
-}
-
-function ReactionPicker({ message, anchor, insets, onClose, onReact, onMore }: {
-  message: api.SquareMessage | null;
-  anchor: MessageAnchor | null;
-  insets: { top: number; bottom: number; left: number; right: number };
-  onClose: () => void;
-  onReact: (message: api.SquareMessage, emoji: string) => void;
-  onMore: (message: api.SquareMessage) => void;
-}) {
-  const { width, height } = useWindowDimensions();
-  const [pickerHeight, setPickerHeight] = useState(0);
-  if (!message || !anchor) return null;
-  const margin = Spacing.two;
-  const safeTop = insets.top + margin;
-  const safeBottom = height - insets.bottom - margin;
-  const above = anchor.y - pickerHeight - margin;
-  const below = anchor.y + anchor.height + margin;
-  const top = above >= safeTop ? above : Math.min(below, Math.max(safeTop, safeBottom - pickerHeight));
-  const alignItems = anchor.x + anchor.width / 2 < width / 2 ? 'flex-start' : 'flex-end';
-  return <Modal transparent animationType="fade" presentationStyle="overFullScreen" visible onRequestClose={onClose} statusBarTranslucent>
-    <View style={styles.pickerOverlay}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
-      <View pointerEvents="box-none" style={[styles.pickerBounds, { top, left: insets.left + margin, right: insets.right + margin, alignItems }]}>
-        <View
-          accessibilityLabel="Reações rápidas"
-          onLayout={(event) => setPickerHeight(event.nativeEvent.layout.height)}
-          style={[styles.pickerBar, pickerHeight === 0 && styles.pickerMeasuring]}>
-          {message.viewer.canReact ? QUICK_REACTIONS.map((emoji) => <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`Reagir ${emoji}`} onPress={() => onReact(message, emoji)} style={styles.pickerEmoji}><AppText style={styles.pickerEmojiText}>{emoji}</AppText></Pressable>) : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Mais ações da mensagem" onPress={() => onMore(message)} style={styles.pickerMore}><Icon name="more" size={20} /></Pressable>
-        </View>
-      </View>
-    </View>
-  </Modal>;
-}
-
-const styles = StyleSheet.create({
-  screen: {
+const styles = StyleSheet.create({screen: {
     flex: 1,
     backgroundColor: Colors.cream,
   },
-  header: {
-    minHeight: 80,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    backgroundColor: Colors.ink,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.inkRule,
-  },
-  backBox: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.cream,
-    borderRadius: Radius.sm,
-  },
-  moreButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerPressed: {
-    opacity: 0.65,
-  },
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 3,
-  },
-  titlePress: {
-    minHeight: 22,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontFamily: Fonts.monoSemibold,
-    fontSize: 15,
-    lineHeight: 20,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  presence: {
-    minHeight: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  presenceStack: {
-    flexDirection: 'row',
-    paddingRight: 2,
-  },
-  presenceAvatar: {
-    marginRight: -4,
-  },
-  presenceText: {
-    flexShrink: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 12.5,
-    lineHeight: 17,
-  },
-  headerSpacer: { width: 44 },
-  stateWrap: { flex: 1 },
-  locked: {
+stateWrap: { flex: 1 },
+locked: {
     flex: 1,
     justifyContent: 'center',
     padding: Spacing.six,
     gap: Spacing.four,
   },
-  lockedAction: {
+lockedAction: {
     alignSelf: 'stretch',
     borderRadius: Radius.sm,
   },
-  center: { textAlign: 'center' },
-  sync: {
+center: { textAlign: 'center' },
+sync: {
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
@@ -582,15 +403,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.rule,
   },
-  messages: { paddingVertical: Spacing.two },
-  messagesArea: { flex: 1 },
-  messagesGrow: { flexGrow: 1, justifyContent: 'flex-end' },
-  emptyWrap: { minHeight: 280 },
-  olderWrap: { paddingVertical: Spacing.three },
-  older: { alignSelf: 'center' },
-  newWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
-  new: { alignSelf: 'center', marginVertical: Spacing.two },
-  notice: {
+messages: { paddingVertical: Spacing.two },
+messagesArea: { flex: 1 },
+messagesGrow: { flexGrow: 1, justifyContent: 'flex-end' },
+emptyWrap: { minHeight: 280 },
+olderWrap: { paddingVertical: Spacing.three },
+older: { alignSelf: 'center' },
+newWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
+new: { alignSelf: 'center', marginVertical: Spacing.two },
+notice: {
     borderTopWidth: 1,
     borderTopColor: Colors.ink,
     backgroundColor: Colors.strawLight,
@@ -599,67 +420,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
   },
-  noticeAction: {
+noticeAction: {
     alignSelf: 'stretch',
     borderRadius: Radius.sm,
   },
-  menu: { gap: Spacing.two, paddingBottom: Spacing.one },
-  sheetAction: { borderRadius: Radius.sm },
-  sheetSecondary: { borderRadius: Radius.sm, borderWidth: 1 },
-  sheetRow: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.two + 2,
-    borderWidth: 1,
-    borderColor: Colors.inkSoft,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.paper,
-  },
-  sheetRowPressed: {
-    backgroundColor: Colors.strawLight,
-  },
-  sheetRowDisabled: {
-    opacity: 0.55,
-  },
-  sheetIcon: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sheetIconInk: {
-    backgroundColor: Colors.strawLight,
-  },
-  sheetIconRed: {
-    backgroundColor: Colors.redSoft,
-  },
-  sheetLabel: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: Fonts.extrabold,
-    fontSize: 14.5,
-    lineHeight: 19,
-  },
-  person: {
+menu: { gap: Spacing.two, paddingBottom: Spacing.one },
+sheetAction: { borderRadius: Radius.sm },
+sheetSecondary: { borderRadius: Radius.sm, borderWidth: 1 },
+person: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
     paddingVertical: Spacing.two + 2,
   },
-  personRule: {
+personRule: {
     borderTopWidth: 1,
     borderTopColor: Colors.rule,
   },
-  flex: { flex: 1, minWidth: 0 },
-  packTabs: {
+flex: { flex: 1, minWidth: 0 },
+packTabs: {
     flexDirection: 'row',
     gap: Spacing.two,
     flexWrap: 'wrap',
     paddingBottom: Spacing.three,
   },
-  packTab: {
+packTab: {
     minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: Spacing.three,
@@ -668,18 +453,18 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     backgroundColor: Colors.paper,
   },
-  packTabOn: {
+packTabOn: {
     backgroundColor: Colors.ink,
     borderColor: Colors.ink,
   },
-  stickerGrid: {
+stickerGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  reasons: { gap: Spacing.one },
-  reasonRow: {
+reasons: { gap: Spacing.one },
+reasonRow: {
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
@@ -689,58 +474,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.rule,
   },
-  reasonRowOn: {
+reasonRowOn: {
     borderColor: Colors.ink,
     backgroundColor: Colors.strawLight,
   },
-  reasonLabel: {
+reasonLabel: {
     flex: 1,
     fontSize: 14.5,
     lineHeight: 20,
-  },
-  dayRule: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.five,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.one,
-  },
-  dayRuleLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.strawDark,
-  },
-  dayRuleLabel: {
-    letterSpacing: 1.4,
-  },
-  pickerOverlay: { flex: 1 },
-  pickerBounds: { position: 'absolute' },
-  pickerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.one,
-    backgroundColor: Colors.paper,
-    borderWidth: 1.5,
-    borderColor: Colors.ink,
-    borderRadius: Radius.sm,
-    boxShadow: '0 5px 16px rgba(0,0,0,0.18)',
-  },
-  pickerMeasuring: { opacity: 0 },
-  pickerEmoji: {
-    width: 40,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerEmojiText: {
-    fontSize: 22,
-    lineHeight: 30,
-  },
-  pickerMore: {
-    width: 44,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

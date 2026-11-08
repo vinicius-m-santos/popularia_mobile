@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -8,14 +8,15 @@ import { Avatar } from '@/components/avatar';
 import { EmailVerificationNotice } from '@/components/email-verification-notice';
 import { Icon } from '@/components/icon';
 import { useToast } from '@/components/toast';
-import { DEMO_MODE } from '@/constants/config';
 import { Colors, Fonts, Radius, Shadows } from '@/constants/theme';
-import { useEmailVerificationGuard } from '@/features/account/email-verification';
 import { useMe } from '@/features/account/account-context';
-import { putAttendance } from '@/features/events/api';
 import { callCapacitySummary, callSchedule, countdownLabel, mapsQueryUrl } from '@/features/events/format';
-import { useInteractions } from '@/features/interactions/interactions-context';
 import type { EventCapacityMode, User } from '@/types/models';
+
+import { useChamadoAttendance } from './chamado-attendance';
+import { facesFor, googleCalendarUrl, namesFor, whoLabel } from './chamado-card-model';
+
+export { useChamadoAttendance } from './chamado-attendance';
 
 /** Tudo que o cartão precisa, já resolvido a partir de um chamado fictício ou da API. */
 export type ChamadoCardData = {
@@ -351,145 +352,6 @@ function Perforation() {
       <View style={[styles.notch, styles.notchRight]} />
     </View>
   );
-}
-
-type Face = { key: string; id?: string; initials: string; tone: User['tone']; avatarUrl?: string | null; viewer?: boolean };
-
-function facesFor(people: User[], going: boolean, me: User, limit: number): Face[] {
-  const unique = new Map<string, Face>();
-  if (going) unique.set('me', { key: 'me', initials: me.initials, tone: 'red', viewer: true });
-  for (const person of people) {
-    if (person.id === me.id || unique.has(person.id)) continue;
-    unique.set(person.id, { key: person.id, id: person.id, initials: person.initials, tone: person.tone, avatarUrl: person.avatarUrl });
-    if (unique.size >= limit) break;
-  }
-  return [...unique.values()].slice(0, limit);
-}
-
-function namesFor(people: User[], going: boolean, me: User): string[] {
-  const names: string[] = [];
-  if (going) names.push('Você');
-  for (const person of people) {
-    if (person.id === me.id) continue;
-    const first = person.name.trim().split(/\s+/)[0];
-    if (!first || names.includes(first)) continue;
-    names.push(first);
-    if (names.length >= 2) break;
-  }
-  return names;
-}
-
-function whoLabel(names: string[], extra: number, goingCount: number): string {
-  if (goingCount === 0) return 'Ninguém confirmou ainda.';
-  const verb = goingCount === 1 ? 'vai' : 'vão';
-  if (names.length === 0) return `${goingCount} ${verb}.`;
-  if (extra > 0) return `${names.join(', ')} e mais ${extra} ${verb}.`;
-  if (names.length === 1) return `${names[0]} ${verb}.`;
-  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]} ${verb}.`;
-}
-
-/** Presença do chamado no feed: local para tocar na hora, confirmada no servidor quando há API. */
-export function useChamadoAttendance(data: ChamadoCardData) {
-  const { isOn, setOn } = useInteractions();
-  const verification = useEmailVerificationGuard();
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const serverGoing = data.viewerAttendance === 'going';
-  const serverMaybe = data.viewerAttendance === 'maybe';
-  const going = isOn('goingEvents', data.id);
-  const maybe = isOn('maybeEvents', data.id);
-  const alive = useRef(true);
-
-  // O efeito só deve alinhar o estado local quando o dado do servidor (ou o
-  // chamado) muda. Lemos os valores atuais por ref para não reexecutá-lo a cada
-  // toque: se `going` entrasse nas dependências, cancelar a presença seria
-  // desfeito pelo próprio efeito ao ver `viewerAttendance` antigo.
-  const goingNow = useRef(going);
-  const maybeNow = useRef(maybe);
-  useEffect(() => {
-    goingNow.current = going;
-    maybeNow.current = maybe;
-  }, [going, maybe]);
-
-  useEffect(() => {
-    alive.current = true;
-    return () => { alive.current = false; };
-  }, []);
-
-  // O resumo do feed traz a resposta de quem vê: ela vira o estado local da sessão.
-  useEffect(() => {
-    if (!alive.current) return;
-    if (serverGoing) {
-      if (!goingNow.current) setOn('goingEvents', [data.id], true);
-      if (maybeNow.current) setOn('maybeEvents', [data.id], false);
-    } else if (serverMaybe) {
-      if (!maybeNow.current) setOn('maybeEvents', [data.id], true);
-      if (goingNow.current) setOn('goingEvents', [data.id], false);
-    }
-  }, [data.id, serverGoing, serverMaybe, setOn]);
-
-  const setAttendance = async (next: 'going' | 'maybe' | null) => {
-    if (busy) return;
-    // Bloqueio já conhecido: nada de requisição ou atualização otimista. O cartão
-    // mostra a causa e o caminho para confirmar o e-mail.
-    if (verification.required) {
-      verification.showPrompt();
-      return;
-    }
-    // Se o aviso era de uma restrição já resolvida, a nova tentativa o recolhe.
-    if (verification.prompt) verification.dismissPrompt();
-    const previous = { going, maybe };
-    const nextGoing = next === 'going';
-    const nextMaybe = next === 'maybe';
-    if (going !== nextGoing) setOn('goingEvents', [data.id], nextGoing);
-    if (maybe !== nextMaybe) setOn('maybeEvents', [data.id], nextMaybe);
-    if (DEMO_MODE) {
-      if (next) toast.show('Presença marcada neste aparelho até fechar o app.');
-      return;
-    }
-    setBusy(true);
-    try {
-      await putAttendance(data.id, next ?? 'not_going');
-    } catch (error) {
-      setOn('goingEvents', [data.id], previous.going);
-      setOn('maybeEvents', [data.id], previous.maybe);
-      // A conta em memória podia estar desatualizada. O guard registra a recusa da
-      // API e recarrega a conta para os próximos toques já conhecerem a restrição.
-      if (verification.handleError(error)) return;
-      toast.show('Não foi possível atualizar sua presença. Tente de novo.');
-    } finally {
-      if (alive.current) setBusy(false);
-    }
-  };
-
-  return {
-    going,
-    maybe,
-    busy,
-    verificationRequired: verification.required,
-    verificationPrompt: verification.prompt,
-    dismissVerificationPrompt: verification.dismissPrompt,
-    // A contagem do servidor já inclui a própria pessoa quando ela confirmou lá.
-    goingCount: Math.max(0, data.goingCount + (going ? 1 : 0) - (serverGoing ? 1 : 0)),
-    maybeCount: Math.max(0, data.maybeCount + (maybe ? 1 : 0) - (serverMaybe ? 1 : 0)),
-    setAttendance,
-  };
-}
-
-/** Alternativa sem o módulo nativo: Google Agenda com título, data, local e detalhes. */
-function googleCalendarUrl(data: ChamadoCardData): string | null {
-  const start = new Date(data.startsAt);
-  if (Number.isNaN(start.getTime())) return null;
-  const end = data.endsAt ? new Date(data.endsAt) : new Date(start.getTime() + 60 * 60 * 1000);
-  const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-  const params = [
-    ['action', 'TEMPLATE'],
-    ['text', data.title],
-    ['dates', `${stamp(start)}/${stamp(end)}`],
-    ['details', data.description],
-    ['location', [data.placeName, data.address].filter((value): value is string => !!value).join(' — ')],
-  ].filter(([, value]) => !!value).map(([key, value]) => `${key}=${encodeURIComponent(value!)}`).join('&');
-  return `https://calendar.google.com/calendar/render?${params}`;
 }
 
 const styles = StyleSheet.create({
