@@ -1,7 +1,7 @@
 import { useEvent, useEventListener } from 'expo';
 import { Image, type ImageRef } from 'expo-image';
 import type { VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
 import { AppState, Dimensions, Platform, Pressable, PixelRatio, StyleSheet, View } from 'react-native';
 import type { PanGesture } from 'react-native-gesture-handler';
 
@@ -25,6 +25,7 @@ import {
 
 import { posterCache } from '../poster-cache';
 import { PhotoViewer } from './photo-viewer';
+import { measurePhotoOrigin, type WindowRect } from './photo-viewer-transition';
 import { VideoViewer, type VideoChrome } from './video-viewer';
 import { VIDEO_SURFACE_COVER_TIMEOUT_MS } from './video-surface';
 
@@ -131,6 +132,13 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
   // cheia. Só é lida no toque e liberada ao fechar, para não reter uma foto por
   // cartão da lista.
   const [preview, setPreview] = useState<ImageRef | null>(null);
+  // Origem do thumbnail para a continuação visual. A medida é tirada no
+  // `pressIn` e vira um snapshot ao abrir; o ref da célula não é guardado,
+  // porque a lista pode reciclá-la para outra foto.
+  const [transitionOrigin, setTransitionOrigin] = useState<WindowRect | null>(null);
+  const frame = useRef<ComponentRef<typeof Pressable>>(null);
+  const measuredOrigin = useRef<WindowRect | null>(null);
+  const originRequest = useRef(0);
   const previewRequest = useRef(0);
   const previewLoading = useRef(false);
   const viewerCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,8 +146,27 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
   useEffect(() => () => {
     // Uma leitura em voo não pode atualizar estado depois do unmount.
     previewRequest.current += 1;
+    originRequest.current += 1;
     if (viewerCloseTimer.current !== null) clearTimeout(viewerCloseTimer.current);
   }, []);
+
+  const measureOrigin = () => {
+    // A web mantém o fade: `measureInWindow` e o Reanimated não têm o mesmo
+    // contrato de janela do nativo.
+    if (Platform.OS === 'web') {
+      measuredOrigin.current = null;
+      return;
+    }
+    const request = originRequest.current + 1;
+    originRequest.current = request;
+    measuredOrigin.current = null;
+    const window = Dimensions.get('window');
+    measurePhotoOrigin(frame.current, window.width, window.height, (next) => {
+      // Um callback atrasado de um toque anterior não pode contaminar a
+      // próxima abertura.
+      if (request === originRequest.current) measuredOrigin.current = next;
+    });
+  };
 
   const loadPreview = () => {
     if (preview || previewLoading.current) return;
@@ -171,6 +198,15 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
       viewerCloseTimer.current = null;
     }
     loadPreview();
+    // Cache frio ou feed ainda carregando: sem bitmap decodificado não há
+    // continuação visual; o visualizador abre com a listra e o fade. A medida é
+    // consumida aqui para uma abertura sem `pressIn` (leitor de tela) nunca
+    // reutilizar o retângulo de um toque anterior; a requisição em voo é
+    // invalidada para não recolocar uma medida depois da abertura.
+    originRequest.current += 1;
+    const origin = status === 'ready' ? measuredOrigin.current : null;
+    measuredOrigin.current = null;
+    setTransitionOrigin(origin);
     setViewerMounted(true);
     setOpen(true);
   };
@@ -179,6 +215,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
     previewRequest.current += 1;
     previewLoading.current = false;
     setPreview(null);
+    setTransitionOrigin(null);
     setOpen(false);
     if (viewerCloseTimer.current !== null) clearTimeout(viewerCloseTimer.current);
     viewerCloseTimer.current = setTimeout(() => {
@@ -189,6 +226,8 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
 
   return <>
     <Pressable
+      ref={frame}
+      onPressIn={measureOrigin}
       onPress={openViewer}
       accessibilityRole="button"
       accessibilityLabel="Abrir foto em tela cheia"
@@ -218,6 +257,7 @@ function PostPhoto({ media, uri, framed = false }: { media: PostMediaDto; uri: s
       onClose={closeViewer}
       width={media.width}
       height={media.height}
+      origin={transitionOrigin}
     /> : null}
   </>;
 }

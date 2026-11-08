@@ -1,6 +1,6 @@
 import { Image, type ImageLoadEventData, type ImageRef } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, clamp, ReduceMotion, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -24,6 +24,7 @@ import {
   shouldDismiss,
   type ViewerGeometry,
 } from './photo-viewer-geometry';
+import { travelDestination, validWindowRect, type WindowRect } from './photo-viewer-transition';
 
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
@@ -46,13 +47,24 @@ const RETURN_SPRING = {
   mass: 0.9,
   reduceMotion: ReduceMotion.System,
 };
+/**
+ * Continuação do thumbnail no quadro final. É uma transição automática de
+ * abertura, então segue a mesma preferência de movimento do restante da tela.
+ */
+const TRAVEL_TIMING = { duration: 240, easing: Motion.easing.standard, reduceMotion: ReduceMotion.System };
+/**
+ * Se a viewport não medir (ex.: montagem interrompida), a camada de transição
+ * não pode deixar a foto escondida. O prazo é curto para o fallback nunca
+ * parecer um travamento.
+ */
+const TRAVEL_START_TIMEOUT_MS = 200;
 
 /**
  * Foto em tela cheia sobre tinta, dentro da área útil (nunca sob o recorte),
  * com pincel para ampliar, arrasto para percorrer e toque duplo para alternar o zoom.
  * O chrome fica embaixo, sempre alcançável: é a saída garantida da tela.
  */
-export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, width, height }: {
+export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, width, height, origin = null }: {
   uri: string | null;
   /**
    * Variante reduzida já decodificada, usada como camada de transição sob a
@@ -65,6 +77,12 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
   onClose: () => void;
   width?: number;
   height?: number;
+  /**
+   * Retângulo do thumbnail na janela, medido no toque. Quando existe, a foto
+   * percorre essa origem até o quadro final; sem ele (cache frio, web, medida
+   * inválida ou célula reciclada) o `Modal` mantém o fade de fallback.
+   */
+  origin?: WindowRect | null;
 }) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
@@ -92,10 +110,30 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
   // Só um arrasto que realmente deslocou a foto precisa de retorno ao centro.
   const dismissDragged = useSharedValue(false);
 
+  // A origem é um snapshot do toque, não um ref da célula: se a lista reciclar
+  // o cartão, este visualizador continua com o retângulo da foto que abriu.
+  const measuredOrigin = useMemo(() => validWindowRect(origin), [origin]);
+  const insetTop = insets.top;
+  const insetLeft = insets.left;
+  const travelEligible = visible && measuredOrigin !== null && !!uri && !reducedMotion;
+  const [travelPhase, setTravelPhase] = useState<'idle' | 'running' | 'done'>('idle');
+  const travelSession = useRef(0);
+  const travelX = useSharedValue(measuredOrigin?.x ?? 0);
+  const travelY = useSharedValue(measuredOrigin?.y ?? 0);
+  const travelWidth = useSharedValue(measuredOrigin?.width ?? 0);
+  const travelHeight = useSharedValue(measuredOrigin?.height ?? 0);
+  // O backdrop escurece junto com a camada de transição, em vez de cobrir o
+  // feed de uma vez. No caminho sem transição ele já nasce opaco como antes.
+  const reveal = useSharedValue(travelEligible ? 0 : 1);
+
   const ratio = width && height ? width / height : 3 / 2;
   // O contrato limita a foto a 2048 × 2048; nesse intervalo decodificamos a
   // original inteira para o zoom não herdar a resolução do feed.
   const keepsFullResolution = !!width && !!height && width * height <= MAX_FULL_DECODE_PIXELS;
+
+  // Até a camada chegar ao quadro final, o conteúdo normal fica invisível. Se
+  // não há transição, ele aparece imediatamente com o fade nativo de sempre.
+  const showMain = !travelEligible || travelPhase === 'done';
 
   // Sair zera zoom e deslocamento: a próxima foto sempre abre inteira e o
   // backdrop volta opaco, sem herdar o estado do descarte anterior.
@@ -188,6 +226,98 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
       baseX.value = nextX; baseY.value = nextY;
     }
   };
+
+  const finishTravel = useCallback((session: number) => {
+    if (session !== travelSession.current) return;
+    setTravelPhase('done');
+  }, []);
+
+  /*
+   * Os shared values do Reanimated são um store externo ao estado do React: a
+   * animação começa no layout effect, quando a viewport já mediu, e o callback
+   * de conclusão devolve a fase para o React. O React Compiler não conhece esse
+   * store e trata as escritas como mutação de valor imutável.
+   */
+  /* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect */
+  // Fechar invalida a sessão em voo e devolve o backdrop opaco: uma reabertura
+  // começa da nova origem medida, nunca do destino da foto anterior.
+  useLayoutEffect(() => {
+    if (visible) return;
+    travelSession.current += 1;
+    cancelAnimation(travelX);
+    cancelAnimation(travelY);
+    cancelAnimation(travelWidth);
+    cancelAnimation(travelHeight);
+    cancelAnimation(reveal);
+    reveal.value = 1;
+    setTravelPhase('idle');
+  }, [visible, reveal, travelHeight, travelWidth, travelX, travelY]);
+
+  // Uma única partida por abertura, depois que a viewport mediu. O destino sai
+  // da área útil real; a origem é o snapshot do toque.
+  useLayoutEffect(() => {
+    if (!travelEligible) {
+      // Fallback (cache frio, web, medida inválida, Reduce Motion ou fechando):
+      // o backdrop precisa ficar opaco. Marcar a fase como concluída também
+      // impede uma transição tardia se a origem chegar depois.
+      reveal.value = 1;
+      if (visible) setTravelPhase((phase) => (phase === 'idle' ? 'done' : phase));
+      return;
+    }
+    if (travelPhase !== 'idle' || !measuredOrigin) return;
+    const destination = travelDestination({
+      viewportWidth: fold.viewportWidth,
+      viewportHeight: fold.viewportHeight,
+      fitWidth: fold.fitWidth,
+      fitHeight: fold.fitHeight,
+    }, { top: insetTop, left: insetLeft });
+    if (!destination) return;
+
+    const session = travelSession.current + 1;
+    travelSession.current = session;
+    travelX.value = measuredOrigin.x;
+    travelY.value = measuredOrigin.y;
+    travelWidth.value = measuredOrigin.width;
+    travelHeight.value = measuredOrigin.height;
+    reveal.value = 0;
+    setTravelPhase('running');
+
+    travelX.value = withTiming(destination.x, TRAVEL_TIMING);
+    travelY.value = withTiming(destination.y, TRAVEL_TIMING);
+    travelHeight.value = withTiming(destination.height, TRAVEL_TIMING);
+    reveal.value = withTiming(1, TRAVEL_TIMING);
+    // A largura é a última a terminar; o callback é a conclusão da sessão.
+    travelWidth.value = withTiming(destination.width, TRAVEL_TIMING, (finished) => {
+      'worklet';
+      if (!finished) return;
+      runOnJS(finishTravel)(session);
+    });
+  }, [finishTravel, fold.fitHeight, fold.fitWidth, fold.viewportHeight, fold.viewportWidth, insetLeft, insetTop, measuredOrigin, reveal, travelEligible, travelHeight, travelPhase, travelWidth, travelX, travelY, visible]);
+
+  // Se a preferência mudar com a transição em voo, o estado final aparece de
+  // imediato; nenhuma animação automática continua com Reduce Motion ligado.
+  useLayoutEffect(() => {
+    if (!reducedMotion || travelPhase !== 'running') return;
+    travelSession.current += 1;
+    cancelAnimation(travelX);
+    cancelAnimation(travelY);
+    cancelAnimation(travelWidth);
+    cancelAnimation(travelHeight);
+    cancelAnimation(reveal);
+    reveal.value = 1;
+    setTravelPhase('done');
+  }, [reducedMotion, reveal, travelHeight, travelPhase, travelWidth, travelX, travelY]);
+
+  // A viewport pode não medir em uma montagem interrompida. Sem este prazo, a
+  // camada de transição deixaria o conteúdo normal invisível.
+  useEffect(() => {
+    if (!visible || travelPhase !== 'idle' || !measuredOrigin || reducedMotion) return;
+    const timer = setTimeout(() => {
+      setTravelPhase((phase) => (phase === 'idle' ? 'done' : phase));
+    }, TRAVEL_START_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [measuredOrigin, reducedMotion, travelPhase, visible]);
+  /* eslint-enable react-hooks/immutability, react-hooks/set-state-in-effect */
 
   const pinch = usePinchGesture({
     // O zoom parte do valor que está na tela e anda com o delta de cada evento
@@ -368,8 +498,20 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
   const gesture = useSimultaneousGestures(pinch, pan, doubleTap);
   const zoomed = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: scale.value }] }));
   // O fundo e o chrome somem juntos enquanto a foto acompanha o dedo. O
-  // backdrop transparente revela o feed por baixo sem desmontar o Modal.
-  const overlay = useAnimatedStyle(() => ({ opacity: dragBackdropOpacity(translateY.value, scale.value) }));
+  // backdrop transparente revela o feed por baixo sem desmontar o Modal. A
+  // revelação da abertura multiplica esse valor para a transição não cobrir o
+  // feed de uma vez.
+  const overlay = useAnimatedStyle(() => ({
+    opacity: dragBackdropOpacity(translateY.value, scale.value) * reveal.value,
+  }));
+  // A camada anda com largura e altura reais para o `cover` recortar a foto do
+  // mesmo jeito que o thumbnail no início e no quadro final.
+  const travelStyle = useAnimatedStyle(() => ({
+    left: travelX.value,
+    top: travelY.value,
+    width: travelWidth.value,
+    height: travelHeight.value,
+  }));
 
   // Cada abertura é uma nova medição: zera as marcas sem criar timer nem
   // observer. A instrumentação é fechada em produção e não recebe a URL.
@@ -381,7 +523,14 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
     recordPhotoOpen(mediaId ?? 'unknown');
   }, [mediaId, visible]);
 
-  return <Modal transparent visible={visible} animationType={reducedMotion ? 'none' : 'fade'} statusBarTranslucent onRequestClose={requestClose} onShow={reset} testID="photo-viewer-modal">
+  // Com uma origem válida, o conteúdo já nasce pronto e a camada de transição
+  // aparece no primeiro quadro: o fade nativo faria a miniatura viajar dentro
+  // de um véu. Sem origem (cache frio, web ou medida reciclada), o `Modal`
+  // mantém o fade de fallback. Fechar limpa a origem no mesmo commit de
+  // `visible=false`, então a saída volta a usar o fade nativo.
+  const animationType = reducedMotion || (visible && measuredOrigin) ? 'none' : 'fade';
+
+  return <Modal transparent visible={visible} animationType={animationType} statusBarTranslucent onRequestClose={requestClose} onShow={reset} testID="photo-viewer-modal">
     <GestureHandlerRootView
       testID="photo-viewer-root"
       style={styles.root}
@@ -398,7 +547,7 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
           onLayout={(event) => onLayout(event.nativeEvent.layout.width, event.nativeEvent.layout.height)}>
           <GestureDetector gesture={gesture}>
             <View style={styles.fill} collapsable={false}>
-              {fold.fitWidth > 0 && uri ? <Animated.View style={[styles.fit, { width: fold.fitWidth, height: fold.fitHeight }, zoomed]}>
+              {fold.fitWidth > 0 && uri ? <Animated.View testID="photo-viewer-fit" style={[styles.fit, { width: fold.fitWidth, height: fold.fitHeight }, zoomed, !showMain && styles.invisible]}>
                 <View style={styles.underlay} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                   <PhotoFallback preview={preview} />
                 </View>
@@ -432,7 +581,7 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
               </Animated.View> : (
                 <View
                   testID="photo-viewer-placeholder"
-                  style={StyleSheet.absoluteFill}
+                  style={[StyleSheet.absoluteFill, !showMain && styles.invisible]}
                   pointerEvents="none"
                   accessibilityElementsHidden
                   importantForAccessibility="no-hide-descendants">
@@ -442,7 +591,11 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
             </View>
           </GestureDetector>
         </View>
-        <Animated.View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.four) }, overlay]}>
+        <Animated.View
+          style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Spacing.four) }, overlay, !showMain && styles.invisible]}
+          pointerEvents={showMain ? 'auto' : 'none'}
+          accessibilityElementsHidden={!showMain}
+          importantForAccessibility={showMain ? 'auto' : 'no-hide-descendants'}>
           <AppText variant="label" color={Colors.paper}>Foto</AppText>
           <Pressable
             onPress={requestClose}
@@ -456,6 +609,25 @@ export function PhotoViewer({ uri, preview = null, mediaId, visible, onClose, wi
           </Pressable>
         </Animated.View>
       </View>
+      {!showMain && measuredOrigin ? (
+        <Animated.View
+          testID="photo-viewer-transition"
+          pointerEvents="none"
+          style={[styles.travel, travelStyle]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants">
+          <Image
+            testID="photo-viewer-transition-image"
+            source={preview ?? { uri: uri ?? '' }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={mediaId ?? uri ?? undefined}
+            transition={null}
+            accessible={false}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      ) : null}
     </GestureHandlerRootView>
   </Modal>;
 }
@@ -499,6 +671,10 @@ const styles = StyleSheet.create({
   viewport: { flex: 1, overflow: 'hidden' },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fit: { backgroundColor: Colors.ink },
+  // O conteúdo normal espera a camada de transição terminar sem piscar atrás
+  // dela; a opacidade é só visual, a viewport continua medindo normalmente.
+  invisible: { opacity: 0 },
+  travel: { position: 'absolute' },
   underlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   placeholderFill: { flex: 1, borderRadius: 0 },
   photoError: { alignItems: 'center', justifyContent: 'center', padding: Spacing.four, backgroundColor: 'rgba(22,18,15,0.72)' },

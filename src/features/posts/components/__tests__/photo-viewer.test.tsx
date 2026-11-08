@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react-native';
 import type { ImageRef } from 'expo-image';
 import { AccessibilityInfo } from 'react-native';
 
@@ -492,5 +492,65 @@ describe('PhotoViewer', () => {
 
     expect(screen.getByText('Não foi possível carregar a imagem.')).toBeTruthy();
     expect(screen.getByTestId('photo-viewer-stripes', { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('leva a camada da origem medida até o quadro final antes de mostrar a foto', async () => {
+    const origin = { x: 20, y: 120, width: 180, height: 240 };
+    await render(<PhotoViewer origin={origin} uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+
+    // A camada já nasce no primeiro quadro e o conteúdo normal espera a chegada.
+    expect(screen.getByTestId('photo-viewer-transition', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId('photo-viewer-modal').props.animationType).toBe('none');
+
+    await layout(400, 800);
+
+    // Destino: foto 400 × 800 centralizada na viewport de 400 × 800. A última
+    // medida é a largura, cujo callback fecha a sessão.
+    expect(mockTimings.map((timing) => timing.value)).toEqual([0, 0, 800, 1, 400]);
+    for (const timing of mockTimings) {
+      expect(timing.config?.reduceMotion).toBe('system');
+    }
+    expect(screen.getByTestId('photo-viewer-fit')).toHaveStyle({ opacity: 0 });
+
+    const completion = mockTimings.find((timing) => timing.value === 400 && timing.callback);
+    await act(async () => { completion?.callback?.(true); });
+
+    await waitFor(() => expect(screen.queryByTestId('photo-viewer-transition', { includeHiddenElements: true })).toBeNull());
+    expect(screen.getByTestId('photo-viewer-fit')).not.toHaveStyle({ opacity: 0 });
+  });
+
+  it('mantém o fade nativo quando não há origem válida', async () => {
+    await render(<PhotoViewer origin={{ x: 0, y: 0, width: 0, height: 0 }} uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await layout(400, 800);
+
+    expect(screen.getByTestId('photo-viewer-modal').props.animationType).toBe('fade');
+    expect(screen.queryByTestId('photo-viewer-transition', { includeHiddenElements: true })).toBeNull();
+    expect(screen.getByTestId('photo-viewer-fit')).not.toHaveStyle({ opacity: 0 });
+    expect(currentOpacity()).toBe(1);
+    expect(mockTimings).toHaveLength(0);
+  });
+
+  it('volta ao fade nativo assim que a origem é liberada no fechamento', async () => {
+    const origin = { x: 20, y: 120, width: 180, height: 240 };
+    const view = await render(<PhotoViewer origin={origin} uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    expect(screen.getByTestId('photo-viewer-modal').props.animationType).toBe('none');
+
+    await view.rerender(<PhotoViewer origin={null} uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    expect(screen.getByTestId('photo-viewer-modal').props.animationType).toBe('fade');
+  });
+
+  it('não anima a transição com movimento reduzido, mesmo com origem medida', async () => {
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    const origin = { x: 20, y: 120, width: 180, height: 240 };
+    await render(<PhotoViewer origin={origin} uri="https://example.test/foto.jpg" visible onClose={() => {}} width={400} height={800} />);
+    await waitFor(() => expect(screen.getByTestId('photo-viewer-modal').props.animationType).toBe('none'));
+
+    mockTimings.length = 0;
+    await layout(400, 800);
+
+    expect(screen.queryByTestId('photo-viewer-transition', { includeHiddenElements: true })).toBeNull();
+    expect(screen.getByTestId('photo-viewer-image').props.transition).toBeNull();
+    expect(currentOpacity()).toBe(1);
+    expect(mockTimings).toHaveLength(0);
   });
 });

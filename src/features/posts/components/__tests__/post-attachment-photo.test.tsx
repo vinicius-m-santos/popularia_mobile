@@ -30,6 +30,17 @@ jest.mock('../photo-viewer', () => {
   };
 });
 
+const mockMeasuredOrigin = { x: 12, y: 34, width: 120, height: 160 };
+jest.mock('../photo-viewer-transition', () => ({
+  ...jest.requireActual<typeof import('../photo-viewer-transition')>('../photo-viewer-transition'),
+  measurePhotoOrigin: (
+    _view: unknown,
+    _windowWidth: number,
+    _windowHeight: number,
+    onMeasured: (origin: unknown) => void,
+  ) => onMeasured(mockMeasuredOrigin),
+}));
+
 const photo: PostMediaDto = {
   id: 'photo-1',
   type: 'image',
@@ -97,6 +108,20 @@ describe('PostAttachment · foto em tela cheia', () => {
     expect(mockViewerLifecycle.mounts).toBe(1);
   });
 
+  it('mede o thumbnail no pressIn e entrega a origem ao visualizador', async () => {
+    await render(<PostAttachment media={photo} />);
+    await fireEvent(screen.getByTestId('post-photo-image'), 'load');
+
+    const button = screen.getByLabelText('Abrir foto em tela cheia');
+    await fireEvent(button, 'pressIn');
+    await fireEvent.press(button);
+
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({
+      visible: true,
+      origin: mockMeasuredOrigin,
+    }));
+  });
+
   it('abre sem preview quando o bitmap ainda não está no cache', async () => {
     mockLoadAsync.mockResolvedValue(null);
     await render(<PostAttachment media={photo} />);
@@ -115,7 +140,7 @@ describe('PostAttachment · foto em tela cheia', () => {
     // A listra do feed ainda está no lugar: a tela cheia usa a listra e pede a original.
     await fireEvent.press(screen.getByLabelText('Abrir foto em tela cheia'));
 
-    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: true, preview: null }));
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: true, preview: null, origin: null }));
     expect(mockLoadAsync).not.toHaveBeenCalled();
   });
 
@@ -132,8 +157,8 @@ describe('PostAttachment · foto em tela cheia', () => {
       (lastViewerProps().onClose as () => void)();
     });
     // O Modal nativo ainda está no fade de saída: o viewer continua montado,
-    // mas já sem a variante reduzida.
-    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: false, preview: null }));
+    // mas já sem a variante reduzida e sem a origem do thumbnail.
+    await waitFor(() => expect(lastViewerProps()).toMatchObject({ visible: false, preview: null, origin: null }));
     expect(mockViewerLifecycle.unmounts).toBe(0);
 
     await waitFor(() => expect(mockViewerLifecycle.unmounts).toBe(1));
